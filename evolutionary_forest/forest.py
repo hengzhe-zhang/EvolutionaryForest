@@ -26,11 +26,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier, BaseDecisionTree
 
-from evolutionary_forest.multigene_gp import MultipleGeneGP, multiple_gene_initialization, multiple_gene_compile, \
+from multigene_gp import MultipleGeneGP, multiple_gene_initialization, multiple_gene_compile, \
     cxOnePoint_multiple_gene, result_calculation, staticLimit_multiple_gene, \
     cxOnePoint_multiple_gene_weight, mutUniform_multiple_gene, \
     mutUniform_multiple_gene_weight, feature_crossover, feature_crossover_cross, mutWeight_multiple_gene
-from evolutionary_forest.pruning import oob_pruning
+from pruning import oob_pruning
 
 
 def similar(a, b):
