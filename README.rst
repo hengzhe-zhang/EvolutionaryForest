@@ -62,7 +62,7 @@ An example of usage:
 
 An example of improvements brought about by constructed features:
 
-.. image:: docs/constructed_features.png
+.. image:: https://raw.githubusercontent.com/zhenlingcn/EvolutionaryForest/master/docs/constructed_features.png
 Credits
 -------
 
