@@ -2,23 +2,18 @@
 
 """Tests for `evolutionary_forest` package."""
 
-import pytest
+from numpy.testing import assert_almost_equal
+from sklearn.datasets import make_regression
+from sklearn.metrics import mean_squared_error
+
+from evolutionary_forest.forest import GPRegressor
 
 
-from evolutionary_forest import evolutionary_forest
-
-
-@pytest.fixture
-def response():
-    """Sample pytest fixture.
-
-    See more at: http://doc.pytest.org/en/latest/fixture.html
-    """
-    # import requests
-    # return requests.get('https://github.com/audreyr/cookiecutter-pypackage')
-
-
-def test_content(response):
-    """Sample pytest test function with the pytest fixture as an argument."""
-    # from bs4 import BeautifulSoup
-    # assert 'GitHub' in BeautifulSoup(response.content).title.string
+def test_simple_data():
+    X, y = make_regression(n_samples=100, n_features=5, n_informative=5)
+    gp = GPRegressor(max_height=8, normalize=True, select='AutomaticLexicase', boost_size=10, n_gen=2,
+                     gene_num=5, base_learner='Random-DT')
+    gp.fit(X, y)
+    assert_almost_equal(mean_squared_error(y, gp.predict(X)), 0)
+    assert len(gp.hof) == 10
+    assert len(gp.hof[0].gene) == 5
