@@ -13,5 +13,5 @@ deploy:
     secure: KLXT9dc2qJckgGrXQQWotrF9qipCqglWUqhRSKyz5bvZCei8GtCi2zzXwjToxmNnWBIpMrS40L84//EnDosLDEJGU5p21tqSdQaR40l9VZHzpPzlYrmbwL4rC4O+DbrqV5NJJgB5OhNq1J86ckCKUgffgaWPflSHqGkijDUbkKEzV3bEfNgCe4DrqiefTT6+zm4S6vjaaAX+RkDSh9ixAWazSZdzS8wuNyhXt7vPCCP26hwz/f6vSZWyHZwOzfuNRr6DgWm15WOGBgiKWR2PGVE5AFooEEROpGbThzcbrMY2Q5vDOezSWvYCZf4D0BhUFoEnV0bM+WrMkFvg5TVxaMda+Y+RUuGhXEf7j93eoD9dm9kk4FdM6GHqAOAZhxstA5xdY4KusoEVUo61u56kmD6P7D1d/t4eER+SAyl7rtlFNr4Bn1fyRmWKy2d2Mg/Femxm+zk2ig1mPb74ROuAAbXDTXINjscB7xPxiImTZkFeYtjxhU4cWlsvLQzJg6X3zpJewWr3Xztj61OBgaXwe+hAh2ns5Fel/n4R5hoDNwnwN7xfKTkdEYUQGTGh6IK8tO5OBJPnpwmEo0Wk8o8UJt/Fksgac1hHmskkvcRds00IXWjSsoSnUk//70WyWtOPlerfoj8pGs2GviSy1McXB7WGPqDl5KgmPM1Tz+UkpzE=
   on:
     tags: true
-    repo: zhenlingcn/evolutionary_forest
-    python: 3.8
+    repo: zhenlingcn/EvolutionaryForest
+    python: 3.6
