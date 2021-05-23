@@ -1,0 +1,9 @@
+scipy
+hdfe
+numpy
+seaborn
+matplotlib
+deap
+sympy
+pandas
+scikit_learn

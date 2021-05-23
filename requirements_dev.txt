@@ -10,3 +10,13 @@ twine==1.14.0
 
 pytest==4.6.5
 pytest-runner==5.1
+
+scipy
+hdfe
+numpy
+seaborn
+matplotlib
+deap
+sympy
+pandas
+scikit_learn
