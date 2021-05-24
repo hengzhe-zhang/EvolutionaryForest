@@ -6,8 +6,8 @@ Evolutionary Forest
 .. image:: https://img.shields.io/pypi/v/evolutionary_forest.svg
         :target: https://pypi.python.org/pypi/evolutionary_forest
 
-.. image:: https://img.shields.io/travis/zhenlingcn/evolutionary_forest.svg
-        :target: https://travis-ci.com/zhenlingcn/evolutionary_forest
+.. image:: https://img.shields.io/travis/com/zhenlingcn/evolutionaryforest.svg
+        :target: https://www.travis-ci.com/github/zhenlingcn/EvolutionaryForest
 
 .. image:: https://readthedocs.org/projects/evolutionary-forest/badge/?version=latest
         :target: https://evolutionary-forest.readthedocs.io/en/latest/?version=latest
@@ -28,26 +28,27 @@ An open source python library for automated feature engineering based on Genetic
 
 
 Introduction
---------
+----------------
+
 Feature engineering is a long-standing issue that has plagued machine learning practitioners for many years. Deep learning techniques have significantly reduced the need for manual feature engineering in recent years. However, a critical issue is that the features discovered by deep learning methods are difficult to interpret.
 
 In the domain of interpretable machine learning, genetic programming has demonstrated to be a promising method for automated feature construction, as it can improve the performance of traditional machine learning systems while maintaining similar interpretability. Nonetheless, such a potent method is rarely mentioned by practitioners. We believe that the main reason for this phenomenon is that there is still a lack of a mature package that can automatically build features based on the genetic programming algorithm. As a result, we propose this package with the goal of providing a powerful feature construction tool for enhancing existing state-of-the-art machine learning algorithms, particularly decision-tree based algorithms.
 
 Features
---------
+----------------
 
 *   A powerful feature construction tool for generating interpretable machine learning features.
 *   A reliable machine learning model has powerful performance on the small dataset.
 
 Installation
---------
+----------------
 
 .. code:: bash
 
     pip install -U evolutionary_forest
 
 Example
---------
+----------------
 An example of usage:
 
 .. code:: Python
@@ -62,9 +63,10 @@ An example of usage:
 
 An example of improvements brought about by constructed features:
 
-.. image:: docs/constructed_features.png
+.. image:: https://raw.githubusercontent.com/zhenlingcn/EvolutionaryForest/master/docs/constructed_features.png
+
 Credits
--------
+---------------
 
 This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 
