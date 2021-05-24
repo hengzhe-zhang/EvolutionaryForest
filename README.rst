@@ -7,7 +7,7 @@ Evolutionary Forest
         :target: https://pypi.python.org/pypi/evolutionary_forest
 
 .. image:: https://img.shields.io/travis/zhenlingcn/evolutionary_forest.svg
-        :target: https://travis-ci.com/zhenlingcn/evolutionary_forest
+        :target: https://www.travis-ci.com/github/zhenlingcn/EvolutionaryForest
 
 .. image:: https://readthedocs.org/projects/evolutionary-forest/badge/?version=latest
         :target: https://evolutionary-forest.readthedocs.io/en/latest/?version=latest
