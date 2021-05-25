@@ -17,6 +17,6 @@ numpy
 seaborn
 matplotlib
 deap
-sympy
+sympy==1.8
 pandas
 scikit_learn
