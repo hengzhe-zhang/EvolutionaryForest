@@ -15,7 +15,7 @@ scipy
 hdfe
 numpy
 seaborn
-matplotlib
+matplotlib==3.4.2
 deap
 sympy
 pandas
