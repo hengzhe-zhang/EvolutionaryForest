@@ -14,7 +14,7 @@ pytest-runner==5.1
 scipy
 hdfe
 numpy
-seaborn
+seaborn==0.11.1
 matplotlib
 deap
 sympy
