@@ -18,5 +18,5 @@ seaborn
 matplotlib
 deap
 sympy
-pandas
+pandas==1.2.4
 scikit_learn
