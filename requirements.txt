@@ -1,5 +1,5 @@
 scipy
-hdfe
+hdfe==0.0.4
 numpy
 seaborn
 matplotlib
