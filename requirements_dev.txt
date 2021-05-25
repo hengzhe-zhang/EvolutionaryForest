@@ -12,7 +12,7 @@ pytest==4.6.5
 pytest-runner==5.1
 
 scipy
-hdfe
+hdfe==0.0.4
 numpy
 seaborn
 matplotlib
