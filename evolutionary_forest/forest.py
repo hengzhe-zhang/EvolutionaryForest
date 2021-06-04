@@ -1,21 +1,17 @@
-import copy
 import operator
-import random
 import warnings
 from functools import partial
 from typing import List
 
-import numpy as np
 from deap import base
 from deap import creator
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
-from deap.tools import selRandom, HallOfFame, selLexicase, selNSGA2
-from hdfe import Groupby
+from deap.tools import selRandom, selLexicase, selNSGA2
 from scipy import stats
 from scipy.spatial.distance import cosine
-from scipy.stats import spearmanr, kendalltau, rankdata, mode
+from scipy.stats import spearmanr, kendalltau, rankdata
 from sklearn.base import RegressorMixin, BaseEstimator, ClassifierMixin
 from sklearn.compose.tests.test_target import DummyTransformer
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
@@ -29,11 +25,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier, BaseDecisionTree
 
-from evolutionary_forest.multigene_gp import MultipleGeneGP, multiple_gene_initialization, multiple_gene_compile, \
-    cxOnePoint_multiple_gene, result_calculation, staticLimit_multiple_gene, \
-    cxOnePoint_multiple_gene_weight, mutUniform_multiple_gene, \
-    mutUniform_multiple_gene_weight, feature_crossover, feature_crossover_cross, mutWeight_multiple_gene, \
-    construct_feature_pools, feature_crossover_cross_global, cxOnePoint_multiple_all_gene
+from evolutionary_forest.component.archive import *
+from evolutionary_forest.component.primitives import *
+from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicase, \
+    selAutomaticEpsilonLexicaseK, selTournamentPlus
+from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.sklearn_utils import cross_val_predict
 
@@ -67,106 +63,6 @@ def spearman(ya, yb):
 
 def kendall(ya, yb):
     return kendalltau(ya, yb)[0]
-
-
-class LexicaseHOF(HallOfFame):
-    def __init__(self):
-        HallOfFame.__init__(self, None)
-
-    def update(self, population):
-        for p in population:
-            self.insert(p)
-
-        hofer_arr: np.ndarray = None
-        for i, hofer in enumerate(self):
-            if hofer_arr is None:
-                hofer_arr = np.array(-1 * hofer.case_values).reshape(1, -1)
-            else:
-                hofer_arr = np.concatenate([hofer_arr, np.array(-1 * hofer.case_values).reshape(1, -1)])
-        max_hof = np.max(hofer_arr, axis=0)
-
-        del_ind = []
-        max_value = np.full_like(max_hof, -np.inf)
-        for index, x in enumerate(self):
-            fitness_wvalues = np.array(-1 * x.case_values)
-            if np.any(fitness_wvalues >= max_hof) \
-                and np.any(fitness_wvalues > max_value):
-                loc = np.where(fitness_wvalues > max_value)
-                max_value[loc] = fitness_wvalues[loc]
-                continue
-            del_ind.append(index)
-
-        for i in reversed(del_ind):
-            self.remove(i)
-
-
-class RandomObjectiveHOF(HallOfFame):
-    """
-    An archive which updating based on random projected fitness values
-    """
-
-    def update(self, population):
-        for ind in population:
-            if len(self) == 0 and self.maxsize != 0:
-                # Working on an empty hall of fame is problematic for the
-                # "for else"
-                self.insert(population[0])
-                continue
-            if np.any(ind.case_values < self[-1].case_values) or len(self) < self.maxsize:
-                for hofer in self:
-                    # Loop through the hall of fame to check for any
-                    # similar individual
-                    if self.similar(ind, hofer):
-                        break
-                else:
-                    # The individual is unique and strictly better than
-                    # the worst
-                    if len(self) >= self.maxsize:
-                        self.remove(-1)
-                    self.insert(ind)
-
-
-class AutoLexicaseHOF(HallOfFame):
-    """
-    Automatically archive the best indivdiaul on each objective value
-    """
-
-    def update(self, population):
-        """
-        Update the Pareto front hall of fame with the *population* by adding
-        the individuals from the population that are not dominated by the hall
-        of fame. If any individual in the hall of fame is dominated it is
-        removed.
-
-        :param population: A list of individual with a fitness attribute to
-                           update the hall of fame with.
-        """
-        # insert all individuals
-        for p in population:
-            self.insert(p)
-
-        # calculate minimum value on each dimension
-        hofer_arr: np.ndarray = None
-        for i, hofer in enumerate(self):
-            if hofer_arr is None:
-                hofer_arr = np.array(hofer.case_values).reshape(1, -1)
-            else:
-                hofer_arr = np.concatenate([hofer_arr, np.array(hofer.case_values).reshape(1, -1)])
-        max_hof = np.min(hofer_arr, axis=0)
-
-        # only append individuals which can make a contribution
-        del_ind = []
-        max_value = np.full_like(max_hof, np.inf)
-        for index, x in enumerate(self):
-            fitness_wvalues = np.array(x.case_values)
-            if np.any(fitness_wvalues <= max_hof) and np.any(fitness_wvalues < max_value):
-                loc = np.where(fitness_wvalues < max_value)
-                max_value[loc] = fitness_wvalues[loc]
-                continue
-            del_ind.append(index)
-
-        for i in reversed(del_ind):
-            self.remove(i)
 
 
 class TestFunction():
@@ -1163,265 +1059,9 @@ class GPClassifier(GPRegressor):
         return pipe
 
 
-def batch_tournament_selection(individuals, k, tournsize, batch_size, fit_attr="fitness"):
-    fitness_cases_num = len(individuals[0].case_values)
-    idx_cases_batch = np.arange(0, fitness_cases_num)
-    np.random.shuffle(idx_cases_batch)
-    _batches = np.array_split(idx_cases_batch, max(fitness_cases_num // batch_size, 1))
-    batch_ids = np.arange(0, len(_batches))
-    assert len(_batches[0]) >= batch_size or fitness_cases_num < batch_size
-
-    chosen = []
-    while len(chosen) < k:
-        batches: list = copy.deepcopy(batch_ids.tolist())
-        while len(batches) > 0 and len(chosen) < k:
-            idx_candidates = selRandom(individuals, tournsize)
-            cand_fitness_for_this_batch = []
-            for idx in idx_candidates:
-                cand_fitness_for_this_batch.append(np.mean(idx.case_values[_batches[batches[0]]]))
-            idx_winner = np.argmin(cand_fitness_for_this_batch)
-            winner = idx_candidates[idx_winner]
-            chosen.append(winner)
-            batches.pop(0)
-    return chosen
-
-
 def truncated_normal(lower=0, upper=1, mu=0.5, sigma=0.1, sample=(100, 100)):
     # instantiate an object X using the above four parameters,
     X = stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
     # generate 1000 sample data
     samples = X.rvs(sample)
     return samples
-
-
-def selAutomaticEpsilonLexicase(individuals, k):
-    selected_individuals = []
-
-    for i in range(k):
-        candidates = individuals
-        cases = list(range(len(individuals[0].case_values)))
-        random.shuffle(cases)
-        fit_weights = individuals[0].fitness.weights[0]
-
-        while len(cases) > 0 and len(candidates) > 1:
-            errors_for_this_case = [x.case_values[cases[0]] for x in candidates]
-            median_val = np.median(errors_for_this_case)
-            median_absolute_deviation = np.median([abs(x - median_val) for x in errors_for_this_case])
-            if fit_weights > 0:
-                best_val_for_case = np.max(errors_for_this_case)
-                min_val_to_survive = best_val_for_case - median_absolute_deviation
-                candidates = list([x for x in candidates if x.case_values[cases[0]] >= min_val_to_survive])
-            else:
-                best_val_for_case = np.min(errors_for_this_case)
-                max_val_to_survive = best_val_for_case + median_absolute_deviation
-                candidates = list([x for x in candidates if x.case_values[cases[0]] <= max_val_to_survive])
-            cases.pop(0)
-        # print('used cases', len(individuals[0].case_values) - len(cases))
-        selected_individuals.append(random.choice(candidates))
-    return selected_individuals
-
-
-def selAutomaticEpsilonLexicaseK(individuals, k):
-    candidates = individuals
-    cases = list(range(len(individuals[0].case_values)))
-    random.shuffle(cases)
-    fit_weights = individuals[0].fitness.weights[0]
-
-    while len(cases) > 0 and len(candidates) > k:
-        errors_for_this_case = [x.case_values[cases[0]] for x in candidates]
-        median_val = np.median(errors_for_this_case)
-        median_absolute_deviation = np.median([abs(x - median_val) for x in errors_for_this_case])
-        if fit_weights > 0:
-            best_val_for_case = np.max(errors_for_this_case)
-            min_val_to_survive = best_val_for_case - median_absolute_deviation
-            c = list([x for x in candidates if x.case_values[cases[0]] >= min_val_to_survive])
-            if len(c) < k:
-                break
-            candidates = c
-        else:
-            best_val_for_case = np.min(errors_for_this_case)
-            max_val_to_survive = best_val_for_case + median_absolute_deviation
-            c = list([x for x in candidates if x.case_values[cases[0]] <= max_val_to_survive])
-            if len(c) < k:
-                break
-            candidates = c
-        cases.pop(0)
-    return random.sample(candidates, k)
-
-
-s = 0
-random.seed(s)
-np.random.seed(s)
-
-threshold = 1e-6
-
-
-def protect_divide(x1, x2):
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
-
-
-def analytical_quotient(x1, x2):
-    return x1 / np.sqrt(1 + (x2 ** 2))
-
-
-def individual_to_tuple(ind):
-    arr = []
-    for x in ind.gene:
-        arr.append(tuple(a.name for a in x))
-    return tuple(sorted(arr))
-
-
-def protect_loge(x1):
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.)
-
-
-def protect_sqrt(a):
-    return np.sqrt(np.abs(a))
-
-
-def np_max(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return max(x1, x2)
-    x1, x2 = shape_wrapper(x1, x2)
-    return np.max([x1, x2], axis=0)
-
-
-def np_min(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return min(x1, x2)
-    x1, x2 = shape_wrapper(x1, x2)
-    return np.min([x1, x2], axis=0)
-
-
-def shape_wrapper(x1, x2):
-    if np.isscalar(x1):
-        return np.full(x2.shape[0], x1), x2
-    elif np.isscalar(x2):
-        return x1, np.full(x1.shape[0], x2)
-    else:
-        return x1, x2
-
-
-def group_sum(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.sum, x2, broadcast=True)
-
-
-def group_mean(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.mean, x2, broadcast=True)
-
-
-def group_count(x1):
-    if np.isscalar(x1):
-        return x1
-    return Groupby(x1).apply(len, x1, broadcast=True)
-
-
-def group_min(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.min, x2, broadcast=True)
-
-
-def group_max(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.max, x2, broadcast=True)
-
-
-def group_mode(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(lambda x: mode(x).mode[0], x2, broadcast=True)
-
-
-def identical_boolean(x):
-    return x
-
-
-def same_boolean(x):
-    return x
-
-
-def identical_categorical(x):
-    return x
-
-
-def same_categorical(x):
-    return x
-
-
-def identical_numerical(x):
-    return x
-
-
-def same_numerical(x):
-    return x
-
-
-def add_basic_operators(pset):
-    pset.addPrimitive(np.add, 2)
-    pset.addPrimitive(np.subtract, 2)
-    pset.addPrimitive(np.multiply, 2)
-    pset.addPrimitive(analytical_quotient, 2)
-
-
-def np_wrapper(func):
-    def simple_func(x1, x2):
-        if np.isscalar(x1) and np.isscalar(x2):
-            return func(x1, x2).astype(int)
-        x1, x2 = shape_wrapper(x1, x2)
-        return func(x1, x2).astype(int)
-
-    simple_func.__name__ = f'np_{func.__name__}'
-    return simple_func
-
-
-def np_bit_wrapper(func):
-    def simple_func(x1, x2):
-        if np.isscalar(x1) and np.isscalar(x2):
-            return x1
-        x1, x2 = shape_wrapper(x1, x2)
-        if x1.dtype == int and x2.dtype == int:
-            return func(x1, x2)
-        else:
-            return x1
-
-    simple_func.__name__ = f'np_{func.__name__}'
-    return simple_func
-
-
-def add_logical_operators(pset):
-    pset.addPrimitive(np_bit_wrapper(np.bitwise_and), 2)
-    pset.addPrimitive(np_bit_wrapper(np.bitwise_or), 2)
-    pset.addPrimitive(np_bit_wrapper(np.bitwise_xor), 2)
-
-
-def add_relation_operators(pset):
-    pset.addPrimitive(np_wrapper(np.greater), 2)
-    pset.addPrimitive(np_wrapper(np.less), 2)
-
-
-def selTournamentPlus(individuals, k, tournsize):
-    """
-    Select individuals based on the sum of case values
-    :param individuals: population
-    :param k: number of offspring
-    :param tournsize: tournament size
-    :return:
-    """
-    chosen = []
-    for i in range(k):
-        aspirants = selRandom(individuals, tournsize)
-        chosen.append(min(aspirants, key=lambda x: np.sum(x.case_values)))
-    return chosen
