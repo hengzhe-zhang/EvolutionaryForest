@@ -59,6 +59,18 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP):
     return ind1, ind2
 
 
+def cxOnePoint_multiple_all_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP, permutation=False):
+    if permutation:
+        a_list = np.random.permutation(np.arange(0, len(ind1.gene)))
+        b_list = np.random.permutation(np.arange(0, len(ind2.gene)))
+    else:
+        a_list = np.arange(0, len(ind1.gene))
+        b_list = np.arange(0, len(ind2.gene))
+    for a, b in zip(a_list, b_list):
+        cxOnePoint(ind1.gene[a], ind2.gene[b])
+    return ind1, ind2
+
+
 def mutUniform_multiple_gene(individual: MultipleGeneGP, expr, pset):
     mutUniform(individual.random_select(), expr, pset)
     return individual,
@@ -126,6 +138,15 @@ def feature_crossover_cross(ind1, ind2, threshold_ratio):
     new_pop = []
     for ind in pop:
         ind = cxOnePoint_multiple_gene_weight_plus(ind, good_features, threshold, False)
+        new_pop.append(ind)
+    return new_pop
+
+
+def feature_crossover_cross_global(ind1, ind2, regressor):
+    pop = [ind1, ind2]
+    new_pop = []
+    for ind in pop:
+        ind = cxOnePoint_multiple_gene_weight_plus(ind, regressor.good_features, regressor.cx_threshold, False)
         new_pop.append(ind)
     return new_pop
 
@@ -201,6 +222,7 @@ def result_calculation(func, data, original_features):
         result = np.concatenate([np.array(result).T, data], axis=1)
     else:
         result = np.array(result).T
+    result = np.nan_to_num(result)
     return result
 
 

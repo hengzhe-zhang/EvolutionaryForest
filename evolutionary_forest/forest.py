@@ -1,6 +1,8 @@
 import copy
 import operator
 import random
+import warnings
+from functools import partial
 from typing import List
 
 import numpy as np
@@ -9,28 +11,50 @@ from deap import creator
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
-from deap.tools import selRandom, HallOfFame, selLexicase
+from deap.tools import selRandom, HallOfFame, selLexicase, selNSGA2
 from hdfe import Groupby
 from scipy import stats
+from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, mode
-from sklearn.base import RegressorMixin, BaseEstimator
+from sklearn.base import RegressorMixin, BaseEstimator, ClassifierMixin
 from sklearn.compose.tests.test_target import DummyTransformer
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import Ridge, RidgeCV, LinearRegression
 from sklearn.metrics import r2_score, make_scorer
 from sklearn.metrics.pairwise import cosine_similarity, pairwise_distances
-from sklearn.model_selection import train_test_split, cross_val_predict, cross_val_score, cross_validate
+from sklearn.model_selection import train_test_split, cross_val_score, cross_validate
 from sklearn.neighbors._kd_tree import KDTree
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier, BaseDecisionTree
 
 from evolutionary_forest.multigene_gp import MultipleGeneGP, multiple_gene_initialization, multiple_gene_compile, \
     cxOnePoint_multiple_gene, result_calculation, staticLimit_multiple_gene, \
     cxOnePoint_multiple_gene_weight, mutUniform_multiple_gene, \
-    mutUniform_multiple_gene_weight, feature_crossover, feature_crossover_cross, mutWeight_multiple_gene
+    mutUniform_multiple_gene_weight, feature_crossover, feature_crossover_cross, mutWeight_multiple_gene, \
+    construct_feature_pools, feature_crossover_cross_global, cxOnePoint_multiple_all_gene
 from evolutionary_forest.pruning import oob_pruning
+from evolutionary_forest.sklearn_utils import cross_val_predict
+
+
+class EnsembleClassifier(ClassifierMixin, BaseEstimator):
+    """
+    Combining several models
+    """
+
+    def __init__(self, trees):
+        self.trees = trees
+
+    def fit(self, X, y):
+        pass
+
+    def predict(self, X):
+        predictions = []
+        t: DecisionTreeClassifier
+        for t in self.trees:
+            predictions.append(t.predict(X))
+        return stats.mode(predictions, axis=0)[0].flatten()
 
 
 def similar(a, b):
@@ -76,6 +100,75 @@ class LexicaseHOF(HallOfFame):
             self.remove(i)
 
 
+class RandomObjectiveHOF(HallOfFame):
+    """
+    An archive which updating based on random projected fitness values
+    """
+
+    def update(self, population):
+        for ind in population:
+            if len(self) == 0 and self.maxsize != 0:
+                # Working on an empty hall of fame is problematic for the
+                # "for else"
+                self.insert(population[0])
+                continue
+            if np.any(ind.case_values < self[-1].case_values) or len(self) < self.maxsize:
+                for hofer in self:
+                    # Loop through the hall of fame to check for any
+                    # similar individual
+                    if self.similar(ind, hofer):
+                        break
+                else:
+                    # The individual is unique and strictly better than
+                    # the worst
+                    if len(self) >= self.maxsize:
+                        self.remove(-1)
+                    self.insert(ind)
+
+
+class AutoLexicaseHOF(HallOfFame):
+    """
+    Automatically archive the best indivdiaul on each objective value
+    """
+
+    def update(self, population):
+        """
+        Update the Pareto front hall of fame with the *population* by adding
+        the individuals from the population that are not dominated by the hall
+        of fame. If any individual in the hall of fame is dominated it is
+        removed.
+
+        :param population: A list of individual with a fitness attribute to
+                           update the hall of fame with.
+        """
+        # insert all individuals
+        for p in population:
+            self.insert(p)
+
+        # calculate minimum value on each dimension
+        hofer_arr: np.ndarray = None
+        for i, hofer in enumerate(self):
+            if hofer_arr is None:
+                hofer_arr = np.array(hofer.case_values).reshape(1, -1)
+            else:
+                hofer_arr = np.concatenate([hofer_arr, np.array(hofer.case_values).reshape(1, -1)])
+        max_hof = np.min(hofer_arr, axis=0)
+
+        # only append individuals which can make a contribution
+        del_ind = []
+        max_value = np.full_like(max_hof, np.inf)
+        for index, x in enumerate(self):
+            fitness_wvalues = np.array(x.case_values)
+            if np.any(fitness_wvalues <= max_hof) and np.any(fitness_wvalues < max_value):
+                loc = np.where(fitness_wvalues < max_value)
+                max_value[loc] = fitness_wvalues[loc]
+                continue
+            del_ind.append(index)
+
+        for i in reversed(del_ind):
+            self.remove(i)
+
+
 class TestFunction():
     def __init__(self, x, y):
         self.x = x
@@ -97,11 +190,10 @@ class GPRegressor(RegressorMixin, BaseEstimator):
     def __init__(self, n_pop=50, n_gen=20, verbose=False, max_height=8, basic_primitives=True, normalize=True,
                  select='AutomaticLexicase', gene_num=5, mutation_scheme='uniform', automated_hof_size=False,
                  boost_size=1, external_archive=False, original_features=False, diversity_search='None',
-                 cross_pb=0.5, mutation_pb=0.1,
-                 second_layer=None, semantic_diversity=None, case_scheme='single', test_fun=None,
+                 cross_pb=0.5, mutation_pb=0.1, second_layer=None, semantic_diversity=None, test_fun=None,
                  bootstrap_training=False, mean_model=False, early_stop=-1, min_samples_leaf=1,
                  base_learner='Random-DT', score_func='R2', max_tree_depth=None,
-                 environmental_selection=False, pre_selection=None, eager_training=False, **param):
+                 environmental_selection=None, pre_selection=None, eager_training=False, **param):
         self.pre_selection = pre_selection
         self.max_tree_depth = max_tree_depth
         self.score_func = score_func
@@ -109,7 +201,6 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         self.mean_model = mean_model
         self.base_learner = base_learner
         self.bootstrap_training = bootstrap_training
-        self.case_scheme = case_scheme
         self.semantic_diversity = semantic_diversity
         self.original_features = original_features
         self.external_archive = external_archive
@@ -132,6 +223,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         self.test_fun: List[TestFunction] = test_fun
         self.train_data_history = []
         self.test_data_history = []
+        self.fitness_history = []
         self.diversity_history = []
         self.early_stop = early_stop
         self.environmental_selection = environmental_selection
@@ -166,64 +258,94 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         Yp = result_calculation(func, X, self.original_features)
         assert isinstance(Yp, np.ndarray)
         assert np.all(Yp != np.nan), f"{str(individual)},{Yp}"
+        assert not np.any(np.isinf(Yp)), f"{str(individual)},{np.any(np.isinf(Yp))},{Yp}"
 
         pipe = self.get_base_model()
 
-        if self.score_func == 'CV-R2':
-            result = cross_validate(pipe, Yp, Y, return_estimator=True)
-            y_pred = result['test_score']
+        if self.score_func in ['CV-R2', 'CV-Accuracy']:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                result = cross_validate(pipe, Yp, Y, return_estimator=True)
+                y_pred = result['test_score']
+                estimators = result['estimators']
+        elif self.score_func == 'CrossEntropy':
+            y_pred, estimators = cross_val_predict(pipe, Yp, Y, method='predict_proba')
         else:
-            y_pred = cross_val_predict(pipe, Yp, Y).flatten()
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                y_pred, estimators = cross_val_predict(pipe, Yp, Y)
 
         individual.predicted_values = y_pred
-        assert self.case_scheme == 'single'
 
-        if self.score_func == 'R2':
-            individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
-        elif self.score_func == 'Spearman':
-            individual.case_values = np.abs(rankdata(y_pred) - rankdata(Y.flatten())).flatten()
-        elif self.score_func == 'ZeroOne':
-            individual.case_values = -(1 - (y_pred.flatten() == Y.flatten()))
-        elif self.score_func == 'CV-R2':
-            individual.case_values = -1 * y_pred
-        else:
-            raise Exception
+        # minimize
+        self.calculate_case_values(individual, Y, y_pred)
 
-        if self.score_func == 'CV-R2':
+        if 'CV' in self.score_func:
             assert len(individual.case_values) == 5
         else:
             assert len(individual.case_values) == len(Y)
         individual.pipe = pipe
 
-        if self.mutation_scheme != 'uniform' or self.bootstrap_training or self.eager_training:
+        if self.bootstrap_training or self.eager_training:
             out_of_bag = self.train_final_model(individual, Yp, Y)
-        if self.score_func == 'CV-R2':
-            individual.coef = np.mean([x['Ridge'].feature_importances_[:self.gene_num]
-                                       for x in result['estimator']], axis=0)
+
+        individual.coef = np.mean([x['Ridge'].feature_importances_[:self.gene_num]
+                                   for x in estimators], axis=0)
+
+        if self.base_learner == 'Random-DT-Plus':
+            individual.pipe = EnsembleClassifier(estimators)
 
         # final score
-        if self.score_func == 'R2':
-            if self.bootstrap_training:
-                return -1 * r2_score(Y[out_of_bag], individual.pipe.predict(Yp[out_of_bag])),
-            else:
-                return -1 * r2_score(Y, y_pred),
-        elif self.score_func == 'CV-R2':
-            return -1 * np.mean(y_pred),
+        if self.bootstrap_training:
+            return self.calculate_fitness_value(individual, Y[out_of_bag], individual.pipe.predict(Yp[out_of_bag]))
+        else:
+            return self.calculate_fitness_value(individual, Y, y_pred)
+
+    def calculate_fitness_value(self, individual, Y, y_pred):
+        if self.score_func == 'R2' or self.score_func == 'NoveltySearch':
+            return -1 * r2_score(Y, y_pred),
         elif self.score_func == 'Spearman':
             return -1 * spearman(Y, y_pred),
-        elif self.score_func == 'ZeroOne':
-            return np.sum((1 - (y_pred.flatten() == Y.flatten()))),
+        elif 'CV' in self.score_func:
+            return -1 * np.mean(y_pred),
+        else:
+            raise Exception
+
+    def calculate_case_values(self, individual, Y, y_pred):
+        if self.score_func == 'R2':
+            individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
+        elif self.score_func == 'Spearman':
+            individual.case_values = np.abs(rankdata(y_pred) - rankdata(Y.flatten())).flatten()
+        elif self.score_func == 'CV-R2':
+            individual.case_values = -1 * y_pred
+        elif self.score_func == 'NoveltySearch':
+            base_values = (y_pred.flatten() - Y.flatten()) ** 2
+            if len(self.hof) == 0:
+                # first generation
+                individual.case_values = base_values
+            else:
+                # maximize cross entropy
+                ensemble_value = np.mean([x.predicted_values for x in self.hof], axis=0)
+                ambiguity = (y_pred.flatten() - ensemble_value) ** 2
+                assert len(ambiguity) == len(y_pred.flatten())
+                individual.case_values = base_values - ambiguity
         else:
             raise Exception
 
     def train_final_model(self, individual, Yp, Y):
         # avoid re-training
-        model = individual.pipe['Ridge']
+        model = individual.pipe
         try:
-            model.predict(np.ones((1, self.gene_num)))
+            if self.original_features:
+                model.predict(np.ones((1, self.gene_num + self.X.shape[1])))
+            else:
+                model.predict(np.ones((1, self.gene_num)))
             return None
         except NotFittedError:
             pass
+
+        # ensure ensemble base leaner will not be retrained
+        assert self.base_learner != 'Random-DT-Plus'
 
         # train final model
         if self.bootstrap_training:
@@ -250,6 +372,9 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             individual.coef = np.abs(base_model.coef_[:self.gene_num])
         assert len(individual.coef) == self.gene_num
         return out_of_bag
+
+    def entropy_calculation(self):
+        pass
 
     def get_base_model(self):
         if self.base_learner == 'DT':
@@ -287,6 +412,9 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         class CategoricalFeature:
             pass
 
+        class BooleanFeature:
+            pass
+
         class NumericalFeature:
             pass
 
@@ -294,7 +422,9 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             input_arr = []
             for x in range(X.shape[1]):
                 v = X[:, x]
-                if len(np.unique(v)) <= 10:
+                if len(np.unique(v)) == 2:
+                    input_arr.append(BooleanFeature)
+                elif len(np.unique(v)) <= 10:
                     input_arr.append(CategoricalFeature)
                 else:
                     input_arr.append(NumericalFeature)
@@ -311,6 +441,10 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             for x in feature_types:
                 if x == CategoricalFeature:
                     has_categorical_feature = True
+            has_boolean_feature = False
+            for x in feature_types:
+                if x == BooleanFeature:
+                    has_boolean_feature = True
             if has_numerical_feature:
                 pset.addPrimitive(np.add, [NumericalFeature, NumericalFeature], NumericalFeature)
                 pset.addPrimitive(np.subtract, [NumericalFeature, NumericalFeature], NumericalFeature)
@@ -319,6 +453,10 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                 pset.addPrimitive(protect_sqrt, [NumericalFeature], NumericalFeature)
                 pset.addPrimitive(np.sin, [NumericalFeature], NumericalFeature)
                 pset.addPrimitive(np.cos, [NumericalFeature], NumericalFeature)
+                pset.addPrimitive(np_max, [NumericalFeature, NumericalFeature], NumericalFeature)
+                pset.addPrimitive(np_min, [NumericalFeature, NumericalFeature], NumericalFeature)
+                pset.addPrimitive(np_wrapper(np.greater), [NumericalFeature, NumericalFeature], BooleanFeature)
+                pset.addPrimitive(np_wrapper(np.less), [NumericalFeature, NumericalFeature], BooleanFeature)
                 pset.addPrimitive(identical_numerical, [NumericalFeature], GeneralFeature)
                 pset.addPrimitive(same_numerical, [NumericalFeature], NumericalFeature)
             if has_categorical_feature:
@@ -327,26 +465,37 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                 pset.addPrimitive(group_min, [CategoricalFeature, NumericalFeature], NumericalFeature)
                 pset.addPrimitive(group_max, [CategoricalFeature, NumericalFeature], NumericalFeature)
                 pset.addPrimitive(group_mode, [CategoricalFeature, CategoricalFeature], CategoricalFeature)
+                pset.addPrimitive(group_count, [CategoricalFeature], NumericalFeature)
                 pset.addPrimitive(identical_categorical, [CategoricalFeature], GeneralFeature)
                 pset.addPrimitive(same_categorical, [CategoricalFeature], CategoricalFeature)
+            if has_boolean_feature:
+                pset.addPrimitive(np.logical_and, [BooleanFeature, BooleanFeature], BooleanFeature)
+                pset.addPrimitive(np.logical_or, [BooleanFeature, BooleanFeature], BooleanFeature)
+                pset.addPrimitive(np.logical_xor, [BooleanFeature, BooleanFeature], BooleanFeature)
+                pset.addPrimitive(identical_boolean, [BooleanFeature], GeneralFeature)
+                pset.addPrimitive(same_boolean, [BooleanFeature], BooleanFeature)
         elif self.basic_primitives == 'extend':
             pset = gp.PrimitiveSet("MAIN", x.shape[1])
-            pset.addPrimitive(np.add, 2)
-            pset.addPrimitive(np.subtract, 2)
-            pset.addPrimitive(np.multiply, 2)
-            pset.addPrimitive(analytical_quotient, 2)
+            add_basic_operators(pset)
+            add_logical_operators(pset)
+            add_relation_operators(pset)
             pset.addPrimitive(protect_sqrt, 1)
             pset.addPrimitive(np.abs, 1)
             pset.addPrimitive(np.sin, 1)
             pset.addPrimitive(np.cos, 1)
             pset.addPrimitive(np_max, 2)
             pset.addPrimitive(np_min, 2)
+        elif self.basic_primitives == 'logical':
+            pset = gp.PrimitiveSet("MAIN", x.shape[1])
+            add_basic_operators(pset)
+            add_logical_operators(pset)
+        elif self.basic_primitives == 'relation':
+            pset = gp.PrimitiveSet("MAIN", x.shape[1])
+            add_basic_operators(pset)
+            add_relation_operators(pset)
         else:
             pset = gp.PrimitiveSet("MAIN", x.shape[1])
-            pset.addPrimitive(np.add, 2)
-            pset.addPrimitive(np.subtract, 2)
-            pset.addPrimitive(np.multiply, 2)
-            pset.addPrimitive(analytical_quotient, 2)
+            add_basic_operators(pset)
         self.pset = pset
 
         if not hasattr(gp, 'rand101'):
@@ -372,6 +521,8 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             toolbox.register("select", tools.selTournament, tournsize=self.param['tournament_size'])
         elif 'Tournament-' in self.select:
             toolbox.register("select", tools.selTournament, tournsize=int(self.select.split('-')[1]))
+        elif 'TournamentPlus-' in self.select:
+            toolbox.register("select", selTournamentPlus, tournsize=int(self.select.split('-')[1]))
         elif self.select == 'BatchTournament':
             toolbox.register("select", batch_tournament_selection, tournsize=self.param['tournament_size'],
                              batch_size=128)
@@ -386,7 +537,8 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         else:
             raise Exception
 
-        if 'uniform' in self.mutation_scheme or 'weight-plus' in self.mutation_scheme:
+        if 'uniform' in self.mutation_scheme or 'weight-plus' in self.mutation_scheme \
+            or 'all_gene' in self.mutation_scheme:
             mutation_operator = None
             # extract mutation operator
             if '|' in self.mutation_scheme:
@@ -401,19 +553,28 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                         return None
 
                 threshold_ratio = convert_to_int(self.mutation_scheme.split('-')[-1])
-                if threshold_ratio == None:
+                if threshold_ratio is None:
                     threshold_ratio = 0.2
                 else:
                     self.mutation_scheme = '-'.join(self.mutation_scheme.split('-')[:-1])
+
                 if self.mutation_scheme == 'weight-plus-positive':
                     toolbox.register("mate", feature_crossover, positive=True, threshold_ratio=threshold_ratio)
                 elif self.mutation_scheme == 'weight-plus-negative':
                     toolbox.register("mate", feature_crossover, positive=False, threshold_ratio=threshold_ratio)
                 elif self.mutation_scheme == 'weight-plus-cross':
                     toolbox.register("mate", feature_crossover_cross, threshold_ratio=threshold_ratio)
+                elif self.mutation_scheme == 'weight-plus-cross-global':
+                    toolbox.register("mate", feature_crossover_cross_global, regressor=self)
                 else:
                     raise Exception
+                self.cx_threshold_ratio = threshold_ratio
+            elif self.mutation_scheme == 'all_gene':
+                toolbox.register("mate", cxOnePoint_multiple_all_gene)
+            elif self.mutation_scheme == 'all_gene_permutation':
+                toolbox.register("mate", partial(cxOnePoint_multiple_all_gene, permutation=True))
             else:
+                assert self.mutation_scheme == 'uniform'
                 toolbox.register("mate", cxOnePoint_multiple_gene)
 
             if self.basic_primitives == False:
@@ -450,10 +611,20 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                     return a.fitness.wvalues == b.fitness.wvalues
 
                 self.hof = HallOfFame(self.boost_size, similar=similar)
+            elif self.semantic_diversity == 'similar':
+                def similar(a, b):
+                    return cosine(a.case_values, b.case_values) <= 0.05
+
+                self.hof = HallOfFame(self.boost_size, similar=similar)
             else:
                 self.hof = HallOfFame(self.boost_size)
-        if self.environmental_selection:
+        if self.environmental_selection != None:
             self.hof = None
+
+    def construct_global_feature_pool(self, pop):
+        good_features, threshold = construct_feature_pools(pop, True, threshold_ratio=self.cx_threshold_ratio)
+        self.good_features = good_features
+        self.cx_threshold = threshold
 
     def fit(self, X, y):
         if self.normalize:
@@ -467,8 +638,16 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             self.valid_y = valid_y
 
         self.X, self.y = X, y
-        if self.case_scheme in ['cluster']:
-            self.cluster_index = np.random.randint(0, len(y), size=(len(y), 10))
+        if self.environmental_selection == 'NSGA2-100':
+            self.random_objectives = np.random.uniform(0, 1, size=(len(y), 100))
+        if self.environmental_selection == 'NSGA2-100-Normal':
+            self.random_objectives = truncated_normal(sample=(len(y), 100))
+        if self.environmental_selection == 'NSGA2-100-LHS':
+            from smt.sampling_methods import LHS
+            xlimits = np.repeat(np.array([[0.0, 1.0]]), len(y), axis=0)
+            sampling = LHS(xlimits=xlimits)
+            num = 100
+            self.random_objectives = sampling(num).T
 
         self.lazy_init(X)
 
@@ -489,7 +668,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         return self
 
     def second_layer_generation(self, X, y):
-        if self.second_layer == 'None':
+        if self.second_layer == 'None' or self.second_layer == None:
             return
         y_data = self.y
         predictions = []
@@ -721,6 +900,9 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         if self.diversity_search != 'None':
             self.diversity_assignment(population)
 
+        if self.mutation_scheme == 'weight-plus-cross-global':
+            self.construct_global_feature_pool(population)
+
         record = stats.compile(population) if stats else {}
         logbook.record(gen=0, nevals=len(invalid_ind), **record)
         if verbose:
@@ -736,6 +918,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         best_hof = self.get_hof()
         # Begin the generational process
         for gen in range(1, ngen + 1):
+            self.entropy_calculation()
             count = 0
             new_offspring = []
             while (len(new_offspring) < pop_size):
@@ -743,10 +926,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                     raise Exception("Error!")
                 count += 1
                 # Select the next generation individuals
-                if self.environmental_selection:
-                    offspring = selAutomaticEpsilonLexicaseK(population + list(history_hof), 2)
-                else:
-                    offspring = toolbox.select(population + list(history_hof), 2)
+                offspring = toolbox.select(population + list(history_hof), 2)
                 offspring = offspring[:]
 
                 # Vary the pool of individuals
@@ -772,32 +952,40 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             # Update the hall of fame with the generated individuals
             if halloffame is not None:
                 halloffame.update(offspring)
+            if self.mutation_scheme == 'weight-plus-cross-global':
+                self.construct_global_feature_pool(population)
 
+            self.fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in offspring]))
             if self.diversity_search != 'None':
                 self.diversity_assignment(offspring)
-
             if self.external_archive:
                 history_hof.update(offspring)
 
             # Replace the current population by the offspring
-            if self.environmental_selection:
-                # mean_values = np.mean(np.array([ind.case_values for ind in offspring + population]), axis=0)
-                # assert len(mean_values) == len(self.y)
-                # mean_values = mean_values.reshape(1, -1)
-                # for ind in offspring + population:
-                #     setattr(ind, 'original_fitness', ind.fitness.values)
-                #     distances = pairwise_distances(ind.case_values.reshape(1, -1), mean_values)
-                #     ind.fitness.values = (ind.fitness.values[0], -distances[0][0])
-                # population[:] = selNSGA2(offspring + population, len(population))
-                # for ind in population:
-                #     ind.fitness.values = getattr(ind, 'original_fitness')
-
-                # all_individuals = offspring + population
-                # fitness_values = np.array([ind.fitness.values[0] for ind in offspring + population])
-                # new_population = []
-                # for x in np.argsort(fitness_values)[:len(population)]:
-                #     new_population.append(all_individuals[x])
-                population[:] = selAutomaticEpsilonLexicase(offspring + population, len(population))
+            if self.environmental_selection != None and 'NSGA2-100' in self.environmental_selection:
+                for ind in offspring + population:
+                    setattr(ind, 'original_fitness', ind.fitness.values)
+                    fitness = ind.case_values @ self.random_objectives
+                    ind.fitness.weights = (-1,) * len(self.random_objectives)
+                    ind.fitness.values = list(fitness)
+                population[:] = selNSGA2(offspring + population, len(population))
+                for ind in population:
+                    ind.fitness.weights = (-1,)
+                    ind.fitness.values = getattr(ind, 'original_fitness')
+                self.hof = population
+            elif self.environmental_selection == 'NSGA2':
+                mean_values = np.mean(np.array([ind.case_values for ind in offspring + population]), axis=0)
+                assert len(mean_values) == len(self.y)
+                mean_values = mean_values.reshape(1, -1)
+                for ind in offspring + population:
+                    setattr(ind, 'original_fitness', ind.fitness.values)
+                    ind.fitness.weights = (-1, -1)
+                    distances = pairwise_distances(ind.case_values.reshape(1, -1), mean_values)
+                    ind.fitness.values = (ind.fitness.values[0], -distances[0][0])
+                population[:] = selNSGA2(offspring + population, len(population))
+                for ind in population:
+                    ind.fitness.weights = (-1,)
+                    ind.fitness.values = getattr(ind, 'original_fitness')
                 self.hof = population
             else:
                 population[:] = offspring
@@ -836,7 +1024,6 @@ class GPRegressor(RegressorMixin, BaseEstimator):
 
     def diversity_summarization(self):
         # distance calculation
-        inds = []
         if self.second_layer == 'None' or self.second_layer == None:
             all_ind = self.hof
         elif self.second_layer in ['DiversityPrune', 'TreeBaseline', 'GA']:
@@ -845,18 +1032,20 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             all_ind = list(map(lambda x: x[1], filter(lambda x: self.tree_weight[x[0]] > 0, enumerate(self.hof))))
         else:
             raise Exception
-        for p in all_ind:
-            inds.append(p.predicted_values.flatten())
-        inds = np.array(inds)
+        inds = self.get_diversity_matrix(all_ind)
         dis = pairwise_distances(inds)
         return np.mean(dis)
 
-    def diversity_assignment(self, population):
-        # distance calculation
+    def get_diversity_matrix(self, all_ind):
         inds = []
-        for p in population:
+        for p in all_ind:
             inds.append(p.predicted_values.flatten())
         inds = np.array(inds)
+        return inds
+
+    def diversity_assignment(self, population):
+        # distance calculation
+        inds = self.get_diversity_matrix(population)
 
         hof_inds = []
         pop = {
@@ -876,9 +1065,66 @@ class GPRegressor(RegressorMixin, BaseEstimator):
 
 
 class GPClassifier(GPRegressor):
-    def __init__(self, **param):
-        super().__init__(**param)
+    def __init__(self, score_func='ZeroOne', **param):
+        super().__init__(score_func=score_func, **param)
         self.y_scaler = DummyTransformer()
+
+    def lazy_init(self, x):
+        self.label_encoder = OneHotEncoder(sparse=False)
+        self.label_encoder.fit(self.y)
+        return super().lazy_init(x)
+
+    def entropy_calculation(self):
+        if self.score_func == 'NoveltySearch':
+            encoder = self.label_encoder
+            ensemble_value = np.mean([encoder.transform(x.predicted_values.reshape(-1, 1)) for x in self.hof],
+                                     axis=0)
+            self.ensemble_value = ensemble_value
+            return self.ensemble_value
+
+    def calculate_case_values(self, individual, Y, y_pred):
+        if self.score_func == 'ZeroOne':
+            individual.case_values = -1 * (y_pred.flatten() == Y.flatten())
+        elif self.score_func == 'CrossEntropy':
+            one_hot_targets = OneHotEncoder(sparse=False).fit_transform(self.y)
+            eps = np.finfo(float).eps
+            individual.case_values = np.sum(one_hot_targets * np.log(y_pred + eps), axis=1)
+        elif self.score_func == 'CV-Accuracy':
+            individual.case_values = -1 * y_pred
+        elif self.score_func == 'NoveltySearch':
+            base_values = -1 * (y_pred.flatten() == Y.flatten())
+            if len(self.hof) == 0:
+                # first generation
+                individual.case_values = base_values
+            else:
+                # maximize cross entropy
+                encoder = self.label_encoder
+                ensemble_value = self.ensemble_value
+                y_pred_one_hot = encoder.transform(y_pred.reshape(-1, 1))
+                individual.case_values = base_values + np.mean(np.abs(y_pred_one_hot - ensemble_value), axis=1)
+        else:
+            raise Exception
+
+    def get_diversity_matrix(self, all_ind):
+        inds = []
+        for p in all_ind:
+            encoder = self.label_encoder
+            y_pred_one_hot = encoder.transform(p.predicted_values.reshape(-1, 1))
+            inds.append(y_pred_one_hot.flatten())
+        inds = np.array(inds)
+        return inds
+
+    def calculate_fitness_value(self, individual, Y, y_pred):
+        if self.score_func == 'ZeroOne':
+            return np.sum(-1 * (y_pred.flatten() == Y.flatten())),
+        elif self.score_func == 'NoveltySearch':
+            return np.sum(-1 * (y_pred.flatten() == Y.flatten())),
+        elif self.score_func == 'CrossEntropy':
+            return -1 * np.sum(individual.case_values),
+        elif 'CV' in self.score_func:
+            return -1 * np.mean(y_pred),
+        else:
+            raise Exception
 
     def predict(self, X, return_std=False):
         if self.normalize:
@@ -901,9 +1147,13 @@ class GPClassifier(GPRegressor):
         if self.base_learner == 'DT':
             ridge_model = DecisionTreeClassifier(max_depth=self.max_tree_depth,
                                                  min_samples_leaf=self.min_samples_leaf)
-        elif self.base_learner == 'Random-DT':
+        elif self.base_learner == 'Random-DT' or self.base_learner == 'Random-DT-Plus':
             ridge_model = DecisionTreeClassifier(splitter='random', max_depth=self.max_tree_depth,
                                                  min_samples_leaf=self.min_samples_leaf)
+        elif self.base_learner == 'Random-DT-SQRT':
+            ridge_model = DecisionTreeClassifier(splitter='random', max_depth=self.max_tree_depth,
+                                                 min_samples_leaf=self.min_samples_leaf,
+                                                 max_features='sqrt')
         else:
             raise Exception
         pipe = Pipeline([
@@ -936,6 +1186,14 @@ def batch_tournament_selection(individuals, k, tournsize, batch_size, fit_attr="
     return chosen
 
 
+def truncated_normal(lower=0, upper=1, mu=0.5, sigma=0.1, sample=(100, 100)):
+    # instantiate an object X using the above four parameters,
+    X = stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
+    # generate 1000 sample data
+    samples = X.rvs(sample)
+    return samples
+
+
 def selAutomaticEpsilonLexicase(individuals, k):
     selected_individuals = []
 
@@ -958,7 +1216,7 @@ def selAutomaticEpsilonLexicase(individuals, k):
                 max_val_to_survive = best_val_for_case + median_absolute_deviation
                 candidates = list([x for x in candidates if x.case_values[cases[0]] <= max_val_to_survive])
             cases.pop(0)
-
+        # print('used cases', len(individuals[0].case_values) - len(cases))
         selected_individuals.append(random.choice(candidates))
     return selected_individuals
 
@@ -1060,6 +1318,12 @@ def group_mean(x1, x2):
     return Groupby(x1).apply(np.mean, x2, broadcast=True)
 
 
+def group_count(x1):
+    if np.isscalar(x1):
+        return x1
+    return Groupby(x1).apply(len, x1, broadcast=True)
+
+
 def group_min(x1, x2):
     if np.isscalar(x1) and np.isscalar(x2):
         return x2
@@ -1081,6 +1345,14 @@ def group_mode(x1, x2):
     return Groupby(x1).apply(lambda x: mode(x).mode[0], x2, broadcast=True)
 
 
+def identical_boolean(x):
+    return x
+
+
+def same_boolean(x):
+    return x
+
+
 def identical_categorical(x):
     return x
 
@@ -1095,3 +1367,61 @@ def identical_numerical(x):
 
 def same_numerical(x):
     return x
+
+
+def add_basic_operators(pset):
+    pset.addPrimitive(np.add, 2)
+    pset.addPrimitive(np.subtract, 2)
+    pset.addPrimitive(np.multiply, 2)
+    pset.addPrimitive(analytical_quotient, 2)
+
+
+def np_wrapper(func):
+    def simple_func(x1, x2):
+        if np.isscalar(x1) and np.isscalar(x2):
+            return func(x1, x2).astype(int)
+        x1, x2 = shape_wrapper(x1, x2)
+        return func(x1, x2).astype(int)
+
+    simple_func.__name__ = f'np_{func.__name__}'
+    return simple_func
+
+
+def np_bit_wrapper(func):
+    def simple_func(x1, x2):
+        if np.isscalar(x1) and np.isscalar(x2):
+            return x1
+        x1, x2 = shape_wrapper(x1, x2)
+        if x1.dtype == int and x2.dtype == int:
+            return func(x1, x2)
+        else:
+            return x1
+
+    simple_func.__name__ = f'np_{func.__name__}'
+    return simple_func
+
+
+def add_logical_operators(pset):
+    pset.addPrimitive(np_bit_wrapper(np.bitwise_and), 2)
+    pset.addPrimitive(np_bit_wrapper(np.bitwise_or), 2)
+    pset.addPrimitive(np_bit_wrapper(np.bitwise_xor), 2)
+
+
+def add_relation_operators(pset):
+    pset.addPrimitive(np_wrapper(np.greater), 2)
+    pset.addPrimitive(np_wrapper(np.less), 2)
+
+
+def selTournamentPlus(individuals, k, tournsize):
+    """
+    Select individuals based on the sum of case values
+    :param individuals: population
+    :param k: number of offspring
+    :param tournsize: tournament size
+    :return:
+    """
+    chosen = []
+    for i in range(k):
+        aspirants = selRandom(individuals, tournsize)
+        chosen.append(min(aspirants, key=lambda x: np.sum(x.case_values)))
+    return chosen
