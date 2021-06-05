@@ -55,9 +55,9 @@ An example of usage:
 
     X, y = load_diabetes(return_X_y=True)
     x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
-    r = GPRegressor(max_height=8, normalize=True, select='AutomaticLexicase',
-                    gene_num=10, boost_size=100, n_gen=100, base_learner='Random-DT',
-                    verbose=True)
+    r = EvolutionaryForestRegressor(max_height=8, normalize=True, select='AutomaticLexicase',
+                                    gene_num=10, boost_size=100, n_gen=100,
+                                    base_learner='Random-DT', verbose=True)
     r.fit(x_train, y_train)
     print(r2_score(y_test, r.predict(x_test)))
 
