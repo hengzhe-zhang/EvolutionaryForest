@@ -1,8 +1,10 @@
 import operator
 import warnings
 from functools import partial
+from multiprocessing import Pool
 from typing import List
 
+import dill
 from deap import base
 from deap import creator
 from deap import gp
@@ -32,6 +34,7 @@ from evolutionary_forest.component.selection import batch_tournament_selection, 
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.sklearn_utils import cross_val_predict
+from utils.common_utils import timeit
 
 
 class EnsembleClassifier(ClassifierMixin, BaseEstimator):
@@ -89,7 +92,8 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
                  cross_pb=0.5, mutation_pb=0.1, second_layer=None, semantic_diversity=None, test_fun=None,
                  bootstrap_training=False, mean_model=False, early_stop=-1, min_samples_leaf=1,
                  base_learner='Random-DT', score_func='R2', max_tree_depth=None,
-                 environmental_selection=None, pre_selection=None, eager_training=False, **param):
+                 environmental_selection=None, pre_selection=None, eager_training=False,
+                 n_process=1, **param):
         self.pre_selection = pre_selection
         self.max_tree_depth = max_tree_depth
         self.score_func = score_func
@@ -134,6 +138,7 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
         if normalize:
             self.x_scaler = StandardScaler()
             self.y_scaler = StandardScaler()
+        self.n_process = n_process
 
     def calculate_diversity(self, population):
         inds = []
@@ -152,25 +157,9 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
         Y = Y.flatten()
 
         func = self.toolbox.compile(individual)
-        Yp = result_calculation(func, X, self.original_features)
-        assert isinstance(Yp, np.ndarray)
-        assert np.all(Yp != np.nan), f"{str(individual)},{Yp}"
-        assert not np.any(np.isinf(Yp)), f"{str(individual)},{np.any(np.isinf(Yp))},{Yp}"
-
         pipe = self.get_base_model()
 
-        if self.score_func in ['CV-R2', 'CV-Accuracy']:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                result = cross_validate(pipe, Yp, Y, return_estimator=True)
-                y_pred = result['test_score']
-                estimators = result['estimators']
-        elif self.score_func == 'CrossEntropy':
-            y_pred, estimators = cross_val_predict(pipe, Yp, Y, method='predict_proba')
-        else:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                y_pred, estimators = cross_val_predict(pipe, Yp, Y)
+        y_pred, estimators = yield (pipe, dill.dumps(func, protocol=-1))
 
         individual.predicted_values = y_pred
 
@@ -184,6 +173,8 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
         individual.pipe = pipe
 
         if self.bootstrap_training or self.eager_training:
+            func = self.toolbox.compile(individual)
+            Yp = result_calculation(func, self.X, self.original_features)
             out_of_bag = self.train_final_model(individual, Yp, Y)
 
         individual.coef = np.mean([x['Ridge'].feature_importances_[:self.gene_num]
@@ -194,9 +185,9 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
 
         # final score
         if self.bootstrap_training:
-            return self.calculate_fitness_value(individual, Y[out_of_bag], individual.pipe.predict(Yp[out_of_bag]))
+            yield self.calculate_fitness_value(individual, Y[out_of_bag], individual.pipe.predict(Yp[out_of_bag]))
         else:
-            return self.calculate_fitness_value(individual, Y, y_pred)
+            yield self.calculate_fitness_value(individual, Y, y_pred)
 
     def calculate_fitness_value(self, individual, Y, y_pred):
         if self.score_func == 'R2' or self.score_func == 'NoveltySearch':
@@ -292,6 +283,8 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
             splitter = random.choice(['random', 'best'])
             ridge_model = DecisionTreeRegressor(splitter=splitter,
                                                 min_samples_leaf=self.min_samples_leaf)
+        elif isinstance(self.base_learner, RegressorMixin):
+            ridge_model = self.base_learner
         else:
             raise Exception
         pipe = Pipeline([
@@ -816,15 +809,17 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
 
     def eaSimple(self, population, toolbox, cxpb, mutpb, ngen, stats=None,
                  halloffame=None, verbose=__debug__):
+        arg = (self.X, self.y, self.original_features, self.score_func)
+        if self.n_process > 1:
+            self.pool = Pool(self.n_process, initializer=init_worker, initargs=(calculate_score, arg))
+        else:
+            init_worker(calculate_score, arg)
         history_hof = HallOfFame(len(population))
         logbook = tools.Logbook()
         logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
 
         # Evaluate the individuals with an invalid fitness
-        invalid_ind = [ind for ind in population if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
-            ind.fitness.values = fit
+        invalid_ind = self.population_evaluation(toolbox, population)
         self.append_evaluated_features(population)
         for o in population:
             self.evaluated_pop.add(individual_to_tuple(o))
@@ -887,10 +882,7 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
             self.append_evaluated_features(offspring)
 
             # Evaluate the individuals with an invalid fitness
-            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-            for ind, fit in zip(invalid_ind, fitnesses):
-                ind.fitness.values = fit
+            invalid_ind = self.population_evaluation(toolbox, offspring)
             # Update the hall of fame with the generated individuals
             if halloffame is not None:
                 halloffame.update(offspring)
@@ -962,7 +954,24 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
             print('final generation', len(error_list))
             self.hof.clear()
             self.hof.update(best_hof)
+        if self.n_process > 0:
+            self.pool.close()
         return population, logbook
+
+    @timeit
+    def population_evaluation(self, toolbox, population):
+        invalid_ind = [ind for ind in population if not ind.fitness.valid]
+        fitnesses = list(toolbox.map(toolbox.evaluate, invalid_ind))
+
+        if self.n_process > 1:
+            data = [next(f) for f in fitnesses]
+            results = list(self.pool.map(calculate_score, data))
+        else:
+            results = list(map(lambda f: calculate_score(next(f)), fitnesses))
+        for ind, fit, r in zip(invalid_ind, fitnesses, results):
+            value = fit.send(r)
+            ind.fitness.values = value
+        return invalid_ind
 
     def diversity_summarization(self):
         # distance calculation
@@ -1104,6 +1113,8 @@ class EvolutionaryForestClassifier(EvolutionaryForestRegressor):
             ridge_model = DecisionTreeClassifier(splitter='random', max_depth=self.max_tree_depth,
                                                  min_samples_leaf=self.min_samples_leaf,
                                                  max_features='sqrt')
+        elif isinstance(self.base_learner, ClassifierMixin):
+            ridge_model = self.base_learner
         else:
             raise Exception
         pipe = Pipeline([
@@ -1119,3 +1130,32 @@ def truncated_normal(lower=0, upper=1, mu=0.5, sigma=0.1, sample=(100, 100)):
     # generate 1000 sample data
     samples = X.rvs(sample)
     return samples
+
+
+def calculate_score(args):
+    (X, Y, original_features, score_func) = calculate_score.data
+    pipe, func = args
+    func = dill.loads(func)
+
+    Yp = result_calculation(func, X, original_features)
+    assert isinstance(Yp, np.ndarray)
+    assert np.all(Yp != np.nan), f"{Yp}"
+    assert not np.any(np.isinf(Yp)), f"{np.any(np.isinf(Yp))},{Yp}"
+
+    if score_func in ['CV-R2', 'CV-Accuracy']:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = cross_validate(pipe, Yp, Y, return_estimator=True)
+            y_pred = result['test_score']
+            estimators = result['estimator']
+    elif score_func == 'CrossEntropy':
+        y_pred, estimators = cross_val_predict(pipe, Yp, Y, method='predict_proba')
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            y_pred, estimators = cross_val_predict(pipe, Yp, Y)
+    return y_pred, estimators
+
+
+def init_worker(function, data):
+    function.data = data
