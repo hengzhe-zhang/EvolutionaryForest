@@ -82,7 +82,7 @@ class TestFunction():
         return copy.deepcopy(self)
 
 
-class GPRegressor(RegressorMixin, BaseEstimator):
+class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
     def __init__(self, n_pop=50, n_gen=20, verbose=False, max_height=8, basic_primitives=True, normalize=True,
                  select='AutomaticLexicase', gene_num=5, mutation_scheme='uniform', automated_hof_size=False,
                  boost_size=1, external_archive=False, original_features=False, diversity_search='None',
@@ -1006,7 +1006,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                 ind.case_values[len(self.y):] = distance
 
 
-class GPClassifier(GPRegressor):
+class EvolutionaryForestClassifier(EvolutionaryForestRegressor):
     def __init__(self, score_func='ZeroOne', **param):
         super().__init__(score_func=score_func, **param)
         self.y_scaler = DummyTransformer()
