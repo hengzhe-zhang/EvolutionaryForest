@@ -109,6 +109,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         self.max_height = max_height
         self.initialized = False
         self.evaluated_pop = set()
+        self.generated_features = set()
         self.pop = []
         self.basic_primitives = basic_primitives
         self.select = select
@@ -124,6 +125,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         self.early_stop = early_stop
         self.environmental_selection = environmental_selection
         self.eager_training = eager_training
+        self.current_height = 1
 
         self.cross_pb = cross_pb
         self.mutation_pb = mutation_pb
@@ -145,7 +147,6 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             print('mean_diversity', np.mean(mean_diversity))
         return mean_diversity
 
-    # @timeit
     def fitness_evaluation(self, individual):
         X, Y = self.X, self.y
         Y = Y.flatten()
@@ -435,42 +436,51 @@ class GPRegressor(RegressorMixin, BaseEstimator):
 
         if 'uniform' in self.mutation_scheme or 'weight-plus' in self.mutation_scheme \
             or 'all_gene' in self.mutation_scheme:
-            mutation_operator = None
+            def convert_to_int(s):
+                if s.replace('.', '').isdecimal():
+                    return float(s)
+                else:
+                    return None
+
             # extract mutation operator
             if '|' in self.mutation_scheme:
                 mutation_operator = self.mutation_scheme.split('|')[1]
-                self.mutation_scheme = self.mutation_scheme.split('|')[0]
+                crossover_operator = self.mutation_scheme.split('|')[0]
+            else:
+                mutation_operator = None
+                crossover_operator = self.mutation_scheme
 
-            if 'weight-plus' in self.mutation_scheme:
-                def convert_to_int(s):
-                    if s.replace('.', '').isdecimal():
-                        return float(s)
-                    else:
-                        return None
+            threshold_ratio = convert_to_int(crossover_operator.split('-')[-1])
+            if threshold_ratio is None:
+                threshold_ratio = 0.2
+            else:
+                crossover_operator = '-'.join(crossover_operator.split('-')[:-1])
+            self.cx_threshold_ratio = threshold_ratio
 
-                threshold_ratio = convert_to_int(self.mutation_scheme.split('-')[-1])
-                if threshold_ratio is None:
-                    threshold_ratio = 0.2
-                else:
-                    self.mutation_scheme = '-'.join(self.mutation_scheme.split('-')[:-1])
-
-                if self.mutation_scheme == 'weight-plus-positive':
+            if 'weight-plus' in crossover_operator:
+                if crossover_operator == 'weight-plus-positive':
                     toolbox.register("mate", feature_crossover, positive=True, threshold_ratio=threshold_ratio)
-                elif self.mutation_scheme == 'weight-plus-negative':
+                elif crossover_operator == 'weight-plus-negative':
                     toolbox.register("mate", feature_crossover, positive=False, threshold_ratio=threshold_ratio)
-                elif self.mutation_scheme == 'weight-plus-cross':
+                elif crossover_operator == 'weight-plus-cross':
                     toolbox.register("mate", feature_crossover_cross, threshold_ratio=threshold_ratio)
-                elif self.mutation_scheme == 'weight-plus-cross-global':
+                elif crossover_operator == 'weight-plus-cross-global-mean':
                     toolbox.register("mate", feature_crossover_cross_global, regressor=self)
+                    self.good_features_threshold = 'mean'
+                elif crossover_operator == 'weight-plus-cross-global-inverse':
+                    toolbox.register("mate", feature_crossover_cross_global, regressor=self)
+                    self.good_features_threshold = 1 - self.cx_threshold_ratio
+                elif crossover_operator == 'weight-plus-cross-global':
+                    toolbox.register("mate", feature_crossover_cross_global, regressor=self)
+                    self.good_features_threshold = self.cx_threshold_ratio
                 else:
                     raise Exception
-                self.cx_threshold_ratio = threshold_ratio
-            elif self.mutation_scheme == 'all_gene':
+            elif crossover_operator == 'all_gene':
                 toolbox.register("mate", cxOnePoint_multiple_all_gene)
-            elif self.mutation_scheme == 'all_gene_permutation':
+            elif crossover_operator == 'all_gene_permutation':
                 toolbox.register("mate", partial(cxOnePoint_multiple_all_gene, permutation=True))
             else:
-                assert self.mutation_scheme == 'uniform'
+                assert crossover_operator == 'uniform'
                 toolbox.register("mate", cxOnePoint_multiple_gene)
 
             if self.basic_primitives == False:
@@ -482,6 +492,9 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                 toolbox.register("mutate", mutUniform_multiple_gene, expr=toolbox.expr_mut, pset=pset)
             elif mutation_operator == 'weight-mutation':
                 toolbox.register("mutate", mutWeight_multiple_gene, expr=toolbox.expr_mut, pset=pset)
+            elif mutation_operator == 'weight-mutation-global':
+                toolbox.register("mutate", feature_mutation_global, expr=toolbox.expr_mut, pset=pset,
+                                 regressor=self)
             else:
                 raise Exception
         elif self.mutation_scheme == 'weight':
@@ -491,10 +504,24 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         else:
             raise Exception
 
-        toolbox.decorate("mate",
-                         staticLimit_multiple_gene(key=operator.attrgetter("height"), max_value=self.max_height))
-        toolbox.decorate("mutate",
-                         staticLimit_multiple_gene(key=operator.attrgetter("height"), max_value=self.max_height))
+        def dynamic_height():
+            if len(self.generated_features) >= \
+                np.log(len(self.pset.primitives) * (2 ** self.current_height - 1) * \
+                       len(self.pset.terminals) * (2 ** self.current_height)) / \
+                np.log(1.01):
+                self.current_height += 1
+            return self.current_height
+
+        if self.max_height == 'dynamic':
+            toolbox.decorate("mate", staticLimit_multiple_gene(key=operator.attrgetter("height"),
+                                                               max_value=dynamic_height))
+            toolbox.decorate("mutate", staticLimit_multiple_gene(key=operator.attrgetter("height"),
+                                                                 max_value=dynamic_height))
+        else:
+            toolbox.decorate("mate", staticLimit_multiple_gene(key=operator.attrgetter("height"),
+                                                               max_value=self.max_height))
+            toolbox.decorate("mutate", staticLimit_multiple_gene(key=operator.attrgetter("height"),
+                                                                 max_value=self.max_height))
 
         self.pop = toolbox.population(n=self.n_pop)
 
@@ -518,7 +545,8 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             self.hof = None
 
     def construct_global_feature_pool(self, pop):
-        good_features, threshold = construct_feature_pools(pop, True, threshold_ratio=self.cx_threshold_ratio)
+        good_features, threshold = construct_feature_pools(pop, True, threshold_ratio=self.cx_threshold_ratio,
+                                                           good_features_threshold=self.good_features_threshold)
         self.good_features = good_features
         self.cx_threshold = threshold
 
@@ -725,7 +753,6 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             return None
 
     def get_features(self, sample, individuals, flatten=False):
-        Y = self.y
         all_Yp = []
         for individual in individuals:
             func = self.toolbox.compile(individual)
@@ -737,16 +764,20 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         return np.array(all_Yp)
 
     def pre_selection_individuals(self, parents, offspring):
+        predicted_values = self.pre_selection_score(offspring, parents)
+        final_offspring = []
+        for i in np.argsort(-1 * predicted_values)[:len(parents)]:
+            final_offspring.append(offspring[i])
+        return final_offspring
+
+    def pre_selection_score(self, offspring, parents):
         if self.pre_selection == 'surrogate-model':
             predicted_values = self.calculate_score_by_surrogate_model(offspring, parents)
         elif self.pre_selection == 'simple-task':
             predicted_values = self.calculate_score_by_statistical_methods(offspring, parents)
         else:
             raise Exception
-        final_offspring = []
-        for i in np.argsort(-1 * predicted_values)[:len(parents)]:
-            final_offspring.append(offspring[i])
-        return final_offspring
+        return predicted_values
 
     def calculate_score_by_statistical_methods(self, offspring, parents):
         all_values = np.array([p.case_values for p in parents])
@@ -778,6 +809,11 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         print('CV', np.mean(cross_val_score(surrogate_model, parent_features, target, scoring=scoring)))
         return predicted_values
 
+    def append_evaluated_features(self, pop):
+        for ind in pop:
+            for gene in ind.gene:
+                self.generated_features.add(str(gene))
+
     def eaSimple(self, population, toolbox, cxpb, mutpb, ngen, stats=None,
                  halloffame=None, verbose=__debug__):
         history_hof = HallOfFame(len(population))
@@ -789,6 +825,9 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
+        self.append_evaluated_features(population)
+        for o in population:
+            self.evaluated_pop.add(individual_to_tuple(o))
 
         if halloffame is not None:
             halloffame.update(population)
@@ -796,7 +835,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
         if self.diversity_search != 'None':
             self.diversity_assignment(population)
 
-        if self.mutation_scheme == 'weight-plus-cross-global':
+        if 'global' in self.mutation_scheme:
             self.construct_global_feature_pool(population)
 
         record = stats.compile(population) if stats else {}
@@ -832,6 +871,12 @@ class GPRegressor(RegressorMixin, BaseEstimator):
                         if not individual_to_tuple(o) in self.evaluated_pop:
                             self.evaluated_pop.add(individual_to_tuple(o))
                             new_offspring.append(o)
+            # delete some inherited information
+            for ind in new_offspring:
+                delattr(ind, 'pipe')
+                delattr(ind, 'predicted_values')
+                delattr(ind, 'case_values')
+                delattr(ind, 'coef')
 
             if self.pre_selection != None:
                 offspring = self.pre_selection_individuals(population, new_offspring)
@@ -839,6 +884,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             else:
                 offspring = new_offspring
                 assert len(offspring) == pop_size
+            self.append_evaluated_features(offspring)
 
             # Evaluate the individuals with an invalid fitness
             invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
@@ -848,7 +894,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             # Update the hall of fame with the generated individuals
             if halloffame is not None:
                 halloffame.update(offspring)
-            if self.mutation_scheme == 'weight-plus-cross-global':
+            if 'global' in self.mutation_scheme:
                 self.construct_global_feature_pool(population)
 
             self.fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in offspring]))
@@ -965,6 +1011,17 @@ class GPClassifier(GPRegressor):
         super().__init__(score_func=score_func, **param)
         self.y_scaler = DummyTransformer()
 
+    def predict_proba(self, X):
+        predictions = []
+        for individual in self.hof:
+            if self.verbose:
+                print(individual.fitness.wvalues)
+            func = self.toolbox.compile(individual)
+            Yp = result_calculation(func, X, self.original_features)
+            predicted = individual.pipe.predict_proba(Yp)
+            predictions.append(predicted)
+        return np.mean(predictions, axis=0)
+
     def lazy_init(self, x):
         self.label_encoder = OneHotEncoder(sparse=False)
         self.label_encoder.fit(self.y)
@@ -1033,9 +1090,6 @@ class GPClassifier(GPRegressor):
             func = self.toolbox.compile(individual)
             Yp = result_calculation(func, X, self.original_features)
             predicted = individual.pipe.predict(Yp)
-
-            if self.normalize:
-                predicted = self.y_scaler.inverse_transform(predicted.reshape(-1, 1)).flatten()
             predictions.append(predicted)
         return stats.mode(predictions, axis=0)[0].flatten()
 

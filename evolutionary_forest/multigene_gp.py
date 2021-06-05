@@ -115,12 +115,17 @@ def mutWeight_multiple_gene(individual: MultipleGeneGP, expr, pset, threshold_ra
     return individual,
 
 
-def construct_feature_pools(pop, positive, threshold_ratio=0.2):
+def construct_feature_pools(pop, positive, threshold_ratio=0.2,
+                            good_features_threshold=None):
     # positive: get all important features
     # negative: get all unimportant features
     good_features = []
-    # threshold = np.mean([ind.coef for ind in pop])
-    threshold = np.quantile([ind.coef for ind in pop], threshold_ratio)
+    if good_features_threshold == None:
+        threshold = np.quantile([ind.coef for ind in pop], threshold_ratio)
+    elif good_features_threshold == 'mean':
+        threshold = np.mean([ind.coef for ind in pop])
+    else:
+        threshold = np.quantile([ind.coef for ind in pop], good_features_threshold)
 
     def add_features(ind):
         for c, x in zip(ind.coef, ind.gene):
@@ -129,6 +134,8 @@ def construct_feature_pools(pop, positive, threshold_ratio=0.2):
 
     for ind in pop:
         add_features(ind)
+
+    threshold = np.quantile([ind.coef for ind in pop], threshold_ratio)
     return good_features, threshold
 
 
@@ -149,6 +156,19 @@ def feature_crossover_cross_global(ind1, ind2, regressor):
         ind = cxOnePoint_multiple_gene_weight_plus(ind, regressor.good_features, regressor.cx_threshold, False)
         new_pop.append(ind)
     return new_pop
+
+
+def feature_mutation_global(individual: MultipleGeneGP, expr, pset, regressor):
+    threshold = regressor.cx_threshold
+
+    def replaces_features(ind: MultipleGeneGP):
+        for i, c in enumerate(ind.coef):
+            if c < threshold:
+                new_features = mutUniform(copy.deepcopy(random.choice(regressor.good_features)), expr, pset)
+                ind.gene[i] = new_features[0]
+
+    replaces_features(individual)
+    return individual,
 
 
 def feature_crossover(ind1, ind2, positive, threshold_ratio):
@@ -197,9 +217,14 @@ def staticLimit_multiple_gene(key, max_value):
             for i, ind in enumerate(new_inds):
                 limit_exceed = False
                 for x in ind.gene:
-                    if key(x) > max_value:
-                        limit_exceed = True
-                        break
+                    if callable(max_value):
+                        if key(x) > max_value():
+                            limit_exceed = True
+                            break
+                    else:
+                        if key(x) > max_value:
+                            limit_exceed = True
+                            break
                 if limit_exceed:
                     new_inds[i] = random.choice(keep_inds)
             return new_inds
