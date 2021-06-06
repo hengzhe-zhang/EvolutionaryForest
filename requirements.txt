@@ -8,5 +8,5 @@ sympy
 pandas
 scikit_learn
 dill
-lightgbm
+lightgbm==3.2.1
 smt
