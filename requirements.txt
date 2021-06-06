@@ -9,4 +9,4 @@ pandas
 scikit_learn
 dill
 lightgbm
-smt
+smt==1.0.0
