@@ -118,6 +118,13 @@ def same_numerical(x):
     return x
 
 
+def cross_product(x1, x2):
+    if np.isscalar(x1) or np.isscalar(x2):
+        return x1
+    x = np.stack([x1, x2]).T
+    return np.unique(x, axis=0, return_inverse=True)[1]
+
+
 def add_basic_operators(pset):
     pset.addPrimitive(np.add, 2)
     pset.addPrimitive(np.subtract, 2)

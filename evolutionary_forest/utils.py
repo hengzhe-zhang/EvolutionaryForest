@@ -6,13 +6,15 @@ import seaborn as sns
 from deap.gp import Primitive
 from matplotlib import pyplot as plt
 from sympy import simplify, latex
+from sympy.printing.latex import latex_escape
 
 
 def get_feature_importance(regr, simple_version=True):
     all_genes_map = defaultdict(int)
     for x in regr.hof:
         if simple_version:
-            genes = [f'${latex(simplify(gene_to_string(g).replace("ARG", "X")))}$' for g in x.gene]
+            latex_string = lambda g: latex(simplify(gene_to_string(g).replace("ARG", "X").replace("_", "-")))
+            genes = [f'${latex_string(g)}$' for g in x.gene]
         else:
             def code_generation(gene):
                 code = str(gene)
@@ -25,6 +27,16 @@ def get_feature_importance(regr, simple_version=True):
             all_genes_map[g] += 1 * c
     feature_importance_dict = {k: v for k, v in sorted(all_genes_map.items(), key=lambda item: -item[1])}
     return feature_importance_dict
+
+
+def select_top_features(code_importance_dict, ratio=None):
+    if ratio == None:
+        mean_importance = np.mean(list(code_importance_dict.values()))
+    else:
+        mean_importance = np.quantile(list(code_importance_dict.values()), ratio)
+    index = list(np.array(list(code_importance_dict.values())) <= mean_importance).index(True)
+    features = list(code_importance_dict.keys())[:index]
+    return features
 
 
 def feature_append(regr, X, features, only_new_features=False):

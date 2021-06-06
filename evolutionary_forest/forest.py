@@ -11,6 +11,7 @@ from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
 from deap.tools import selRandom, selLexicase, selNSGA2
+from lightgbm import LGBMClassifier, LGBMRegressor
 from scipy import stats
 from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata
@@ -34,7 +35,6 @@ from evolutionary_forest.component.selection import batch_tournament_selection, 
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.sklearn_utils import cross_val_predict
-from utils.common_utils import timeit
 
 
 class EnsembleClassifier(ClassifierMixin, BaseEstimator):
@@ -279,6 +279,8 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
             ridge_model = ExtraTreesRegressor(n_estimators=100)
         elif self.base_learner == 'GBDT':
             ridge_model = GradientBoostingRegressor(learning_rate=0.8, n_estimators=5)
+        elif self.base_learner == 'LightGBM':
+            ridge_model = LGBMRegressor(n_estimators=5, n_jobs=1)
         elif self.base_learner == 'Hybrid':
             splitter = random.choice(['random', 'best'])
             ridge_model = DecisionTreeRegressor(splitter=splitter,
@@ -358,6 +360,7 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
                 pset.addPrimitive(group_count, [CategoricalFeature], NumericalFeature)
                 pset.addPrimitive(identical_categorical, [CategoricalFeature], GeneralFeature)
                 pset.addPrimitive(same_categorical, [CategoricalFeature], CategoricalFeature)
+                pset.addPrimitive(cross_product, [CategoricalFeature, CategoricalFeature], CategoricalFeature)
             if has_boolean_feature:
                 pset.addPrimitive(np.logical_and, [BooleanFeature, BooleanFeature], BooleanFeature)
                 pset.addPrimitive(np.logical_or, [BooleanFeature, BooleanFeature], BooleanFeature)
@@ -383,6 +386,10 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
             pset = gp.PrimitiveSet("MAIN", x.shape[1])
             add_basic_operators(pset)
             add_relation_operators(pset)
+        elif self.basic_primitives == 'cross_product':
+            pset = gp.PrimitiveSet("MAIN", x.shape[1])
+            add_basic_operators(pset)
+            pset.addPrimitive(cross_product, 2)
         else:
             pset = gp.PrimitiveSet("MAIN", x.shape[1])
             add_basic_operators(pset)
@@ -907,6 +914,17 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
                     ind.fitness.weights = (-1,)
                     ind.fitness.values = getattr(ind, 'original_fitness')
                 self.hof = population
+            elif self.environmental_selection == 'NSGA2-CV':
+                for ind in offspring + population:
+                    setattr(ind, 'original_fitness', ind.fitness.values)
+                    fitness = ind.case_values
+                    ind.fitness.weights = (-1,) * len(fitness)
+                    ind.fitness.values = list(fitness)
+                population[:] = selNSGA2(offspring + population, len(population))
+                for ind in population:
+                    ind.fitness.weights = (-1,)
+                    ind.fitness.values = getattr(ind, 'original_fitness')
+                self.hof = population
             elif self.environmental_selection == 'NSGA2':
                 mean_values = np.mean(np.array([ind.case_values for ind in offspring + population]), axis=0)
                 assert len(mean_values) == len(self.y)
@@ -954,11 +972,10 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
             print('final generation', len(error_list))
             self.hof.clear()
             self.hof.update(best_hof)
-        if self.n_process > 0:
+        if self.n_process > 1:
             self.pool.close()
         return population, logbook
 
-    @timeit
     def population_evaluation(self, toolbox, population):
         invalid_ind = [ind for ind in population if not ind.fitness.valid]
         fitnesses = list(toolbox.map(toolbox.evaluate, invalid_ind))
@@ -974,6 +991,8 @@ class EvolutionaryForestRegressor(RegressorMixin, BaseEstimator):
         return invalid_ind
 
     def diversity_summarization(self):
+        if 'CV' in self.score_func:
+            return 0
         # distance calculation
         if self.second_layer == 'None' or self.second_layer == None:
             all_ind = self.hof
@@ -1106,6 +1125,8 @@ class EvolutionaryForestClassifier(EvolutionaryForestRegressor):
         if self.base_learner == 'DT':
             ridge_model = DecisionTreeClassifier(max_depth=self.max_tree_depth,
                                                  min_samples_leaf=self.min_samples_leaf)
+        elif self.base_learner == 'LightGBM':
+            ridge_model = LGBMClassifier(n_estimators=5, n_jobs=1)
         elif self.base_learner == 'Random-DT' or self.base_learner == 'Random-DT-Plus':
             ridge_model = DecisionTreeClassifier(splitter='random', max_depth=self.max_tree_depth,
                                                  min_samples_leaf=self.min_samples_leaf)
