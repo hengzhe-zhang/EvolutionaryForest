@@ -7,4 +7,4 @@ deap
 sympy
 pandas
 scikit_learn
-dill
+dill==0.3.3
