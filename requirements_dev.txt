@@ -20,3 +20,4 @@ deap
 sympy
 pandas
 scikit_learn
+dill
