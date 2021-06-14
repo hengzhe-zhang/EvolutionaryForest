@@ -7,6 +7,6 @@ deap
 sympy
 pandas
 scikit_learn
-dill
+dill==0.3.4
 lightgbm
 smt
