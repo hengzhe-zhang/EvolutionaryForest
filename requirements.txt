@@ -5,7 +5,7 @@ seaborn
 matplotlib
 deap
 sympy
-pandas
+pandas==1.2.5
 scikit_learn
 dill
 lightgbm
