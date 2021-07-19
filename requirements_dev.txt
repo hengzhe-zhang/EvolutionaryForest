@@ -13,7 +13,7 @@ pytest-runner==5.1
 
 scipy
 hdfe
-numpy
+numpy==1.21.1
 seaborn
 matplotlib
 deap
