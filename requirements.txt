@@ -1,4 +1,4 @@
-scipy
+scipy==1.7.1
 hdfe
 numpy
 seaborn
