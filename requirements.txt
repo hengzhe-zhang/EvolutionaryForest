@@ -1,6 +1,6 @@
 scipy
 hdfe
-numpy
+numpy==1.21.2
 seaborn
 matplotlib
 deap
