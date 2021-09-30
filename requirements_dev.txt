@@ -19,7 +19,7 @@ matplotlib
 deap
 sympy
 pandas
-scikit_learn
+scikit_learn==1.0
 dill
 lightgbm
 smt
