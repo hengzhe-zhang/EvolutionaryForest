@@ -17,7 +17,7 @@ numpy
 seaborn
 matplotlib
 deap
-sympy
+sympy==1.9
 pandas
 scikit_learn
 dill
