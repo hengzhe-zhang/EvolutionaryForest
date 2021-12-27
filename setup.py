@@ -10,7 +10,22 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ ]
+requirements = [
+    'scipy',
+    'hdfe',
+    'numpy',
+    'seaborn',
+    'matplotlib',
+    'deap',
+    'sympy',
+    'pandas',
+    'scikit_learn',
+    'dill',
+    'lightgbm',
+    'smt',
+    'pytest',
+    'joblib',
+]
 
 setup_requirements = ['pytest-runner', ]
 
@@ -42,6 +57,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/zhenlingcn/evolutionary_forest',
-    version='0.1.5',
+    version='0.1.7',
     zip_safe=False,
 )
