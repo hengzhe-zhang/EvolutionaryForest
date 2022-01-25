@@ -65,6 +65,13 @@ An example of improvements brought about by constructed features:
 
 .. image:: https://raw.githubusercontent.com/zhenlingcn/EvolutionaryForest/master/docs/constructed_features.png
 
+Documentation
+----------------
+Tutorial: `English Version`_ | `中文版本`_
+
+.. _English Version: https://github.com/zhenlingcn/EvolutionaryForest/blob/master/tutorial/diabetes_regression.ipynb
+.. _中文版本: https://github.com/zhenlingcn/EvolutionaryForest/blob/master/tutorial/diabetes_regression-CN.md
+
 Credits
 ---------------
 
