@@ -50,10 +50,10 @@ Installation
 Supported Algorithms
 ----------------
 * `Evolutionary Forest`_
-* `PS-Forest`_
+* `SR-Forest`_
 
 .. _Evolutionary Forest: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/EF.py
-.. _PS-Forest: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/PSForest.py
+.. _SR-Forest: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/SRForest.py
 
 Example
 ----------------
