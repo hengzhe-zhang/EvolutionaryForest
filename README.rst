@@ -55,8 +55,8 @@ An example of usage:
 
     X, y = load_diabetes(return_X_y=True)
     x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
-    r = EvolutionaryForestRegressor(max_height=8, normalize=True, select='AutomaticLexicase',
-                                    gene_num=10, boost_size=100, n_gen=100,
+    r = EvolutionaryForestRegressor(max_height=3, normalize=True, select='AutomaticLexicase',
+                                    gene_num=10, boost_size=100, n_gen=20, n_pop=200, cross_pb=1,
                                     base_learner='Random-DT', verbose=True)
     r.fit(x_train, y_train)
     print(r2_score(y_test, r.predict(x_test)))
@@ -64,6 +64,13 @@ An example of usage:
 An example of improvements brought about by constructed features:
 
 .. image:: https://raw.githubusercontent.com/zhenlingcn/EvolutionaryForest/master/docs/constructed_features.png
+
+Documentation
+----------------
+Tutorial: `English Version`_ | `中文版本`_
+
+.. _English Version: https://github.com/zhenlingcn/EvolutionaryForest/blob/master/tutorial/diabetes_regression.ipynb
+.. _中文版本: https://github.com/zhenlingcn/EvolutionaryForest/blob/master/tutorial/diabetes_regression-CN.md
 
 Credits
 ---------------
