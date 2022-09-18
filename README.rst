@@ -47,6 +47,14 @@ Installation
 
     pip install -U evolutionary_forest
 
+Supported Algorithms
+----------------
+* `Evolutionary Forest`_
+* `PS-Forest`_
+
+.. _Evolutionary Forest: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/EF.py
+.. _PS-Forest: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/PSForest.py
+
 Example
 ----------------
 An example of usage:
