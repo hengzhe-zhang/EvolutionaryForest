@@ -72,7 +72,7 @@ eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-PM-Biased', 'EDA-Terminal-PM-Population', 'EDA-PM-Population',
                  'EDA-Terminal-PM-Tournament', 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-SameIndex']
 map_elite_series = ['MAP-Elite-Lexicase', 'MAP-Elite-Tournament', 'MAP-Elite-Tournament-3', 'MAP-Elite-Tournament-7',
-                    'MAP-Elite-Random', 'MAP-Elite-Knockout', 'MAP-Elite-Knockout-S','MAP-Elite-Knockout-SA',
+                    'MAP-Elite-Random', 'MAP-Elite-Knockout', 'MAP-Elite-Knockout-S', 'MAP-Elite-Knockout-SA',
                     'Auto', 'Auto-MCTS']
 
 
@@ -242,6 +242,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.mean_model = mean_model
         self.base_learner = base_learner
         self.bootstrap_training = bootstrap_training
+        self.semantic_diversity = semantic_diversity
         self.ensemble_selection = ensemble_selection if semantic_diversity is None else semantic_diversity
         self.original_features = original_features
         self.external_archive = external_archive
@@ -2134,7 +2135,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     elif self.select == 'MAP-Elite-Knockout-S':
                         offspring = selKnockout(parent, 2, version='S')
                     elif self.select == 'MAP-Elite-Knockout-SA':
-                        offspring = selKnockout(parent, 2, version='S',auto_case=True)
+                        offspring = selKnockout(parent, 2, version='S', auto_case=True)
                     elif self.select == 'MAP-Elite-Tournament-3':
                         offspring = selTournament(parent, 2, tournsize=3)
                     elif self.select == 'MAP-Elite-Tournament-7':
@@ -2553,7 +2554,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.map_elite_parameter['type'] == 'Grid':
                 elite_map = selMAPElite(population, elite_map, self.map_elite_parameter)
             elif self.map_elite_parameter['type'] == 'Grid-Symmetric':
-                elite_map = selMAPElite(population, elite_map, self.map_elite_parameter,self.y)
+                elite_map = selMAPElite(population, elite_map, self.map_elite_parameter, self.y)
             elif self.map_elite_parameter['type'] == 'Grid-Auto':
                 elite_maps = []
                 for id, parameters in enumerate([{'fitness_ratio': x,
@@ -2652,10 +2653,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             population[:] = selMOEAD(offspring + population, len(population))
             self.hof = population
-        elif self.ensemble_selection=='Best':
+        elif self.ensemble_selection == 'Best':
             population[:] = selBest(offspring + population, len(population))
         else:
-                population[:] = offspring
+            population[:] = offspring
 
     # @timeit
     def population_reduction(self, population):
