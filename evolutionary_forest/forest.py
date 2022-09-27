@@ -71,8 +71,9 @@ eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-PM', 'EDA-Terminal-Balanced', 'EDA-Terminal-SameWeight', 'EDA-Terminal-PMI',
                  'EDA-Terminal-PM-Biased', 'EDA-Terminal-PM-Population', 'EDA-PM-Population',
                  'EDA-Terminal-PM-Tournament', 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-SameIndex']
-map_elite_series = ['MAP-Elite-Lexicase', 'MAP-Elite-Tournament','MAP-Elite-Tournament-3','MAP-Elite-Tournament-7',
-                    'MAP-Elite-Random', 'MAP-Elite-Knockout', 'Auto', 'Auto-MCTS']
+map_elite_series = ['MAP-Elite-Lexicase', 'MAP-Elite-Tournament', 'MAP-Elite-Tournament-3', 'MAP-Elite-Tournament-7',
+                    'MAP-Elite-Random', 'MAP-Elite-Knockout', 'MAP-Elite-Knockout-S','MAP-Elite-Knockout-SA',
+                    'Auto', 'Auto-MCTS']
 
 
 class GBDTLRClassifierX(GBDTLRClassifier):
@@ -170,11 +171,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def __init__(self, n_pop=50, n_gen=20, verbose=False, max_height=8, basic_primitives=True, normalize=True,
                  select='AutomaticLexicaseFast', gene_num=5, mutation_scheme='uniform', ensemble_size=1,
                  external_archive=False, original_features=False, diversity_search='None', cross_pb=0.5,
-                 mutation_pb=0.1, second_layer=None, semantic_diversity=None, test_fun=None, bootstrap_training=False,
+                 mutation_pb=0.1, second_layer=None, ensemble_selection=None, test_fun=None, bootstrap_training=False,
                  mean_model=False, early_stop=-1, min_samples_leaf=1, base_learner='Random-DT', score_func='R2',
                  max_tree_depth=None, environmental_selection=None, pre_selection=None, eager_training=False,
                  n_process=1, useless_feature_ratio=None, weighted_coef=False, feature_selection=False,
-                 allow_repetitive=False, cv=5,
+                 allow_repetitive=False, cv=5, elitism=0,
                  # Soft-PS-Tree
                  partition_number=4, ps_tree_local_model='RidgeCV',
                  dynamic_partition='Self-Adaptive', max_leaf_nodes=None, ps_tree_cv_label=True,
@@ -185,7 +186,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  clearing_cluster_size=0, reduction_ratio=0,
                  random_state=0, class_weight=None, map_elite_parameter=None,
                  # Deprecated parameters
-                 boost_size=None, validation_size=0, mab_parameter=None,
+                 boost_size=None, validation_size=0, mab_parameter=None, semantic_diversity=None,
                  interleaving_period=0, **param):
         """
         Basic GP Parameters:
@@ -235,12 +236,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.allow_repetitive = allow_repetitive
         self.pre_selection = pre_selection
         self.max_tree_depth = max_tree_depth
+        self.elitism = elitism
         self.score_func = score_func
         self.min_samples_leaf = min_samples_leaf
         self.mean_model = mean_model
         self.base_learner = base_learner
         self.bootstrap_training = bootstrap_training
-        self.semantic_diversity = semantic_diversity
+        self.ensemble_selection = ensemble_selection if semantic_diversity is None else semantic_diversity
         self.original_features = original_features
         self.external_archive = external_archive
         self.boost_size = boost_size
@@ -1408,29 +1410,29 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.ensemble_size == 'auto':
             # Automatically determine the ensemble size
             self.hof = LexicaseHOF()
-        elif 'Similar' in self.semantic_diversity:
+        elif 'Similar' in self.ensemble_selection:
             ratio = 0.95
-            if '-' in self.semantic_diversity:
-                ratio = float(self.semantic_diversity.split('-')[1])
+            if '-' in self.ensemble_selection:
+                ratio = float(self.ensemble_selection.split('-')[1])
 
             def similar(a, b):
                 return np.dot(a.predicted_values, b.predicted_values) / \
                        (norm(a.predicted_values) * norm(b.predicted_values)) > ratio
 
             self.hof = HallOfFame(self.ensemble_size, similar=similar)
-        elif self.semantic_diversity == 'Equal':
+        elif self.ensemble_selection == 'Equal':
             def similar(a, b):
                 return np.all(np.equal(a.predicted_values, b.predicted_values))
 
             self.hof = HallOfFame(self.ensemble_size, similar=similar)
-        elif self.semantic_diversity == 'Bootstrap':
+        elif self.ensemble_selection == 'Bootstrap':
             self.hof = BootstrapHallOfFame(self.X, self.ensemble_size)
-        elif self.semantic_diversity == 'OOB':
+        elif self.ensemble_selection == 'OOB':
             self.hof = OOBHallOfFame(self.X, self.y, self.toolbox, self.ensemble_size)
-        elif self.semantic_diversity == 'GreedySelection':
+        elif self.ensemble_selection == 'GreedySelection':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y)
             self.hof.novelty_weight = self.novelty_weight
-        elif self.semantic_diversity == 'GreedySelection-Resampling':
+        elif self.ensemble_selection == 'GreedySelection-Resampling':
             if isinstance(self, ClassifierMixin):
                 self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                      unique=False, bagging_iteration=20, loss_function='MSE',
@@ -1439,25 +1441,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                      unique=False, bagging_iteration=20, loss_function='MSE',
                                                      inner_sampling=0.1, outer_sampling=0.25)
-        elif self.semantic_diversity == 'GreedySelection-Resampling-MSE':
+        elif self.ensemble_selection == 'GreedySelection-Resampling-MSE':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                  unique=False, bagging_iteration=20, loss_function='MSE')
-        elif self.semantic_diversity == 'GreedySelection-Resampling-Diverse':
+        elif self.ensemble_selection == 'GreedySelection-Resampling-Diverse':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y, diversity_ratio=0.5,
                                                  unique=False, bagging_iteration=20, loss_function='MSE',
                                                  inner_sampling=0.5, outer_sampling=0.25)
-        elif self.semantic_diversity == 'GreedySelection-Resampling-CrossEntropy':
+        elif self.ensemble_selection == 'GreedySelection-Resampling-CrossEntropy':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                  unique=False, bagging_iteration=20, loss_function='CrossEntropy')
-        elif self.semantic_diversity == 'GreedySelection-Resampling-Hinge':
+        elif self.ensemble_selection == 'GreedySelection-Resampling-Hinge':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                  unique=False, bagging_iteration=20, loss_function='Hinge')
-        elif self.semantic_diversity == 'GreedySelection-Resampling-ZeroOne':
+        elif self.ensemble_selection == 'GreedySelection-Resampling-ZeroOne':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                  unique=False, bagging_iteration=20, loss_function='ZeroOne')
-        elif isinstance(self.semantic_diversity, str) and \
-            self.semantic_diversity.startswith('GreedySelection-Resampling-MSE-Custom-'):
-            parameter = self.semantic_diversity.replace('GreedySelection-Resampling-MSE-Custom-', '')
+        elif isinstance(self.ensemble_selection, str) and \
+            self.ensemble_selection.startswith('GreedySelection-Resampling-MSE-Custom-'):
+            parameter = self.ensemble_selection.replace('GreedySelection-Resampling-MSE-Custom-', '')
             inner_sampling, outer_sampling, bagging_iteration = parameter.split('-')
             inner_sampling = float(inner_sampling)
             outer_sampling = float(outer_sampling)
@@ -1465,20 +1467,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y, diversity_ratio=0,
                                                  unique=False, bagging_iteration=bagging_iteration, loss_function='MSE',
                                                  inner_sampling=inner_sampling, outer_sampling=outer_sampling)
-        elif isinstance(self.semantic_diversity, str) and 'GreedySelection-Resampling~' in self.semantic_diversity:
-            self.semantic_diversity, initial_size = self.semantic_diversity.split('~')
+        elif isinstance(self.ensemble_selection, str) and 'GreedySelection-Resampling~' in self.ensemble_selection:
+            self.ensemble_selection, initial_size = self.ensemble_selection.split('~')
             initial_size = int(initial_size)
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y)
             self.hof.unique = False
             self.hof.bagging_iteration = 20
             self.hof.initial_size = initial_size
-        elif self.semantic_diversity == 'NoveltySelection':
+        elif self.ensemble_selection == 'NoveltySelection':
             self.hof = NoveltyHallOfFame(self.ensemble_size, self.y)
             self.hof.novelty_weight = self.novelty_weight
-        elif isinstance(self.semantic_diversity, str) and ('similar' in self.semantic_diversity):
+        elif isinstance(self.ensemble_selection, str) and ('similar' in self.ensemble_selection):
             # Using similarity metric to filter out individuals
-            if '-' in self.semantic_diversity:
-                ratio = float(self.semantic_diversity.split('-')[1])
+            if '-' in self.ensemble_selection:
+                ratio = float(self.ensemble_selection.split('-')[1])
             else:
                 ratio = 0.95
 
@@ -1487,16 +1489,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             self.hof = HallOfFame(self.ensemble_size, similar=similar)
         elif self.score_func == 'NoveltySearch':
-            if self.semantic_diversity == 'DREP':
+            if self.ensemble_selection == 'DREP':
                 self.hof = DREPHallOfFame(self.ensemble_size, self.y)
-            elif self.semantic_diversity == 'GreedySelection':
+            elif self.ensemble_selection == 'GreedySelection':
                 self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y)
-            elif self.semantic_diversity == 'Traditional':
+            elif self.ensemble_selection == 'Traditional':
                 self.hof = HallOfFame(self.ensemble_size)
             else:
                 self.hof = NoveltyHallOfFame(self.ensemble_size, self.y)
             self.hof.novelty_weight = self.novelty_weight
-        elif self.semantic_diversity == None or self.semantic_diversity in ['None', 'none']:
+        elif self.ensemble_selection == None or self.ensemble_selection in ['None', 'none',
+                                                                            'MAP-Elite']:
             self.hof = HallOfFame(self.ensemble_size)
         else:
             raise Exception
@@ -1961,7 +1964,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elite_map = {}
         pop_pool = []
         elite_map, pop_pool = self.map_elite_generation(population, elite_map, pop_pool)
-        map_data = np.zeros((2, len(elite_map)))
         if self.select == 'Auto':
             selection_operators = self.mab_parameter.get('selection_operators',
                                                          'MAP-Elite-Lexicase,Tournament-7,Tournament-15').split(',')
@@ -2129,6 +2131,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         offspring = selRandom(parent, 2)
                     elif self.select == 'MAP-Elite-Knockout':
                         offspring = selKnockout(parent, 2)
+                    elif self.select == 'MAP-Elite-Knockout-S':
+                        offspring = selKnockout(parent, 2, version='S')
+                    elif self.select == 'MAP-Elite-Knockout-SA':
+                        offspring = selKnockout(parent, 2, version='S',auto_case=True)
                     elif self.select == 'MAP-Elite-Tournament-3':
                         offspring = selTournament(parent, 2, tournsize=3)
                     elif self.select == 'MAP-Elite-Tournament-7':
@@ -2537,9 +2543,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return population, logbook
 
     def map_elite_generation(self, population, elite_map, pop_pool):
+        """
+        :param population: Store individuals in the current generation
+        :param elite_map: Store selected individuals
+        :param pop_pool: Store k*pop_size individuals
+        :return:
+        """
         if self.select in map_elite_series:
             if self.map_elite_parameter['type'] == 'Grid':
                 elite_map = selMAPElite(population, elite_map, self.map_elite_parameter)
+            elif self.map_elite_parameter['type'] == 'Grid-Symmetric':
+                elite_map = selMAPElite(population, elite_map, self.map_elite_parameter,self.y)
             elif self.map_elite_parameter['type'] == 'Grid-Auto':
                 elite_maps = []
                 for id, parameters in enumerate([{'fitness_ratio': x,
@@ -2550,7 +2564,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         elite_maps.append(selMAPElite(population, elite_map[id], self.map_elite_parameter))
                     else:
                         elite_maps.append(selMAPElite(population, {}, self.map_elite_parameter))
-                return elite_maps, pop_pool
             elif self.map_elite_parameter['type'] == 'Cluster':
                 elite_map, pop_pool = selMAPEliteClustering(population, pop_pool, self.map_elite_parameter)
             elif self.map_elite_parameter['type'] == 'Cluster-Exploitation':
@@ -2561,6 +2574,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 elite_map, pop_pool = selMAPEliteClustering(population, pop_pool, self.map_elite_parameter)
             else:
                 raise Exception
+        if self.ensemble_selection == 'MAP-Elite':
+            self.hof = list(elite_map.values())
         return elite_map, pop_pool
 
     def sample_model_name(self, parent):
@@ -2637,8 +2652,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             population[:] = selMOEAD(offspring + population, len(population))
             self.hof = population
+        elif self.ensemble_selection=='Best':
+            population[:] = selBest(offspring + population, len(population))
         else:
-            population[:] = offspring
+                population[:] = offspring
 
     # @timeit
     def population_reduction(self, population):

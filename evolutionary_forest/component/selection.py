@@ -1,7 +1,7 @@
 import copy
 import random
 from types import SimpleNamespace
-
+import math
 import numpy as np
 import seaborn as sns
 from deap.tools import selRandom, selTournament
@@ -13,7 +13,11 @@ from sklearn.decomposition import PCA, KernelPCA
 from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE, SpectralEmbedding
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-
+from skorch.callbacks import EarlyStopping
+from torch import optim
+from torch.nn import MSELoss
+from umap import UMAP
+from evolutionary_forest.model.VAE import NeuralNetTransformer, VAE
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import efficient_deepcopy
 
@@ -83,24 +87,40 @@ def selRandomPlus(individuals, k, fit_attr="fitness"):
     return sorted(individuals, key=lambda x: np.sum(x.case_values * weight))[:k]
 
 
-def selKnockout(individuals, k):
-    cases = list(range(len(individuals[0].case_values)))
+def selKnockout(individuals, k, version='O', auto_case=False):
+    """
+    version:
+    'O' represents only the one individual each round
+    'S' represents only the multiple individuals each round
+    """
+    # np.unique([x.fitness.wvalues for x in final_pool],return_counts=True)
+    cases = np.array(list(range(len(individuals[0].case_values))))
     final_pool = []
-    for _ in range(k):
+    number_of_cases = math.ceil(np.log2(len(individuals)))
+    while len(final_pool) < k:
         random.shuffle(individuals)
+        if auto_case:
+            np.random.shuffle(cases)
+            split_cases = np.array_split(cases, number_of_cases)
         pool = list(range(len(individuals)))
-        while len(pool) > 1:
+        round = 0
+        while (version == 'O' and len(pool) > 1) or (version == 'S' and len(pool) > 2):
             intermediate_pool = []
             for i in range(0, len(pool), 2):
-                sample_index = random.choice(cases)
+                if auto_case:
+                    sample_index = split_cases[round]
+                else:
+                    sample_index = random.choice(cases)
                 if i + 1 >= len(pool) or \
-                    (individuals[pool[i]].case_values[sample_index] <=
-                     individuals[pool[i + 1]].case_values[sample_index]):
+                    (np.sum(individuals[pool[i]].case_values[sample_index]) <=
+                     np.sum(individuals[pool[i + 1]].case_values[sample_index])):
                     intermediate_pool.append(pool[i])
                 else:
                     intermediate_pool.append(pool[i + 1])
             pool = intermediate_pool
-        final_pool.append(individuals[pool[0]])
+            round += 1
+        for p in pool:
+            final_pool.append(individuals[p])
     return final_pool
 
 
@@ -287,7 +307,7 @@ def selMAPEliteClustering(individuals, old_list, map_elite_parameter, n_clusters
     return map_dict, list(map_dict.values())
 
 
-def selMAPElite(individuals, old_map, map_elite_parameter: dict):
+def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndarray = None):
     """
     """
     fitness_ratio = map_elite_parameter.get('fitness_ratio', 0.2)
@@ -308,9 +328,14 @@ def selMAPElite(individuals, old_map, map_elite_parameter: dict):
                     c=np.array([ind.fitness.wvalues[0] for ind in individuals]))
         plt.show()
     well_individuals = [ind for ind in filter(lambda x: x.fitness.wvalues[0] >= mean_fitness, individuals)]
-    well_individual_values = np.array([ind.predicted_values for ind in well_individuals])
+    if target is not None:
+        a = [ind.predicted_values for ind in well_individuals]
+        b = [target + (target - ind.predicted_values) for ind in well_individuals]
+        well_individual_values = np.array(a + b + [target])
+    else:
+        well_individual_values = np.array([ind.predicted_values for ind in well_individuals])
 
-    scaler = StandardScaler().fit(semantic_matrix)
+    scaler = StandardScaler().fit(well_individual_values)
     semantic_matrix = scaler.transform(semantic_matrix)
     well_individual_values = scaler.transform(well_individual_values)
 
@@ -368,13 +393,40 @@ def selMAPElite(individuals, old_map, map_elite_parameter: dict):
         elif reduction_method == 'TSNE':
             pca = Pipeline(
                 [('Scaler', StandardScaler()),
-                 ('PCA', TSNE(n_components=pca_dimension))],
+                 ('PCA', TSNE(n_components=pca_dimension, perplexity=30 if len(well_individual_values) >= 50 else 5,
+                              init='pca'))],
+            ).fit(well_individual_values)
+        elif reduction_method == 'PCA-TSNE':
+            pca = Pipeline(
+                [
+                    ('Scaler', StandardScaler()),
+                    ('PCA-Preprocess', PCA(n_components=min(50, well_individual_values.shape[0],
+                                                            well_individual_values.shape[1]))),
+                    ('PCA', TSNE(n_components=pca_dimension, perplexity=30 if len(well_individual_values) >= 50 else 5,
+                                 init='pca'))
+                ],
+            ).fit(well_individual_values)
+        elif reduction_method == 'UMAP':
+            pca = Pipeline(
+                [('Scaler', StandardScaler()),
+                 ('PCA', UMAP(n_components=pca_dimension))],
             ).fit(well_individual_values)
         elif reduction_method == 'SpectralEmbedding':
             pca = Pipeline(
                 [('Scaler', StandardScaler()),
                  ('PCA', SpectralEmbedding(n_components=pca_dimension))],
             ).fit(well_individual_values)
+        elif reduction_method == 'Beta-VAE':
+            pca = Pipeline(
+                [('Scaler', StandardScaler()),
+                 ('PCA', NeuralNetTransformer(VAE,
+                                              criterion=MSELoss(),
+                                              optimizer=optim.Adam,
+                                              module__input_unit=semantic_matrix.shape[1],
+                                              max_epochs=1000,
+                                              callbacks=[EarlyStopping(patience=20)],
+                                              verbose=False))],
+            ).fit(well_individual_values.astype(np.float32))
         else:
             raise Exception
     except Exception as e:
@@ -382,6 +434,28 @@ def selMAPElite(individuals, old_map, map_elite_parameter: dict):
             pca = Pipeline(
                 [('Scaler', StandardScaler()),
                  ('PCA', PCA(n_components=pca_dimension, svd_solver='randomized'))],
+            ).fit(well_individual_values)
+        elif reduction_method == 'LLE':
+            pca = Pipeline(
+                [('Scaler', StandardScaler()),
+                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension))],
+            ).fit(well_individual_values)
+        elif reduction_method == 'MLLE':
+            pca = Pipeline(
+                [('Scaler', StandardScaler()),
+                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension,
+                                                method='modified'))],
+            ).fit(well_individual_values)
+        elif reduction_method == 'HLLE':
+            pca = Pipeline(
+                [('Scaler', StandardScaler()),
+                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_neighbors=10, n_components=pca_dimension,
+                                                method='hessian'))],
+            ).fit(well_individual_values)
+        elif reduction_method == 'LTSA':
+            pca = Pipeline(
+                [('Scaler', StandardScaler()),
+                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension, method='ltsa'))],
             ).fit(well_individual_values)
         else:
             raise e
