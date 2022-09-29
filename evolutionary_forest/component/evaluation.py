@@ -3,8 +3,15 @@ import time
 
 import dill
 import numpy as np
+from deap import base
+from deap import creator
+from deap import gp
+from deap import tools
+from deap.gp import PrimitiveTree, Primitive, Terminal
+from numpy.testing import assert_almost_equal
 from sklearn import model_selection
 from sklearn.base import RegressorMixin, ClassifierMixin
+from sklearn.datasets import make_regression
 from sklearn.linear_model import RidgeCV
 from sklearn.metrics import make_scorer, accuracy_score, balanced_accuracy_score, precision_score, recall_score, \
     f1_score, r2_score
@@ -12,7 +19,7 @@ from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_
 from sklearn.pipeline import Pipeline
 
 from evolutionary_forest.model.PLTree import SoftPLTreeRegressor, SoftPLTreeRegressorEM
-from evolutionary_forest.multigene_gp import result_calculation
+from evolutionary_forest.multigene_gp import result_calculation, result_post_process
 from evolutionary_forest.sklearn_utils import cross_val_predict
 
 
@@ -23,6 +30,7 @@ def calculate_score(args):
     nn_prediction, dynamic_target = other_parameters['nn_prediction'], other_parameters['dynamic_target']
     original_features = other_parameters['original_features']
     test_data_size = other_parameters['test_data_size']
+    pset = other_parameters['pset']
 
     pipe: Pipeline
     pipe, func, basic_gene = args
@@ -41,7 +49,7 @@ def calculate_score(args):
         x_basic = result_calculation(basic_gene, X, original_features)
         X = np.concatenate([X, x_basic], axis=1)
         # X = x_basic
-    Yp = result_calculation(func, X, original_features)
+    Yp = quick_result_calculation(func, pset, X, original_features)
     if nn_prediction is not None:
         Yp = np.concatenate([Yp, nn_prediction], axis=1)
     if test_data_size > 0:
@@ -188,3 +196,70 @@ def get_cv_splitter(base_model, cv, random_state=0):
     else:
         cv = KFold(n_splits=cv, shuffle=True, random_state=random_state)
     return cv
+
+
+def quick_result_calculation(func, pset, data, original_features):
+    result = []
+    for gene in func:
+        result.append(quick_evaluate(gene, pset, data))
+    result = result_post_process(result, data, original_features)
+    return result
+
+
+def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG'):
+    result = None
+    stack = []
+    for node in expr:
+        stack.append((node, []))
+        while len(stack[-1][1]) == stack[-1][0].arity:
+            prim, args = stack.pop()
+            if isinstance(prim, Primitive):
+                result = pset.context[prim.name](*args)
+            elif isinstance(prim, Terminal):
+                if prefix in prim.name:
+                    result = data[:, int(prim.name.replace(prefix, ''))]
+                else:
+                    result = prim.value
+            else:
+                raise Exception
+            if len(stack) == 0:
+                break  # If stack is empty, all nodes should have been seen
+            stack[-1][1].append(result)
+    return result
+
+
+if __name__ == '__main__':
+    x, y = make_regression(n_samples=1000)
+    pset = gp.PrimitiveSet("MAIN", x.shape[1])
+    pset.addPrimitive(np.add, 2, name="vadd")
+    pset.addPrimitive(np.subtract, 2, name="vsub")
+    pset.addPrimitive(np.multiply, 2, name="vmul")
+    pset.addPrimitive(np.negative, 1, name="vneg")
+    pset.addPrimitive(np.cos, 1, name="vcos")
+    pset.addPrimitive(np.sin, 1, name="vsin")
+    pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
+
+    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+
+    toolbox = base.Toolbox()
+    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=2, max_=8)
+    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+    toolbox.register("compile", gp.compile, pset=pset)
+
+    pop = toolbox.population(n=10000)
+    st = time.time()
+    avg_a = np.zeros(x.shape[0])
+    for ind in pop:
+        avg_a += quick_evaluate(ind, pset, x)
+    print('time', time.time() - st)
+
+    st = time.time()
+    avg_b = np.zeros(x.shape[0])
+    for ind in pop:
+        func = gp.compile(ind, pset)
+        avg_b += func(*x.T)
+    print('time', time.time() - st)
+
+    assert_almost_equal(avg_a, avg_b)

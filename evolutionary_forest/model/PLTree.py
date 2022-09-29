@@ -112,6 +112,18 @@ class PLTree(BaseDecisionTree):
         return self.post_predict(X, labels)
 
 
+class RandomWeightRidge(Ridge):
+
+    def __init__(self, alpha=1.0, *, fit_intercept=True, normalize="deprecated", copy_X=True, max_iter=None, tol=1e-3,
+                 solver="auto", positive=False, random_state=None, initial_weight=None):
+        super().__init__(alpha, fit_intercept=fit_intercept, normalize=normalize, copy_X=copy_X, max_iter=max_iter,
+                         tol=tol, solver=solver, positive=positive, random_state=random_state)
+        self.initial_weight = initial_weight
+
+    def fit(self, X, y, sample_weight=None):
+        return super().fit(X, y, np.abs(X[:, -1]) if np.sum(np.abs(X[:, -1]))!=0 else None)
+
+
 class PLTreeRegressor(DecisionTreeRegressor, PLTree):
     """
     A simple implementation of piecewise linear regression tree

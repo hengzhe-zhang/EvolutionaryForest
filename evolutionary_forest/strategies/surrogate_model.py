@@ -3,7 +3,7 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
-from deap.gp import PrimitiveTree, Primitive, Terminal
+from deap.gp import Terminal
 from deap.tools import HallOfFame
 from scipy.spatial import KDTree
 from scipy.spatial.distance import correlation
@@ -16,6 +16,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
+from evolutionary_forest.component.evaluation import quick_evaluate
 from evolutionary_forest.multigene_gp import result_calculation, MultipleGeneGP
 from evolutionary_forest.sklearn_utils import cross_val_predict
 
@@ -104,27 +105,6 @@ class SurrogateModel():
             # Get the most hard 20 data points
             all_values = np.array([p.case_values for p in parents])
             sample = np.sum(all_values, axis=0).argsort()[-20:]
-
-            def quick_evaluate(expr: PrimitiveTree, pset, data):
-                result = None
-                stack = []
-                for node in expr:
-                    stack.append((node, []))
-                    while len(stack[-1][1]) == stack[-1][0].arity:
-                        prim, args = stack.pop()
-                        if isinstance(prim, Primitive):
-                            result = pset.context[prim.name](*args)
-                        elif isinstance(prim, Terminal):
-                            if 'ARG' in prim.name:
-                                result = data[:, int(prim.name.replace('ARG', ''))]
-                            else:
-                                result = prim.value
-                        else:
-                            raise Exception
-                        if len(stack) == 0:
-                            break  # If stack is empty, all nodes should have been seen
-                        stack[-1][1].append(result)
-                return result
 
             pset = self.toolbox.expr.keywords['pset']
 

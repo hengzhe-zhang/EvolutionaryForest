@@ -307,7 +307,8 @@ def selMAPEliteClustering(individuals, old_list, map_elite_parameter, n_clusters
     return map_dict, list(map_dict.values())
 
 
-def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndarray = None):
+def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndarray = None,
+                data_augmentation: bool = False):
     """
     """
     fitness_ratio = map_elite_parameter.get('fitness_ratio', 0.2)
@@ -323,15 +324,14 @@ def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndar
     map_dict = {}
     case_values = np.array([ind.predicted_values for ind in individuals])
     semantic_matrix = case_values
-    if plot:
-        plt.scatter(semantic_matrix[:, 0], semantic_matrix[:, 1],
-                    c=np.array([ind.fitness.wvalues[0] for ind in individuals]))
-        plt.show()
     well_individuals = [ind for ind in filter(lambda x: x.fitness.wvalues[0] >= mean_fitness, individuals)]
-    if target is not None:
-        a = [ind.predicted_values for ind in well_individuals]
-        b = [target + (target - ind.predicted_values) for ind in well_individuals]
-        well_individual_values = np.array(a + b + [target])
+    # if data_augmentation:
+    #     a = [ind.predicted_values for ind in well_individuals]
+    #     b = [target + (target - ind.predicted_values) for ind in well_individuals]
+    #     well_individual_values = np.array(a + b + [target])
+    # else:
+    if data_augmentation:
+        well_individual_values = np.array([ind.predicted_values for ind in well_individuals] + [target])
     else:
         well_individual_values = np.array([ind.predicted_values for ind in well_individuals])
 
@@ -423,8 +423,8 @@ def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndar
                                               criterion=MSELoss(),
                                               optimizer=optim.Adam,
                                               module__input_unit=semantic_matrix.shape[1],
-                                              max_epochs=1000,
-                                              callbacks=[EarlyStopping(patience=20)],
+                                              max_epochs=2000,
+                                              callbacks=[EarlyStopping(patience=50)],
                                               verbose=False))],
             ).fit(well_individual_values.astype(np.float32))
         else:
@@ -434,6 +434,17 @@ def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndar
             pca = Pipeline(
                 [('Scaler', StandardScaler()),
                  ('PCA', PCA(n_components=pca_dimension, svd_solver='randomized'))],
+            ).fit(well_individual_values)
+        elif reduction_method == 'PCA-TSNE':
+            pca = Pipeline(
+                [
+                    ('Scaler', StandardScaler()),
+                    ('PCA-Preprocess', PCA(n_components=min(50, well_individual_values.shape[0],
+                                                            well_individual_values.shape[1]),
+                                           svd_solver='randomized')),
+                    ('PCA', TSNE(n_components=pca_dimension, perplexity=30 if len(well_individual_values) >= 50 else 5,
+                                 init='pca'))
+                ],
             ).fit(well_individual_values)
         elif reduction_method == 'LLE':
             pca = Pipeline(
@@ -460,22 +471,42 @@ def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndar
         else:
             raise e
     if pca._can_transform():
-        semantic_matrix = pca.transform(semantic_matrix)
+        semantic_matrix = pca.transform(well_individual_values)
     else:
-        semantic_matrix = pca['PCA'].embedding_
+        semantic_matrix = np.copy(pca['PCA'].embedding_)
     semantic_matrix = semantic_matrix[:, :pca_dimension + 1]
 
     for id in range(semantic_matrix.shape[1]):
-        bins = np.linspace(semantic_matrix[:, id].min(), semantic_matrix[:, id].max(), map_size)
+        # if data_augmentation:
+        #     semantic_matrix[:, id] -= semantic_matrix[-1, id]
+        #     value = max(np.abs(semantic_matrix[:, id].min()), np.abs(semantic_matrix[:, id].max()))
+        #     bins = np.linspace(-value, value, map_size + 1)
+        # else:
+        bins = np.linspace(semantic_matrix[:, id].min(), semantic_matrix[:, id].max(), map_size + 1)
         semantic_matrix[:, id] = np.digitize(semantic_matrix[:, id], bins)
+        data = semantic_matrix[:, id]
+        # for the boundary, it should belong to the boundary class
+        data[data == map_size + 1] = map_size
+        assert np.all(data <= map_size)
 
-    pool = individuals if pca._can_transform() else well_individuals
+    # pool = individuals if pca._can_transform() else well_individuals
+    pool = well_individuals
     for id in range(len(pool)):
         case = tuple(int(x) for x in semantic_matrix[id])
         if case not in map_dict:
             map_dict[case] = pool[id]
         elif pool[id].fitness.wvalues >= map_dict[case].fitness.wvalues:
             map_dict[case] = pool[id]
+
+    if plot:
+        if pca._can_transform():
+            plot_matrix = pca.transform(well_individual_values)
+        else:
+            plot_matrix = pca['PCA'].embedding_
+        plt.scatter(plot_matrix[:-1, 0], plot_matrix[:-1, 1])
+        plt.scatter(plot_matrix[-1, 0], plot_matrix[-1, 1],
+                    marker="*", c='red')
+        plt.show()
 
     if plot:
         map_value = np.zeros((map_size, map_size))

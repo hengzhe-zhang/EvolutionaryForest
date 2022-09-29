@@ -44,20 +44,20 @@ from tpot import TPOTClassifier, TPOTRegressor
 
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
-from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter
+from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation
 from evolutionary_forest.component.primitives import *
 from evolutionary_forest.component.primitives import np_mean, add_extend_operators
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElite, selMAPEliteClustering, selKnockout
 from evolutionary_forest.model.PLTree import SoftPLTreeRegressor, SoftPLTreeRegressorEM, PLTreeRegressor, RidgeDT, \
-    LRDTClassifier, RidgeDTPlus
+    LRDTClassifier, RidgeDTPlus, RandomWeightRidge
 from evolutionary_forest.model.RBFN import RBFN
 from evolutionary_forest.model.SafetyLR import SafetyLogisticRegression
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.preprocess_utils import GeneralFeature, CategoricalFeature, BooleanFeature, \
-    NumericalFeature, type_detection, FeatureTransformer
+    NumericalFeature, FeatureTransformer
 from evolutionary_forest.probability_gp import genHalfAndHalf
 from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution
@@ -266,9 +266,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.test_fun: List[TestFunction] = test_fun
         self.train_data_history = []
         self.test_data_history = []
+        # average fitness of the ensemble model
         self.fitness_history = []
         self.best_fitness_history = []
         self.operator_selection_history = []
+        # average diversity of the ensemble model
         self.diversity_history = []
         self.early_stop = early_stop
         self.environmental_selection = environmental_selection
@@ -494,7 +496,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         X, Y = self.X, self.y
         Y = Y.flatten()
 
-        func = self.toolbox.compile(individual)
+        # func = self.toolbox.compile(individual)
         if self.base_learner == 'Dynamic-DT':
             self.min_samples_leaf = individual.dynamic_leaf_size
             pipe = self.get_base_model()
@@ -521,10 +523,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         # send task to the job pool and waiting results
         if self.n_process > 1:
-            y_pred, estimators, information = yield (pipe, dill.dumps(func, protocol=-1),
+            y_pred, estimators, information = yield (pipe, dill.dumps(individual.gene, protocol=-1),
                                                      dill.dumps(basic_gene, protocol=-1))
         else:
-            y_pred, estimators, information = yield (pipe, func, basic_gene)
+            y_pred, estimators, information = yield (pipe, individual.gene, basic_gene)
 
         if len(y_pred.shape) == 2 and y_pred.shape[1] == 1:
             y_pred = y_pred.flatten()
@@ -544,7 +546,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             all_importance_values = []
             for id, index in enumerate(kcv.split(X, Y)):
                 def prediction_function(X):
-                    Yp = result_calculation(func, X, self.original_features)
+                    Yp = quick_result_calculation(individual.gene, self.pset, X, self.original_features)
                     return estimators[id].predict(Yp)
 
                 train_index, test_index = index
@@ -760,6 +762,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                   scoring=make_scorer(r2_score))
         elif self.base_learner == 'LR':
             ridge_model = LinearRegression()
+        elif self.base_learner == 'RandomWeightRidge':
+            ridge_model = RandomWeightRidge()
         elif self.base_learner == 'Ridge' or base_model == 'Ridge' \
             or 'Fast-Soft-PLTree' in self.base_learner \
             or self.base_learner in ['Fast-PLTree', 'Fast-RidgeDT',
@@ -938,6 +942,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicase)
         elif self.select == 'GPED':
             toolbox.register("select", selGPED)
+        elif self.select == 'Knockout':
+            toolbox.register("select", selKnockout)
+        elif self.select == 'Knockout-A':
+            toolbox.register("select", selKnockout, auto_case=True)
+        elif self.select == 'Knockout-S':
+            toolbox.register("select", selKnockout, version='S')
+        elif self.select == 'Knockout-SA':
+            toolbox.register("select", selKnockout, version='S', auto_case=True)
         elif self.select in ['Random']:
             toolbox.register("select", selRandom)
         elif self.select == 'Hybrid':
@@ -1411,7 +1423,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.ensemble_size == 'auto':
             # Automatically determine the ensemble size
             self.hof = LexicaseHOF()
-        elif 'Similar' in self.ensemble_selection:
+        elif isinstance(self.ensemble_selection,str) and 'Similar' in self.ensemble_selection:
             ratio = 0.95
             if '-' in self.ensemble_selection:
                 ratio = float(self.ensemble_selection.split('-')[1])
@@ -1912,7 +1924,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             'dynamic_target': self.dynamic_target,
             'cv_label': self.ps_tree_cv_label,
             'original_features': self.original_features,
-            'test_data_size': self.test_data_size
+            'test_data_size': self.test_data_size,
+            'pset':self.pset,
         }
         arg = (self.X, self.y, self.score_func, self.cv, other_parameters)
 
@@ -2132,6 +2145,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         offspring = selRandom(parent, 2)
                     elif self.select == 'MAP-Elite-Knockout':
                         offspring = selKnockout(parent, 2)
+                    elif self.select == 'MAP-Elite-Knockout-A':
+                        offspring = selKnockout(parent, 2, auto_case=True)
                     elif self.select == 'MAP-Elite-Knockout-S':
                         offspring = selKnockout(parent, 2, version='S')
                     elif self.select == 'MAP-Elite-Knockout-SA':
@@ -2520,7 +2535,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if verbose:
                     print('Training Loss', training_loss)
                     print('Testing Loss', testing_loss)
-                self.diversity_history.append(self.diversity_summarization())
+                self.diversity_history.append(self.diversity_calculation())
 
             self.callback()
 
@@ -2552,9 +2567,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         """
         if self.select in map_elite_series:
             if self.map_elite_parameter['type'] == 'Grid':
-                elite_map = selMAPElite(population, elite_map, self.map_elite_parameter)
-            elif self.map_elite_parameter['type'] == 'Grid-Symmetric':
                 elite_map = selMAPElite(population, elite_map, self.map_elite_parameter, self.y)
+            elif self.map_elite_parameter['type'] == 'Grid-Symmetric':
+                elite_map = selMAPElite(population, elite_map, self.map_elite_parameter, self.y,
+                                        data_augmentation=True)
             elif self.map_elite_parameter['type'] == 'Grid-Auto':
                 elite_maps = []
                 for id, parameters in enumerate([{'fitness_ratio': x,
@@ -2577,6 +2593,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 raise Exception
         if self.ensemble_selection == 'MAP-Elite':
             self.hof = list(elite_map.values())
+            # # need to select symmetric individuals
+            # candidates = []
+            # map_size = self.map_elite_parameter.get('map_size', 10)
+            # for k, v in elite_map.items():
+            #     if (map_size + 1 - k[0], map_size + 1 - k[1]) in elite_map:
+            #         candidates.append(v)
+            # self.hof = list(candidates)
         return elite_map, pop_pool
 
     def sample_model_name(self, parent):
@@ -2797,7 +2820,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 p.partition_scheme = partition_scheme
         return invalid_ind
 
-    def diversity_summarization(self):
+    def diversity_calculation(self):
         """
         Calculate the diversity between individuals
         """
@@ -2808,6 +2831,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.second_layer == 'CAWPE' or self.second_layer == 'Ridge-Prediction':
             all_ind = self.hof
         elif self.second_layer in ['DiversityPrune', 'TreeBaseline', 'GA']:
+            # with some prune
             if not hasattr(self, 'tree_weight'):
                 return 0
             all_ind = list(map(lambda x: x[1], filter(lambda x: self.tree_weight[x[0]] > 0, enumerate(self.hof))))

@@ -87,3 +87,22 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+
+Citation
+---------------
+
+Please cite our paper if you find it helpful :)
+
+.. code::
+
+    @article{EvolutionaryForest,
+        title        = {An Evolutionary Forest for Regression},
+        author       = {Zhang, Hengzhe and Zhou, Aimin and Zhang, Hu},
+        year         = 2022,
+        journal      = {IEEE Transactions on Evolutionary Computation},
+        volume       = 26,
+        number       = 4,
+        pages        = {735--749},
+        doi          = {10.1109/TEVC.2021.3136667}
+    }
+

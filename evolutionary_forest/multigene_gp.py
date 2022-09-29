@@ -619,6 +619,12 @@ def staticLimit_multiple_gene(key, max_value):
 
 def result_calculation(func, data, original_features):
     result = multiple_gene_evaluation(func, data.T)
+    result = result_post_process(result, data, original_features)
+    return result
+
+
+def result_post_process(result, data, original_features):
+    # some post process step
     for i in range(len(result)):
         yp = result[i]
         if not isinstance(yp, np.ndarray):
