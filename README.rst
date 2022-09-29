@@ -41,14 +41,14 @@ Features
 *   A reliable machine learning model has powerful performance on the small dataset.
 
 Installation
-----------------
+--------------------------------
 
 .. code:: bash
 
     pip install -U evolutionary_forest
 
 Supported Algorithms
-----------------
+--------------------------------
 * `Evolutionary Forest`_
 * `SR-Forest`_
 
