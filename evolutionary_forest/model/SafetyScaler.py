@@ -36,9 +36,12 @@ class SafetyScaler(StandardScaler):
 
         return self
 
+    def transform(self, X, copy=None):
+        return np.nan_to_num(super().transform(X, copy), posinf=0, neginf=0)
+
 
 if __name__ == '__main__':
-    data = np.array([[0, 0], [0, 0], [1e-50, 0], [1, 1]])
+    data = np.array([[0, 0], [0, 0], [1e-50, 1], [1, 1]])
     # data = np.random.randn(100, 100) * 100
     scaler = SafetyScaler()
     scaler.fit(data[:3, ])

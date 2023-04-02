@@ -6,7 +6,7 @@ from mlxtend.classifier import LogisticRegression
 from scipy.special import softmax
 from sklearn.base import ClassifierMixin, RegressorMixin, BaseEstimator
 from sklearn.cluster import KMeans, DBSCAN
-from sklearn.datasets import load_boston, load_wine
+from sklearn.datasets import load_wine, load_diabetes
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import BaggingRegressor
 from sklearn.linear_model import RidgeCV, LinearRegression, Ridge, LogisticRegression
@@ -20,8 +20,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler, OneHotEncoder
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier, BaseDecisionTree
 
-from experiment.experiment_dataset import get_dataset
-
 
 class PLTree(BaseDecisionTree):
     @abstractmethod
@@ -29,6 +27,7 @@ class PLTree(BaseDecisionTree):
         pass
 
     def post_fit(self, X, y, partition_scheme=None):
+        # construct linear models in each partition
         self.model_map: Dict = {}
         model_coefs = []
         if partition_scheme is None:
@@ -121,7 +120,7 @@ class RandomWeightRidge(Ridge):
         self.initial_weight = initial_weight
 
     def fit(self, X, y, sample_weight=None):
-        return super().fit(X, y, np.abs(X[:, -1]) if np.sum(np.abs(X[:, -1]))!=0 else None)
+        return super().fit(X, y, np.abs(X[:, -1]) if np.sum(np.abs(X[:, -1])) != 0 else None)
 
 
 class PLTreeRegressor(DecisionTreeRegressor, PLTree):
@@ -202,6 +201,7 @@ class RPLBaseModel(BaseEstimator):
         self.feature_importance /= self.feature_importance.sum()
         self.feature_importance = np.nan_to_num(self.feature_importance)
         assert np.all(self.feature_importance >= 0)
+        return self
 
     def predict_proba(self, X):
         prediction = self.ridge.predict_proba(X)
@@ -223,7 +223,7 @@ class RPLBaseModel(BaseEstimator):
 
 
 class RidgeDT(RPLBaseModel, RegressorMixin):
-    def __init__(self, decision_tree_count=1, max_leaf_nodes=4):
+    def __init__(self, decision_tree_count=0, max_leaf_nodes=4):
         if max_leaf_nodes is None:
             max_leaf_nodes = 4
         self.ridge = Ridge()
@@ -249,7 +249,7 @@ class RidgeDTPlus(RidgeDT):
     Using a decision tree regressor to further improve the performance.
     """
 
-    def __init__(self, decision_tree_count=1, max_leaf_nodes=4,
+    def __init__(self, decision_tree_count=0, max_leaf_nodes=4,
                  final_model_splitter='random'):
         super().__init__(decision_tree_count, max_leaf_nodes)
         self.final_model_splitter = final_model_splitter
@@ -486,27 +486,11 @@ class SoftPLTreeRegressorEM(SoftPLTreeRegressor):
 
 
 def regression_task_demo():
-    # X, y = load_boston(return_X_y=True)
-    X, y, _ = get_dataset({
-        'dataset': '581_fri_c3_500_25'
-    })
+    X, y = load_diabetes(return_X_y=True)
     X, y = np.array(X), np.array(y)
     x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
-    # lr = BaggingRegressor(RidgeCV(), n_estimators=20, bootstrap_features=True)
-    # lr.fit(x_train, y_train)
-    # print('Training Score', r2_score(lr.predict(x_train), y_train))
-    # print('Testing Score', r2_score(lr.predict(x_test), y_test))
-    # lr = BaggingRegressor(DecisionTreeRegressor(), n_estimators=200)
-    # lr.fit(x_train, y_train)
-    # print('Training Score', r2_score(lr.predict(x_train), y_train))
-    # print('Testing Score', r2_score(lr.predict(x_test), y_test))
-    # lr = BaggingRegressor(RidgeDT(decision_tree_count=2), n_estimators=200)
-    # lr.fit(x_train, y_train)
-    # print('Training Score', r2_score(lr.predict(x_train), y_train))
-    # print('Testing Score', r2_score(lr.predict(x_test), y_test))
     for i in range(10):
         lr = BaggingRegressor(RidgeDTPlus(decision_tree_count=i), n_estimators=100)
-        # lr = BaggingRegressor(RidgeDT(decision_tree_count=i), n_estimators=100)
         lr.fit(x_train, y_train)
         print('Training Score', r2_score(lr.predict(x_train), y_train))
         print('Testing Score', r2_score(lr.predict(x_test), y_test))
@@ -516,7 +500,6 @@ def classification_task_demo():
     X, y = load_wine(return_X_y=True)
     X, y = np.array(X), np.array(y)
     x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
-    # lr = BaggingClassifier(LRDTClassifier(decision_tree_count=2), n_estimators=100, n_jobs=-1)
     for dt_count in [0, 1, 2]:
         lr = LRDTClassifier(decision_tree_count=dt_count)
         lr.fit(x_train, y_train)

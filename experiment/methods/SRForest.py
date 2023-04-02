@@ -1,4 +1,4 @@
-from sklearn.datasets import load_boston
+from sklearn.datasets import load_diabetes
 from sklearn.model_selection import cross_val_score
 
 from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -23,7 +23,7 @@ model = None
 
 if __name__ == '__main__':
     # Test the complexity function
-    X, y = load_boston(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     print(cross_val_score(est, X, y, n_jobs=-1))
     est.fit(X, y)
     print(complexity(est))

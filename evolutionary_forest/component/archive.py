@@ -1,3 +1,4 @@
+import copy
 import math
 import operator
 from collections import defaultdict
@@ -7,12 +8,54 @@ from operator import eq
 
 import numpy as np
 from deap.tools import HallOfFame
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import RidgeCV, LinearRegression
+from sklearn.metrics import r2_score
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.tree import DecisionTreeRegressor
 
+from evolutionary_forest.component.configuration import ArchiveConfiguration
+from evolutionary_forest.component.evaluation import quick_result_calculation
 from evolutionary_forest.component.primitives import individual_to_tuple
 from evolutionary_forest.component.subset_selection import EnsembleSelectionADE
+
+
+class StrictlyImprovementHOF(HallOfFame):
+
+    def update(self, population):
+        population = list(filter(lambda x: (not hasattr(x, 'parent_fitness')) or
+                                           np.all(x.fitness.wvalues[0] > np.array(x.parent_fitness)),
+                                 population))
+        super().update(population)
+
+
+class GeneralizationHOF(HallOfFame):
+    def __init__(self, X, y, pset, maxsize=1, verbose=False):
+        super().__init__(maxsize)
+        self.X = X
+        self.y = y
+        self.pset = pset
+        self.verbose = verbose
+
+    def update(self, population):
+        best_ind = sorted(population, key=lambda x: x.fitness.wvalues)[-1]
+        X_hat = quick_result_calculation(best_ind.gene, self.pset, self.X)
+        lr_r2_scores = []
+        for _ in range(5):
+            id = np.random.permutation(np.arange(0, len(self.X)))
+            y = self.y[id]
+            lr = LinearRegression()
+            lr_r2_score = r2_score(y, lr.fit(X_hat, y).predict(X_hat))
+            lr_r2_scores.append(lr_r2_score)
+        best_ind.complexity_score = np.mean(lr_r2_scores)
+        if len(self) == 0:
+            super().update(population)
+        else:
+            if best_ind.fitness.wvalues[0] - best_ind.complexity_score > \
+                self[0].fitness.wvalues[0] - self[0].complexity_score:
+                super().update(population)
+            else:
+                if self.verbose:
+                    print('Complexity Score', best_ind.complexity_score, self[0].complexity_score)
 
 
 class LexicaseHOF(HallOfFame):
@@ -39,8 +82,7 @@ class LexicaseHOF(HallOfFame):
         max_value = np.full_like(max_hof, -np.inf)
         for index, x in enumerate(self):
             fitness_wvalues = np.array(-1 * x.case_values)
-            if np.any(fitness_wvalues >= max_hof) \
-                and np.any(fitness_wvalues > max_value):
+            if np.any(fitness_wvalues >= max_hof) and np.any(fitness_wvalues > max_value):
                 loc = np.where(fitness_wvalues > max_value)
                 max_value[loc] = fitness_wvalues[loc]
                 continue
@@ -121,7 +163,7 @@ class EnsembleSelectionHallOfFame(HallOfFame):
         return -1 * self.label * np.log(np.clip(prediction, eps, 1 - eps))
 
     def zero_one(self, prediction):
-        return (np.argmax(self.label, axis=1) != np.argmax(prediction, axis=1))
+        return np.argmax(self.label, axis=1) != np.argmax(prediction, axis=1)
 
     def hinge_loss(self, prediction):
         return np.mean(np.clip(self.label - prediction, 0, None))
@@ -148,7 +190,7 @@ class EnsembleSelectionHallOfFame(HallOfFame):
         new_ind_tuples = defaultdict(int)
         instances_num = self.instances_num
         assert instances_num > 0
-        if self.categories == None:
+        if self.categories is None:
             # regression
             sum_prediction = np.zeros(instances_num)
         else:
@@ -198,7 +240,7 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                     else:
                         errors = [np.sum(x.case_values[:instances_num]) for x in all_inds]
                     # For multitask optimization, we may need to consider them respectively
-                    if self.multitask and all_inds[0].base_model != None:
+                    if self.multitask and all_inds[0].base_model is not None:
                         initial_individuals = self.initial_size * 2
                         args = np.argsort(errors)
                         all_base_models = {ind.base_model for ind in all_inds}
@@ -349,6 +391,25 @@ class DREPHallOfFame(EnsembleSelectionHallOfFame):
         # print([x[1] for x in paradigm])
         new_inds, _ = min(paradigm, key=lambda x: x[1])
         super(DREPHallOfFame, self).update(new_inds)
+
+
+class ValidationHallOfFame(HallOfFame):
+    def __init__(self, maxsize, validation_function, archive_configuration: ArchiveConfiguration,
+                 similar=eq):
+        # Currently, only supports size of one
+        self.validation_function = validation_function
+        self.archive_configuration = archive_configuration
+        assert maxsize == 1
+        super().__init__(maxsize, similar)
+
+    def update(self, population):
+        if self.archive_configuration.dynamic_validation and len(self) > 0:
+            # update the fitness of individuals in the hall of fame
+            self[0].fitness.values = (-1 * self.validation_function(self[0], force_training=True),)
+        best_individual = max(population, key=lambda x: x.fitness.wvalues)
+        best_individual = copy.deepcopy(best_individual)
+        best_individual.fitness.values = (-1 * self.validation_function(best_individual),)
+        super().update([best_individual])
 
 
 class NoveltyHallOfFame(EnsembleSelectionHallOfFame):

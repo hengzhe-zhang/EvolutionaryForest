@@ -1,11 +1,15 @@
 import copy
+import os
+import pickle as cPickle
 import random
 import time
 from collections import defaultdict
+from itertools import chain
 
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import torch
 from deap.gp import Primitive
 from matplotlib import pyplot as plt
 from numba import njit
@@ -14,27 +18,86 @@ from sympy import latex, parse_expr
 from evolutionary_forest.component.primitives import individual_to_tuple
 
 
-def efficient_deepcopy(self, memo=None):
+def extract_numbers(dimension, s):
+    """
+    Extracts two integers from a string of the form 'aN-b'.
+
+    Args:
+    s (str): The input string to extract integers from.
+
+    Returns:
+    A tuple containing two integers. The first integer is the number
+    before the letter 'N' in the input string, and the second integer
+    is the number after the dash.
+
+    Example:
+    >>> extract_numbers('3N-200')
+    (3, 200)
+    """
+
+    # Split the string into two parts around the dash
+    parts = s.split('-')
+
+    # Extract the first number before the letter 'N'
+    num1 = int(parts[0].rstrip('N'))
+
+    # Extract the second number after the dash
+    num2 = int(parts[1])
+
+    return min(num1 * dimension, num2)
+
+
+def cross_scale(array, cross_pb, inverse):
+    # scaling based on cross probabilities
+    array = np.array(array)
+    if inverse:
+        max_value = np.max(array)
+        return cross_pb * (max_value / array)
+    else:
+        min_value = np.min(array)
+        return cross_pb * (min_value / array)
+
+
+def get_important_features(parents):
+    # Get important features
+    genes = list(chain.from_iterable([x.gene for x in parents]))
+    coefficients = list(chain.from_iterable([x.coef for x in parents]))
+    hash_codes = list(chain.from_iterable([x.hash_result for x in parents]))
+    results = dict()
+    for g, c, h in zip(genes, coefficients, hash_codes):
+        if h not in results:
+            results[h] = [float(c), g]
+        else:
+            results[h][0] += float(c)
+    features = list(sorted(results.items(), key=lambda item: -1 * item[1][0]))
+    coefs = list(map(lambda x: x[1][0], features))
+    features = list(map(lambda x: x[1][1], features))
+    return features, coefs
+
+
+def efficient_deepcopy(self, memo=None, custom_filter=None):
     if memo is None:
         memo = {}
     cls = self.__class__  # Extract the class of the object
     result = cls.__new__(cls)  # Create a new instance of the object based on extracted class
     memo[id(self)] = result
     for k, v in self.__dict__.items():
-        if k in ('predicted_values', 'case_values', 'pipe'):
+        if custom_filter is None:
+            custom_filter = ('predicted_values', 'case_values', 'estimators')
+        if k in custom_filter:
             continue
         # Copy over attributes by copying directly or in case of complex objects like lists
         # for example calling the `__deepcopy()__` method defined by them.
-        # Thus recursively copying the whole tree of objects.
+        # Thus, recursively copying the whole tree of objects.
         setattr(result, k, copy.deepcopy(v, memo))
     return result
 
 
-def get_feature_importance(regr, simple_version=True, fitness_weighted=False, mean_fitness=False,
+def get_feature_importance(regr, latex_version=True, fitness_weighted=False, mean_fitness=False,
                            ensemble_weighted=True):
     """
     :param regr: evolutionary forest
-    :param simple_version: return simplified symbol, which is used for printing
+    :param latex_version: return simplified symbol, which is used for printing
     :param fitness_weighted: assign different weights to features based on fitness values
     :param mean_fitness: return mean feature importance instead of summative feature importance
     :return:
@@ -43,32 +106,43 @@ def get_feature_importance(regr, simple_version=True, fitness_weighted=False, me
         all_genes_map = defaultdict(list)
     else:
         all_genes_map = defaultdict(int)
-    for x in regr.hof:
-        if simple_version:
-            latex_string = lambda g: latex(parse_expr(gene_to_string(g).replace("ARG", "X").replace("_", "-")),
-                                           mul_symbol='dot')
-            genes = [f'${latex_string(g)}$' for g in x.gene]
-        else:
-            # Genearting a Python code fragment
-            def code_generation(gene):
-                code = str(gene)
-                args = ",".join(arg for arg in regr.pset.arguments)
-                code = "lambda {args}: {code}".format(args=args, code=code)
-                return code
+    hash_dict = {}
 
-            genes = [f'{code_generation(g)}' for g in x.gene]
-        for g, c in zip(genes, np.abs(x.coef)):
+    # Processing function
+    if latex_version:
+        latex_string = lambda g: latex(parse_expr(gene_to_string(g).replace("ARG", "X").replace("_", "-")),
+                                       mul_symbol='dot')
+        processing_code = lambda g: f'${latex_string(g)}$'
+    else:
+        # Generating a Python code fragment
+        def code_generation(gene):
+            code = str(gene)
+            args = ",".join(arg for arg in regr.pset.arguments)
+            code = "lambda {args}: {code}".format(args=args, code=code)
+            return code
+
+        processing_code = lambda g: f'{code_generation(g)}'
+
+    for x in regr.hof:
+        for o_g, h, c in zip(x.gene, x.hash_result, np.abs(x.coef)):
             # Taking the fitness of each model into consideration
             importance_value = c
             if fitness_weighted:
                 importance_value = importance_value * x.fitness.wvalues[0]
             if ensemble_weighted and hasattr(regr.hof, 'ensemble_weight'):
                 importance_value = importance_value * regr.hof.ensemble_weight[individual_to_tuple(x)]
+            # Merge features with equivalent hash values
+            if h not in hash_dict or len(o_g) < len(hash_dict[h]):
+                hash_dict[h] = o_g
             # Deciding using summation or mean technique to calculate the importance value
             if mean_fitness:
-                all_genes_map[g].append(importance_value)
+                all_genes_map[h].append(importance_value)
             else:
-                all_genes_map[g] += importance_value
+                all_genes_map[h] += importance_value
+    # Forming a dict
+    all_genes_map = {
+        processing_code(hash_dict[k]): all_genes_map[k] for k in all_genes_map.keys()
+    }
     if mean_fitness:
         for k, v in all_genes_map.items():
             all_genes_map[k] = np.mean(v)
@@ -132,16 +206,16 @@ def plot_feature_importance(feature_importance_dict, save_fig=False):
     plt.ylabel('Feature Name')
     plt.tight_layout()
     if save_fig:
-        plt.savefig('feature_importance.png', format='png')
-        plt.savefig('feature_importance.eps', format='eps')
+        plt.savefig('result/feature_importance.png', format='png')
+        plt.savefig('result/feature_importance.eps', format='eps')
     plt.show()
 
 
 infix_map = {
-    'add': '+',
-    'subtract': '-',
-    'multiply': '*',
-    'protect_division': '/',
+    'Add': '+',
+    'Sub': '-',
+    'Mul': '*',
+    'Div': '/',
 }
 
 
@@ -153,20 +227,32 @@ def gene_to_string(gene):
         while len(stack[-1][1]) == stack[-1][0].arity:
             prim, args = stack.pop()
             # string = prim.format(*args)
-            if type(prim) is Primitive:
+            if isinstance(prim, Primitive):
                 string = '('
-                if prim.name == 'analytical_quotient':
+                if prim.name == 'AQ':
                     string += f'{args[0]}/sqrt(1+{args[1]}*{args[1]})'
-                elif prim.name == 'analytical_loge':
-                    string += f'log(1+Abs({args[0]}))'
-                elif prim.name == 'protect_sqrt':
+                elif prim.name == 'Log':
+                    string += f'log(sqrt(1+{args[0]}*{args[0]}))'
+                elif prim.name == 'Log10':
+                    string += f'log(sqrt(1+{args[0]}*{args[0]}),10)'
+                elif prim.name == 'Square':
+                    string += f'{args[0]}*{args[0]}'
+                elif prim.name == 'Cube':
+                    string += f'{args[0]}*{args[0]}*{args[0]}'
+                elif prim.name == 'Sqrt':
                     string += f'sqrt(Abs({args[0]}))'
-                elif prim.name == 'maximum':
+                elif prim.name == 'Max':
                     string += f'Max({args[0]}, {args[1]})'
-                elif prim.name == 'minimum':
+                elif prim.name == 'Min':
                     string += f'Min({args[0]}, {args[1]})'
-                elif prim.name == 'negative':
+                elif prim.name == 'Neg':
                     string += f'-{args[0]}'
+                elif prim.name == 'Tanh':
+                    string += f'tanh({args[0]})'
+                elif prim.name == 'Cbrt':
+                    string += f'cbrt({args[0]})'
+                elif prim.name == 'Abs':
+                    string += f'Abs({args[0]})'
                 elif prim.name not in infix_map:
                     string += prim.format(*args)
                 else:
@@ -244,6 +330,8 @@ def reset_random(s):
     random.seed(s)
     np.random.seed(s)
     numba_seed(s)
+    torch.manual_seed(s)
+    os.environ['PYTHONHASHSEED'] = str(s)
 
 
 def weighted_avg_and_std(values, weights):
@@ -273,3 +361,18 @@ def load_object(path):
     with open(path, 'rb') as file:
         obj = pickle.load(file)
         return obj
+
+
+def is_float(element: any) -> bool:
+    # If you expect None to be passed:
+    if element is None:
+        return False
+    try:
+        float(element)
+        return True
+    except ValueError:
+        return False
+
+
+def pickle_deepcopy(a):
+    return cPickle.loads(cPickle.dumps(a, -1))

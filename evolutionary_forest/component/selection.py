@@ -1,16 +1,21 @@
 import copy
 import random
+from operator import attrgetter
+from pathlib import Path
 from types import SimpleNamespace
 import math
 import numpy as np
+import pandas as pd
 import seaborn as sns
 from deap.tools import selRandom, selTournament
 from matplotlib import pyplot as plt
 from numba import njit
 from numpy.linalg import LinAlgError
+from scipy.stats import wilcoxon
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA, KernelPCA
 from sklearn.manifold import Isomap, LocallyLinearEmbedding, TSNE, SpectralEmbedding
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from skorch.callbacks import EarlyStopping
@@ -20,6 +25,21 @@ from umap import UMAP
 from evolutionary_forest.model.VAE import NeuralNetTransformer, VAE
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import efficient_deepcopy
+
+
+class SelectionConfiguration():
+    def __init__(self, tournament_warmup_round=10, **params):
+        self.tournament_warmup_round = tournament_warmup_round
+        self.current_gen = 0
+
+
+def tournament_lexicase_selection(individuals, k, configuration: SelectionConfiguration):
+    # tournament as first several stages
+    if configuration.tournament_warmup_round:
+        offspring = selTournament(individuals, k, tournsize=7)
+    else:
+        offspring = selAutomaticEpsilonLexicaseFast(individuals, k)
+    return offspring
 
 
 # @njit(cache=True)
@@ -49,6 +69,7 @@ def batch_tournament_selection(individuals, k, tournsize=8, batch_size=8, fit_at
 @njit(cache=True)
 def selAutomaticEpsilonLexicaseNumba(case_values, fit_weights, k):
     selected_individuals = []
+    avg_cases = 0
 
     for i in range(k):
         candidates = list(range(len(case_values)))
@@ -68,17 +89,47 @@ def selAutomaticEpsilonLexicaseNumba(case_values, fit_weights, k):
                 max_val_to_survive = best_val_for_case + median_absolute_deviation
                 candidates = list([x for x in candidates if case_values[x][cases[0]] <= max_val_to_survive])
             cases = np.delete(cases, 0)
+        avg_cases = (avg_cases * i + (len(case_values[0]) - len(cases))) / (i + 1)
         selected_individuals.append(np.random.choice(np.array(candidates)))
-    return selected_individuals
+    return selected_individuals, avg_cases
+
+
+def selLexicographicParsimonyPressure(individuals, k):
+    individuals = list(sorted(individuals, key=lambda x: x.fitness.wvalues))
+    selected = []
+    r = 1 / 2
+    for i in range(k):
+        indices = [i for i in range(len(individuals))]
+        rank = np.zeros(len(individuals))
+        ix = 0
+        cnt_rank = 0
+        while ix < len(individuals):
+            cnt = math.ceil(len(individuals) * r)
+            rank[ix:ix + cnt] = cnt_rank
+            ix += cnt
+            r /= 2
+            cnt_rank += 1
+        a, b = selRandom(indices, 2)
+        if rank[a] == rank[b] and len(individuals[a]) == len(individuals[b]):
+            best_index = random.choice([a, b])
+        elif rank[a] == rank[b]:
+            best_index = min([a, b], key=lambda x: len(individuals[x]))
+        else:
+            best_index = max([a, b], key=lambda x: rank[x])
+        selected.append(individuals[best_index])
+    return selected
 
 
 # @timeit
-def selAutomaticEpsilonLexicaseFast(individuals, k):
+def selAutomaticEpsilonLexicaseFast(individuals, k, return_avg_cases=False):
     fit_weights = individuals[0].fitness.weights[0]
     case_values = np.array([ind.case_values for ind in individuals])
-    index = selAutomaticEpsilonLexicaseNumba(case_values, fit_weights, k)
+    index, avg_cases = selAutomaticEpsilonLexicaseNumba(case_values, fit_weights, k)
     selected_individuals = [individuals[i] for i in index]
-    return selected_individuals
+    if return_avg_cases:
+        return selected_individuals, avg_cases
+    else:
+        return selected_individuals
 
 
 def selRandomPlus(individuals, k, fit_attr="fitness"):
@@ -307,214 +358,251 @@ def selMAPEliteClustering(individuals, old_list, map_elite_parameter, n_clusters
     return map_dict, list(map_dict.values())
 
 
-def selMAPElite(individuals, old_map, map_elite_parameter: dict, target: np.ndarray = None,
-                data_augmentation: bool = False):
+def selMAPElites(individuals, old_map, map_elite_parameter: dict, target: np.ndarray = None,
+                 data_augmentation=0):
     """
     """
     fitness_ratio = map_elite_parameter.get('fitness_ratio', 0.2)
     map_size = map_elite_parameter.get('map_size', 10)
     pca_dimension = map_elite_parameter.get('pca_dimension', 2)
     reduction_method = map_elite_parameter.get('reduction_method', 'PCA')
+    both_real_and_synthetic = map_elite_parameter.get('both_real_and_synthetic', False)
+    plot_function = map_elite_parameter.get('plot_function', None)
 
     plot = False
     individuals = individuals + list(old_map.values())
     individuals = list({tuple(x.predicted_values): x for x in individuals}.values())
     mean_fitness = np.quantile([ind.fitness.wvalues[0] for ind in individuals], fitness_ratio)
     # update a MAP
-    map_dict = {}
-    case_values = np.array([ind.predicted_values for ind in individuals])
-    semantic_matrix = case_values
+    elites_dict = {}
+    behavior_space = np.array([ind.predicted_values for ind in individuals])
+    # extract behavior of all good individuals
     well_individuals = [ind for ind in filter(lambda x: x.fitness.wvalues[0] >= mean_fitness, individuals)]
-    # if data_augmentation:
-    #     a = [ind.predicted_values for ind in well_individuals]
-    #     b = [target + (target - ind.predicted_values) for ind in well_individuals]
-    #     well_individual_values = np.array(a + b + [target])
-    # else:
-    if data_augmentation:
-        well_individual_values = np.array([ind.predicted_values for ind in well_individuals] + [target])
+    if data_augmentation > 0:
+        original_semantic_space = np.array([ind.predicted_values for ind in well_individuals])
+        synthetic_semantic_space = np.concatenate([
+            (1 - data_augmentation) * original_semantic_space + data_augmentation * target,
+            (data_augmentation - 1) * original_semantic_space + (2 - data_augmentation) * target,
+        ], axis=0)
     else:
-        well_individual_values = np.array([ind.predicted_values for ind in well_individuals])
+        original_semantic_space = None
+        synthetic_semantic_space = np.array([ind.predicted_values for ind in well_individuals])
 
-    scaler = StandardScaler().fit(well_individual_values)
-    semantic_matrix = scaler.transform(semantic_matrix)
-    well_individual_values = scaler.transform(well_individual_values)
+    behavior_space -= target
+    synthetic_semantic_space -= target
+    scaler = StandardScaler(with_mean=False)
+    scaler.fit(synthetic_semantic_space)
+    behavior_space = scaler.transform(behavior_space)
+    synthetic_semantic_space = scaler.transform(synthetic_semantic_space)
+    if data_augmentation > 0:
+        # transform augmented data
+        original_semantic_space -= target
+        original_semantic_space = scaler.transform(original_semantic_space)
+
+    def common_tsne(metric='euclidean', init='pca'):
+        return TSNE(n_components=pca_dimension, perplexity=30 if len(synthetic_semantic_space) >= 50 else 5,
+                    metric=metric, init=init)
 
     try:
         if reduction_method == 'PCA':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', PCA(n_components=pca_dimension))],
-            ).fit(well_individual_values)
+            pca = PCA(n_components=pca_dimension)
         elif reduction_method == 'KPCA(POLY)':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', KernelPCA(n_components=pca_dimension, kernel='poly'))],
-            ).fit(well_individual_values)
+            pca = KernelPCA(n_components=pca_dimension, kernel='poly')
         elif reduction_method == 'KPCA(RBF)':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', KernelPCA(n_components=pca_dimension, kernel='rbf'))],
-            ).fit(well_individual_values)
+            pca = KernelPCA(n_components=pca_dimension, kernel='rbf')
         elif reduction_method == 'KPCA(SIGMOID)':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', KernelPCA(n_components=pca_dimension, kernel='sigmoid'))],
-            ).fit(well_individual_values)
+            pca = KernelPCA(n_components=pca_dimension, kernel='sigmoid')
         elif reduction_method == 'KPCA(COSINE)':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', KernelPCA(n_components=pca_dimension, kernel='cosine'))],
-            ).fit(well_individual_values)
+            pca = KernelPCA(n_components=pca_dimension, kernel='cosine')
+        elif reduction_method == 'KPCA(COSINE)+TSNE':
+            pca = Pipeline([('PCA-Preprocess', KernelPCA(kernel='cosine')),
+                            ('PCA', common_tsne())])
+        elif reduction_method == 'TSNE(Cosine)':
+            pca = common_tsne(metric='cosine')
+        elif reduction_method == 'Isomap(Cosine)':
+            pca = Isomap(metric='cosine')
         elif reduction_method == 'Isomap':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', Isomap(n_components=pca_dimension))],
-            ).fit(well_individual_values)
+            pca = Isomap(n_components=pca_dimension)
         elif reduction_method == 'LLE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(n_components=pca_dimension))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(n_components=pca_dimension)
         elif reduction_method == 'MLLE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(n_components=pca_dimension, method='modified'))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(n_components=pca_dimension, method='modified')
         elif reduction_method == 'HLLE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(n_neighbors=10, n_components=pca_dimension, method='hessian'))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(n_neighbors=10, n_components=pca_dimension, method='hessian')
         elif reduction_method == 'LTSA':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(n_components=pca_dimension, method='ltsa'))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(n_components=pca_dimension, method='ltsa')
         elif reduction_method == 'TSNE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', TSNE(n_components=pca_dimension, perplexity=30 if len(well_individual_values) >= 50 else 5,
-                              init='pca'))],
-            ).fit(well_individual_values)
+            pca = common_tsne()
         elif reduction_method == 'PCA-TSNE':
-            pca = Pipeline(
-                [
-                    ('Scaler', StandardScaler()),
-                    ('PCA-Preprocess', PCA(n_components=min(50, well_individual_values.shape[0],
-                                                            well_individual_values.shape[1]))),
-                    ('PCA', TSNE(n_components=pca_dimension, perplexity=30 if len(well_individual_values) >= 50 else 5,
-                                 init='pca'))
-                ],
-            ).fit(well_individual_values)
+            pca = Pipeline([('PCA-Preprocess', PCA(n_components=0.99)),
+                            ('PCA', common_tsne())])
         elif reduction_method == 'UMAP':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', UMAP(n_components=pca_dimension))],
-            ).fit(well_individual_values)
+            pca = UMAP(n_components=pca_dimension)
         elif reduction_method == 'SpectralEmbedding':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', SpectralEmbedding(n_components=pca_dimension))],
-            ).fit(well_individual_values)
+            pca = SpectralEmbedding(n_components=pca_dimension)
         elif reduction_method == 'Beta-VAE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', NeuralNetTransformer(VAE,
-                                              criterion=MSELoss(),
-                                              optimizer=optim.Adam,
-                                              module__input_unit=semantic_matrix.shape[1],
-                                              max_epochs=2000,
-                                              callbacks=[EarlyStopping(patience=50)],
-                                              verbose=False))],
-            ).fit(well_individual_values.astype(np.float32))
+            pca = NeuralNetTransformer(VAE,
+                                       criterion=MSELoss(),
+                                       optimizer=optim.Adam,
+                                       module__input_unit=behavior_space.shape[1],
+                                       max_epochs=2000,
+                                       callbacks=[EarlyStopping(patience=50)],
+                                       verbose=False)
         else:
+            print('Unsupported method', reduction_method)
             raise Exception
+        pca.fit(synthetic_semantic_space.astype(np.float32))
     except Exception as e:
         if reduction_method == 'PCA':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', PCA(n_components=pca_dimension, svd_solver='randomized'))],
-            ).fit(well_individual_values)
+            pca = PCA(n_components=pca_dimension, svd_solver='randomized')
         elif reduction_method == 'PCA-TSNE':
-            pca = Pipeline(
-                [
-                    ('Scaler', StandardScaler()),
-                    ('PCA-Preprocess', PCA(n_components=min(50, well_individual_values.shape[0],
-                                                            well_individual_values.shape[1]),
-                                           svd_solver='randomized')),
-                    ('PCA', TSNE(n_components=pca_dimension, perplexity=30 if len(well_individual_values) >= 50 else 5,
-                                 init='pca'))
-                ],
-            ).fit(well_individual_values)
+            pca = Pipeline([('PCA-Preprocess', PCA(0.99, svd_solver='randomized')),
+                            ('PCA', common_tsne(init='random'))])
+        elif reduction_method == 'KPCA(COSINE)+TSNE':
+            pca = Pipeline([('PCA-Preprocess', KernelPCA(kernel='cosine')),
+                            ('PCA', common_tsne(init='random'))])
+        elif reduction_method == 'TSNE(Cosine)':
+            pca = common_tsne(metric='cosine', init='random')
         elif reduction_method == 'LLE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension)
         elif reduction_method == 'MLLE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension,
-                                                method='modified'))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension,
+                                         method='modified')
         elif reduction_method == 'HLLE':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_neighbors=10, n_components=pca_dimension,
-                                                method='hessian'))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(eigen_solver='dense', n_neighbors=10, n_components=pca_dimension,
+                                         method='hessian')
         elif reduction_method == 'LTSA':
-            pca = Pipeline(
-                [('Scaler', StandardScaler()),
-                 ('PCA', LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension, method='ltsa'))],
-            ).fit(well_individual_values)
+            pca = LocallyLinearEmbedding(eigen_solver='dense', n_components=pca_dimension, method='ltsa')
+        elif reduction_method == 'TSNE':
+            pca = TSNE(n_components=pca_dimension, perplexity=30 if len(synthetic_semantic_space) >= 50 else 5,
+                       init='random')
         else:
+            print('Unsupported reduction algorithm', reduction_method)
             raise e
-    if pca._can_transform():
-        semantic_matrix = pca.transform(well_individual_values)
+        pca.fit(synthetic_semantic_space.astype(np.float32))
+    if (isinstance(pca, Pipeline) and pca._can_transform()) or \
+        (not isinstance(pca, Pipeline) and hasattr(pca, 'transform')):
+        if data_augmentation > 0:
+            # Only transform original data. It means discretization is on original data.
+            # Here, one question exist, should we transform on original data.
+            # If we transform on original data, we will definitely get mismatch distribution.
+            if both_real_and_synthetic:
+                # this is to test whether to use synthetic data in discretization
+                behavior_space = pca.transform(synthetic_semantic_space.astype(np.float32))
+            else:
+                # this is to validate the situation of mismatch distribution
+                behavior_space = pca.transform(original_semantic_space.astype(np.float32))
+        else:
+            # If no synthetic data, can directly perform on synthetic space.
+            behavior_space = pca.transform(synthetic_semantic_space.astype(np.float32))
     else:
-        semantic_matrix = np.copy(pca['PCA'].embedding_)
-    semantic_matrix = semantic_matrix[:, :pca_dimension + 1]
+        # One problem here is that get all data will have an influence on discretization. Be Careful!
+        if isinstance(pca, Pipeline):
+            behavior_space = np.copy(pca[-1].embedding_)
+        else:
+            # Get embedding directly
+            behavior_space = np.copy(pca.embedding_)
+    behavior_space = behavior_space[:, :pca_dimension + 1]
+    # behavior space before discretization
+    original_behavior_space = np.copy(behavior_space)
 
-    for id in range(semantic_matrix.shape[1]):
-        # if data_augmentation:
-        #     semantic_matrix[:, id] -= semantic_matrix[-1, id]
-        #     value = max(np.abs(semantic_matrix[:, id].min()), np.abs(semantic_matrix[:, id].max()))
-        #     bins = np.linspace(-value, value, map_size + 1)
-        # else:
-        bins = np.linspace(semantic_matrix[:, id].min(), semantic_matrix[:, id].max(), map_size + 1)
-        semantic_matrix[:, id] = np.digitize(semantic_matrix[:, id], bins)
-        data = semantic_matrix[:, id]
+    # discretize behavior space
+    for id in range(behavior_space.shape[1]):
+        bins = np.linspace(behavior_space[:, id].min(), behavior_space[:, id].max(), map_size + 1)
+        behavior_space[:, id] = np.digitize(behavior_space[:, id], bins)
+        data = behavior_space[:, id]
         # for the boundary, it should belong to the boundary class
         data[data == map_size + 1] = map_size
         assert np.all(data <= map_size)
 
-    # pool = individuals if pca._can_transform() else well_individuals
+    # save good individuals
     pool = well_individuals
+    elites_behavior_dict = {}
     for id in range(len(pool)):
-        case = tuple(int(x) for x in semantic_matrix[id])
-        if case not in map_dict:
-            map_dict[case] = pool[id]
-        elif pool[id].fitness.wvalues >= map_dict[case].fitness.wvalues:
-            map_dict[case] = pool[id]
-
-    if plot:
-        if pca._can_transform():
-            plot_matrix = pca.transform(well_individual_values)
-        else:
-            plot_matrix = pca['PCA'].embedding_
-        plt.scatter(plot_matrix[:-1, 0], plot_matrix[:-1, 1])
-        plt.scatter(plot_matrix[-1, 0], plot_matrix[-1, 1],
-                    marker="*", c='red')
-        plt.show()
-
+        case = tuple(int(x) for x in behavior_space[id])
+        if case not in elites_dict:
+            elites_dict[case] = pool[id]
+            elites_behavior_dict[case] = original_behavior_space[id]
+        elif pool[id].fitness.wvalues >= elites_dict[case].fitness.wvalues:
+            elites_dict[case] = pool[id]
+            elites_behavior_dict[case] = original_behavior_space[id]
+    if plot_function is not None:
+        plot_function(reduction_method, original_behavior_space, well_individuals,
+                      elites_dict, elites_behavior_dict)
     if plot:
         map_value = np.zeros((map_size, map_size))
-        for k, v in map_dict.items():
+        for k, v in elites_dict.items():
             map_value[int(k[0]) - 1][int(k[1]) - 1] = v.fitness.wvalues[0]
         sns.heatmap(map_value, linewidth=0.5)
         plt.show()
-    return map_dict
+    return elites_dict
+
+
+def selMaxAngleSelection(individuals: list, k, target: np.ndarray, unique=False):
+    """
+    A variant of ADS in Qi Chen's paper
+    :param individuals: Individuals from the current population
+    :param k: Number of individuals to be selected
+    :param target: The target semantics
+    :return: Parent individuals
+    """
+    assert k % 2 == 0
+    individual_list = []
+    for _ in range(k):
+        if len(individuals) < 2:
+            break
+        all_case_values = np.array([ind.predicted_values - target for ind in individuals])
+        parent_a = selTournament(individuals, 1, tournsize=7)[0]
+        best_one = np.argmin(cosine_similarity(parent_a.case_values.reshape(1, -1), all_case_values)[0])
+        parent_b = individuals[best_one]
+        if parent_a == parent_b:
+            break
+        individual_list.append(parent_a)
+        individual_list.append(parent_b)
+        if unique:
+            individuals.remove(parent_a)
+            individuals.remove(parent_b)
+    return individual_list
+
+
+def selAngleDrivenSelection(individuals, k, target: np.ndarray, unique=False):
+    """
+    Original ADS in Qi Chen's paper
+    :param individuals: Individuals from the current population
+    :param k: Number of individuals to be selected
+    :param target: The target semantics
+    :return: Parent individuals
+    """
+    assert k % 2 == 0
+    individual_list = []
+    for _ in range(k):
+        if len(individuals) < 2:
+            break
+        parent_a = selTournament(individuals, 1, tournsize=7)[0]
+        parent_b = None
+        n_trails = 10
+        threshold_angle = 0
+        best_angle = 1
+        for i in range(n_trails):
+            candidate = selTournament(individuals, 1, tournsize=7)[0]
+            a_values = parent_a.case_values - target
+            b_values = candidate.case_values - target
+            similarity = cosine_similarity(a_values.reshape(1, -1), b_values.reshape(1, -1))[0][0]
+            if similarity < threshold_angle:
+                parent_b = candidate
+                break
+            else:
+                if similarity < best_angle:
+                    best_angle = similarity
+                    parent_b = candidate
+        if parent_b is None:
+            break
+        individual_list.append(parent_a)
+        individual_list.append(parent_b)
+        if unique:
+            individuals.remove(parent_a)
+            individuals.remove(parent_b)
+    return individual_list
 
 
 def selGPED(individuals, k, phi=None, rho=None):
@@ -622,6 +710,28 @@ def selAutomaticEpsilonLexicaseK(individuals, k):
     return random.sample(candidates, k)
 
 
+def selStatisticsTournament(individuals, k, tournsize):
+    """
+    :param individuals: population
+    :param k: number of offspring
+    :param tournsize: tournament size
+    """
+    chosen = []
+    for i in range(k):
+        a = random.choice(individuals)
+        for _ in range(tournsize):
+            b = random.choice(individuals)
+            if np.all(np.equal(a.case_values, b.case_values)):
+                continue
+            p_value = wilcoxon(a.case_values, b.case_values).pvalue
+            if p_value < 0.05:
+                a = max([a, b], key=lambda x: x.fitness.wvalues)
+            else:
+                a = min([a, b], key=lambda x: len(x))
+        chosen.append(a)
+    return chosen
+
+
 def selTournamentPlus(individuals, k, tournsize):
     """
     Select individuals based on the sum of case values
@@ -644,6 +754,25 @@ def selHybrid(individuals, k):
         return selTournament(individuals, k, tournsize=7)
     else:
         raise Exception
+
+
+def selRoulette(individuals, k, fit_attr="fitness"):
+    """
+    It should be weighted values
+    """
+    s_inds = sorted(individuals, key=attrgetter(fit_attr), reverse=True)
+    sum_fits = sum(getattr(ind, fit_attr).wvalues[0] for ind in individuals)
+    chosen = []
+    for i in range(k):
+        u = random.random() * sum_fits
+        sum_ = 0
+        for ind in s_inds:
+            sum_ += getattr(ind, fit_attr).wvalues[0]
+            if sum_ > u:
+                chosen.append(ind)
+                break
+
+    return chosen
 
 
 if __name__ == '__main__':

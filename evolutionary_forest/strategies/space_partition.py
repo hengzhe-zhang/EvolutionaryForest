@@ -75,23 +75,13 @@ class SpacePartition():
 
     def partition_scheme_updating(self):
         # Full evaluation after some iterations
-        if self.interleaving_period == 0 and self.current_gen >= self.n_gen * (1 - self.ps_tree_ratio):
-            if self.base_learner == 'Fast-PLTree':
-                self.base_learner = 'PLTree'
-            elif self.base_learner == 'Fast-RidgeDT':
-                self.base_learner = 'RidgeDT'
-            elif self.base_learner == 'Fast-RidgeDT-Plus':
-                self.base_learner = 'RidgeDT-Plus'
-            elif self.base_learner == 'Fast-Simple-RidgeDT':
-                self.base_learner = 'Simple-RidgeDT'
-            elif self.base_learner == 'Fast-LRDT':
-                self.base_learner = 'LRDT'
-            elif self.base_learner == 'Fast-Soft-PLTree':
-                self.base_learner = 'Soft-PLTree'
-            elif 'Fast-Soft-PLTree' in self.base_learner:
-                raise Exception
+        if (self.interleaving_period is None or self.interleaving_period == 0) \
+            and self.current_gen > self.n_gen * (1 - self.ps_tree_ratio):
+            if self.base_learner.startswith('Fast-'):
+                self.base_learner = self.base_learner.replace('Fast-', '')
 
         if self.interleaving_period > 0:
+            # Interleaving changing
             if self.current_gen % self.interleaving_period == 0:
                 if not self.base_learner.startswith('Fast'):
                     self.base_learner = 'Fast-' + self.base_learner

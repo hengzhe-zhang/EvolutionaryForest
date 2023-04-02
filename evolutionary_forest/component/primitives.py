@@ -8,7 +8,7 @@ from scipy.stats import mode
 threshold = 1e-6
 
 
-def protect_division(x1, x2):
+def protected_division(x1, x2):
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
 
@@ -29,8 +29,16 @@ def protect_loge(x1):
         return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.)
 
 
-def analytical_loge(x):
-    return np.log(np.abs(x) + 1)
+def analytical_log(x):
+    return np.log(np.sqrt(1 + x ** 2))
+
+
+def analytical_log10(x):
+    return np.log10(np.sqrt(1 + x ** 2))
+
+
+def cube(x):
+    return np.power(x, 3)
 
 
 def protect_sqrt(a):
@@ -47,6 +55,7 @@ def shape_wrapper(x1, x2):
 
 
 def shape_wrapper_plus(*args):
+    # new shape wrapper
     length = max([np.size(x) for x in args])
     result = []
     for x in args:
@@ -58,6 +67,7 @@ def shape_wrapper_plus(*args):
 
 
 def groupby_generator(function, argument_count=2):
+    # support group_by operators based on Pandas
     def groupby_function(*args):
         if all([np.isscalar(x) for x in args]):
             return args[-1]
@@ -142,27 +152,17 @@ def same_numerical(x):
 
 # Currently, the most tricky issue is that there may exist some labels which are not existing in training data
 # Thus, the encoding process might be affected if such a feature exists
-# A good solution is devising a stateful algorithm
-# Another issue might be that such a process with generate many possibilities (no more than instances)
 def cross_product(x1, x2):
     if np.isscalar(x1) or np.isscalar(x2):
         return x1
-    # x = np.stack([x1, x2]).T
     x1, x2 = shape_wrapper(x1, x2)
     return x1 + ',' + x2
-    # return np.unique(x, axis=0, return_inverse=True)[1]
 
 
 def if_function(x1, x2, x3):
     if np.isscalar(x1) and np.isscalar(x2) and np.isscalar(x3):
         return x1
     return np.where(x1 > 0, x2, x3)
-
-
-def convert_to_embedding(x1, s):
-    rng = np.random.default_rng(seed=abs(s))
-    embedding = rng.random(25)
-    return embedding[x1.astype(int)]
 
 
 def add_basic_operators(pset):
@@ -213,12 +213,16 @@ def cross_feature(x1, x2):
     return vf(x1) + vf(x2)
 
 
-def leaky_relu(arr):
-    return np.maximum(0.1 * arr, arr)
+def leaky_relu(x, alpha=0.01):
+    return np.where(x > 0, x, alpha * x)
 
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
+
+
+def residual(x):
+    return x - np.round(x)
 
 
 def np_mean(a, b):
@@ -233,63 +237,73 @@ def less_or_equal_than(a, b):
     return np.where(a <= b, 1, 0)
 
 
+def greater_or_equal_than_quadruple_a(a, b, c, d):
+    return np.where(a >= b, c, d)
+
+
+def greater_or_equal_than_quadruple_b(a, b, c, d):
+    return np.where(a >= b, c + d, c - d)
+
+
+def greater_or_equal_than_quadruple_c(a, b, c, d):
+    return np.where(a >= b, c + d, c * d)
+
+
+def less_than_quadruple_a(a, b, c, d):
+    return np.where(a < b, c, d)
+
+
+def less_than_quadruple_b(a, b, c, d):
+    return np.where(a < b, c + d, c - d)
+
+
+def less_than_quadruple_c(a, b, c, d):
+    return np.where(a < b, c + d, c * d)
+
+
+def and_a(a, b):
+    return np.where((a >= 0) & (b >= 0), 1, 0)
+
+
+def and_b(a, b):
+    return np.where((a < 0) & (b < 0), 1, 0)
+
+
+def or_a(a, b):
+    return np.where((a >= 0) | (b >= 0), 1, 0)
+
+
+def or_b(a, b):
+    return np.where((a < 0) | (b < 0), 1, 0)
+
+
+def greater_or_equal_than_double_a(a, b):
+    return np.where(a >= b, a, b)
+
+
+def less_than_double_a(a, b):
+    return np.where(a < b, a, b)
+
+
+def greater_or_equal_than_double_b(a, b):
+    return np.where(a >= b, a + b, a - b)
+
+
+def less_than_double_b(a, b):
+    return np.where(a < b, a + b, a - b)
+
+
+def greater_or_equal_than_double_c(a, b):
+    return np.where(a >= b, a + b, a * b)
+
+
+def less_than_double_c(a, b):
+    return np.where(a < b, a + b, a * b)
+
+
 def add_extend_operators(pset, addtional=False, groupby_operators=True,
                          triple_groupby_operators=False):
     ### Must pay attention that allowing more aruguments will increase the model size
-    def greater_or_equal_than_quadruple_a(a, b, c, d):
-        return np.where(a >= b, c, d)
-
-    def greater_or_equal_than_quadruple_b(a, b, c, d):
-        return np.where(a >= b, c + d, c - d)
-
-    def greater_or_equal_than_quadruple_c(a, b, c, d):
-        return np.where(a >= b, c + d, c * d)
-
-    def less_than_quadruple_a(a, b, c, d):
-        return np.where(a < b, c, d)
-
-    def less_than_quadruple_b(a, b, c, d):
-        return np.where(a < b, c + d, c - d)
-
-    def less_than_quadruple_c(a, b, c, d):
-        return np.where(a < b, c + d, c * d)
-
-    def and_a(a, b):
-        return np.where((a >= 0) & (b >= 0), 1, 0)
-
-    def and_b(a, b):
-        return np.where((a < 0) & (b < 0), 1, 0)
-
-    def or_a(a, b):
-        return np.where((a >= 0) | (b >= 0), 1, 0)
-
-    def or_b(a, b):
-        return np.where((a < 0) | (b < 0), 1, 0)
-
-    def greater_or_equal_than_double_a(a, b):
-        return np.where(a >= b, a, b)
-
-    def less_than_double_a(a, b):
-        return np.where(a < b, a, b)
-
-    def greater_or_equal_than_double_b(a, b):
-        return np.where(a >= b, 1, 0)
-
-    def less_than_double_b(a, b):
-        return np.where(a < b, 1, 0)
-
-    def greater_or_equal_than_double_c(a, b):
-        return np.where(a >= b, a + b, a - b)
-
-    def less_than_double_c(a, b):
-        return np.where(a < b, a + b, a - b)
-
-    def greater_or_equal_than_double_d(a, b):
-        return np.where(a >= b, a + b, a * b)
-
-    def less_than_double_d(a, b):
-        return np.where(a < b, a + b, a * b)
-
     def scipy_mode(x):
         return mode(x).mode[0]
 
@@ -300,7 +314,7 @@ def add_extend_operators(pset, addtional=False, groupby_operators=True,
     但是不同的特征空间的泛化能力是不同的，因此特征构造的意义是构造出真正具有足够强泛化能力的特征空间
     """
     pset.addPrimitive(protect_sqrt, 1)
-    pset.addPrimitive(analytical_loge, 1)
+    pset.addPrimitive(analytical_log, 1)
     pset.addPrimitive(np.sin, 1)
     pset.addPrimitive(np.cos, 1)
     pset.addPrimitive(np.maximum, 2)
@@ -317,17 +331,13 @@ def add_extend_operators(pset, addtional=False, groupby_operators=True,
     """
     if groupby_operators:
         pset.addPrimitive(groupby_generator('mean'), 2)
-        # pset.addPrimitive(groupby_generator('sum'), 2)
         pset.addPrimitive(groupby_generator('max'), 2)
         pset.addPrimitive(groupby_generator('min'), 2)
-        # pset.addPrimitive(groupby_generator('nunique'), 2)
 
     if triple_groupby_operators:
         pset.addPrimitive(groupby_generator('mean', 3), 3)
-        # pset.addPrimitive(groupby_generator('sum', 3), 3)
         pset.addPrimitive(groupby_generator('max', 3), 3)
         pset.addPrimitive(groupby_generator('min', 3), 3)
-        # pset.addPrimitive(groupby_generator('nunique', 3), 3)
 
     if addtional:
         pset.addPrimitive(np.arctan, 1)
@@ -346,11 +356,6 @@ def groupby_operator_speed_test():
     min_groupby = groupby_generator('min')
     sum_groupby = groupby_generator('sum')
     unique_groupby = groupby_generator('nunique')
-    # mean_groupby = groupby_generator(np.mean)
-    # median_groupby = groupby_generator(np.median)
-    # max_groupby = groupby_generator(np.max)
-    # min_groupby = groupby_generator(np.min)
-    # std_groupby = groupby_generator(np.std)
     for g in [mean_groupby, median_groupby, max_groupby, min_groupby,
               sum_groupby, unique_groupby]:
         st = time.time()
@@ -360,4 +365,4 @@ def groupby_operator_speed_test():
 
 
 if __name__ == '__main__':
-    groupby_operator_speed_test()
+    pass
