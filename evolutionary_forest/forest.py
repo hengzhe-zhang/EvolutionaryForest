@@ -898,7 +898,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         individual.coef = np.max(importance_values, axis=0)
 
         if individual.intron_probability > 0:
-            coef = np.zeros_like(individual.active_gene, dtype=np.float)
+            coef = np.zeros_like(individual.active_gene, dtype=np.float32)
             i = 0
             for id, a in zip(range(0, len(individual.active_gene)), individual.active_gene):
                 if a:
