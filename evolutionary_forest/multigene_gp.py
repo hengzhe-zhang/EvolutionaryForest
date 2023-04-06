@@ -175,13 +175,19 @@ class MultipleGeneGP():
         key = selTournamentFeature(list(enumerate(self.coef)), 1, tournsize=tournsize)
         return self.gene[key[0][0]]
 
-    def best_gene(self):
+    def best_gene(self, with_id=False):
         best_index = max(range(len(self.gene)), key=lambda x: np.abs(self.coef)[x])
-        return self.gene[best_index]
+        if with_id:
+            return self.gene[best_index], best_index
+        else:
+            return self.gene[best_index]
 
-    def worst_gene(self):
+    def worst_gene(self, with_id=False):
         worst_index = min(range(len(self.gene)), key=lambda x: np.abs(self.coef)[x])
-        return self.gene[worst_index]
+        if with_id:
+            return self.gene[worst_index], worst_index
+        else:
+            return self.gene[worst_index]
 
     def replace_worst_gene(self, gene):
         worst_index = min(range(len(self.gene)), key=lambda x: np.abs(self.coef)[x])
@@ -203,7 +209,7 @@ class MultipleGeneGP():
             index = np.random.choice(np.arange(len(self.gene)), 1, p=weight)
         return self.gene[index[0]]
 
-    def weighted_selection(self, reverse=False):
+    def weighted_selection(self, reverse=False, with_id=False):
         weight = np.abs(self.coef)
         p = weight / np.sum(weight)
         if reverse:
@@ -212,7 +218,10 @@ class MultipleGeneGP():
             index = np.random.choice(np.arange(len(weight)), p=p / p.sum())
         else:
             index = np.random.choice(np.arange(len(weight)), p=p)
-        return self.gene[index]
+        if with_id:
+            return self.gene[index], index
+        else:
+            return self.gene[index]
 
     def replace_weight_gene_inverse(self, gene):
         index = np.random.choice(np.arange(len(self.gene)), 1, p=softmax(-1 * np.abs(self.coef)))
@@ -298,12 +307,33 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
             # must be the same index
             id2 = id1
         else:
-            gene1, id1 = ind1.random_select(with_id=True)
-            if same_index:
-                gene2 = ind2.gene[id1]
-                id2 = id1
+            if crossover_configuration.tree_selection == 'Random':
+                gene1, id1 = ind1.random_select(with_id=True)
+                if same_index:
+                    gene2 = ind2.gene[id1]
+                    id2 = id1
+                else:
+                    gene2, id2 = ind2.random_select(with_id=True)
+            elif crossover_configuration.tree_selection == 'Self-Competitive':
+                gene1_a, id1_a = ind1.best_gene(with_id=True)
+                gene2_a, id2_a = ind2.best_gene(with_id=True)
+                gene1_b, id1_b = ind1.worst_gene(with_id=True)
+                gene2_b, id2_b = ind2.worst_gene(with_id=True)
+                gene1_a = copy.deepcopy(gene1_a)
+                gene2_a = copy.deepcopy(gene2_a)
+                gene1_b = copy.deepcopy(gene1_b)
+                gene2_b = copy.deepcopy(gene2_b)
+                # mutate worst, preserve best
+                ind1.gene[id1_b], _ = gene_crossover(gene1_b, gene2_a,
+                                                     configuration=crossover_configuration)
+                _, ind2.gene[id1_b] = gene_crossover(gene1_a, gene2_b,
+                                                     configuration=crossover_configuration)
+                return ind1, ind2
+            elif crossover_configuration.tree_selection == 'Probability':
+                gene1, id1 = ind1.weighted_selection(with_id=True)
+                gene2, id2 = ind2.weighted_selection(with_id=True)
             else:
-                gene2, id2 = ind2.random_select(with_id=True)
+                raise Exception
         ind1.gene[id1], ind2.gene[id2] = gene_crossover(gene1, gene2, configuration=crossover_configuration)
     return ind1, ind2
 

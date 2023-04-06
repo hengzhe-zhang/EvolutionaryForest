@@ -75,7 +75,7 @@ class CrossoverConfiguration():
                  semantic_selection_mode=None,
                  max_height=10,
                  number_of_invokes=0,
-                 **params):
+                 tree_selection='Random', **params):
         # max height after crossover
         self.max_height = max_height
         self.intron_parameters: dict = intron_parameters
@@ -97,6 +97,7 @@ class CrossoverConfiguration():
         self.semantic_selection_mode = SelectionMode.from_string(semantic_selection_mode)
         self.map_elites_configuration = MAPElitesConfiguration(**params)
         self.number_of_invokes = number_of_invokes
+        self.tree_selection = tree_selection
 
 
 class MAPElitesConfiguration():
