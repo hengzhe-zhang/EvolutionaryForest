@@ -326,7 +326,7 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
                 # mutate worst, preserve best
                 ind1.gene[id1_b], _ = gene_crossover(gene1_b, gene2_a,
                                                      configuration=crossover_configuration)
-                _, ind2.gene[id1_b] = gene_crossover(gene1_a, gene2_b,
+                _, ind2.gene[id2_b] = gene_crossover(gene1_a, gene2_b,
                                                      configuration=crossover_configuration)
                 return ind1, ind2
             elif crossover_configuration.tree_selection == 'Probability':
