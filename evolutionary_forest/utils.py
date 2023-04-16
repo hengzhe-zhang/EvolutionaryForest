@@ -94,14 +94,18 @@ def efficient_deepcopy(self, memo=None, custom_filter=None):
 
 
 def get_feature_importance(regr, latex_version=True, fitness_weighted=False, mean_fitness=False,
-                           ensemble_weighted=True):
+                           ensemble_weighted=True, simple_version=None):
     """
     :param regr: evolutionary forest
     :param latex_version: return simplified symbol, which is used for printing
     :param fitness_weighted: assign different weights to features based on fitness values
     :param mean_fitness: return mean feature importance instead of summative feature importance
+    :param simple_version: alias for latex_version
     :return:
     """
+    if simple_version is not None:
+        latex_version = simple_version
+
     if mean_fitness:
         all_genes_map = defaultdict(list)
     else:

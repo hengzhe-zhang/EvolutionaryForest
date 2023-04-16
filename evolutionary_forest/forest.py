@@ -1732,7 +1732,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.add_primitives_to_pset(pset)
         else:
             pset = PrimitiveSet("MAIN", x.shape[1])
-            add_basic_operators(pset)
+            self.basic_primitives = ','.join([
+                'add', 'subtract', 'multiply', 'analytical_quotient'
+            ])
+            self.add_primitives_to_pset(pset)
 
         # add constant
         if hasattr(gp, 'rand101'):

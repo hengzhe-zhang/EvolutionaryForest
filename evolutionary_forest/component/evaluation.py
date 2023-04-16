@@ -32,6 +32,7 @@ from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimit
 from evolutionary_forest.sklearn_utils import cross_val_predict
 from evolutionary_forest.utils import reset_random
 
+np.seterr(invalid='ignore')
 reset_random(0)
 time_flag = False
 
