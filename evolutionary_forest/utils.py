@@ -170,12 +170,17 @@ def select_top_features(code_importance_dict, ratio=None):
     return features
 
 
-def feature_append(regr, X, features, only_new_features=False):
+def feature_append(regr, X_input, feature_list, only_new_features=False):
+    if isinstance(X_input, pd.DataFrame):
+        X = X_input.to_numpy()
+    else:
+        X = X_input
+
     if only_new_features:
         data = []
     else:
         data = [X]
-    for f in features:
+    for f in feature_list:
         func = eval(f, regr.pset.context)
         features = func(*X.T)
         if isinstance(features, np.ndarray) and len(features) == len(X):
@@ -183,6 +188,12 @@ def feature_append(regr, X, features, only_new_features=False):
     transformed_features = np.concatenate(data, axis=1)
     # Fix outliers (In extreme cases, some functions will produce unexpected results)
     transformed_features = np.nan_to_num(transformed_features, posinf=0, neginf=0)
+    if isinstance(X_input, pd.DataFrame):
+        if only_new_features:
+            transformed_features = pd.DataFrame(transformed_features, columns=[f.split(":")[1] for f in feature_list])
+        else:
+            transformed_features = pd.DataFrame(transformed_features, columns=list(X_input.columns)+
+                                                                              [f.split(":")[1] for f in feature_list])
     return transformed_features
 
 
@@ -265,7 +276,7 @@ def gene_to_string(gene):
                         string += f'{infix_map[prim.name]}{a}'
                 string += ')'
             else:
-                string = prim.name
+                string = str(prim.value)
             if len(stack) == 0:
                 break  # If stack is empty, all nodes should have been seen
             stack[-1][1].append(string)

@@ -261,6 +261,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         SurrogateModel.__init__(self)
         SpacePartition.__init__(self)
         EstimationOfDistribution.__init__(self, **params)
+        self.columns = None
         self.custom_primitives = custom_primitives
         # EDA distribution are shared across different genes
         # This can alleviate the genetic drift on a specific gene
@@ -609,13 +610,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return mean_diversity
 
     def oob_error(self, pop):
+        # Create array to store predictions for each individual in the population
         prediction = np.full((len(pop), len(self.y)), np.nan, dtype=np.float)
+        # Iterate through individuals in the population
         for i, x in enumerate(pop):
+            # Get indices of out-of-bag samples
             index = x.out_of_bag
+            # Store individual's out-of-bag predictions in prediction array
             prediction[i][index] = x.oob_prediction
+        # Calculate mean label value across all predictions (ignoring NaN values)
         label = np.nanmean(prediction, axis=0)
         label = np.nan_to_num(label)
+        # Calculate R^2 score using mean label values and actual labels
         accuracy = r2_score(self.y, label)
+        # Print OOB score if verbose mode is enabled
         if self.verbose:
             print('oob score', accuracy)
         return accuracy
@@ -789,12 +797,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for i, gene in enumerate(reversed(individual.gene)):
                 coef = individual.coef[i]
                 used_id = set()
+
+                # Iterate through terminals in current gene
                 for terminal in gene:
                     if isinstance(terminal, Terminal) and terminal.name.startswith("ARG"):
                         # print("Feature Occurred", terminal.name)
                         terminal_id = int(terminal.name.replace("ARG", ""))
                         if terminal_id >= self.X.shape[1] and terminal_id not in used_id:
-                            # if one terminal has been counted, not to count it again
+                            # If terminal has not been counted yet, add its coefficient to the corresponding feature's coefficient
                             used_id.add(terminal_id)
                             terminal_id -= self.X.shape[1]
                             individual.coef[terminal_id] += coef
@@ -816,18 +826,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if check_semantic_based_bc(self.bloat_control) or self.intron_gp:
             # only do this in intron mode
             intron_ids = information.introns_results
-            if self.intron_gp or \
-                self.bloat_control.get('exon_tournament', False) or \
-                self.bloat_control.get('exon_tournament_V2', False) or \
-                self.bloat_control.get('mutation_worst', False) or \
-                self.bloat_control.get('hoist_one_layer', False) or \
-                check_semantic_based_bc(self.bloat_control):
+            if (self.intron_gp and \
+                (self.bloat_control.get('exon_tournament', False) or \
+                 self.bloat_control.get('exon_tournament_V2', False) or \
+                 self.bloat_control.get('mutation_worst', False) or \
+                 self.bloat_control.get('hoist_one_layer', False))
+            ) or check_semantic_based_bc(self.bloat_control):
                 assert len(intron_ids) == len(individual.gene)
                 # mark level to all genes
                 for gene_introns, gene in zip(intron_ids, individual.gene):
                     q = []
                     for id, coef in sorted(gene_introns.items(), key=lambda x: x[0]):
                         s = id
+                        # Replace gene node with IntronPrimitive or IntronTerminal
                         if isinstance(gene[s], Primitive):
                             gene[s] = IntronPrimitive(gene[s].name, gene[s].args, gene[s].ret)
                             if isinstance(coef, tuple) and len(coef) == 3:
@@ -835,6 +846,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 coef = coef[0]
                         elif isinstance(gene[s], Terminal):
                             gene[s] = IntronTerminal(gene[s].name, getattr(gene[s], 'conv_fct') == str, gene[s].ret)
+
+                        # Set correlation and level for the new gene node
                         if isinstance(coef, tuple):
                             gene[s].corr = coef[0]
                             # locality sensitive hash
@@ -856,8 +869,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.bloat_control.get('intron_crossover', False) or \
                 self.bloat_control.get('exon_crossover', False) or \
                 self.bloat_control.get('exon_mutation', False):
+                # Iterate through introns for the current gene
                 for gene_introns, gene in zip(intron_ids, individual.gene):
                     self.all_nodes_counter += len(gene_introns)
+                    # Filter out introns with low correlation coefficient
                     gene_introns = list(filter(lambda it: it[1] < 0.01, gene_introns.items()))
                     self.intron_nodes_counter += len(gene_introns)
                     for x, v in gene_introns:
@@ -924,32 +939,43 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def calculate_fitness_value(self, individual, estimators, Y, y_pred):
         """
-        Smaller is better because the weight is -1.
+    Calculates the fitness value of an individual based on the score function.
+
+    Smaller values are better because the weight is -1.
         """
         if self.score_func == 'R2' or self.score_func == 'NoveltySearch' or self.score_func == 'MAE':
+            # Calculate R2 score
             if self.imbalanced_configuration.balanced_fitness:
                 sample_weight = get_sample_weight(self.X, self.test_X, self.y,
                                                   self.imbalanced_configuration)
                 score = r2_score(Y, y_pred, sample_weight=sample_weight)
             else:
                 score = r2_score(Y, y_pred)
+
+            # Multiply coefficients by score if weighted_coef is True
             if self.weighted_coef:
                 individual.coef = np.array(individual.coef) * score
-            # print('r2_score',score)
+
+            # Return negative of R2 score
             return -1 * score,
-            # return np.mean((Y - y_pred) ** 4),
         elif self.score_func == 'MSE-Variance':
+            # Calculate mean squared error and standard deviation of error
             error = mean_squared_error(Y, y_pred)
             return np.mean(error) + 0.01 * np.std(error),
         elif self.score_func == 'Lower-Bound':
+            # Return maximum mean squared error
             return np.max(mean_squared_error(Y, y_pred)),
         elif self.score_func == 'Spearman':
+            # Calculate and return negative Spearman correlation coefficient
             return -1 * spearman(Y, y_pred),
         elif self.score_func == 'CV-NodeCount':
+            # Return number of nodes in each estimator's tree
             return [estimators[i]['Ridge'].tree_.node_count for i in range(len(estimators))]
         elif 'CV' in self.score_func:
+            # Calculate and return negative mean of predicted values
             return -1 * np.mean(y_pred),
         else:
+            # Raise exception if score function is not recognized
             raise Exception
 
     def calculate_case_values(self, individual, Y, y_pred):
@@ -1339,7 +1365,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("mutate", mutProbability_multiple_gene, pset=pset,
                              parsimonious_probability=self.parsimonious_probability)
         elif self.mutation_scheme in eda_operators:
-            # Define the crossover operator combined the EDA operator
+            # Define the crossover operator based on the EDA operator
             if 'Biased' in self.mutation_scheme:
                 toolbox.register("mate", cxOnePoint_multiple_gene_biased)
             elif 'SameWeight' in self.mutation_scheme:
@@ -1358,25 +1384,35 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 toolbox.register("mate", cxOnePoint_multiple_gene,
                                  pset=self.pset,
                                  crossover_configuration=self.get_crossover_configuration())
+
+            # Set probability arrays to zero for primitives and terminals
             self.primitive_prob = np.zeros(self.pset.prims_count)
             self.terminal_prob = np.zeros(self.pset.terms_count)
+
+            # If in MGP mode, set terminal_prob to empty list
             if self.mgp_mode:
                 self.terminal_prob = []
             if 'Terminal' in self.mutation_scheme:
                 self.primitive_prob = np.ones(self.pset.prims_count)
+
+            # If mutation scheme is 'EDA-Terminal', use Dirichlet distribution to sample terminals
             if self.mutation_scheme == 'EDA-Terminal':
-                # Sample terminals from a dirichlet distribution
-                # The advantage is that this method supports prior distribution
                 partial_func = partial(genFull_with_prob, model=self, sample_type='Dirichlet')
             else:
                 partial_func = partial(genFull_with_prob, model=self)
+
+            # Set tree_generation function using partial function
             toolbox.tree_generation = partial_func
+
+            # Set expression mutation function based on mutation_expr_height value
             if self.mutation_configuration.mutation_expr_height is not None:
                 min_, max_ = self.mutation_configuration.mutation_expr_height.split('-')
                 min_, max_ = int(min_), int(max_)
                 toolbox.expr_mut = partial(partial_func, min_=min_, max_=max_)
             else:
                 toolbox.expr_mut = partial(partial_func, min_=0, max_=2)
+
+            # Register mutation operator using random tree mutation
             toolbox.register("mutate", mutUniform_multiple_gene, expr=toolbox.expr_mut, pset=pset,
                              tree_generation=partial_func, configuration=self.mutation_configuration)
         else:
@@ -1638,35 +1674,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             add_extend_operators(pset, groupby_operators=False)
         elif isinstance(self.basic_primitives, str) and 'optimal' in self.basic_primitives:
             pset = PrimitiveSet("MAIN", x.shape[1])
-            # support multivariate functions
-            count = 0
-            if '-' in self.basic_primitives:
-                count = int(self.basic_primitives.split('-')[1])
-
-                def np_add_multiple(*arg):
-                    return np.sum(arg, axis=0)
-
-                def np_max_multiple(*arg):
-                    return np.max(arg, axis=0)
-
-                def np_min_multiple(*arg):
-                    return np.min(arg, axis=0)
-
-                for i in range(3, count + 1):
-                    np_add_multiple.__name__ = f'np_add_multiple_{i}'
-                    np_max_multiple.__name__ = f'np_max_multiple_{i}'
-                    np_min_multiple.__name__ = f'np_min_multiple_{i}'
-                    pset.addPrimitive(np_add_multiple, i)
-                    pset.addPrimitive(np_max_multiple, i)
-                    pset.addPrimitive(np_min_multiple, i)
-
             self.basic_primitives = ','.join([
                 'Add', 'Sub', 'Mul', 'AQ',
                 'Sqrt', 'Sin', 'Cos', 'Max', 'Min', 'Neg',
             ])
             self.add_primitives_to_pset(pset)
-            if count != 0:
-                self.basic_primitives = f'optimal-{count}'
         elif self.basic_primitives == 'DIGEN':
             pset = gp.PrimitiveSet("MAIN", x.shape[1])
             self.basic_primitives = ','.join([
@@ -1752,29 +1764,32 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
 
+        # Check if MGP mode is enabled and create a new primitive set for each gene
         if isinstance(pset, PrimitiveSet) and self.mgp_mode is True:
             new_pset = MultiplePrimitiveSet("MAIN", self.X.shape[1])
             new_pset.mgp_scope = self.mgp_scope
             new_pset.layer_mgp = self.layer_mgp
             for x in range(self.gene_num):
+                # Copy the base primitive set and modify it for this gene
                 base_count = self.X.shape[1]
                 base_pset = copy.deepcopy(pset)
                 if x >= self.mgp_scope and self.strict_layer_mgp:
-                    # if strict layer, then not use input features
+                    # If using strict layer MGP, remove input features for higher layers
                     base_pset.terminals[object] = []
                     base_pset.arguments = []
                 if self.mgp_scope is not None:
                     if self.layer_mgp:
                         assert self.gene_num % self.mgp_scope == 0, "Number of genes must be a multiple of scope!"
-                        # strict boundary
+                        # Calculate the start and end boundaries for this gene based on the MGP scope and layer setting
                         start_base = max(base_count + ((x // self.mgp_scope) - 1) * self.mgp_scope, base_count)
                         end_base = max(base_count + (x // self.mgp_scope) * self.mgp_scope, base_count)
                     else:
-                        # no clear boundary between each layer
+                        # Calculate the start and end boundaries for this gene based on a sliding window approach
                         start_base = max(base_count + x - self.mgp_scope, base_count)
                         end_base = base_count + x
                     assert start_base >= self.X.shape[1]
                 else:
+                    # If no MGP scope is specified, include all input features for this gene
                     start_base = base_count
                     end_base = base_count + x
                 for i in range(start_base, end_base):
@@ -1782,7 +1797,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     base_pset.arguments.append(f'ARG{i}')
                 base_pset.pset_id = x
                 new_pset.pset_list.append(base_pset)
+            # Use the new primitive set for subsequent operations
             pset = new_pset
+        # Check if register mode is enabled and add input registers to the primitive set
         elif isinstance(pset, PrimitiveSet) and self.mgp_mode == 'Register':
             pset.number_of_register = self.number_of_register
             # Input register is easy to implement
@@ -1790,6 +1807,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for i in range(base_count, base_count + self.number_of_register):
                 pset.addTerminal(f'ARG{i}', f'ARG{i}')
                 pset.arguments.append(f'ARG{i}')
+
+        if self.columns != None:
+            rename_dict = dict({f'ARG{k}': v for k, v in enumerate(self.columns)})
+            pset.renameArguments(**rename_dict)
         self.pset = pset
         return pset
 
@@ -1855,9 +1876,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     'LeakyRelu': (leaky_relu, 1),  # Leaky ReLU activation function
                 }[p]
             if transformer_wrapper:
-                pset.addPrimitive(make_class(primitive[0]), primitive[1])
+                pset.addPrimitive(make_class(primitive[0]), primitive[1],name=p)
             else:
-                pset.addPrimitive(primitive[0], primitive[1])
+                pset.addPrimitive(primitive[0], primitive[1],name=p)
 
     def archive_initialization(self):
         # archive initialization
@@ -2000,7 +2021,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def fit(self, X, y, test_X=None):
         self.y_shape = y.shape
-        # self.feature_types = type_detection(X)
+        if isinstance(X, pd.DataFrame):
+            self.columns = X.columns.tolist()  # store column names
+
+        # Normalize X and y if specified
         if self.normalize:
             X = self.x_scaler.fit_transform(X, y)
             y = self.y_scaler.fit_transform(np.array(y).reshape(-1, 1))
@@ -2008,13 +2032,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 test_X = self.x_scaler.transform(test_X)
                 self.test_X = test_X
 
+        # Split into train and validation sets if validation size is greater than 0
         if self.validation_size > 0:
             X, self.valid_x, y, self.valid_y = train_test_split(X, y, test_size=self.validation_size)
             self.valid_y = self.valid_y.flatten()
+
+        # Save X and y
         self.X: np.ndarray
         self.y: np.ndarray
         self.X, self.y = X, y.flatten()
+
+        # Set up environmental selection based on specified method
         if self.environmental_selection == 'NSGA2-Mixup':
+            # Fit a model to the data and use it to generate pseudo labels
             regularization_model = self.param['regularization_model']
             if regularization_model == 'LGBM':
                 lgbm = LGBMRegressor()
@@ -2025,16 +2055,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             lgbm.fit(self.X, self.y)
             self.pseudo_label = lgbm.predict(self.test_X)
         if self.environmental_selection == 'NSGA2-100':
+            # Generate random objectives
             self.random_objectives = np.random.uniform(0, 1, size=(len(y), 100))
         if self.environmental_selection == 'NSGA2-100-Normal':
+            # Generate random objectives with truncated normal distribution
             self.random_objectives = truncated_normal(sample=(len(y), 100))
         if self.environmental_selection == 'NSGA2-100-LHS':
+            # Generate random objectives with Latin hypercube sampling
             from smt.sampling_methods import LHS
             xlimits = np.repeat(np.array([[0.0, 1.0]]), len(y), axis=0)
             sampling = LHS(xlimits=xlimits)
             num = 100
             self.random_objectives = sampling(num).T
 
+        # Initialize population with lazy initialization
         self.lazy_init(X)
 
         stats_fit = tools.Statistics(lambda ind: ind.fitness.wvalues)
@@ -2049,25 +2083,29 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         mstats.register("max", np.max, axis=0)
 
         if self.gradient_boosting:
+            # Using gradient boosting mode
             assert self.boost_size == 1, "Only supports a single model"
-            # 特征工程
+            # Deep copy original y and gene number
             original_y = copy.deepcopy(self.y)
             original_gene_num = self.gene_num
             best_models = []
 
-            # re-init number of genes
+            # Set number of genes to 1
             self.gene_num = 1
+            # Calculate new number of generations based on original number of genes
             n_gen = self.n_gen // original_gene_num * self.gene_num
+            # Initialize population with new gene number
             self.lazy_init(X)
             for g in range(original_gene_num // self.gene_num):
                 if g == 0:
                     self.n_gen = n_gen
                 else:
                     self.n_gen = n_gen - 1
-                # clear history
+                # Clear fitness values
                 for p in self.pop:
                     del p.fitness.values
                 self.hof.clear()
+                # Run genetic programming
                 pop, log = self.eaSimple(self.pop, self.toolbox, self.cross_pb, self.mutation_pb, self.n_gen,
                                          stats=mstats, halloffame=self.hof, verbose=self.verbose)
                 self.pop = pop
@@ -2077,18 +2115,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # If using the predict function, we need to consider a lot of details about normalization
                 Yp = self.feature_generation(X, self.hof[0])
                 y_pred = self.hof[0].pipe.predict(Yp)
-                # if np.all(np.array(self.hof[0].fitness.wvalues)>0):
+                # If R^2 score is greater than 0, add model to best models list
                 if r2_score(self.y, y_pred) > 0:
                     best_models.extend(copy.deepcopy(self.hof[0].gene))
                 else:
                     break
                 if self.verbose:
                     print('Iteration %d' % g, 'Score: %f' % (r2_score(self.y, y_pred)))
-                # GB for regression
+                # Gradient boost for regression
                 self.y = self.y - 0.5 * y_pred
+            # Reset y to original value
             self.y = original_y
             assert len(self.hof) == 1
-            # retraining after gradient boosting
+            # Retrain the best individual with original number of genes
             best_ind: MultipleGeneGP = self.hof[0]
             best_ind.gene_num = original_gene_num
             best_ind.gene = best_models
@@ -2096,6 +2135,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.final_model_lazy_training(self.hof)
             self.second_layer_generation(self.X, self.y)
         else:
+            # Not using gradient boosting mode
             pop, log = self.eaSimple(self.pop, self.toolbox, self.cross_pb, self.mutation_pb, self.n_gen,
                                      stats=mstats, halloffame=self.hof, verbose=self.verbose)
             self.pop = pop
@@ -2106,9 +2146,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return self
 
     def second_layer_generation(self, X, y):
-        # an interesting question is how to combine these base learners to achieve a good enough performance
+        # Check if second layer is specified
         if self.second_layer == 'None' or self.second_layer == None:
             return
+
+        # Collect predictions from base models
         y_data = self.y
         predictions = []
         for individual in self.hof:
@@ -2116,11 +2158,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         predictions = np.array(predictions)
 
         if self.second_layer == 'DREP':
-            # forward selection
+            # DREP (Diversity Regularized Ensemble Pruning) algorithm for generating ensemble weights
             y_sample = y_data.flatten()
             current_prediction = np.zeros_like(y_sample)
             remain_ind = set([i for i in range(len(self.hof))])
             min_index = 0
+            # Find the base model with the smallest error
             for i in remain_ind:
                 error = np.mean((predictions[i] - y_sample) ** 2)
                 if error < np.mean((current_prediction - y_sample) ** 2):
@@ -2130,26 +2173,33 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             ensemble_list = np.zeros(len(self.hof))
             ensemble_list[min_index] = 1
+            # Repeat until no more improvement is possible
             while True:
                 div_list = []
+                # Calculate diversity and loss for each remaining base model
                 for i in remain_ind:
                     diversity = np.mean(((current_prediction - predictions[i]) ** 2))
                     loss = np.mean(((y_sample - predictions[i]) ** 2))
                     div_list.append((diversity, loss, i))
+                # Select diverse models
                 div_list = list(sorted(div_list, key=lambda x: -x[0]))[:int(round(len(div_list) * 0.5))]
+                # Sort them by loss
                 div_list = list(sorted(div_list, key=lambda x: x[1]))
                 index = div_list[0][2]
                 ensemble_size = np.sum(ensemble_list)
                 trial_prediction = ensemble_size / (ensemble_size + 1) * current_prediction + \
                                    1 / (ensemble_size + 1) * predictions[index]
+                # Check if adding the selected model improves performance
                 if np.mean(((trial_prediction - y_sample) ** 2)) > np.mean(((current_prediction - y_sample) ** 2)):
                     break
                 current_prediction = trial_prediction
                 ensemble_list[index] = 1
                 remain_ind.remove(index)
+            # Normalize the ensemble weights
             ensemble_list /= np.sum(ensemble_list)
             self.tree_weight = ensemble_list
         elif self.second_layer == 'Ridge':
+            # Ridge regression for generating ensemble weights
             self.ridge = Ridge(alpha=1e-3, normalize=True, fit_intercept=False)
             self.ridge.fit(predictions.T, y_data)
             x = self.ridge.coef_
@@ -2161,7 +2211,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.second_layer == 'Ridge-Prediction':
             predictions = self.individual_prediction(X)
             # fitting predicted values
-            self.ridge = RidgeCV(normalize=True, fit_intercept=False)
+            self.ridge = RidgeCV(fit_intercept=False)
             self.ridge.fit(predictions.T, y_data)
             self.tree_weight = self.ridge.coef_.flatten()
         elif self.second_layer == 'RF-Routing':
@@ -2306,47 +2356,62 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def predict(self, X, return_std=False):
         if self.normalize:
+            # Scale X data if normalize flag is set
             X = self.x_scaler.transform(X)
         prediction_data_size = X.shape[0]
         if self.test_data_size > 0:
+            # Concatenate new X data with existing X data if test_data_size is greater than 0
             X = np.concatenate([self.X, X])
-        # prune before making predictions
+
+        # Prune genes in hall of fame using hoist mutation
         if self.intron_gp:
             for h in self.hof:
                 for gene in h.gene:
+                    # Find the best gene and hoist it to the top
                     best_id = max([(k, getattr(g, 'corr', 0)) for k, g in enumerate(gene)],
                                   key=lambda x: (x[1], x[0]))[0]
                     hoistMutation(gene, best_id)
+                # Reset the pipeline to the base model
                 h.pipe = self.get_base_model()
+
+        # Train the final model using lazy training
         self.final_model_lazy_training(self.hof)
 
         predictions = []
         weight_list = []
-        # weighted by importance
+
+        # Generate features for each individual in the hall of fame
         for individual in self.hof:
             individual: MultipleGeneGP
             if len(individual.gene) == 0:
                 continue
             if self.basic_primitives == 'ML':
+                # Use evolved pipeline to make predictions
                 predicted = individual.pipe.predict(X)
             else:
+                # Generate features using the individual's genes
                 Yp = self.feature_generation(X, individual)
                 if self.test_data_size > 0:
+                    # Truncate Yp if test_data_size is greater than 0
                     Yp = Yp[-prediction_data_size:]
                 if self.base_learner == 'NN':
+                    # Add neural network activations to Yp if base learner is NN
                     nn_prediction = get_activations(self.neural_network, X)[-2]
                     Yp = np.concatenate([Yp, nn_prediction], axis=1)
                 if isinstance(individual.pipe['Ridge'], SoftPLTreeRegressor) and \
                     not isinstance(individual.pipe['Ridge'], SoftPLTreeRegressorEM):
                     Yp = np.concatenate([Yp, np.zeros((len(Yp), 1))], axis=1)
                 if self.intron_probability > 0:
+                    # Apply intron probability mask to Yp if intron_probability is greater than 0
                     Yp = Yp[:, individual.active_gene]
                 predicted = individual.pipe.predict(Yp)
 
             if self.normalize:
+                # Un-scale predicted values if normalize flag is set
                 predicted = self.y_scaler.inverse_transform(predicted.reshape(-1, 1)).flatten()
             predictions.append(predicted)
             if hasattr(self.hof, 'ensemble_weight') and len(self.hof.ensemble_weight) > 0:
+                # Append ensemble weights if they exist
                 weight_list.append(self.hof.ensemble_weight[individual_to_tuple(individual)])
         if self.second_layer == 'RF-Routing':
             self.ridge: RandomForestClassifier

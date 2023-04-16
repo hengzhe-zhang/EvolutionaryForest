@@ -10,7 +10,7 @@ def check_semantic_based_bc(bloat_control):
     if bloat_control is None:
         return False
     for bc in semantic_based_bloat_control:
-        if bc in bloat_control:
+        if bc in bloat_control and bloat_control[bc]:
             return True
     return False
 
