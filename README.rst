@@ -49,11 +49,9 @@ Installation
 
 Supported Algorithms
 --------------------------------
-* `Evolutionary Forest`_
-* `SR-Forest`_
+* `Evolutionary Forest (TEVC 2021) <https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/EF.py>`_
+* `SR-Forest (TEVC 2023) <https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/SRForest.py>`_
 
-.. _Evolutionary Forest: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/EF.py
-.. _SR-Forest: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/SRForest.py
 
 Example
 ----------------
@@ -72,6 +70,14 @@ An example of usage:
 An example of improvements brought about by constructed features:
 
 .. image:: https://raw.githubusercontent.com/zhenlingcn/EvolutionaryForest/master/docs/constructed_features.png
+
+Tutorials
+----------------
+Here are some nodebook examples of using Evolutionary Forest:
+
+* `Regression on Diabetes Dataset`_
+
+.. _Regression on Diabetes Dataset: https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/tutorial/diabetes_regression.ipynb
 
 Documentation
 ----------------
@@ -95,14 +101,21 @@ Please cite our paper if you find it helpful :)
 
 .. code::
 
-    @article{EvolutionaryForest,
-        title        = {An Evolutionary Forest for Regression},
-        author       = {Zhang, Hengzhe and Zhou, Aimin and Zhang, Hu},
-        year         = 2022,
-        journal      = {IEEE Transactions on Evolutionary Computation},
-        volume       = 26,
-        number       = 4,
-        pages        = {735--749},
-        doi          = {10.1109/TEVC.2021.3136667}
+    @article{zhang2021evolutionary,
+      title={An Evolutionary Forest for Regression},
+      author={Zhang, Hengzhe and Zhou, Aimin and Zhang, Hu},
+      journal={IEEE Transactions on Evolutionary Computation},
+      volume={26},
+      number={4},
+      pages={735--749},
+      year={2021},
+      publisher={IEEE}
     }
 
+    @article{zhang2023sr,
+      title={SR-Forest: A Genetic Programming based Heterogeneous Ensemble Learning Method},
+      author={Zhang, Hengzhe and Zhou, Aimin and Chen, Qi and Xue, Bing and Zhang, Mengjie},
+      journal={IEEE Transactions on Evolutionary Computation},
+      year={2023},
+      publisher={IEEE}
+    }

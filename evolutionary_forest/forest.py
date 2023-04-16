@@ -225,7 +225,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  bloat_control=None, force_sr_tree=False, gradient_boosting=False,
                  intron_gp=False, post_prune_threshold=0, parsimonious_probability=1,
                  redundant_hof_size=0, delete_low_similarity=False, importance_propagation=False,
-                 random_fix=True, ridge_alphas=None, shared_eda=False, **params):
+                 random_fix=True, ridge_alphas=None, shared_eda=False, custom_primitives=None, **params):
         """
         Basic GP Parameters:
         n_pop: The size of the population
@@ -261,6 +261,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         SurrogateModel.__init__(self)
         SpacePartition.__init__(self)
         EstimationOfDistribution.__init__(self, **params)
+        self.custom_primitives = custom_primitives
         # EDA distribution are shared across different genes
         # This can alleviate the genetic drift on a specific gene
         self.shared_eda = shared_eda
@@ -1660,8 +1661,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     pset.addPrimitive(np_min_multiple, i)
 
             self.basic_primitives = ','.join([
-                'add', 'subtract', 'multiply', 'analytical_quotient',
-                'protect_sqrt', 'sin', 'cos', 'maximum', 'minimum', 'negative',
+                'Add', 'Sub', 'Mul', 'AQ',
+                'Sqrt', 'Sin', 'Cos', 'Max', 'Min', 'Neg',
             ])
             self.add_primitives_to_pset(pset)
             if count != 0:
@@ -1733,7 +1734,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             pset = PrimitiveSet("MAIN", x.shape[1])
             self.basic_primitives = ','.join([
-                'add', 'subtract', 'multiply', 'analytical_quotient'
+                'Add', 'Sub', 'Mul', 'AQ',
             ])
             self.add_primitives_to_pset(pset)
 
@@ -1795,71 +1796,68 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def add_primitives_to_pset(self, pset, primitives=None, transformer_wrapper=False):
         if primitives is None:
             primitives = self.basic_primitives
+        if self.custom_primitives is None:
+            custom_primitives = {}
+        else:
+            custom_primitives = self.custom_primitives
+            primitives = primitives.split(',') + ','.join(custom_primitives.keys())
+
         for p in primitives.split(','):
             p = p.strip()
-            primitive = {
-                'add': (np.add, 2),
-                'subtract': (np.subtract, 2),
-                'multiply': (np.multiply, 2),
-                'analytical_quotient': (analytical_quotient, 2),
-                'abs': (np.absolute, 1),
-                'protect_sqrt': (protect_sqrt, 1),
-                'analytical_log': (analytical_log, 1),
-                'analytical_log10': (analytical_log10, 1),
-                'sin': (np.sin, 1),
-                'cos': (np.cos, 1),
-                'maximum': (np.maximum, 2),
-                'minimum': (np.minimum, 2),
-                'mean': (np_mean, 2),
-                'arctan': (np.arctan, 1),
-                'tanh': (np.tanh, 1),
-                'cbrt': (np.cbrt, 1),
-                'square': (np.square, 1),
-                'cube': (cube, 1),
-                'negative': (np.negative, 1),
-                'sigmoid': (sigmoid, 1),
-                'round': (np.round, 1),
-                'residual': (residual, 1),
-                'leaky_relu': (leaky_relu, 1),
-                'greater_or_equal_than': (greater_or_equal_than, 2),
-                'less_or_equal_than': (less_or_equal_than, 2),
-                'greater_or_equal_than_quadruple_a': (greater_or_equal_than_quadruple_a, 4),
-                'greater_or_equal_than_quadruple_b': (greater_or_equal_than_quadruple_b, 4),
-                'greater_or_equal_than_quadruple_c': (greater_or_equal_than_quadruple_c, 4),
-                'less_than_quadruple_a': (less_than_quadruple_a, 4),
-                'less_than_quadruple_b': (less_than_quadruple_b, 4),
-                'less_than_quadruple_c': (less_than_quadruple_c, 4),
-                'greater_or_equal_than_double_a': (greater_or_equal_than_double_a, 2),
-                'greater_or_equal_than_double_b': (greater_or_equal_than_double_b, 2),
-                'greater_or_equal_than_double_c': (greater_or_equal_than_double_c, 2),
-                'less_than_double_a': (less_than_double_a, 2),
-                'less_than_double_b': (less_than_double_b, 2),
-                'less_than_double_c': (less_than_double_c, 2),
-                'protected_division': (protected_division, 2),
-            }[p]
-            name = {
-                'analytical_quotient': 'AQ',
-                'analytical_loge': 'Log',
-                'multiply': 'Mul',
-                'add': 'Add',
-                'subtract': 'Sub',
-                'protect_sqrt': 'Sqrt',
-                'minimum': "Min",
-                'maximum': "Max",
-                'sin': "Sin",
-                'cos': "Cos",
-                'abs': 'Abs',
-                'square': 'Square',
-                'cube': 'Cube',
-                'leaky_relu': 'LeakyRelu',
-                'cbrt': 'Cbrt',
-                'tanh': 'Tanh',
-                'analytical_log10': 'Log10',
-            }.get(p)
-            if transformer_wrapper:
-                pset.addPrimitive(make_class(primitive[0]), primitive[1], name=name)
+            if p in custom_primitives:
+                primitive = custom_primitives[p]
             else:
-                pset.addPrimitive(primitive[0], primitive[1], name=name)
+                primitive = {
+                    # Arithmetic operations
+                    'Add': (np.add, 2),  # Addition
+                    'Sub': (np.subtract, 2),  # Subtraction
+                    'Mul': (np.multiply, 2),  # Multiplication
+                    'Div': (protected_division, 2),  # Protected Division for handling divide-by-zero errors
+
+                    # Mathematical functions
+                    'AQ': (analytical_quotient, 2),  # Analytical Quotient for symbolic differentiation
+                    'Sqrt': (protect_sqrt, 1),  # Protected square root for handling negative values
+                    'Log': (analytical_log, 1),  # Analytical Logarithm for symbolic differentiation
+                    'Log10': (analytical_log10, 1),  # Analytical Logarithm base 10 for symbolic differentiation
+                    'Sin': (np.sin, 1),  # Sine function
+                    'Cos': (np.cos, 1),  # Cosine function
+                    'Arctan': (np.arctan, 1),  # Arctangent function
+                    'Tanh': (np.tanh, 1),  # Hyperbolic tangent function
+                    'Cbrt': (np.cbrt, 1),  # Cube root function
+                    'Square': (np.square, 1),  # Square function
+                    'Cube': (cube, 1),  # Cube function
+
+                    # Comparison operations
+                    'GE': (greater_or_equal_than, 2),  # Greater than or equal to comparison
+                    'LE': (less_or_equal_than, 2),  # Less than or equal to comparison
+                    'GE4A': (greater_or_equal_than_quadruple_a, 4),  # Greater than or equal to comparison for quadruple
+                    'GE4B': (greater_or_equal_than_quadruple_b, 4),  # Greater than or equal to comparison for quadruple
+                    'GE4C': (greater_or_equal_than_quadruple_c, 4),  # Greater than or equal to comparison for quadruple
+                    'LT4A': (less_than_quadruple_a, 4),  # Less than comparison for quadruple
+                    'LT4B': (less_than_quadruple_b, 4),  # Less than comparison for quadruple
+                    'LT4C': (less_than_quadruple_c, 4),  # Less than comparison for quadruple
+                    'GE2A': (greater_or_equal_than_double_a, 2),  # Greater than or equal to comparison for double
+                    'GE2B': (greater_or_equal_than_double_b, 2),  # Greater than or equal to comparison for double
+                    'GE2C': (greater_or_equal_than_double_c, 2),  # Greater than or equal to comparison for double
+                    'LT2A': (less_than_double_a, 2),  # Less than comparison for double
+                    'LT2B': (less_than_double_b, 2),  # Less than comparison for double
+                    'LT2C': (less_than_double_c, 2),  # Less than comparison for double
+
+                    # Other functions
+                    'Abs': (np.absolute, 1),  # Absolute value function
+                    'Max': (np.maximum, 2),  # Maximum function
+                    'Min': (np.minimum, 2),  # Minimum function
+                    'Mean': (np_mean, 2),  # Mean function
+                    'Neg': (np.negative, 1),  # Unary negation function (i.e. negate the input value)
+                    'Sigmoid': (sigmoid, 1),  # Sigmoid activation function
+                    'Round': (np.round, 1),  # Round to the nearest integer
+                    'Residual': (residual, 1),  # Residual function for handling negative values
+                    'LeakyRelu': (leaky_relu, 1),  # Leaky ReLU activation function
+                }[p]
+            if transformer_wrapper:
+                pset.addPrimitive(make_class(primitive[0]), primitive[1])
+            else:
+                pset.addPrimitive(primitive[0], primitive[1])
 
     def archive_initialization(self):
         # archive initialization
