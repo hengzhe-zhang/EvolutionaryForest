@@ -1,11 +1,10 @@
 import copy
+import math
 import random
 from operator import attrgetter
-from pathlib import Path
 from types import SimpleNamespace
-import math
+
 import numpy as np
-import pandas as pd
 import seaborn as sns
 from deap.tools import selRandom, selTournament
 from matplotlib import pyplot as plt
@@ -22,6 +21,7 @@ from skorch.callbacks import EarlyStopping
 from torch import optim
 from torch.nn import MSELoss
 from umap import UMAP
+
 from evolutionary_forest.model.VAE import NeuralNetTransformer, VAE
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import efficient_deepcopy

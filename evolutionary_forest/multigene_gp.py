@@ -348,17 +348,19 @@ def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration):
     return gene1, gene2
 
 
+# Perform mutation that takes a MultipleGeneGP individual and a primitive set as inputs
 def mutProbability_multiple_gene(individual: MultipleGeneGP, pset, parsimonious_probability=0.9):
+    # Get the frequency vector of the terminals in the individual using a helper function
     terminal_prob = get_frequency_vector(individual, pset)
 
-    # Sampling
+    # Sampling: choose between a full tree with only terminals with non-zero frequency or a full tree with any terminals
     if random.random() < parsimonious_probability:
         sub_tree = partial(genFull_with_prob, pset=pset, min_=0, max_=2,
                            terminal_probs=(terminal_prob > 0))
     else:
         sub_tree = partial(genFull_with_prob, pset=pset, min_=0, max_=2)
 
-    # Mutation
+    # Mutation: select a random gene from the individual and apply the mutation using the sub_tree function
     gene, id = individual.random_select(with_id=True)
     mutUniform(gene, sub_tree, pset)
     return individual,

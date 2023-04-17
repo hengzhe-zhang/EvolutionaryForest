@@ -189,43 +189,135 @@ class TestFunction():
 class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimator,
                                   SurrogateModel, SpacePartition, EstimationOfDistribution):
     """
-    Support both TGP and a variant of LGP for evolutioanry feature construction
+    Support both TGP and MGP for evolutionary feature construction
     """
 
-    def __init__(self, n_pop=50, n_gen=20, verbose=False, max_height=8, min_height=0,
-                 basic_primitives=True, normalize=True, select='AutomaticLexicaseFast',
-                 gene_num=5, mutation_scheme='uniform', ensemble_size=100,
-                 external_archive=None, original_features=False, diversity_search='None', cross_pb=0.5,
-                 mutation_pb=0.1, second_layer=None, ensemble_selection=None, test_fun=None, bootstrap_training=False,
-                 mean_model=False, early_stop=-1, min_samples_leaf=1, base_learner='Random-DT', score_func='R2',
-                 max_tree_depth=None, environmental_selection=None, pre_selection=None, eager_training=False,
-                 n_process=1, useless_feature_ratio=None, weighted_coef=False, feature_selection=False,
-                 allow_repetitive=False, cv=5, elitism=0, semantic_variation=False,
-                 # Soft-PS-Tree
-                 partition_number=4, ps_tree_local_model='RidgeCV',
-                 dynamic_partition='Self-Adaptive', max_leaf_nodes=None, ps_tree_cv_label=True,
-                 ps_tree_partition_model='DecisionTree', ps_tree_ratio=0.1,
-                 only_original_features=True, shared_partition_scheme=False,
+    def __init__(self,
+                 # Basic GP Parameters (Core)
+                 n_pop=50,  # Population size
+                 n_gen=20,  # Number of generations
+                 cross_pb=0.5,  # Probability of crossover
+                 mutation_pb=0.1,  # Probability of mutation
+                 max_height=8,  # Maximum height of a GP tree
+                 min_height=0,  # Minimum height of a GP tree
+                 gene_num=5,  # Number of genes in each GP individual
+                 mutation_scheme='uniform',  # Mutation scheme used in GP
+                 verbose=False,  # Whether to print verbose information
+                 basic_primitives=True,  # Primitive set used in GP
+                 normalize=True,  # Whether to normalize before fitting a model
+                 select='AutomaticLexicaseFast',  # Name of the selection operator
+                 elitism=0,  # Number of the best individuals to be directly passed to next generation
+
+                 # Basic GP Parameters (Not Recommend to Change)
+                 external_archive=None,  # External archive to store historical best results
+                 original_features=False,  # Whether to use original features in the model or not
+                 second_layer=None,  # Strategy to induce a second layer for assigning different weights in ensemble
+                 allow_revisit=False,  # Whether to allow repetitive individuals
+                 n_process=1,  # Number of processes for parallel execution
+                 constant_type='Int',  # Type of constants used in GP
+                 early_stop=-1,  # Early stopping criteria (number of generations)
+                 random_fix=True,  # Whether to use random fix when height limit is not satisfied in GP
+
+                 # Ensemble Learning Parameters
+                 base_learner='Random-DT',  # Base learner used in the ensemble
+                 min_samples_leaf=1,  # Minimum samples required to form a leaf node in a tree
+                 max_tree_depth=None,  # Maximum depth of a decision tree
+                 cv=5,  # Number of cross-validation folds
+                 score_func='R2',  # Scoring function for evaluation
+                 ensemble_prediction='Mean',  # Method of ensemble prediction
+                 ensemble_selection=None,  # Ensemble selection method
+                 ensemble_size=100,  # Size of the ensemble model
+
+                 # Soft PS-Tree Parameters
+                 partition_number=4,  # Number of partitions in PS-Tree
+                 ps_tree_local_model='RidgeCV',  # Type of local model used in PS-Tree
+                 dynamic_partition='Self-Adaptive',  # Strategy to dynamically change partition scheme
+                 ps_tree_cv_label=True,  # Whether to use label information in CV in PS-Tree
+                 ps_tree_partition_model='DecisionTree',  # Type of model used for partitioning
+                 only_original_features=True,  # Whether to only use original features in PS-Tree
+                 shared_partition_scheme=False,  # Whether to use shared partition scheme for all individuals
+                 max_leaf_nodes=None,  # Maximum height of each decision tree
+
+                 # SR-Forest Parameters (TEVC 2023)
+                 ps_tree_ratio=0.1,  # Ratio of PS-Tree in multi-fidelity evaluation
+                 decision_tree_count=0,  # Number of piecewise trees in a SR-Tree
+
                  # More Parameters
-                 initial_tree_size=None, decision_tree_count=0, basic_gene_num=0,
-                 clearing_cluster_size=0, reduction_ratio=0,
-                 random_state=None, class_weight=None, map_elite_parameter=None,
+                 initial_tree_size=None,  # Initial size of GP tree
+                 basic_gene_num=0,  # Number of basic genes in a MGP
+                 clearing_cluster_size=0,  # Cluster size in clearing
+                 reduction_ratio=0,  # Ratio of samples removed in pre-selection based on filters
+                 random_state=None,  # Random state used for reproducibility
+                 validation_size=0,  # Size of the validation set for using in HOF
+                 mab_parameter=None,  # Parameters for the MAB
+                 interleaving_period=0,  # Period of interleaving (Multi-fidelity Evaluation)
+
+                 # MEGP Parameters (EuroGP 2023)
+                 map_elite_parameter=None,  # Hyper-parameters for MAP-Elite
+
+                 # EvoFeat Parameters
+                 class_weight=None,  # Weight for each class in multi-class classification
+
                  # Deprecated parameters
-                 boost_size=None, validation_size=0, mab_parameter=None, semantic_diversity=None,
-                 interleaving_period=0,
+                 boost_size=None,  # Alias of "ensemble_size"
+                 semantic_diversity=None,  # Alias of "ensemble_selection"
+
                  # MGP hyperparameters
-                 mgp_mode=False, mgp_scope=None, number_of_register=10, intron_probability=0,
-                 register_mutation_probability=0.1, delete_irrelevant=False,
-                 delete_redundant=False, irrelevant_feature_ratio=0.01, strict_layer_mgp=True,
-                 # Using for pre-selection
-                 correlation_threshold=None, correlation_mode=None,
-                 ensemble_prediction='Mean', number_of_parents=0, outlier_detection=False,
-                 constant_type='Int', semantic_repair=0,
-                 dynamic_reduction=0, active_gene_num=0, intron_threshold=0,
-                 bloat_control=None, force_sr_tree=False, gradient_boosting=False,
-                 intron_gp=False, post_prune_threshold=0, parsimonious_probability=1,
-                 redundant_hof_size=0, delete_low_similarity=False, importance_propagation=False,
-                 random_fix=True, ridge_alphas=None, shared_eda=False, custom_primitives=None, **params):
+                 mgp_mode=False,  # Whether to use MGP
+                 mgp_scope=None,  # Scope of MGP
+                 number_of_register=10,  # Number of registers in MGP
+                 intron_probability=0,  # Probability of intron gene in MGP
+                 register_mutation_probability=0.1,  # Probability of register mutation in MGP
+                 delete_irrelevant=False,  # Whether to delete irrelevant genes in MGP
+                 delete_redundant=False,  # Whether to delete redundant genes in MGP
+
+                 # Semantic Variation (Trail-and-error to generate new trees)
+                 semantic_variation=False,  # Whether to use semantic variation in GP
+                 correlation_threshold=None,  # Correlation threshold for pre-selection
+                 correlation_mode=None,  # Correlation mode for pre-selection
+
+                 # MGP hyperparameters
+                 irrelevant_feature_ratio=0.01,  # Ratio of irrelevant features in MGP
+                 strict_layer_mgp=True,  # Whether to use strict layering in MGP
+                 number_of_parents=0,  # Number of parents in crossover
+
+                 # Strategies
+                 bloat_control=None,  # Bloat control method in GP
+
+                 # SHM-GP hyperparameters
+                 intron_gp=False,  # Whether to use intron GP
+
+                 # User Parameters
+                 custom_primitives=None,  # Custom primitives for GP
+
+                 # Debug Parameters
+                 test_fun=None,  # Test function for evaluation
+
+                 # Experimental Parameters (Maybe deprecated at any version)
+                 diversity_search='None',  # Strategy to assign diversity objective
+                 bootstrap_training=False,  # Whether to use bootstrap samples for training
+                 mean_model=False,  # Whether to use mean model for predictions
+                 environmental_selection=None,  # Environmental selection method
+                 pre_selection=None,  # Pre-selection method
+                 eager_training=False,  # Whether to train models eagerly
+                 useless_feature_ratio=None,  # Ratio of useless features to be removed
+                 weighted_coef=False,  # Whether to use weighted coefficients
+                 feature_selection=False,  # Whether to perform feature selection
+                 outlier_detection=False,  # Whether to perform outlier detection
+                 semantic_repair=0,  # Semantic repair method
+                 dynamic_reduction=0,  # Dynamic reduction strategy
+                 active_gene_num=0,  # Number of active genes in MGP
+                 intron_threshold=0,  # Threshold for identifying introns in MGP
+                 force_sr_tree=False,  # Whether to force use SR-Tree
+                 gradient_boosting=False,  # Whether to use gradient boosting
+                 post_prune_threshold=0,  # Threshold for post-pruning of features in GP
+                 redundant_hof_size=0,  # Size of redundant Hall of Fame
+                 delete_low_similarity=False,  # Whether to delete low similarity genes
+                 importance_propagation=False,  # Whether to use importance propagation in GP
+                 ridge_alphas=None,  # Alpha values for Ridge regression
+                 parsimonious_probability=1,  # Probability of GP with parsimonious terminal usage
+                 shared_eda=False,  # Whether to use shared estimation of distribution in GP
+                 **params):
         """
         Basic GP Parameters:
         n_pop: The size of the population
@@ -326,7 +418,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.initial_tree_size = initial_tree_size
         self.ps_tree_partition_model = ps_tree_partition_model
         self.ps_tree_cv_label = ps_tree_cv_label
-        self.allow_repetitive = allow_repetitive
+        self.allow_revisit = allow_revisit
         self.pre_selection = pre_selection
         self.max_tree_depth = max_tree_depth
         self.elitism = elitism
@@ -1876,9 +1968,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     'LeakyRelu': (leaky_relu, 1),  # Leaky ReLU activation function
                 }[p]
             if transformer_wrapper:
-                pset.addPrimitive(make_class(primitive[0]), primitive[1],name=p)
+                pset.addPrimitive(make_class(primitive[0]), primitive[1], name=p)
             else:
-                pset.addPrimitive(primitive[0], primitive[1],name=p)
+                pset.addPrimitive(primitive[0], primitive[1], name=p)
 
     def archive_initialization(self):
         # archive initialization
@@ -2900,7 +2992,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                     if len(new_offspring) < pop_size:
                         # checking redundant individuals
-                        if self.allow_repetitive or (not individual_to_tuple(o) in self.evaluated_pop) or \
+                        if self.allow_revisit or (not individual_to_tuple(o) in self.evaluated_pop) or \
                             (self.gene_num == 1 and count > pop_size * 10):
                             # sometime, when gene num is very small, it is hard to generate a unique individual
                             self.evaluated_pop.add(individual_to_tuple(o))
@@ -3766,7 +3858,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in population]))
             self.diversity_history.append(self.diversity_calculation(population))
             self.cos_similarity_history.append(self.cos_similarity_calculation(population))
-            genotype_sum_entropy, phenotype_sum_entropy = self.tree_entropy_calculation(population)
+            genotype_sum_entropy, phenotype_sum_entropy = self.gp_tree_entropy_calculation(population)
             self.tree_genotypic_diversity.append(genotype_sum_entropy)
             self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
             self.avg_tree_size_history.append(np.mean([[len(g) for g in p.gene] for p in population]))
@@ -3775,25 +3867,30 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.archive_diversity_history.append(self.diversity_calculation())
 
     def training_with_validation_set(self):
-        # Training the final model with validation set
+        # Train the final model with the validation set if data combination is enabled and validation set is provided
         if self.archive_configuration.data_combination and self.validation_size > 0:
-            # return
+            # Combine the training and validation sets
             X = np.concatenate((self.X, self.valid_x), axis=0)
             y = np.concatenate((self.y, self.valid_y), axis=0)
+            # Train the final model using the combined set
             self.final_model_lazy_training(self.hof, X, y, force_training=True)
 
-    def tree_entropy_calculation(self, population):
+    def gp_tree_entropy_calculation(self, population):
+        # Calculate the entropy of the genotype and phenotype distributions in the population
         entropy = lambda p: -p * np.log(p)
         genotype = defaultdict(int)
         phenotype = defaultdict(int)
+        # Count the frequency of each genotype and phenotype in the population
         for p in population:
             for t, h in zip(p.gene, p.hash_result):
                 genotype[str(t)] += 1
                 phenotype[h] += 1
+        # Calculate the entropy of the phenotype distribution
         phenotype_sum_value = sum(phenotype.values())
         phenotype_sum_entropy = 0
         for k, v in phenotype.items():
             phenotype_sum_entropy += entropy(v / phenotype_sum_value)
+        # Calculate the entropy of the genotype distribution
         genotype_sum_value = sum(genotype.values())
         genotype_sum_entropy = 0
         for k, v in genotype.items():
@@ -3811,21 +3908,27 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             mutation_pb = self.mutation_pb
 
+        # Check if the intron gene mode is active
         if self.intron_probability > 0:
             for i in range(0, len(offspring), 2):
                 if random.random() < cross_pb:
+                    # Get the active genes of two offspring and perform crossover
                     a, b = offspring[i].active_gene, offspring[i + 1].active_gene
                     a, b = cxTwoPoint(a, b)
+                    # Update the active genes of the offspring
                     offspring[i].active_gene, offspring[i + 1].active_gene = a, b
 
+            # For each offspring, perform mutation with a certain probability
             for i in range(0, len(offspring)):
                 if random.random() < mutation_pb:
+                    # Get the active genes of an offspring and perform mutation
                     a = offspring[i].active_gene
                     a, = mutFlipBit(a, indpb=1 / self.gene_num)
+                    # Update the active genes of the offspring
                     offspring[i].active_gene = a
 
+            # For each offspring, force at least one active gene to be 1
             for i in range(0, len(offspring)):
-                # repairing, forcing one gene point equals to one
                 if np.sum(offspring[i].active_gene) == 0:
                     index = np.random.randint(0, len(offspring[i].active_gene))
                     offspring[i].active_gene[index] = 1
