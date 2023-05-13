@@ -47,12 +47,13 @@ def extract_numbers(dimension, s):
     return min(num1 * dimension, num2)
 
 
-def cross_scale(array, cross_pb, inverse):
+def cross_scale(array, cross_pb, inverse, power=1):
     # scaling based on cross probabilities
     array = np.array(array)
+    array = np.power(array, power)
     if inverse:
         max_value = np.max(array)
-        return cross_pb * (max_value / array)
+        return cross_pb * (array / max_value)
     else:
         min_value = np.min(array)
         return cross_pb * (min_value / array)
@@ -192,7 +193,7 @@ def feature_append(regr, X_input, feature_list, only_new_features=False):
         if only_new_features:
             transformed_features = pd.DataFrame(transformed_features, columns=[f.split(":")[1] for f in feature_list])
         else:
-            transformed_features = pd.DataFrame(transformed_features, columns=list(X_input.columns)+
+            transformed_features = pd.DataFrame(transformed_features, columns=list(X_input.columns) +
                                                                               [f.split(":")[1] for f in feature_list])
     return transformed_features
 
@@ -264,8 +265,18 @@ def gene_to_string(gene):
                     string += f'-{args[0]}'
                 elif prim.name == 'Tanh':
                     string += f'tanh({args[0]})'
+                elif prim.name == 'Arctan':
+                    string += f'atan({args[0]})'
+                elif prim.name == 'Square':
+                    string += f'Pow({args[0]},2)'
+                elif prim.name == 'Cube':
+                    string += f'Pow({args[0]},3)'
                 elif prim.name == 'Cbrt':
-                    string += f'cbrt({args[0]})'
+                    string += f'Pow({args[0]},1/3)'
+                elif prim.name == 'Sin':
+                    string += f'sin({args[0]})'
+                elif prim.name == 'Cos':
+                    string += f'cos({args[0]})'
                 elif prim.name == 'Abs':
                     string += f'Abs({args[0]})'
                 elif prim.name not in infix_map:

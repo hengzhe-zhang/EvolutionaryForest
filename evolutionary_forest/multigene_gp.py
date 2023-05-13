@@ -91,7 +91,6 @@ class MultipleGeneGP():
     introns_results: List[dict]
     case_values: np.ndarray
     coef: np.ndarray
-    mean_coef: np.ndarray
     hash_result: list
     mgp_mode: bool
     semantics: np.ndarray
@@ -167,12 +166,14 @@ class MultipleGeneGP():
             else:
                 return self.gene[random.randint(0, len(self.gene) - 1)]
 
-    def tournament_selection(self, tournsize=2):
+    def tournament_selection(self, tournsize=3, reverse=False):
         """
-        Current Issue:
-        It may result in the loss of diversity
         """
-        key = selTournamentFeature(list(enumerate(self.coef)), 1, tournsize=tournsize)
+        coef = np.abs(self.coef)
+        if reverse:
+            key = selTournamentFeature(list(enumerate(-1 * coef)), 1, tournsize=tournsize)
+        else:
+            key = selTournamentFeature(list(enumerate(coef)), 1, tournsize=tournsize)
         return self.gene[key[0][0]]
 
     def best_gene(self, with_id=False):
@@ -193,21 +194,24 @@ class MultipleGeneGP():
         worst_index = min(range(len(self.gene)), key=lambda x: np.abs(self.coef)[x])
         self.gene[worst_index] = gene
 
-    def softmax_selection(self, reverse=False, temperature=1 / 20):
+    def softmax_selection(self, reverse=False, temperature=1 / 20, with_id=False):
         if temperature == 0:
-            weight = self.coef
+            weight = np.abs(self.coef)
         else:
             if reverse:
-                weight = softmax(-(1 / temperature) * self.coef)
+                weight = softmax(-(1 / temperature) * np.abs(self.coef))
             else:
-                weight = softmax((1 / temperature) * self.coef)
+                weight = softmax((1 / temperature) * np.abs(self.coef))
         if weight.sum() == 0:
             # If there is an error in the feature importance vector
             index = np.random.choice(np.arange(len(self.gene)), 1)
         else:
             weight = weight / weight.sum()
             index = np.random.choice(np.arange(len(self.gene)), 1, p=weight)
-        return self.gene[index[0]]
+        if with_id:
+            return self.gene[index[0]], index[0]
+        else:
+            return self.gene[index[0]]
 
     def weighted_selection(self, reverse=False, with_id=False):
         weight = np.abs(self.coef)
@@ -374,7 +378,7 @@ def get_frequency_vector(individual, pset):
     # Get used variables
     for g in individual.gene:
         fitness = individual.fitness.wvalues[0]
-        for coef, node in zip(individual.mean_coef, g):
+        for coef, node in zip(individual.coef, g):
             if isinstance(node, Terminal):
                 if node.name not in terminal_dict:
                     terminal_prob[-1] += coef * fitness
@@ -504,18 +508,6 @@ def cxOnePoint_multiple_gene_tournament(ind1: MultipleGeneGP, ind2: MultipleGene
     return ind1, ind2
 
 
-def cxOnePoint_multiple_gene_SC_Fixed(ind1: MultipleGeneGP, ind2: MultipleGeneGP, temperature=1 / 20):
-    """
-    self-competitive crossover operator
-    Using the worst individual as the base individual and migrate a portion of useful materials from well-behaved one
-    """
-    ind1_copy = copy.deepcopy(ind1.softmax_selection(temperature=temperature))
-    ind2_copy = copy.deepcopy(ind2.softmax_selection(temperature=temperature))
-    cxOnePoint(ind1.softmax_selection(reverse=True, temperature=temperature), ind2_copy)
-    cxOnePoint(ind2.softmax_selection(reverse=True, temperature=temperature), ind1_copy)
-    return ind1, ind2
-
-
 def selTournamentGenePool(coef_list, tournsize=7):
     individuals = [i for i in range(len(coef_list))]
     aspirants = selRandom(individuals, tournsize)
@@ -568,15 +560,51 @@ def cxOnePoint_multiple_gene_pool(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     return ind1, ind2
 
 
-def cxOnePoint_multiple_gene_SC(ind1: MultipleGeneGP, ind2: MultipleGeneGP, temperature=1 / 20):
+def cxOnePoint_multiple_gene_SC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
+                                crossover_configuration: CrossoverConfiguration):
     """
     self-competitive crossover operator
     Using the worst individual as the base individual and migrate a portion of useful materials from well-behaved one
     """
-    cxOnePoint(ind1.softmax_selection(reverse=True, temperature=temperature),
-               copy.deepcopy(ind2.softmax_selection(temperature=temperature)))
-    cxOnePoint(ind2.softmax_selection(reverse=True, temperature=temperature),
-               copy.deepcopy(ind1.softmax_selection(temperature=temperature)))
+    temperature = crossover_configuration.sc_temperature
+    gene_crossover(ind1.softmax_selection(reverse=True, temperature=temperature),
+                   copy.deepcopy(ind2.softmax_selection(temperature=temperature)),
+                   crossover_configuration)
+    gene_crossover(ind2.softmax_selection(reverse=True, temperature=temperature),
+                   copy.deepcopy(ind1.softmax_selection(temperature=temperature)),
+                   crossover_configuration)
+    return ind1, ind2
+
+
+def cxOnePoint_multiple_gene_TSC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
+                                 crossover_configuration: CrossoverConfiguration):
+    """
+    tournament-based self-competitive crossover operator
+    Using the worst individual as the base individual and migrate a portion of useful materials from well-behaved one
+    """
+    tournsize = crossover_configuration.sc_tournament_size
+    gene_crossover(ind1.tournament_selection(tournsize, reverse=True),
+                   copy.deepcopy(ind2.tournament_selection(tournsize)),
+                   crossover_configuration)
+    gene_crossover(ind2.tournament_selection(tournsize, reverse=True),
+                   copy.deepcopy(ind1.tournament_selection(tournsize)),
+                   crossover_configuration)
+    return ind1, ind2
+
+
+def cxOnePoint_multiple_gene_SBC(ind1: MultipleGeneGP, ind2: MultipleGeneGP, temperature=1 / 20):
+    """
+    self-competitive biased crossover operator
+    """
+    a_bad, a_bad_id = ind1.softmax_selection(reverse=True, temperature=temperature, with_id=True)
+    b_good = copy.deepcopy(ind2.softmax_selection(temperature=temperature))
+    cxOnePoint(a_bad, b_good)
+    ind1.gene[a_bad_id] = b_good
+
+    b_bad, b_bad_id = ind2.softmax_selection(reverse=True, temperature=temperature, with_id=True)
+    a_good = copy.deepcopy(ind1.softmax_selection(temperature=temperature))
+    cxOnePoint(b_bad, a_good)
+    ind2.gene[b_bad_id] = a_good
     return ind1, ind2
 
 

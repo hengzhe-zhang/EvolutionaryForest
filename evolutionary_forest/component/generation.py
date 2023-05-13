@@ -71,6 +71,8 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                     offspring[i].parent_fitness, offspring[i + 1].parent_fitness = None, None
                 if crossover_configuration.number_of_invokes > 0:
                     invokes = crossover_configuration.number_of_invokes
+                    if invokes < 1:
+                        invokes = int(gene_num * invokes)
                 else:
                     invokes = gene_num
                 for c in range(invokes):

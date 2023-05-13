@@ -19,7 +19,6 @@ from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, ranksums
 from sklearn.base import RegressorMixin, BaseEstimator, ClassifierMixin, TransformerMixin
 from sklearn.cluster import KMeans
-from sklearn.compose.tests.test_target import DummyTransformer
 from sklearn.decomposition import PCA
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor, RandomForestClassifier, \
     RandomForestRegressor
@@ -32,7 +31,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, FunctionTransformer
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeClassifier, BaseDecisionTree
 from sklearn.utils import compute_sample_weight
@@ -43,15 +42,20 @@ from tpot import TPOTClassifier, TPOTRegressor
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
-    EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode
+    EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
+    BaseLearnerConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
 from evolutionary_forest.component.generation import varAndPlus
+from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
+    PACBayesianConfiguration, assign_rank
 from evolutionary_forest.component.primitives import *
 from evolutionary_forest.component.primitives import np_mean, add_extend_operators
+from evolutionary_forest.component.rademacher_complexity import rademacher_complexity_estimation, \
+    generate_rademacher_vector
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \
@@ -59,6 +63,7 @@ from evolutionary_forest.component.selection import batch_tournament_selection, 
     SelectionConfiguration
 from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderNumpy
 from evolutionary_forest.component.toolbox import TypedToolbox
+from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
 from evolutionary_forest.model.PLTree import SoftPLTreeRegressor, SoftPLTreeRegressorEM, PLTreeRegressor, RidgeDT, \
     LRDTClassifier, RidgeDTPlus, RandomWeightRidge
 from evolutionary_forest.model.RBFN import RBFN
@@ -84,7 +89,8 @@ eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-Balanced', 'EDA-Terminal-SameWeight', 'EDA-Terminal-PMI',
                  'EDA-Terminal-PM-Biased', 'EDA-Terminal-PM-Population', 'EDA-PM-Population',
                  'EDA-Terminal-PM-Frequency', 'EDA-Terminal-PM-Tournament',
-                 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-SC-WS', 'EDA-Terminal-PM-SC-NT',
+                 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-SBC', 'EDA-Terminal-PM-TSC',
+                 'EDA-Terminal-PM-SC-WS', 'EDA-Terminal-PM-SC-NT',
                  'EDA-Terminal-PM-SameIndex']
 map_elite_series = ['MAP-Elite-Lexicase', 'MAP-Elite-Tournament',
                     'MAP-Elite-Roulette', 'MAP-Elite-Tournament-3', 'MAP-Elite-Tournament-7',
@@ -170,10 +176,10 @@ def kendall(ya, yb):
 
 
 class TestFunction():
-    def __init__(self, x, y):
+    def __init__(self, x, y, regr=None):
         self.x = x
         self.y = y
-        self.regr = None
+        self.regr = regr
 
     def predict_loss(self):
         if len(self.x) > 0:
@@ -317,6 +323,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  ridge_alphas=None,  # Alpha values for Ridge regression
                  parsimonious_probability=1,  # Probability of GP with parsimonious terminal usage
                  shared_eda=False,  # Whether to use shared estimation of distribution in GP
+
+                 rmp_ratio=0.5,  # Multi-task Optimization
                  **params):
         """
         Basic GP Parameters:
@@ -353,6 +361,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         SurrogateModel.__init__(self)
         SpacePartition.__init__(self)
         EstimationOfDistribution.__init__(self, **params)
+        self.base_learner_configuration = BaseLearnerConfiguration(**params)
+        self.pac_bayesian = PACBayesianConfiguration(**params)
+        self.rmp_ratio = rmp_ratio
         self.columns = None
         self.custom_primitives = custom_primitives
         # EDA distribution are shared across different genes
@@ -620,33 +631,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_model_dict[self.base_learner.__class__.__name__] = self.base_learner
             self.base_learner = self.base_learner.__class__.__name__
         elif isinstance(self.base_learner, list):
-            self.rmp_ratio = 0.5
             self.base_model_dict = {
                 learner.__class__.__name__: learner for learner in self.base_learner
             }
             self.base_model_list = ','.join([learner.__class__.__name__ for learner in self.base_learner])
-        elif self.base_learner.startswith('DT-LR-'):
-            self.rmp_ratio = float(self.base_learner.split('-')[-1])
-            self.base_learner = '-'.join(self.base_learner.split('-')[:-1])
-            self.base_model_list = 'Random-DT,LogisticRegression'
-        elif self.base_learner.startswith('Balanced-DT-LR-'):
-            self.rmp_ratio = float(self.base_learner.split('-')[-1])
-            self.base_learner = '-'.join(self.base_learner.split('-')[:-1])
-            self.base_model_list = 'Balanced-Random-DT,Balanced-LogisticRegression'
         elif self.base_learner == 'DT-LR':
-            self.rmp_ratio = 0.5
             if isinstance(self, EvolutionaryForestClassifier):
                 self.base_model_list = 'DT,LogisticRegression'
             else:
                 self.base_model_list = 'DT,Ridge'
         elif self.base_learner == 'RDT-LR':
-            self.rmp_ratio = 0.5
             self.base_model_list = 'Random-DT,LogisticRegression'
         elif self.base_learner == 'Balanced-RDT-LR':
-            self.rmp_ratio = 0.5
             self.base_model_list = 'Balanced-Random-DT,Balanced-LogisticRegression'
         elif self.base_learner == 'Balanced-DT-LR':
-            self.rmp_ratio = 0.5
             self.base_model_list = 'Balanced-DT,Balanced-LogisticRegression'
         elif self.base_learner == 'DT-LGBM':
             self.base_model_list = 'Random-DT,LightGBM-Stump,DT'
@@ -688,6 +686,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **params,
             **vars(self),
         )
+        self.external_archive_pop = None
 
     def calculate_diversity(self, population):
         inds = []
@@ -1002,8 +1001,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         # max is not an appropriate indicator, because it will highlight not robust features
         importance_values = [self.get_model_coefficient(x) for x in estimators]
-        individual.mean_coef = np.mean(importance_values, axis=0)
-        individual.coef = np.max(importance_values, axis=0)
+        individual.coef = np.mean(importance_values, axis=0)
 
         if individual.intron_probability > 0:
             coef = np.zeros_like(individual.active_gene, dtype=np.float32)
@@ -1027,7 +1025,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return coefficient
 
         individual.coef = coefficient_process(individual.coef)
-        individual.mean_coef = coefficient_process(individual.mean_coef)
 
     def calculate_fitness_value(self, individual, estimators, Y, y_pred):
         """
@@ -1050,6 +1047,36 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # Return negative of R2 score
             return -1 * score,
+        elif self.score_func == 'R2-L2':
+            X_features = self.feature_generation(self.X, individual)
+            score = r2_score(Y, y_pred)
+            coef_norm = np.linalg.norm(individual.coef) ** 2
+            weights = [float(s) for s in self.pac_bayesian.objective.split(',')]
+            feature_norm = np.linalg.norm(StandardScaler().fit_transform(X_features).flatten()) ** 2
+            individual.fitness_list = ((score, 1), (coef_norm, -1 * weights[0]), (feature_norm, -1 * weights[1]))
+            return 0,
+        elif self.score_func == 'R2-PAC-Bayesian':
+            X_features = self.feature_generation(self.X, individual)
+            pac_bayesian = self.pac_bayesian
+            y = self.y
+            estimation = pac_bayesian_estimation(X_features, y, estimators[0], pac_bayesian)
+            individual.fitness_list = estimation
+            return 0,
+        elif self.score_func == 'R2-VC-Dimension':
+            # reducing the time of estimating VC-Dimension
+            X_features = self.feature_generation(self.X, individual)
+            y = self.y
+            estimation = vc_dimension_estimation(X_features, y, estimators[0])
+            individual.fitness_list = estimation
+            return 0,
+        elif self.score_func == 'R2-Rademacher-Complexity':
+            X_features = self.feature_generation(self.X, individual)
+            y = self.y
+            estimation = rademacher_complexity_estimation(X_features, y, estimators[0],
+                                                          generate_rademacher_vector(self.X),
+                                                          self.pac_bayesian.objective)
+            individual.fitness_list = estimation
+            return 0,
         elif self.score_func == 'MSE-Variance':
             # Calculate mean squared error and standard deviation of error
             error = mean_squared_error(Y, y_pred)
@@ -1072,7 +1099,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
-        if self.score_func == 'R2' or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound':
+        if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-VC-Dimension', 'R2-Rademacher-Complexity',
+                               'R2-L2'] \
+            or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound':
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
             # individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 4
         elif self.score_func == 'MAE':
@@ -1241,7 +1270,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == 'Ridge' or base_model == 'Ridge' \
             or self.base_learner.startswith('Fast-') \
             or self.base_learner == 'NN':
-            ridge_model = Ridge()
+            ridge_model = Ridge(self.base_learner_configuration.ridge_alpha)
         elif self.base_learner == 'RidgeDT':
             ridge_model = RidgeDT(decision_tree_count=self.decision_tree_count,
                                   max_leaf_nodes=self.max_leaf_nodes)
@@ -1465,11 +1494,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             elif 'Tournament' in self.mutation_scheme:
                 toolbox.register("mate", cxOnePoint_multiple_gene_tournament)
             elif self.mutation_scheme.endswith('-SC'):
-                toolbox.register("mate", cxOnePoint_multiple_gene_SC)
-            elif self.mutation_scheme.endswith('-SC-WS'):
-                toolbox.register("mate", partial(cxOnePoint_multiple_gene_SC, temperature=0))
-            elif self.mutation_scheme.endswith('-SC-NT'):
-                toolbox.register("mate", partial(cxOnePoint_multiple_gene_SC, temperature=1))
+                toolbox.register("mate", partial(cxOnePoint_multiple_gene_SC,
+                                                 crossover_configuration=self.crossover_configuration))
+            elif self.mutation_scheme.endswith('-SBC'):
+                toolbox.register("mate", cxOnePoint_multiple_gene_SBC)
+            elif self.mutation_scheme.endswith('-TSC'):
+                toolbox.register("mate", partial(cxOnePoint_multiple_gene_TSC,
+                                                 crossover_configuration=self.crossover_configuration))
             elif 'SameIndex' in self.mutation_scheme:
                 toolbox.register("mate", cxOnePoint_multiple_gene_same_index)
             else:
@@ -2070,6 +2101,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 self.hof = NoveltyHallOfFame(self.ensemble_size, self.y)
             self.hof.novelty_weight = self.novelty_weight
+        elif self.ensemble_selection == 'MultiTask':
+            self.hof = MultiTaskHallOfFame(self.ensemble_size, self.base_model_list)
         elif self.validation_size > 0:
             self.hof = ValidationHallOfFame(self.ensemble_size, self.get_validation_score, self.archive_configuration)
         elif self.ensemble_selection == None or self.ensemble_selection in ['None', 'none',
@@ -2123,6 +2156,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if test_X is not None:
                 test_X = self.x_scaler.transform(test_X)
                 self.test_X = test_X
+            X = self.add_noise_to_data(X)
 
         # Split into train and validation sets if validation size is greater than 0
         if self.validation_size > 0:
@@ -2236,6 +2270,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.second_layer_generation(X, y)
         self.training_with_validation_set()
         return self
+
+    def add_noise_to_data(self, X):
+        param = self.param
+        if 'noise_scale' in param and param['noise_scale'] > 0:
+            # Generate Gaussian noise with the same shape as `X`
+            noise = np.random.normal(loc=0, scale=param['noise_scale'], size=X.shape)
+            # Add the noise to `X`
+            X = X + noise
+        return X
 
     def second_layer_generation(self, X, y):
         # Check if second layer is specified
@@ -3392,9 +3435,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return cxpb, mutpb
 
     def get_adaptive_pb_array(self, probability, inverse=False):
-        probability = float(probability.replace('InverseAdaptive-', '').replace('Adaptive-', ''))
+        probability = float(probability.replace('InverseAdaptive-', '')
+                            .replace('InverseDynamicAdaptive-', '')
+                            .replace('DynamicAdaptive-', '')
+                            .replace('Adaptive-', ''))
         unique_hash = [len(np.unique([o.hash_result[i] for o in self.pop])) for i in range(self.gene_num)]
-        probability = cross_scale(unique_hash, probability, inverse=inverse)
+        probability = cross_scale(unique_hash, probability, inverse=inverse,
+                                  power=self.crossover_configuration.adaptive_power)
         return probability
 
     def get_adaptive_mutation_rate(self, cxpb, mutpb):
@@ -3408,6 +3455,29 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 cxpb = self.get_adaptive_pb_array(self.cross_pb, inverse=True)
             if isinstance(self.mutation_pb, str) and self.mutation_pb.startswith('InverseAdaptive'):
                 mutpb = self.get_adaptive_pb_array(self.mutation_pb, inverse=True)
+
+            if isinstance(self.cross_pb, str) and self.cross_pb.startswith('DynamicAdaptive'):
+                if self.current_gen > self.n_gen * self.crossover_configuration.inverse_point:
+                    cxpb = self.get_adaptive_pb_array(self.cross_pb, inverse=True)
+                else:
+                    cxpb = self.get_adaptive_pb_array(self.cross_pb)
+            if isinstance(self.mutation_pb, str) and self.mutation_pb.startswith('DynamicAdaptive'):
+                if self.current_gen > self.n_gen * self.crossover_configuration.inverse_point:
+                    mutpb = self.get_adaptive_pb_array(self.mutation_pb, inverse=True)
+                else:
+                    mutpb = self.get_adaptive_pb_array(self.mutation_pb)
+
+            if isinstance(self.cross_pb, str) and self.cross_pb.startswith('InverseDynamicAdaptive'):
+                if self.current_gen > self.n_gen * self.crossover_configuration.inverse_point:
+                    cxpb = self.get_adaptive_pb_array(self.cross_pb)
+                else:
+                    cxpb = self.get_adaptive_pb_array(self.cross_pb, inverse=True)
+            if isinstance(self.mutation_pb, str) and self.mutation_pb.startswith('InverseDynamicAdaptive'):
+                if self.current_gen > self.n_gen * self.crossover_configuration.inverse_point:
+                    mutpb = self.get_adaptive_pb_array(self.mutation_pb)
+                else:
+                    mutpb = self.get_adaptive_pb_array(self.mutation_pb, inverse=True)
+
             if self.param.get('record_training_data', False) and isinstance(cxpb, (list, np.ndarray)):
                 # if probability is a list or an array
                 self.adaptive_probability_history[0].append(cxpb[0])
@@ -3821,7 +3891,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             successful_crossover = 0
             all_crossover = 0
             for p in population:
-                if p.crossover_type == 'Macro':
+                if p.crossover_type == 'Macro' and p.parent_fitness != None:
                     if np.all(p.fitness.wvalues[0] > np.array(p.parent_fitness)):
                         successful_crossover += 1
                     all_crossover += 1
@@ -3834,7 +3904,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             successful_crossover = 0
             all_crossover = 0
             for p in population:
-                if p.crossover_type == 'Micro':
+                if p.crossover_type == 'Micro' and p.parent_fitness != None:
                     if np.all(p.fitness.wvalues[0] > np.array(p.parent_fitness)):
                         successful_crossover += 1
                     all_crossover += 1
@@ -3857,12 +3927,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 print('Testing Loss', testing_loss)
             self.fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in population]))
             self.diversity_history.append(self.diversity_calculation(population))
-            self.cos_similarity_history.append(self.cos_similarity_calculation(population))
+            if not isinstance(self, ClassifierMixin):
+                self.cos_similarity_history.append(self.cos_similarity_calculation(population))
+                self.archive_cos_similarity_history.append(self.cos_similarity_calculation(self.hof))
             genotype_sum_entropy, phenotype_sum_entropy = self.gp_tree_entropy_calculation(population)
             self.tree_genotypic_diversity.append(genotype_sum_entropy)
             self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
             self.avg_tree_size_history.append(np.mean([[len(g) for g in p.gene] for p in population]))
-            self.archive_cos_similarity_history.append(self.cos_similarity_calculation(self.hof))
             self.archive_fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in self.hof]))
             self.archive_diversity_history.append(self.diversity_calculation())
 
@@ -3962,21 +4033,29 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 o.dynamic_regularization = np.clip(o.dynamic_regularization * random.choice([0.1, 10]),
                                                    1e-4, 1e4)
 
+    def check_multi_task_optimization(self):
+        return self.base_learner in ['DT-LR', 'Balanced-DT-LR', 'Balanced-RDT-LR']
+
     def traditional_parent_selection(self, toolbox, parent, external_archive):
         # The traditional parent selection process
-        if self.base_learner in ['DT-LR', 'Balanced-DT-LR', 'Balanced-RDT-LR']:
-            # multi-base learner selection
+        if self.check_multi_task_optimization():
+            if isinstance(self.external_archive, int) and self.external_archive >= 1:
+                parent_pool = parent + external_archive
+            else:
+                parent_pool = parent
+
+                # multi-base learner selection
             if random.random() < self.rmp_ratio:
                 # cross between different models
                 # 0.25-> AA BB
                 # 0.25-> AB BA
-                parent_a = self.sample_model_name(parent)
+                parent_a = self.sample_model_name(parent_pool)
                 offspring_a = toolbox.select(parent_a, 1)
-                parent_b = self.sample_model_name(parent)
+                parent_b = self.sample_model_name(parent_pool)
                 offspring_b = toolbox.select(parent_b, 1)
                 offspring = [offspring_a[0], offspring_b[0]]
             else:
-                parent_a = self.sample_model_name(parent)
+                parent_a = self.sample_model_name(parent_pool)
                 offspring = toolbox.select(parent_a, 2)
         else:
             if self.number_of_parents > 0:
@@ -4013,10 +4092,22 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def update_external_archive(self, population, external_archive):
         if isinstance(self.external_archive, int):
-            if external_archive is not None:
-                external_archive = selBest(list(external_archive) + list(population), self.external_archive)
+            if self.check_multi_task_optimization():
+                models = self.base_model_list.split(',')
+                if external_archive is not None:
+                    candidate = list(external_archive) + list(population)
+                else:
+                    candidate = list(population)
+
+                external_archive = []
+                for model in models:
+                    parent = list(filter(lambda x: x.base_model == model, candidate))
+                    external_archive.extend(selBest(parent, self.external_archive))
             else:
-                external_archive = selBest(list(population), self.external_archive)
+                if external_archive is not None:
+                    external_archive = selBest(list(external_archive) + list(population), self.external_archive)
+                else:
+                    external_archive = selBest(list(population), self.external_archive)
         elif self.external_archive is not None and self.external_archive != False \
             and self.external_archive.startswith('Size-'):
             size = int(self.external_archive.replace('Size-', ''))
@@ -4051,6 +4142,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     external_archive.append(final_archive)
         else:
             external_archive = None
+        self.external_archive_pop = external_archive
         return external_archive
 
     def offspring_generation(self, toolbox, parent, count, external_archive=None):
@@ -4508,6 +4600,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             partition_scheme = partition_scheme.argmax(axis=1)
             for p in population:
                 p.partition_scheme = partition_scheme
+
+        # re-assign fitness for all individuals if using PAC-Bayesian
+        if self.score_func == 'R2-L2' or \
+            self.score_func == 'R2-PAC-Bayesian' or \
+            self.score_func == 'R2-VC-Dimension' or \
+            self.score_func == 'R2-Rademacher-Complexity':
+            assign_rank(population, self.hof,self.external_archive_pop)
         return invalid_ind
 
     def cos_similarity_calculation(self, population=None):
@@ -4597,7 +4696,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def model(self):
         assert len(self.hof) == 1
         h = self.hof[0]
-        learner: LinearModel = h.pipe['Ridge']
+        if isinstance(h.pipe, Pipeline):
+            learner: LinearModel = h.pipe['Ridge']
+        else:
+            learner = h.pipe
         assert isinstance(learner, LinearModel)
         model_str = ''
         for id, g, c in zip(range(0, len(h.gene)), h.gene, learner.coef_):
@@ -4606,13 +4708,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 model_str += '+' + str(c) + '*' + gene_to_string(g)
         model_str += '+' + str(learner.intercept_)
-        return model_str
+        return model_str.replace('ARG', 'x')
 
 
 class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor):
     def __init__(self, score_func='ZeroOne', **params):
         super().__init__(score_func=score_func, **params)
-        self.y_scaler = DummyTransformer()
+        # Define a function that simply passes the input data through unchanged.
+        identity_func = lambda x: x
+        # Use FunctionTransformer to create a transformer object that applies the identity_func to input data.
+        identity_transformer = FunctionTransformer(identity_func)
+        self.y_scaler = identity_transformer
+
         if self.base_learner == 'Hybrid':
             config_dict = {
                 'sklearn.linear_model.LogisticRegression': {

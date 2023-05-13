@@ -243,7 +243,6 @@ class EstimationOfDistribution():
 
         # Improved version: using fitness value and mean feature importance
         # count the frequency of primitives and terminals
-        primitive_dict = {}
         if pset is None:
             pset = self.pset
             pset_id = None
@@ -253,20 +252,25 @@ class EstimationOfDistribution():
             pset_id = pset.pset_id
             primitive_prob_count = np.zeros(len(pset.primitives[object]))
             terminal_prob_count = np.zeros(len(pset.terminals[object]))
+
+        # Identify constant terminals
         constant_terminals = [index for index, var in enumerate(pset.terminals[object])
                               if not isinstance(var, Terminal)]
         assert len(constant_terminals) <= 1, constant_terminals
 
+        # Create dictionary for primitives and terminals in set
+        primitive_dict = {}
         for k in pset.primitives.keys():
             primitive_dict.update({v.name: k for k, v in enumerate(pset.primitives[k])})
         terminal_dict = {}
         for k in pset.terminals.keys():
             terminal_dict.update({v.name: k for k, v in enumerate(pset.terminals[k])})
+
         for h in best_pop:
             # R2 score in default, larger is better
             fitness = h.fitness.wvalues[0]
             if weighted_by_fitness:
-                coef = h.mean_coef * max(fitness, 0)
+                coef = h.coef * max(fitness, 0)
             else:
                 coef = h.coef
             for gid, importance, g in zip(range(0, len(h.gene)), coef, h.gene):
@@ -276,13 +280,13 @@ class EstimationOfDistribution():
                 assert count_of_terminals > 0, str(g)
                 for x in g:
                     if importance_weight:
-                        # weighted by the importance of feature
+                        # Weight count by feature importance
                         weight = importance
                     else:
                         weight = 1
                     weight *= factor
                     if weight_by_size:
-                        # larger gene will have smaller weight
+                        # Weight count by gene size
                         weight *= 1 / count_of_terminals
                     if isinstance(x, Primitive):
                         primitive_prob_count[primitive_dict[x.name]] += weight

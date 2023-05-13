@@ -75,7 +75,11 @@ class CrossoverConfiguration():
                  semantic_selection_mode=None,
                  max_height=10,
                  number_of_invokes=0,
-                 tree_selection='Random', **params):
+                 tree_selection='Random',
+                 adaptive_power=1,
+                 inverse_point=0.5,
+                 sc_tournament_size=3,
+                 sc_temperature=1 / 20, **params):
         # max height after crossover
         self.max_height = max_height
         self.intron_parameters: dict = intron_parameters
@@ -98,6 +102,14 @@ class CrossoverConfiguration():
         self.map_elites_configuration = MAPElitesConfiguration(**params)
         self.number_of_invokes = number_of_invokes
         self.tree_selection = tree_selection
+
+        # adaptive variation rate
+        self.adaptive_power = adaptive_power
+        self.inverse_point = inverse_point
+
+        # self-competitive crossover
+        self.sc_tournament_size = sc_tournament_size
+        self.sc_temperature = sc_temperature
 
 
 class MAPElitesConfiguration():
@@ -204,3 +216,9 @@ class BloatControlConfiguration():
                  hoist_before_selection=True,
                  **params):
         self.hoist_before_selection = hoist_before_selection
+
+
+class BaseLearnerConfiguration():
+    def __init__(self, ridge_alpha=1,
+                 **params):
+        self.ridge_alpha = ridge_alpha

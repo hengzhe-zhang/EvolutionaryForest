@@ -393,6 +393,23 @@ class DREPHallOfFame(EnsembleSelectionHallOfFame):
         super(DREPHallOfFame, self).update(new_inds)
 
 
+class MultiTaskHallOfFame(HallOfFame):
+
+    def __init__(self, maxsize, model_list, similar=eq):
+        self.model_list = model_list
+        super().__init__(maxsize, similar)
+        number_of_models = len(self.model_list.split(','))
+        self.real_hof = [HallOfFame(maxsize // number_of_models) for _ in range(number_of_models)]
+
+    def update(self, population):
+        all_models = []
+        for id, model in enumerate(self.model_list.split(',')):
+            new_ind = list(filter(lambda x: x.base_model == model, population))
+            self.real_hof[id].update(new_ind)
+            all_models.extend(list(self.real_hof[id].items))
+        self.items = all_models
+
+
 class ValidationHallOfFame(HallOfFame):
     def __init__(self, maxsize, validation_function, archive_configuration: ArchiveConfiguration,
                  similar=eq):

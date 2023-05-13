@@ -21,6 +21,8 @@ def individual_to_tuple(ind):
     arr = []
     for x in ind.gene:
         arr.append(tuple(a.name for a in x))
+    if hasattr(ind, 'base_model'):
+        arr.append((ind.base_model,))
     return tuple(sorted(arr))
 
 
