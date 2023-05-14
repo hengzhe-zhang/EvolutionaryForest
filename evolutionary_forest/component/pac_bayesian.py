@@ -1,4 +1,5 @@
 import copy
+import itertools
 import random
 
 import numpy as np
@@ -127,8 +128,12 @@ def assign_rank(population, hof, external_archive):
     for d in range(fitness_dims):
         # fitness_list are minimization objectives
         sorted_inds = sorted(all_individuals, key=lambda x: x.fitness_list[d])
-        for i, ind in enumerate(sorted_inds):
-            ind.rank_list[d] = i
+        rank = 0
+        for _, group in itertools.groupby(sorted_inds, key=lambda x: x.fitness_list[d]):
+            group_list = list(group)
+            for ind in group_list:
+                ind.rank_list[d] = rank
+            rank += len(group_list)
 
     # For rank, smaller is better.
     for i, ind in enumerate(all_individuals):
