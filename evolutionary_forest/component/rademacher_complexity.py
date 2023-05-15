@@ -27,7 +27,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     """
 
     # Relative Squared Error
-    rse = 1 - r2_score(y, estimator.predict(X))
+    rse = r2_score(y, estimator.predict(X))
 
     estimator = copy.deepcopy(estimator)
     calculate_correlation = lambda sigma, fx: np.sum(sigma * fx) / len(fx)
@@ -39,7 +39,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     # Calculate the rademacher complexity as the average of the complexity values.
     rademacher_complexity = np.mean(complexity)
 
-    return ((rse, -1), (rademacher_complexity, -objective_weight))
+    return ((rse, 1), (rademacher_complexity, -objective_weight))
 
 
 if __name__ == '__main__':

@@ -1061,14 +1061,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             y = self.y
             estimation = pac_bayesian_estimation(X_features, y, estimators[0], pac_bayesian)
             individual.fitness_list = estimation
-            return 0,
+            return individual.fitness_list[0][0],
         elif self.score_func == 'R2-VC-Dimension':
             # reducing the time of estimating VC-Dimension
             X_features = self.feature_generation(self.X, individual)
             y = self.y
             estimation = vc_dimension_estimation(X_features, y, estimators[0])
             individual.fitness_list = estimation
-            return 0,
+            return individual.fitness_list[0][0],
         elif self.score_func == 'R2-Rademacher-Complexity':
             X_features = self.feature_generation(self.X, individual)
             y = self.y
@@ -1076,7 +1076,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                           generate_rademacher_vector(self.X),
                                                           self.pac_bayesian.objective)
             individual.fitness_list = estimation
-            return 0,
+            return -1 * individual.fitness_list[0][0],
         elif self.score_func == 'MSE-Variance':
             # Calculate mean squared error and standard deviation of error
             error = mean_squared_error(Y, y_pred)
@@ -3054,6 +3054,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # Tarpeian
             if self.bloat_control and self.bloat_control.get('tarpeian', False):
+                # If lexicase selection, individuals can be directly deleted
+                assert 'Lexicase' in self.select
                 avg_size = np.mean([len(o) for o in new_offspring])
                 candidates = []
                 candidates.extend(list(filter(lambda o: len(o) <= avg_size, new_offspring)))
@@ -3350,7 +3352,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             self.statistical_result_update(population, verbose)
             self.callback()
-        if self.early_stop:
+        if self.early_stop > 0:
             assert number_of_evaluations == (self.current_gen + 1) * self.n_pop
         else:
             assert number_of_evaluations == total_evaluations
@@ -4605,8 +4607,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.score_func == 'R2-L2' or \
             self.score_func == 'R2-PAC-Bayesian' or \
             self.score_func == 'R2-VC-Dimension' or \
-            self.score_func == 'R2-Rademacher-Complexity':
-            assign_rank(population, self.hof,self.external_archive_pop)
+            self.score_func == 'R2-Rademacher-Complexity' and \
+            self.bloat_control is None:
+            assign_rank(population, self.hof, self.external_archive_pop)
         return invalid_ind
 
     def cos_similarity_calculation(self, population=None):
