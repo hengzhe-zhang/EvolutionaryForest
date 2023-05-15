@@ -26,63 +26,19 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     :return: individual fitness
     """
 
-    # Parameter for the pressure on the complexity in the fitness evaluation.
-    alpha = 1
-
-    """
-    ====================================================================
-    Calculating the RSE as per a typical fitness function in GP.
-    ====================================================================
-    """
     # Relative Squared Error
     rse = 1 - r2_score(y, estimator.predict(X))
 
-    """
-    ====================================================================
-    The rademacher complexity is used in a binary classification, so we
-    need to convert the output range of the hypothesis to [-1, 1],
-    currently we have a continuous value output since we are performing
-    (symbolic) regression.
-    ====================================================================
-    """
     estimator = copy.deepcopy(estimator)
-    # Use the estimator to predict the outcome variable for all samples
-    hypothesis_vector = []
-    for s in range(number_samples):
-        estimator.fit(X, random_rademacher_vector[s])
-        hypothesis_vector.append(estimator.predict(X))
-
-    # Finding the mid-range of the outputs.
-    hypothesis_vector = np.array(hypothesis_vector)
-    mid_range = (np.min(hypothesis_vector, axis=1) + np.max(hypothesis_vector, axis=1)) / 2
-    mid_range = mid_range.reshape(-1, 1)
-
-    hypothesis_vector[hypothesis_vector >= mid_range] = 1
-    hypothesis_vector[hypothesis_vector < mid_range] = -1
-
-    """
-    ====================================================================
-    This is where the calculation of the rademacher complexity happens.
-    A random rademacher vector "r" the same length as the training set is
-    generated, which contains [+1, -1] values. This vector is compared to
-    the hypothesis vector "h" recorded prior.
-
-    When the value of ri and hi agree the resulting correlation value is
-    0 when they disagree the correlation value is 1.
-        i.e.    (1, 1) & (-1, -1) = 0
-                (1, -1) & (-1, 1) = 1
-    ====================================================================
-    """
-
+    calculate_correlation = lambda sigma, fx: np.sum(sigma * fx) / len(fx)
     complexity = []
     for s in range(number_samples):
-        correlations = np.where(hypothesis_vector[s] == random_rademacher_vector[s], 1, 0)
-        complexity.append(np.mean(correlations))
+        estimator.fit(X, random_rademacher_vector[s])
+        correlations = calculate_correlation(random_rademacher_vector[s], estimator.predict(X))
+        complexity.append(correlations)
     # Calculate the rademacher complexity as the average of the complexity values.
     rademacher_complexity = np.mean(complexity)
 
-    # The fitness of the individual rse*param1 + complexity*param2.
-    fitness = rse + alpha * rademacher_complexity
     return ((rse, -1), (rademacher_complexity, -objective_weight))
 
 
