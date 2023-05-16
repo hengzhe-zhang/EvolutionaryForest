@@ -4,6 +4,7 @@ from multiprocessing import Pool
 from typing import Union
 
 import dill
+import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -510,6 +511,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.outlier_detection = outlier_detection
         self.intron_nodes_counter = 0
         self.all_nodes_counter = 0
+        self.historical_best_complexity = None
 
         self.cross_pb = cross_pb
         self.mutation_pb = mutation_pb
@@ -1032,7 +1034,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     Smaller values are better because the weight is -1.
         """
-        if self.score_func == 'R2' or self.score_func == 'NoveltySearch' or self.score_func == 'MAE':
+        if self.score_func == 'R2' or self.score_func == 'NoveltySearch' or self.score_func == 'MAE' or \
+            self.score_func in ['R2-Rademacher-Complexity']:
             # Calculate R2 score
             if self.imbalanced_configuration.balanced_fitness:
                 sample_weight = get_sample_weight(self.X, self.test_X, self.y,
@@ -1069,14 +1072,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             estimation = vc_dimension_estimation(X_features, y, estimators[0])
             individual.fitness_list = estimation
             return individual.fitness_list[0][0],
-        elif self.score_func == 'R2-Rademacher-Complexity':
-            X_features = self.feature_generation(self.X, individual)
-            y = self.y
-            estimation = rademacher_complexity_estimation(X_features, y, estimators[0],
-                                                          generate_rademacher_vector(self.X),
-                                                          self.pac_bayesian.objective)
-            individual.fitness_list = estimation
-            return -1 * individual.fitness_list[0][0],
         elif self.score_func == 'MSE-Variance':
             # Calculate mean squared error and standard deviation of error
             error = mean_squared_error(Y, y_pred)
@@ -1096,6 +1091,55 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             # Raise exception if score function is not recognized
             raise Exception
+
+    def assign_complexity_pop(self, pop: List[MultipleGeneGP]):
+        if self.score_func == 'R2-Rademacher-Complexity':
+            y = self.y
+            normalize_factor = np.mean((np.mean(y) - y) ** 2)
+            if self.pac_bayesian.bound_reduction:
+                reduced_evaluation = 0
+                for p in pop:
+                    bounded_mse = np.mean(np.clip(p.case_values / normalize_factor, 0, 1))
+                    if self.historical_best_complexity is None or bounded_mse < self.historical_best_complexity:
+                        self.assign_complexity(p, p.pipe)
+                    else:
+                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
+                        reduced_evaluation += 1
+            elif self.pac_bayesian.complexity_estimation_ratio < 1:
+                # get minimum r2
+                q = np.quantile([p.fitness.wvalues[0] for p in pop],
+                                q=1 - self.pac_bayesian.complexity_estimation_ratio)
+                reduced_evaluation = 0
+                for p in pop:
+                    if p.fitness.wvalues[0] > q:
+                        # better fitness value
+                        self.assign_complexity(p, p.pipe)
+                    else:
+                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
+                        reduced_evaluation += 1
+            else:
+                for p in pop:
+                    self.assign_complexity(p, p.pipe)
+
+    def assign_complexity(self, individual, estimator):
+        if self.score_func == 'R2-Rademacher-Complexity':
+            # postpone to another stage
+            X_features = self.feature_generation(self.X, individual)
+            y = self.y
+            estimation, bounded_rademacher = rademacher_complexity_estimation(X_features, y, estimator,
+                                                                              generate_rademacher_vector(self.X),
+                                                                              self.pac_bayesian.objective)
+            individual.fitness_list = estimation
+
+            normalize_factor = np.mean((np.mean(y) - y) ** 2)
+            bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
+            if self.historical_best_complexity is None:
+                self.historical_best_complexity = bounded_mse + 2 * bounded_rademacher
+            else:
+                self.historical_best_complexity = min(bounded_mse + 2 * bounded_rademacher,
+                                                      self.historical_best_complexity)
+            assert abs(individual.fitness.wvalues[0] - individual.fitness_list[0][0]) <= 1e-6
+            return -1 * individual.fitness_list[0][0],
 
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
@@ -4602,6 +4646,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             partition_scheme = partition_scheme.argmax(axis=1)
             for p in population:
                 p.partition_scheme = partition_scheme
+
+        self.assign_complexity_pop(population)
 
         # re-assign fitness for all individuals if using PAC-Bayesian
         if self.score_func == 'R2-L2' or \

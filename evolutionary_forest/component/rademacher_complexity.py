@@ -3,7 +3,7 @@ import copy
 import numpy as np
 from sklearn.datasets import make_friedman1
 from sklearn.linear_model import Ridge
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
@@ -28,18 +28,24 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
     # Relative Squared Error
     rse = r2_score(y, estimator.predict(X))
+    normalize_factor = np.mean((np.mean(y) - y) ** 2)
 
     estimator = copy.deepcopy(estimator)
     calculate_correlation = lambda sigma, fx: np.sum(sigma * fx) / len(fx)
     complexity = []
+    bounded_complexity = []
     for s in range(number_samples):
-        estimator.fit(X, random_rademacher_vector[s])
-        correlations = calculate_correlation(random_rademacher_vector[s], estimator.predict(X))
-        complexity.append(correlations)
+        estimator.fit(X, y * random_rademacher_vector[s])
+        normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
+        correlations = calculate_correlation(random_rademacher_vector[s], normalized_squared_error)
+        bounded_correlation = calculate_correlation(random_rademacher_vector[s],
+                                                    np.clip(normalized_squared_error, 0, 1))
+        complexity.append(np.abs(correlations))
+        bounded_complexity.append(np.abs(bounded_correlation))
     # Calculate the rademacher complexity as the average of the complexity values.
     rademacher_complexity = np.mean(complexity)
-
-    return ((rse, 1), (rademacher_complexity, -objective_weight))
+    bounded_rademacher_complexity = np.mean(bounded_complexity)
+    return ((rse, 1), (rademacher_complexity, -objective_weight)),bounded_rademacher_complexity
 
 
 if __name__ == '__main__':

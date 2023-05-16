@@ -17,7 +17,11 @@ class PACBayesianConfiguration():
                  perturbation_std: float = 0.05,
                  objective='Perturbed-MSE,KL-Divergence',
                  l2_penalty=0,
+                 complexity_estimation_ratio=1,
+                 bound_reduction=False,
                  **params):
+        self.bound_reduction = bound_reduction
+        self.complexity_estimation_ratio = complexity_estimation_ratio
         self.kl_term_weight = kl_term_weight
         self.perturbation_std = perturbation_std
         self.objective = objective
