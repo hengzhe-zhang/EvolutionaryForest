@@ -119,7 +119,7 @@ def vc_dimension_estimation(X, y, estimator, estimated_vcd=None, feature_generat
         h_est = vcd_mse(max_vcd, number_of_points_tmp, mean_values)
 
     # return exp_err(math.sqrt(mean_squared_error(y, Yp)), h_est, len(X))
-    return ((rse, 1), (h_est, -0.1))
+    return ((rse, 1), (h_est, -1))
 
 
 def optimal_vcd(all_epsilons, number_of_points, max_vcd, dimension, estimator, feature_generator):

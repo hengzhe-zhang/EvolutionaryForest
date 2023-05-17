@@ -1163,7 +1163,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             gene_length = sum([len(g) for g in individual.gene])
             estimation = vc_dimension_estimation(X_features, y, estimator,
                                                  estimated_vcd=gene_length,
-                                                 feature_generator=feature_generator)
+                                                 feature_generator=feature_generator,
+                                                 optimal_design=self.pac_bayesian.optimal_design)
             individual.fitness_list = estimation
             return -1 * individual.fitness_list[0][0],
 

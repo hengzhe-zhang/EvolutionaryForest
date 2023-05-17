@@ -19,7 +19,9 @@ class PACBayesianConfiguration():
                  l2_penalty=0,
                  complexity_estimation_ratio=1,
                  bound_reduction=False,
+                 optimal_design=False,
                  **params):
+        self.optimal_design = optimal_design
         self.bound_reduction = bound_reduction
         self.complexity_estimation_ratio = complexity_estimation_ratio
         self.kl_term_weight = kl_term_weight
