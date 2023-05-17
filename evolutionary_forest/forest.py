@@ -511,7 +511,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.outlier_detection = outlier_detection
         self.intron_nodes_counter = 0
         self.all_nodes_counter = 0
-        self.historical_best_complexity = None
+        self.historical_best_bounded_complexity = None
+        self.historical_best_bounded_complexity_list = None
 
         self.cross_pb = cross_pb
         self.mutation_pb = mutation_pb
@@ -1035,7 +1036,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     Smaller values are better because the weight is -1.
         """
         if self.score_func == 'R2' or self.score_func == 'NoveltySearch' or self.score_func == 'MAE' or \
-            self.score_func in ['R2-Rademacher-Complexity']:
+            self.score_func in ['R2-Rademacher-Complexity', 'R2-VC-Dimension']:
             # Calculate R2 score
             if self.imbalanced_configuration.balanced_fitness:
                 sample_weight = get_sample_weight(self.X, self.test_X, self.y,
@@ -1063,13 +1064,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pac_bayesian = self.pac_bayesian
             y = self.y
             estimation = pac_bayesian_estimation(X_features, y, estimators[0], pac_bayesian)
-            individual.fitness_list = estimation
-            return individual.fitness_list[0][0],
-        elif self.score_func == 'R2-VC-Dimension':
-            # reducing the time of estimating VC-Dimension
-            X_features = self.feature_generation(self.X, individual)
-            y = self.y
-            estimation = vc_dimension_estimation(X_features, y, estimators[0])
             individual.fitness_list = estimation
             return individual.fitness_list[0][0],
         elif self.score_func == 'MSE-Variance':
@@ -1100,11 +1094,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 reduced_evaluation = 0
                 for p in pop:
                     bounded_mse = np.mean(np.clip(p.case_values / normalize_factor, 0, 1))
-                    if self.historical_best_complexity is None or bounded_mse < self.historical_best_complexity:
+                    if self.historical_best_bounded_complexity is None or \
+                        bounded_mse < self.historical_best_bounded_complexity:
                         self.assign_complexity(p, p.pipe)
                     else:
                         p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
                         reduced_evaluation += 1
+                if self.verbose:
+                    print('reduced_evaluation: ', reduced_evaluation)
             elif self.pac_bayesian.complexity_estimation_ratio < 1:
                 # get minimum r2
                 q = np.quantile([p.fitness.wvalues[0] for p in pop],
@@ -1120,25 +1117,54 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 for p in pop:
                     self.assign_complexity(p, p.pipe)
+        elif self.score_func == 'R2-VC-Dimension':
+            # get minimum r2
+            ratio = 0.2
+            q = np.quantile([p.fitness.wvalues[0] for p in pop],
+                            q=1 - ratio)
+            reduced_evaluation = 0
+            for p in pop:
+                if p.fitness.wvalues[0] > q:
+                    # better fitness value
+                    self.assign_complexity(p, p.pipe)
+                else:
+                    p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
+                    reduced_evaluation += 1
 
     def assign_complexity(self, individual, estimator):
         if self.score_func == 'R2-Rademacher-Complexity':
             # postpone to another stage
             X_features = self.feature_generation(self.X, individual)
             y = self.y
-            estimation, bounded_rademacher = rademacher_complexity_estimation(X_features, y, estimator,
-                                                                              generate_rademacher_vector(self.X),
-                                                                              self.pac_bayesian.objective)
+            estimation, bounded_rademacher, bounded_rademacher_list = \
+                rademacher_complexity_estimation(X_features, y, estimator,
+                                                 generate_rademacher_vector(self.X),
+                                                 self.historical_best_bounded_complexity_list,
+                                                 self.pac_bayesian.objective)
             individual.fitness_list = estimation
 
             normalize_factor = np.mean((np.mean(y) - y) ** 2)
             bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
-            if self.historical_best_complexity is None:
-                self.historical_best_complexity = bounded_mse + 2 * bounded_rademacher
-            else:
-                self.historical_best_complexity = min(bounded_mse + 2 * bounded_rademacher,
-                                                      self.historical_best_complexity)
+            if self.pac_bayesian.bound_reduction:
+                # Reduce training time based on the Rademacher bound
+                if self.historical_best_bounded_complexity is None:
+                    self.historical_best_bounded_complexity = bounded_mse + 2 * bounded_rademacher
+                    self.historical_best_bounded_complexity_list = bounded_mse + 2 * np.array(bounded_rademacher_list)
+                elif self.historical_best_bounded_complexity > bounded_mse + 2 * bounded_rademacher:
+                    self.historical_best_bounded_complexity = bounded_mse + 2 * bounded_rademacher
+                    self.historical_best_bounded_complexity_list = bounded_mse + 2 * np.array(bounded_rademacher_list)
             assert abs(individual.fitness.wvalues[0] - individual.fitness_list[0][0]) <= 1e-6
+            return -1 * individual.fitness_list[0][0],
+        elif self.score_func == 'R2-VC-Dimension':
+            # reducing the time of estimating VC-Dimension
+            X_features = self.feature_generation(self.X, individual)
+            feature_generator = partial(self.feature_generation, individual=individual)
+            y = self.y
+            gene_length = sum([len(g) for g in individual.gene])
+            estimation = vc_dimension_estimation(X_features, y, estimator,
+                                                 estimated_vcd=gene_length,
+                                                 feature_generator=feature_generator)
+            individual.fitness_list = estimation
             return -1 * individual.fitness_list[0][0],
 
     def calculate_case_values(self, individual, Y, y_pred):

@@ -1,6 +1,7 @@
 import copy
 
 import numpy as np
+from scipy.stats import mannwhitneyu
 from sklearn.datasets import make_friedman1
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score, mean_squared_error
@@ -18,6 +19,7 @@ def generate_rademacher_vector(X):
 
 
 def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
+                                     reference_complexity_list=None,
                                      objective_weight=0.1):
     """
     Calculates the fitness of a candidate solution/individual by using the relative
@@ -38,14 +40,22 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         estimator.fit(X, y * random_rademacher_vector[s])
         normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
         correlations = calculate_correlation(random_rademacher_vector[s], normalized_squared_error)
+        bounded_mse = np.clip(normalized_squared_error, 0, 1)
         bounded_correlation = calculate_correlation(random_rademacher_vector[s],
-                                                    np.clip(normalized_squared_error, 0, 1))
+                                                    bounded_mse)
         complexity.append(np.abs(correlations))
         bounded_complexity.append(np.abs(bounded_correlation))
+        if reference_complexity_list is not None:
+            mannwhitneyu_result = mannwhitneyu(reference_complexity_list,
+                                               np.mean(bounded_mse) + 2 * np.array(bounded_complexity),
+                                               alternative='less')
+            if mannwhitneyu_result.pvalue < 0.05:
+                # complexity is significantly larger than the reference complexity
+                break
     # Calculate the rademacher complexity as the average of the complexity values.
     rademacher_complexity = np.mean(complexity)
     bounded_rademacher_complexity = np.mean(bounded_complexity)
-    return ((rse, 1), (rademacher_complexity, -objective_weight)),bounded_rademacher_complexity
+    return ((rse, 1), (rademacher_complexity, -objective_weight)), bounded_rademacher_complexity, bounded_complexity
 
 
 if __name__ == '__main__':
