@@ -80,7 +80,7 @@ def vcd_mse(hs_max, number_of_points, all_epsilons):
     return hs[simple_argmin(results)]
 
 
-def vc_dimension_estimation(X, y, estimator, estimated_vcd=None, feature_generator=None,
+def vc_dimension_estimation(X, y, estimator, input_dimension=None,estimated_vcd=None, feature_generator=None,
                             optimal_design=False):
     Yp = estimator.predict(X)
     rse = r2_score(y, Yp)
@@ -93,14 +93,16 @@ def vc_dimension_estimation(X, y, estimator, estimated_vcd=None, feature_generat
     number_of_points = np.array([int(estimated_vcd * s) for s in sequence])
     max_vcd = int(estimated_vcd * sequence[-1])
     all_epsilons = []
-    dimension = X.shape[1]
+    if input_dimension is None:
+        # input dimension should be same as the number of original features
+        input_dimension = X.shape[1]
 
     for n_samples in number_of_points:
         epsilons = []
         # Number of trials
         m = 20
         for _ in range(m):
-            epsilon = maximum_deviation(n_samples, dimension, estimator, feature_generator)
+            epsilon = maximum_deviation(n_samples, input_dimension, estimator, feature_generator)
             epsilons.append(epsilon)
 
         # Calculate the average maximum deviation
@@ -111,7 +113,7 @@ def vc_dimension_estimation(X, y, estimator, estimated_vcd=None, feature_generat
 
     if optimal_design:
         all_epsilons: list = all_epsilons.tolist()
-        optimal_vcd(all_epsilons, number_of_points, max_vcd, dimension, estimator, feature_generator)
+        optimal_vcd(all_epsilons, number_of_points, max_vcd, input_dimension, estimator, feature_generator)
         # print([len(a) for a in all_epsilons])
         mean_values = np.array([np.mean(x) for x in all_epsilons if len(x) > 0])
         number_of_points_tmp = np.array([number_of_points[id] for id, x in enumerate(all_epsilons)

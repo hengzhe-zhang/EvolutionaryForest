@@ -1059,6 +1059,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             feature_norm = np.linalg.norm(StandardScaler().fit_transform(X_features).flatten()) ** 2
             individual.fitness_list = ((score, 1), (coef_norm, -1 * weights[0]), (feature_norm, -1 * weights[1]))
             return 0,
+        elif self.score_func == 'R2-Size':
+            score = r2_score(Y, y_pred)
+            individual.fitness_list = ((score, 1), (sum([len(tree) for tree in individual.gene]), -1))
+            return -1 * score,
+        elif self.score_func == 'R2-Tikhonov':
+            score = r2_score(Y, y_pred)
+            coef_norm = np.linalg.norm(y_pred) ** 2
+            individual.fitness_list = ((score, 1), (coef_norm, -1))
+            return -1 * score,
         elif self.score_func == 'R2-PAC-Bayesian':
             X_features = self.feature_generation(self.X, individual)
             pac_bayesian = self.pac_bayesian
@@ -1162,6 +1171,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             y = self.y
             gene_length = sum([len(g) for g in individual.gene])
             estimation = vc_dimension_estimation(X_features, y, estimator,
+                                                 input_dimension=self.X.shape[1],
                                                  estimated_vcd=gene_length,
                                                  feature_generator=feature_generator,
                                                  optimal_design=self.pac_bayesian.optimal_design)
@@ -1171,7 +1181,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
         if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-VC-Dimension', 'R2-Rademacher-Complexity',
-                               'R2-L2'] \
+                               'R2-L2', 'R2-Tikhonov','R2-Size'] \
             or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound':
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
             # individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 4
@@ -4677,10 +4687,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.assign_complexity_pop(population)
 
         # re-assign fitness for all individuals if using PAC-Bayesian
-        if self.score_func == 'R2-L2' or \
-            self.score_func == 'R2-PAC-Bayesian' or \
-            self.score_func == 'R2-VC-Dimension' or \
-            self.score_func == 'R2-Rademacher-Complexity' and \
+        if self.score_func in ['R2-L2',
+                               'R2-PAC-Bayesian',
+                               'R2-VC-Dimension',
+                               'R2-Rademacher-Complexity',
+                               'R2-Tikhonov',
+                               'R2-Size'] and \
             self.bloat_control is None:
             assign_rank(population, self.hof, self.external_archive_pop)
         return invalid_ind
