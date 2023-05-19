@@ -1181,7 +1181,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
         if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-VC-Dimension', 'R2-Rademacher-Complexity',
-                               'R2-L2', 'R2-Tikhonov','R2-Size'] \
+                               'R2-L2', 'R2-Tikhonov', 'R2-Size'] \
             or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound':
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
             # individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 4
