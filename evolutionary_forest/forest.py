@@ -1036,7 +1036,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     Smaller values are better because the weight is -1.
         """
         if self.score_func == 'R2' or self.score_func == 'NoveltySearch' or self.score_func == 'MAE' or \
-            self.score_func in ['R2-Rademacher-Complexity', 'R2-VC-Dimension']:
+            self.score_func in ['R2-Rademacher-Complexity', 'R2-Size-Rademacher-Complexity',
+                                'R2-VC-Dimension']:
             # Calculate R2 score
             if self.imbalanced_configuration.balanced_fitness:
                 sample_weight = get_sample_weight(self.X, self.test_X, self.y,
@@ -1061,7 +1062,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return 0,
         elif self.score_func == 'R2-Size':
             score = r2_score(Y, y_pred)
-            individual.fitness_list = ((score, 1), (sum([len(tree) for tree in individual.gene]), -1))
+            tree_size = sum([len(tree) for tree in individual.gene])
+            individual.fitness_list = ((score, 1), (tree_size, -1))
             return -1 * score,
         elif self.score_func == 'R2-Tikhonov':
             score = r2_score(Y, y_pred)
@@ -1096,7 +1098,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
 
     def assign_complexity_pop(self, pop: List[MultipleGeneGP]):
-        if self.score_func == 'R2-Rademacher-Complexity':
+        if self.score_func == 'R2-Rademacher-Complexity' or self.score_func == 'R2-Size-Rademacher-Complexity':
             y = self.y
             normalize_factor = np.mean((np.mean(y) - y) ** 2)
             if self.pac_bayesian.bound_reduction:
@@ -1107,7 +1109,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         bounded_mse < self.historical_best_bounded_complexity:
                         self.assign_complexity(p, p.pipe)
                     else:
-                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
+                        if self.score_func == 'R2-Size-Rademacher-Complexity':
+                            tree_size = sum([len(tree) for tree in p.gene])
+                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1), (tree_size, -1)]
+                        else:
+                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
                         reduced_evaluation += 1
                 if self.verbose:
                     print('reduced_evaluation: ', reduced_evaluation)
@@ -1141,7 +1147,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     reduced_evaluation += 1
 
     def assign_complexity(self, individual, estimator):
-        if self.score_func == 'R2-Rademacher-Complexity':
+        if self.score_func == 'R2-Rademacher-Complexity' or self.score_func == 'R2-Size-Rademacher-Complexity':
             # postpone to another stage
             X_features = self.feature_generation(self.X, individual)
             y = self.y
@@ -1150,7 +1156,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                  generate_rademacher_vector(self.X),
                                                  self.historical_best_bounded_complexity_list,
                                                  self.pac_bayesian.objective)
-            individual.fitness_list = estimation
+            if self.score_func == 'R2-Size-Rademacher-Complexity':
+                tree_size = sum([len(tree) for tree in individual.gene])
+                individual.fitness_list = (estimation[0], estimation[1], (tree_size, -1))
+            else:
+                individual.fitness_list = estimation
 
             normalize_factor = np.mean((np.mean(y) - y) ** 2)
             bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
@@ -1181,7 +1191,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
         if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-VC-Dimension', 'R2-Rademacher-Complexity',
-                               'R2-L2', 'R2-Tikhonov', 'R2-Size'] \
+                               'R2-Size-Rademacher-Complexity', 'R2-L2', 'R2-Tikhonov', 'R2-Size'] \
             or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound':
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
             # individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 4
@@ -4691,6 +4701,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                'R2-PAC-Bayesian',
                                'R2-VC-Dimension',
                                'R2-Rademacher-Complexity',
+                               'R2-Size-Rademacher-Complexity',
                                'R2-Tikhonov',
                                'R2-Size'] and \
             self.bloat_control is None:
