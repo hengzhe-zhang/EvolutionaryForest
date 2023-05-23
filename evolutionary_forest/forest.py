@@ -44,7 +44,7 @@ from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
-    BaseLearnerConfiguration
+    BaseLearnerConfiguration, MABConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
@@ -96,8 +96,7 @@ eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
 map_elite_series = ['MAP-Elite-Lexicase', 'MAP-Elite-Tournament',
                     'MAP-Elite-Roulette', 'MAP-Elite-Tournament-3', 'MAP-Elite-Tournament-7',
                     'MAP-Elite-Random', 'MAP-Elite-Knockout', 'MAP-Elite-Knockout-S',
-                    'MAP-Elite-Knockout-A', 'MAP-Elite-Knockout-SA',
-                    'Auto', 'Auto-MCTS']
+                    'MAP-Elite-Knockout-A', 'MAP-Elite-Knockout-SA']
 reset_random(0)
 
 
@@ -414,7 +413,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.layer_mgp = True
         self.mgp_scope = mgp_scope
         self.semantic_variation = semantic_variation
-        self.mab_parameter = {} if mab_parameter is None else mab_parameter
+        if mab_parameter is not None:
+            self.mab_parameter = MABConfiguration(**mab_parameter)
+        else:
+            self.mab_parameter = MABConfiguration()
         self.validation_size = validation_size
         self.class_weight = class_weight
         if random_state is not None:
@@ -1063,7 +1065,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.score_func == 'R2-Size':
             score = r2_score(Y, y_pred)
             tree_size = sum([len(tree) for tree in individual.gene])
-            individual.fitness_list = ((score, 1), (tree_size, -1))
+            individual.fitness_list = ((score, 1), (tree_size, -self.pac_bayesian.objective))
             return -1 * score,
         elif self.score_func == 'R2-Tikhonov':
             score = r2_score(Y, y_pred)
@@ -1111,9 +1113,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     else:
                         if self.score_func == 'R2-Size-Rademacher-Complexity':
                             tree_size = sum([len(tree) for tree in p.gene])
-                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1), (tree_size, -1)]
+                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, self.pac_bayesian.objective),
+                                              (tree_size, self.pac_bayesian.objective)]
                         else:
-                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
+                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, self.pac_bayesian.objective)]
                         reduced_evaluation += 1
                 if self.verbose:
                     print('reduced_evaluation: ', reduced_evaluation)
@@ -1127,7 +1130,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         # better fitness value
                         self.assign_complexity(p, p.pipe)
                     else:
-                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
+                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, self.pac_bayesian.objective)]
                         reduced_evaluation += 1
             else:
                 for p in pop:
@@ -1158,7 +1161,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                  self.pac_bayesian.objective)
             if self.score_func == 'R2-Size-Rademacher-Complexity':
                 tree_size = sum([len(tree) for tree in individual.gene])
-                individual.fitness_list = (estimation[0], estimation[1], (tree_size, -1))
+                individual.fitness_list = (estimation[0], estimation[1], (tree_size, self.pac_bayesian.objective))
             else:
                 individual.fitness_list = estimation
 
@@ -1827,6 +1830,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selRandom)
         elif self.select == 'Hybrid':
             toolbox.register("select", selHybrid)
+        elif self.select == 'Auto':
+            pass
         else:
             raise Exception
 
@@ -2809,8 +2814,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         pop_pool = []
         elite_map, pop_pool = self.map_elite_generation(population, elite_map, pop_pool)
         if self.select == 'Auto':
-            selection_operators = self.mab_parameter.get('selection_operators',
-                                                         'MAP-Elite-Lexicase,Tournament-7,Tournament-15').split(',')
+            selection_operators = self.mab_parameter.selection_operators.split(',')
             selection_data = np.ones((2, len(selection_operators)))
         else:
             selection_operators = None
@@ -2823,7 +2827,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         no_improvement_iteration = 0
         adaptive_hoist_probability = None
         historical_best_fitness = np.max([ind.fitness.wvalues[0] for ind in population])
-        comparison_criterion = self.mab_parameter.get('comparison_criterion', 'Case')
+        comparison_criterion = self.mab_parameter.comparison_criterion
         """
         Fitness: Using the fitness improvement as the criterion of a success trial
         Fitness-Case: Using the fitness improvement as the criterion of a success trial
@@ -2979,7 +2983,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         candidates = mcts_dict['Selection Operators']
                         selection_operator_id = np.argmax(np.random.beta(candidates[0], candidates[1]))
                         selection_operator = candidate_selection_operators[selection_operator_id]
-                    offspring = self.offspring_selection_map_elites(parent, selection_operator, elite_map)
+                    offspring = self.custom_selection(parent, selection_operator, elite_map)
 
                     for o in offspring:
                         o.selection_operator = selection_operator_id
@@ -2993,7 +2997,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     else:
                         raise TypeError
 
-                    offspring = self.offspring_selection_map_elites(parent, self.select, elite_map)
+                    offspring = self.custom_selection(parent, self.select, elite_map)
                 else:
                     if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential and \
                         random.random() < self.crossover_configuration.semantic_crossover_probability:
@@ -3024,6 +3028,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if self.multi_gene_mutation():
                     limitation_check = self.static_limit_function
                     if self.semantic_variation:
+                        # continuous variation until meet a certain semantics
                         semantic_check_tool = {
                             'x': self.X,
                             'y': self.y,
@@ -3237,15 +3242,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 best_value = max(*[p.fitness.wvalues[0] for p in population], best_value)
                 parent_case_values = np.min([p.case_values for p in population], axis=0)
             if self.select == 'Auto':
-                mode = self.mab_parameter.get('mode', 'Decay')
+                mode = self.mab_parameter.mode
                 cnt = Counter({
                     id: 0
                     for id in range(0, len(selection_data[0]))
                 })
                 if mode == 'Decay':
-                    selection_data[0] *= self.mab_parameter['decay_ratio']
-                    selection_data[1] *= self.mab_parameter['decay_ratio']
-                C = self.mab_parameter.get('threshold', 100)
+                    selection_data[0] *= self.mab_parameter.decay_ratio
+                    selection_data[1] *= self.mab_parameter.decay_ratio
+                C = self.mab_parameter.threshold
                 if comparison_criterion == 'Case-Simple':
                     best_value = np.min([p.case_values for p in population], axis=0)
                 for o in offspring:
@@ -4315,7 +4320,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 o.correlation_results, o.coef = o.coef, o.correlation_results
         return offspring
 
-    def offspring_selection_map_elites(self, parent, selection_operator, elite_map=None):
+    def custom_selection(self, parent, selection_operator, elite_map=None):
         if selection_operator.startswith('MAP-Elite') and len(elite_map) > 0:
             parent = list(elite_map.values())
 

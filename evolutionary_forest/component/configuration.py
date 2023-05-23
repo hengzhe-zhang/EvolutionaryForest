@@ -15,6 +15,24 @@ def check_semantic_based_bc(bloat_control):
     return False
 
 
+class MABConfiguration():
+    def __init__(self,
+                 mode='Decay',
+                 decay_ratio=0.5,
+                 selection_operators='AutomaticLexicase,Tournament-7',
+                 comparison_criterion='Case',
+                 threshold=100,
+                 ) -> None:
+        self.mode = mode
+        # Decay or Threshold Mode
+        self.decay_ratio = decay_ratio
+        # Selection
+        self.selection_operators = selection_operators
+        # Improvement on any case
+        self.comparison_criterion = comparison_criterion
+        self.threshold = threshold
+
+
 class ArchiveConfiguration():
     def __init__(self, dynamic_validation=False, data_combination=True, **params):
         self.dynamic_validation = dynamic_validation
