@@ -2833,14 +2833,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         Fitness-Case: Using the fitness improvement as the criterion of a success trial
                       and the fitness improvement on a single case as the criterion of a neutral trial
         Case: Using the fitness improvement on a single case as the criterion of a success trial
-        Case-Plus: Using real improvement as the score of a trail
         Case-Simple: Only consider fitness in each generation
         """
         if comparison_criterion in ['Fitness', 'Fitness-Case']:
             best_value = np.max([p.fitness.wvalues[0] for p in population])
-        elif comparison_criterion in ['Case', 'Case-Plus', 'Case-Simple'] or isinstance(comparison_criterion, int):
+        elif comparison_criterion in ['Case', 'Case-Simple'] or isinstance(comparison_criterion, int):
             best_value = np.min([p.case_values for p in population], axis=0)
             worst_value = np.max([p.case_values for p in population], axis=0)
+        elif comparison_criterion in ['Parent', 'Parent-Case']:
+            pass
         else:
             raise Exception
 
@@ -3009,10 +3010,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         parents_b, pb = self.semantic_crossover_for_parent(toolbox, parent, external_archive,
                                                                            self.crossover_configuration)
                         offspring = [pa, pb]
-                        self.record_parent_fitness(parents_a + parents_b, offspring, crossover_type='Macro')
+                        self.record_parent_fitness(parents_a, [pa], crossover_type='Macro')
+                        self.record_parent_fitness(parents_b, [pb], crossover_type='Macro')
                     else:
                         offspring = self.traditional_parent_selection(toolbox, parent, external_archive)
-                        self.record_parent_fitness(offspring, offspring, crossover_type='Micro')
+                        for o in offspring:
+                            o.crossover_type = 'Micro'
 
                 offspring: List[MultipleGeneGP] = offspring[:]
                 if not self.bloat_control_configuration.hoist_before_selection:
@@ -3046,6 +3049,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         offspring: List[MultipleGeneGP]
                         if random.random() < self.crossover_configuration.semantic_crossover_probability and \
                             self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Independent:
+                            parent = [offspring[0], offspring[1]]
+                            # copy individuals before any modifications
+                            offspring = [efficient_deepcopy(offspring[0]), efficient_deepcopy(offspring[1])]
                             if self.crossover_configuration.semantic_selection_mode == SelectionMode.AngleDriven:
                                 # either macro-crossover or macro-crossover
                                 offspring = semanticFeatureCrossover(offspring[0], offspring[1], target=self.y)
@@ -3055,10 +3061,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                                self.crossover_configuration.map_elites_configuration)
                             else:
                                 raise Exception("Invalid Selection Mode!")
-                            # change to crossover type to macro
-                            for o in offspring:
-                                o.crossover_type = 'Macro'
+                            self.record_parent_fitness(parent, offspring, crossover_type='Macro')
                         else:
+                            for o in offspring:
+                                o.crossover_type='Micro'
+                            # these original individuals will not change,
+                            # because var function will copy these individuals internally
                             offspring = varAndPlus(offspring, toolbox, cxpb, mutpb, self.gene_num,
                                                    limitation_check,
                                                    semantic_check_tool,
@@ -3235,7 +3243,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             elite_map, pop_pool = self.map_elite_generation(offspring, elite_map, pop_pool)
 
             # record historical best values
-            if comparison_criterion == 'Case' or comparison_criterion == 'Case-Plus':
+            if comparison_criterion == 'Case':
                 # consider the best fitness across all generations
                 best_value = np.min([np.min([p.case_values for p in population], axis=0), best_value], axis=0)
                 worst_value = np.max([np.max([p.case_values for p in population], axis=0), worst_value], axis=0)
@@ -3260,17 +3268,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     cnt[o.selection_operator] += 1
                     if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
                         (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
+                        (comparison_criterion in ['Parent'] and np.all(o.fitness.wvalues[0] < o.parent_fitness)) or \
                         (isinstance(comparison_criterion, int) and
                          np.sum(o.case_values < best_value) > comparison_criterion):
                         selection_data[0][o.selection_operator] += 1
                     elif comparison_criterion == 'Fitness-Case' and np.any(o.case_values < parent_case_values):
                         # don't consider this trial as success or failure
                         pass
-                    elif comparison_criterion == 'Case-Plus':
-                        if np.any(o.case_values < best_value):
-                            selection_data[0][o.selection_operator] += np.sum(o.case_values < best_value)
-                        if np.any(o.case_values > worst_value):
-                            selection_data[1][o.selection_operator] += np.sum(o.case_values > worst_value)
                     else:
                         selection_data[1][o.selection_operator] += 1
                 self.operator_selection_history.append(tuple(cnt.values()))
@@ -3301,17 +3305,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     elif comparison_criterion == 'Fitness-Case' and np.any(o.case_values < parent_case_values):
                         # don't consider this trial as success or failure
                         pass
-                    elif comparison_criterion == 'Case-Plus':
-                        if np.any(o.case_values < best_value):
-                            mcts_dict['Survival Operators'][0][o.survival_operator_id] += np.sum(
-                                o.case_values < best_value)
-                            mcts_dict['Selection Operators'][0][o.selection_operator] += np.sum(
-                                o.case_values < best_value)
-                        if np.any(o.case_values < worst_value):
-                            mcts_dict['Survival Operators'][1][o.survival_operator_id] += np.sum(
-                                o.case_values < worst_value)
-                            mcts_dict['Selection Operators'][1][o.selection_operator] += np.sum(
-                                o.case_values < worst_value)
                     else:
                         mcts_dict['Survival Operators'][1][o.survival_operator_id] += 1
                         mcts_dict['Selection Operators'][1][o.selection_operator] += 1
@@ -3480,11 +3473,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         parents = []
         while len(available_parent) == 0:
             parents = self.traditional_parent_selection(toolbox, parent, external_archive)
+            # copy individuals before any modifications
+            offspring = [efficient_deepcopy(parents[0]), efficient_deepcopy(parents[1])]
             if crossover_configuration.semantic_selection_mode == SelectionMode.MAPElites:
-                available_parent = mapElitesCrossover(parents[0], parents[1], self.y,
+                available_parent = mapElitesCrossover(offspring[0], offspring[1], self.y,
                                                       crossover_configuration.map_elites_configuration)
             elif crossover_configuration.semantic_selection_mode == SelectionMode.AngleDriven:
-                available_parent = semanticFeatureCrossover(parents[0], parents[1], self.y)
+                available_parent = semanticFeatureCrossover(offspring[0], offspring[1], self.y)
             else:
                 raise Exception('Unsupported semantic selection mode:',
                                 crossover_configuration.semantic_selection_mode)
@@ -3493,7 +3488,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def record_parent_fitness(self, parents, offspring, crossover_type):
         if self.crossover_configuration.semantic_crossover_mode is not None:
-            # record parent fitness
+            assert len(parents) <= 2
+            # record parent fitness for both sequential mode and parallel mode
             parent_fitness = [parent.fitness.wvalues[0] for parent in parents]
             for o in offspring:
                 o.parent_fitness = parent_fitness
@@ -3992,7 +3988,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             successful_crossover = 0
             all_crossover = 0
             for p in population:
-                if p.crossover_type == 'Macro' and p.parent_fitness != None:
+                if p.crossover_type == 'Macro':
                     if np.all(p.fitness.wvalues[0] > np.array(p.parent_fitness)):
                         successful_crossover += 1
                     all_crossover += 1
@@ -4005,7 +4001,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             successful_crossover = 0
             all_crossover = 0
             for p in population:
-                if p.crossover_type == 'Micro' and p.parent_fitness != None:
+                if p.crossover_type == 'Micro':
                     if np.all(p.fitness.wvalues[0] > np.array(p.parent_fitness)):
                         successful_crossover += 1
                     all_crossover += 1
