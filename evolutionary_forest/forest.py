@@ -3235,6 +3235,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # record historical best values
             if comparison_criterion == 'Case' or comparison_criterion == 'Case-Plus':
+                # consider the best fitness across all generations
                 best_value = np.min([np.min([p.case_values for p in population], axis=0), best_value], axis=0)
                 worst_value = np.max([np.max([p.case_values for p in population], axis=0), worst_value], axis=0)
             if comparison_criterion == 'Fitness' or comparison_criterion == 'Fitness-Case':
@@ -3252,6 +3253,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     selection_data[1] *= self.mab_parameter.decay_ratio
                 C = self.mab_parameter.threshold
                 if comparison_criterion == 'Case-Simple':
+                    # consider the best fitness in each generation
                     best_value = np.min([p.case_values for p in population], axis=0)
                 for o in offspring:
                     cnt[o.selection_operator] += 1
