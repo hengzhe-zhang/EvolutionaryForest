@@ -2834,6 +2834,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                       and the fitness improvement on a single case as the criterion of a neutral trial
         Case: Using the fitness improvement on a single case as the criterion of a success trial
         Case-Plus: Using real improvement as the score of a trail
+        Case-Simple: Only consider fitness in each generation
         """
         if comparison_criterion in ['Fitness', 'Fitness-Case']:
             best_value = np.max([p.fitness.wvalues[0] for p in population])
