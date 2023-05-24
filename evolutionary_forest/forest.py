@@ -3010,12 +3010,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         parents_b, pb = self.semantic_crossover_for_parent(toolbox, parent, external_archive,
                                                                            self.crossover_configuration)
                         offspring = [pa, pb]
+                        # No matter whether apply macro-crossover or not, always mark it as macro-crossover
                         self.record_parent_fitness(parents_a, [pa], crossover_type='Macro')
                         self.record_parent_fitness(parents_b, [pb], crossover_type='Macro')
                     else:
                         offspring = self.traditional_parent_selection(toolbox, parent, external_archive)
-                        for o in offspring:
-                            o.crossover_type = 'Micro'
+                        if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential:
+                            # If this is sequential model, mark as micro-crossover
+                            for o in offspring:
+                                o.crossover_type = 'Micro'
 
                 offspring: List[MultipleGeneGP] = offspring[:]
                 if not self.bloat_control_configuration.hoist_before_selection:
@@ -3061,10 +3064,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                                self.crossover_configuration.map_elites_configuration)
                             else:
                                 raise Exception("Invalid Selection Mode!")
+                            # mark as macro crossover
                             self.record_parent_fitness(parent, offspring, crossover_type='Macro')
                         else:
-                            for o in offspring:
-                                o.crossover_type='Micro'
+                            if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Independent:
+                                # only mark this in parallel mode
+                                for o in offspring:
+                                    o.crossover_type = 'Micro'
                             # these original individuals will not change,
                             # because var function will copy these individuals internally
                             offspring = varAndPlus(offspring, toolbox, cxpb, mutpb, self.gene_num,
