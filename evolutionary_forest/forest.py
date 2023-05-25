@@ -2841,7 +2841,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif comparison_criterion in ['Case', 'Case-Simple'] or isinstance(comparison_criterion, int):
             best_value = np.min([p.case_values for p in population], axis=0)
             worst_value = np.max([p.case_values for p in population], axis=0)
-        elif comparison_criterion in ['Parent', 'Parent-Case']:
+        elif comparison_criterion in ['Parent', 'Single-Parent']:
             pass
         else:
             raise Exception
@@ -3072,6 +3072,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 # only mark this in parallel mode
                                 for o in offspring:
                                     o.crossover_type = 'Micro'
+                            if self.select=='Auto' and self.mab_configuration.comparison_criterion=='Single-Parent':
+                                parent=[offspring[0], offspring[1]]
                             # these original individuals will not change,
                             # because var function will copy these individuals internally
                             offspring = varAndPlus(offspring, toolbox, cxpb, mutpb, self.gene_num,
@@ -3079,6 +3081,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                    semantic_check_tool,
                                                    crossover_configuration=self.crossover_configuration,
                                                    mutation_configuration=self.mutation_configuration)
+                            if self.select=='Auto' and self.mab_configuration.comparison_criterion=='Single-Parent':
+                                for o,p in zip(offspring,parent):
+                                    o.parent_fitness=(p.fitness.wvalues[0],)
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
 
@@ -3275,7 +3280,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     cnt[o.selection_operator] += 1
                     if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
                         (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
-                        (comparison_criterion in ['Parent'] and np.all(o.fitness.wvalues[0] < o.parent_fitness)) or \
+                        (comparison_criterion in ['Parent','Single-Parent'] and
+                         np.all(o.fitness.wvalues[0] < o.parent_fitness)) or \
                         (isinstance(comparison_criterion, int) and
                          np.sum(o.case_values < best_value) > comparison_criterion):
                         selection_data[0][o.selection_operator] += 1
