@@ -413,10 +413,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.layer_mgp = True
         self.mgp_scope = mgp_scope
         self.semantic_variation = semantic_variation
+        self.mab_parameter = mab_parameter
         if mab_parameter is not None:
-            self.mab_parameter = MABConfiguration(**mab_parameter)
+            self.mab_configuration = MABConfiguration(**mab_parameter)
         else:
-            self.mab_parameter = MABConfiguration()
+            self.mab_configuration = MABConfiguration()
         self.validation_size = validation_size
         self.class_weight = class_weight
         if random_state is not None:
@@ -2814,7 +2815,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         pop_pool = []
         elite_map, pop_pool = self.map_elite_generation(population, elite_map, pop_pool)
         if self.select == 'Auto':
-            selection_operators = self.mab_parameter.selection_operators.split(',')
+            selection_operators = self.mab_configuration.selection_operators.split(',')
             selection_data = np.ones((2, len(selection_operators)))
         else:
             selection_operators = None
@@ -2827,7 +2828,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         no_improvement_iteration = 0
         adaptive_hoist_probability = None
         historical_best_fitness = np.max([ind.fitness.wvalues[0] for ind in population])
-        comparison_criterion = self.mab_parameter.comparison_criterion
+        comparison_criterion = self.mab_configuration.comparison_criterion
         """
         Fitness: Using the fitness improvement as the criterion of a success trial
         Fitness-Case: Using the fitness improvement as the criterion of a success trial
@@ -3258,15 +3259,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 best_value = max(*[p.fitness.wvalues[0] for p in population], best_value)
                 parent_case_values = np.min([p.case_values for p in population], axis=0)
             if self.select == 'Auto':
-                mode = self.mab_parameter.mode
+                mode = self.mab_configuration.mode
                 cnt = Counter({
                     id: 0
                     for id in range(0, len(selection_data[0]))
                 })
                 if mode == 'Decay':
-                    selection_data[0] *= self.mab_parameter.decay_ratio
-                    selection_data[1] *= self.mab_parameter.decay_ratio
-                C = self.mab_parameter.threshold
+                    selection_data[0] *= self.mab_configuration.decay_ratio
+                    selection_data[1] *= self.mab_configuration.decay_ratio
+                C = self.mab_configuration.threshold
                 if comparison_criterion == 'Case-Simple':
                     # consider the best fitness in each generation
                     best_value = np.min([p.case_values for p in population], axis=0)
@@ -3300,7 +3301,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.select == 'Auto-MCTS':
                 selection_counter = defaultdict(int)
                 gene_counter = defaultdict(int)
-                C = self.mab_parameter.get('threshold', 100)
+                C = self.mab_configuration.get('threshold', 100)
                 for o in offspring:
                     if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
                         (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
@@ -3320,7 +3321,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if self.verbose:
                     print(selection_counter, gene_counter)
 
-                mode = self.mab_parameter.get('mode', 'Decay')
+                mode = self.mab_configuration.get('mode', 'Decay')
                 # fixed threshold
                 for k, data in mcts_dict.items():
                     if mode == 'Threshold':
@@ -3331,7 +3332,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 data[0][op] = data[0][op] / sum_data * C
                                 data[1][op] = data[1][op] / sum_data * C
                     if mode == 'Decay':
-                        data *= self.mab_parameter['decay_ratio']
+                        data *= self.mab_configuration['decay_ratio']
                     # avoid trivial solutions
                     data = np.clip(data, 1e-2, None)
                     mcts_dict[k] = data
