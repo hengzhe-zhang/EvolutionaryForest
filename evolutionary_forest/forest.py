@@ -3273,14 +3273,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     selection_data[0] *= self.mab_configuration.decay_ratio
                     selection_data[1] *= self.mab_configuration.decay_ratio
                 C = self.mab_configuration.threshold
-                if comparison_criterion == 'Case-Simple':
+                if comparison_criterion == 'Case-Simple' or isinstance(comparison_criterion, int):
                     # consider the best fitness in each generation
                     best_value = np.min([p.case_values for p in population], axis=0)
                 for o in offspring:
                     cnt[o.selection_operator] += 1
                     if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
                         (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
-                        (comparison_criterion in ['Parent','Single-Parent'] and
+                        (comparison_criterion in ['Parent', 'Single-Parent'] and
                          np.all(o.fitness.wvalues[0] < o.parent_fitness)) or \
                         (isinstance(comparison_criterion, int) and
                          np.sum(o.case_values < best_value) > comparison_criterion):

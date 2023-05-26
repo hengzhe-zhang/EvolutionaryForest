@@ -9,7 +9,7 @@ from scipy.stats import pearsonr, spearmanr
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration
 from evolutionary_forest.component.evaluation import quick_evaluate
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.multigene_gp import gene_crossover, MultipleGeneGP, gene_mutation, semanticFeatureCrossover
+from evolutionary_forest.multigene_gp import gene_crossover, MultipleGeneGP, gene_mutation
 
 """
 Prune-and-plant的要求是在Offspring Production之后再进行修建。
