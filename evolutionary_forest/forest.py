@@ -2909,12 +2909,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # Clearing strategy: only the best one in each cluster will survive
             if self.clearing_cluster_size > 1:
+                # Collect case values and sum of fitness values for all individuals in the population
                 all_case_values = np.array([p.case_values for p in population])
                 sum_fitness = np.array([p.fitness.wvalues[0] for p in population])
                 key = np.arange(0, len(population))
+
+                # Use K-means clustering to assign labels to each individual based on their case values
                 label = KMeans(len(population) // self.clearing_cluster_size).fit_predict(all_case_values)
                 df = pd.DataFrame(np.array([key, label, sum_fitness]).T, columns=['key', 'label', 'fitness'])
+
+                # Sort individuals in descending order based on fitness and keep only the best in each cluster
                 df = df.sort_values('fitness', ascending=False).drop_duplicates(['label'])
+
+                # Update the population by selecting the best individuals
                 population = [population[int(k)] for k in list(df['key'])]
 
             if self.dynamic_target:
@@ -3072,8 +3079,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 # only mark this in parallel mode
                                 for o in offspring:
                                     o.crossover_type = 'Micro'
-                            if self.select=='Auto' and self.mab_configuration.comparison_criterion=='Single-Parent':
-                                parent=[offspring[0], offspring[1]]
+                            if self.select == 'Auto' and self.mab_configuration.comparison_criterion == 'Single-Parent':
+                                parent = [offspring[0], offspring[1]]
                             # these original individuals will not change,
                             # because var function will copy these individuals internally
                             offspring = varAndPlus(offspring, toolbox, cxpb, mutpb, self.gene_num,
@@ -3081,9 +3088,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                    semantic_check_tool,
                                                    crossover_configuration=self.crossover_configuration,
                                                    mutation_configuration=self.mutation_configuration)
-                            if self.select=='Auto' and self.mab_configuration.comparison_criterion=='Single-Parent':
-                                for o,p in zip(offspring,parent):
-                                    o.parent_fitness=(p.fitness.wvalues[0],)
+                            if self.select == 'Auto' and self.mab_configuration.comparison_criterion == 'Single-Parent':
+                                for o, p in zip(offspring, parent):
+                                    o.parent_fitness = (p.fitness.wvalues[0],)
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
 
