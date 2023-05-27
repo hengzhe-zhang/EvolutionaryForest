@@ -4347,6 +4347,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             offspring = selAutomaticEpsilonLexicaseFast(parent, 2)
         elif selection_operator == 'Tournament-3':
             offspring = selTournament(parent, 2, tournsize=3)
+        elif selection_operator == 'Tournament-5':
+            offspring = selTournament(parent, 2, tournsize=5)
         elif selection_operator == 'Tournament-7':
             offspring = selTournament(parent, 2, tournsize=7)
         elif selection_operator == 'Tournament-15':
