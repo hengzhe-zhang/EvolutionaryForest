@@ -1,6 +1,7 @@
 import copy
 import math
 import random
+from abc import abstractmethod
 from operator import attrgetter
 from types import SimpleNamespace
 
@@ -31,6 +32,26 @@ class SelectionConfiguration():
     def __init__(self, tournament_warmup_round=10, **params):
         self.tournament_warmup_round = tournament_warmup_round
         self.current_gen = 0
+
+
+class Selection():
+    @abstractmethod
+    def select(self, individuals, k):
+        pass
+
+
+class MTLAutomaticLexicase(Selection):
+    def __init__(self, number_of_tasks):
+        self.number_of_tasks = number_of_tasks
+
+    def select(self, individuals, k):
+        fit_weights = individuals[0].fitness.weights[0]
+        case_values = np.array([ind.case_values for ind in individuals])
+        # Aggregate the case values into 'number_of_tasks' partitions
+        aggregated_case_values = np.mean(case_values.reshape((len(individuals), -1, self.number_of_tasks)), axis=2)
+        index, _ = selAutomaticEpsilonLexicaseNumba(aggregated_case_values, fit_weights, k)
+        selected_individuals = [individuals[i] for i in index]
+        return selected_individuals
 
 
 def tournament_lexicase_selection(individuals, k, configuration: SelectionConfiguration):

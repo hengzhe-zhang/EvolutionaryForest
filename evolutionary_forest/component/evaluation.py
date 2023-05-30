@@ -28,9 +28,10 @@ from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.tree import BaseDecisionTree
 
 from evolutionary_forest.component.configuration import EvaluationConfiguration, ImbalancedConfiguration
+from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimitiveSet, quick_fill, GPPipeline
 from evolutionary_forest.sklearn_utils import cross_val_predict
-from evolutionary_forest.utils import reset_random
+from evolutionary_forest.utils import reset_random, cv_prediction_from_ridge
 
 np.seterr(invalid='ignore')
 reset_random(0)
@@ -139,7 +140,7 @@ def calculate_score(args):
 
     # ML evaluation
     start_time = time.time()
-    if 'CV' in score_func:
+    if isinstance(score_func, str) and 'CV' in score_func:
         # custom cross validation scheme
         if '-Random' in score_func:
             cv = StratifiedKFold(shuffle=True)
@@ -171,10 +172,6 @@ def calculate_score(args):
             y_pred = result['test_score']
         estimators = result['estimator']
     elif not cross_validation:
-        # lasso = Pipeline([('Scaler', SafetyScaler()), ('Ridge', LassoCV(max_iter=10000))])
-        # lasso.fit(Yp, Y)
-        # lasso.predict(Yp)
-        # print(lasso['Ridge'].coef_)
         pipe.fit(Yp, Y)
         y_pred = pipe.predict(Yp)
         estimators = [pipe]
@@ -203,13 +200,12 @@ def calculate_score(args):
             Potential Impacts:
             Given an incorrect best index
             """
-            # old_best_index = np.argmax(base_model.cv_values_.sum(axis=0))
-            all_y_pred = (base_model.cv_values_ + Y.mean())
-            # r2_score(Y, base_model.cv_values_[:, new_best_index] + Y.mean())
-            error_list = ((Y.reshape(-1, 1) - all_y_pred) ** 2).sum(axis=0)
-            new_best_index = np.argmin(error_list)
-            y_pred, estimators = base_model.cv_values_[:, new_best_index], [pipe]
-            y_pred += Y.mean()
+            if isinstance(base_model, MTLRidgeCV):
+                y_pred = base_model.cv_prediction(Y)
+                estimators = [pipe]
+            else:
+                real_prediction = cv_prediction_from_ridge(Y, base_model)
+                y_pred, estimators = real_prediction, [pipe]
         elif cv == 1:
             # single fold training (not recommend)
             indices = np.arange(len(Y))
@@ -485,7 +481,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
-            if target is not None:
+            if target is not None and configuration.intron_calculation:
                 correlation_results.append(np.abs(cos_sim(target - target.mean(),
                                                           simple_feature - simple_feature.mean())))
             result.append(feature)

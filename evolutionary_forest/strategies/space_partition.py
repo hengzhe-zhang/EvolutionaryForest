@@ -46,7 +46,7 @@ class SpacePartition():
         """
         Initialize a space partition scheme
         """
-        if self.base_learner == 'Soft-PLTree' or 'Fast-Soft-PLTree' in self.base_learner:
+        if self.base_learner == 'Soft-PLTree':
             if self.dynamic_partition == 'Self-Adaptive' or self.dynamic_partition is None:
                 # Initialization with decision tree
                 if isinstance(self.partition_number, str) and 'Sample' in self.partition_number:
@@ -77,7 +77,7 @@ class SpacePartition():
         # Full evaluation after some iterations
         if (self.interleaving_period is None or self.interleaving_period == 0) \
             and self.current_gen > self.n_gen * (1 - self.ps_tree_ratio):
-            if self.base_learner.startswith('Fast-'):
+            if isinstance(self.base_learner,str) and self.base_learner.startswith('Fast-'):
                 self.base_learner = self.base_learner.replace('Fast-', '')
 
         if self.interleaving_period > 0:

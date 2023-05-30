@@ -13,6 +13,7 @@ import torch
 from deap.gp import Primitive
 from matplotlib import pyplot as plt
 from numba import njit
+from sklearn.linear_model import RidgeCV
 from sympy import latex, parse_expr
 
 from evolutionary_forest.component.primitives import individual_to_tuple
@@ -402,3 +403,12 @@ def is_float(element: any) -> bool:
 
 def pickle_deepcopy(a):
     return cPickle.loads(cPickle.dumps(a, -1))
+
+
+def cv_prediction_from_ridge(Y, base_model: RidgeCV):
+    all_y_pred = base_model.cv_values_ + Y.mean()
+    error_list = ((Y.reshape(-1, 1) - all_y_pred) ** 2).sum(axis=0)
+    new_best_index = np.argmin(error_list)
+    real_prediction = base_model.cv_values_[:, new_best_index]
+    real_prediction = real_prediction + Y.mean()
+    return real_prediction
