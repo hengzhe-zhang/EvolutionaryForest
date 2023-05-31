@@ -18,7 +18,6 @@ from scipy import stats
 from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, ranksums
 from sklearn.base import RegressorMixin, BaseEstimator, ClassifierMixin, TransformerMixin
-from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor, RandomForestClassifier, \
     RandomForestRegressor
@@ -63,8 +62,11 @@ from evolutionary_forest.component.selection import batch_tournament_selection, 
     selAngleDrivenSelection, selStatisticsTournament, selLexicographicParsimonyPressure, tournament_lexicase_selection, \
     SelectionConfiguration, Selection
 from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderNumpy
+from evolutionary_forest.component.strategy import Clearing
+from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
+from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.PLTree import SoftPLTreeRegressor, SoftPLTreeRegressorEM, PLTreeRegressor, RidgeDT, \
     LRDTClassifier, RidgeDTPlus, RandomWeightRidge
 from evolutionary_forest.model.RBFN import RBFN
@@ -175,48 +177,6 @@ def kendall(ya, yb):
     return kendalltau(ya, yb)[0]
 
 
-class MTLTestFunction():
-    def __init__(self, x, y, regr, number_of_tasks):
-        self.x = x
-        self.y = y
-        self.regr = regr
-        self.number_of_tasks = number_of_tasks
-
-    def predict_loss(self):
-        if len(self.x) > 0:
-            y_p = self.regr.predict(self.x).reshape(-1,self.number_of_tasks)
-            r2_scores = []
-
-            for i in range(self.number_of_tasks):
-                y_task = self.y[:, i]
-                y_p_task = y_p[:,i]
-                r2_scores.append(r2_score(y_task, y_p_task))
-
-            return np.mean(r2_scores)
-        else:
-            return 0
-
-    def __deepcopy__(self, memodict={}):
-        return copy.deepcopy(self)
-
-
-class TestFunction():
-    def __init__(self, x, y, regr=None):
-        self.x = x
-        self.y = y
-        self.regr = regr
-
-    def predict_loss(self):
-        if len(self.x) > 0:
-            y_p = self.regr.predict(self.x)
-            return r2_score(self.y, y_p)
-        else:
-            return 0
-
-    def __deepcopy__(self, memodict={}):
-        return copy.deepcopy(self)
-
-
 class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimator,
                                   SurrogateModel, SpacePartition, EstimationOfDistribution):
     """
@@ -276,7 +236,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  # More Parameters
                  initial_tree_size=None,  # Initial size of GP tree
                  basic_gene_num=0,  # Number of basic genes in a MGP
-                 clearing_cluster_size=0,  # Cluster size in clearing
                  reduction_ratio=0,  # Ratio of samples removed in pre-selection based on filters
                  random_state=None,  # Random state used for reproducibility
                  validation_size=0,  # Size of the validation set for using in HOF
@@ -451,7 +410,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             reset_random(random_state)
         self.random_state = random_state
         self.reduction_ratio = reduction_ratio
-        self.clearing_cluster_size = clearing_cluster_size
         self.mgp_mode = mgp_mode
         self.basic_gene_num = basic_gene_num
         self.decision_tree_count = decision_tree_count
@@ -640,10 +598,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.score_func == 'NoveltySearch-Dynamic':
             self.dynamic_target = True
             self.score_func = 'NoveltySearch'
-        elif isinstance(self.score_func,str) and 'WeightedNoveltySearch-' in self.score_func:
+        elif isinstance(self.score_func, str) and 'WeightedNoveltySearch-' in self.score_func:
             self.novelty_weight = float(self.score_func.split('-')[1])
             self.score_func = 'NoveltySearch'
-        elif isinstance(self.score_func,str) and 'WeightedCooperationSearch-' in self.score_func:
+        elif isinstance(self.score_func, str) and 'WeightedCooperationSearch-' in self.score_func:
             self.novelty_weight = float(self.score_func.split('-')[1])
             self.score_func = 'NoveltySearch'
             self.ensemble_cooperation = True
@@ -1449,6 +1407,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 only_original_features=self.only_original_features)
         elif isinstance(self.base_learner, RegressorMixin):
             ridge_model = efficient_deepcopy(self.base_learner)
+            # return GPPipeline([
+            #     ("Ridge", ridge_model),
+            # ])
         else:
             raise Exception
         if self.base_learner == 'PCA-DT':
@@ -2635,7 +2596,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 h.pipe = self.get_base_model()
 
         # Train the final model using lazy training
-        self.final_model_lazy_training(self.hof,force_training=self.force_retrain)
+        self.final_model_lazy_training(self.hof, force_training=self.force_retrain)
 
         predictions = []
         weight_list = []
@@ -2699,7 +2660,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     final_prediction = np.median(predictions, axis=0)
                 else:
                     raise Exception
-        if len(self.y_shape) == 2:
+        if len(self.X) != len(self.y):
+            number_of_tasks = len(self.y) // len(self.X)
+            final_prediction = final_prediction.reshape(-1, number_of_tasks)
+        if len(self.y_shape) == 2 and np.any(self.y_shape == 1):
             final_prediction = final_prediction.reshape(-1, 1)
         return final_prediction
 
@@ -2935,23 +2899,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             count = 0
             new_offspring = []
 
-            # Clearing strategy: only the best one in each cluster will survive
-            if self.clearing_cluster_size > 1:
-                # Collect case values and sum of fitness values for all individuals in the population
-                all_case_values = np.array([p.case_values for p in population])
-                sum_fitness = np.array([p.fitness.wvalues[0] for p in population])
-                key = np.arange(0, len(population))
-
-                # Use K-means clustering to assign labels to each individual based on their case values
-                label = KMeans(len(population) // self.clearing_cluster_size).fit_predict(all_case_values)
-                df = pd.DataFrame(np.array([key, label, sum_fitness]).T, columns=['key', 'label', 'fitness'])
-
-                # Sort individuals in descending order based on fitness and keep only the best in each cluster
-                df = df.sort_values('fitness', ascending=False).drop_duplicates(['label'])
-
-                # Update the population by selecting the best individuals
-                population = [population[int(k)] for k in list(df['key'])]
-
+            population = Clearing(**self.param).do(population)
             if self.dynamic_target:
                 best_ind = toolbox.clone(population[np.argmax([x.fitness.wvalues[0] for x in population])])
                 del best_ind.fitness.values
@@ -4841,22 +4789,42 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 count += learner.complexity()
         return count
 
-    def model(self):
+    def model(self, mtl_id=None):
         assert len(self.hof) == 1
-        h = self.hof[0]
-        if isinstance(h.pipe, Pipeline):
-            learner: LinearModel = h.pipe['Ridge']
-        else:
-            learner = h.pipe
-        assert isinstance(learner, LinearModel)
-        model_str = ''
-        for id, g, c in zip(range(0, len(h.gene)), h.gene, learner.coef_):
-            if id == 0:
-                model_str += str(c) + '*' + gene_to_string(g)
+        best_ind = self.hof[0]
+        if isinstance(best_ind.pipe, Pipeline):
+            if 'Scaler' in best_ind.pipe.named_steps:
+                scaler: StandardScaler = best_ind.pipe['Scaler']
             else:
-                model_str += '+' + str(c) + '*' + gene_to_string(g)
-        model_str += '+' + str(learner.intercept_)
-        return model_str.replace('ARG', 'x')
+                scaler: StandardScaler = None
+
+            if mtl_id != None:
+                learner: MTLRidgeCV = best_ind.pipe['Ridge']
+                learner = learner.mtl_ridge.estimators_[mtl_id]
+            else:
+                learner: LinearModel = best_ind.pipe['Ridge']
+        else:
+            scaler = None
+            learner = best_ind.pipe
+        assert isinstance(learner, LinearModel)
+        genes = best_ind.gene
+        return model_to_string(genes, learner, scaler)
+
+
+def model_to_string(genes, learner, scaler):
+    coefs = learner.coef_
+    model_str = ''
+    for id, g, c in zip(range(0, len(genes)), genes, coefs):
+        gene_string = gene_to_string(g)
+        if scaler != None:
+            mean, std = scaler.mean_[id], scaler.scale_[id]
+            gene_string = f'(({gene_string}-{mean})/{std})'
+        if id == 0:
+            model_str += str(c) + '*' + gene_string
+        else:
+            model_str += '+' + str(c) + '*' + gene_string
+    model_str += '+' + str(learner.intercept_)
+    return model_str.replace('ARG', 'x')
 
 
 class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor):
