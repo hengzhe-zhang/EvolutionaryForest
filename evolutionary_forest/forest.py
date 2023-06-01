@@ -77,6 +77,7 @@ from evolutionary_forest.preprocess_utils import GeneralFeature, CategoricalFeat
     NumericalFeature, FeatureTransformer
 from evolutionary_forest.probability_gp import genHalfAndHalf, genFull
 from evolutionary_forest.pruning import oob_pruning
+from evolutionary_forest.strategies.adaptive_operator_selection import MultiArmBandit, MCTS
 from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution
 from evolutionary_forest.strategies.space_partition import SpacePartition, partition_scheme_varAnd, \
     partition_scheme_toolbox
@@ -469,7 +470,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.avg_tree_size_history = []
         # best fitness of the ensemble model
         self.best_fitness_history = []
-        self.operator_selection_history = []
         # average fitness of individuals in grid
         self.elite_grid_avg_fitness_history = []
         # average diversity of individuals in grid
@@ -637,6 +637,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_model_list = 'Random-DT,LightGBM-Stump,DT'
         else:
             self.base_model_list = None
+
+        if self.select == 'Auto':
+            self.aos = MultiArmBandit(self, **self.param)
+        elif self.select == 'Auto-MCTS':
+            self.aos = MCTS(self, **self.param)
+        else:
+            self.aos = None
 
         delete_keys = []
         for k in params.keys():
@@ -2807,12 +2814,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elite_map = {}
         pop_pool = []
         elite_map, pop_pool = self.map_elite_generation(population, elite_map, pop_pool)
-        if self.select == 'Auto':
-            selection_operators = self.mab_configuration.selection_operators.split(',')
-            selection_data = np.ones((2, len(selection_operators)))
-        else:
-            selection_operators = None
-            selection_data = None
 
         fitness_improvement = 0
         # fitness decrease on validation set
@@ -2821,30 +2822,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         no_improvement_iteration = 0
         adaptive_hoist_probability = None
         historical_best_fitness = np.max([ind.fitness.wvalues[0] for ind in population])
-        comparison_criterion = self.mab_configuration.comparison_criterion
-        """
-        Fitness: Using the fitness improvement as the criterion of a success trial
-        Fitness-Case: Using the fitness improvement as the criterion of a success trial
-                      and the fitness improvement on a single case as the criterion of a neutral trial
-        Case: Using the fitness improvement on a single case as the criterion of a success trial
-        Case-Simple: Only consider fitness in each generation
-        """
-        if comparison_criterion in ['Fitness', 'Fitness-Case']:
-            best_value = np.max([p.fitness.wvalues[0] for p in population])
-        elif comparison_criterion in ['Case', 'Case-Simple'] or isinstance(comparison_criterion, int):
-            best_value = np.min([p.case_values for p in population], axis=0)
-            worst_value = np.max([p.case_values for p in population], axis=0)
-        elif comparison_criterion in ['Parent', 'Single-Parent']:
-            pass
-        else:
-            raise Exception
-
-        # MCTS
-        mcts_dict = {}
-        candidate_selection_operators = 'MAP-Elite-Lexicase,Tournament-7,Tournament-15,Lexicase'.split(',')
-        candidate_survival_opearators = 'AFP,Best,None'.split(',')
-        mcts_dict['Survival Operators'] = np.ones((2, len(candidate_survival_opearators)))
-        mcts_dict['Selection Operators'] = np.ones((2, len(candidate_selection_operators)))
 
         # archive initialization
         if self.select == 'Auto-MCTS':
@@ -2947,33 +2924,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     parent = population
 
-                # Select the best survival operator based on the Thompson sampling
-                if self.select == 'Auto-MCTS':
-                    candidates = mcts_dict[f'Root']
-                    survival_operator_id = np.argmax(np.random.beta(candidates[0], candidates[1]))
-                    self.param['parent_archive'] = candidate_survival_opearators[survival_operator_id]
-                    for o in parent:
-                        o.survival_operator_id = survival_operator_id
-                parent_archive = self.param.get('parent_archive', None)
-                if parent_archive == 'Fitness-Size':
-                    parent = nsga_archive
-                if parent_archive == 'AFP':
-                    parent = afp_archive
-                if parent_archive == 'Best':
-                    parent = best_archive
-
                 if self.select == 'Auto' or self.select == 'Auto-MCTS':
-                    if self.select == 'Auto':
-                        selection_operator_id = np.argmax(np.random.beta(selection_data[0], selection_data[1]))
-                        selection_operator = selection_operators[selection_operator_id]
-                    else:
-                        candidates = mcts_dict['Selection Operators']
-                        selection_operator_id = np.argmax(np.random.beta(candidates[0], candidates[1]))
-                        selection_operator = candidate_selection_operators[selection_operator_id]
-                    offspring = self.custom_selection(parent, selection_operator, elite_map)
-
-                    for o in offspring:
-                        o.selection_operator = selection_operator_id
+                    offspring = self.aos.select(parent)
                 elif (self.select in map_elite_series) and \
                     ((self.map_elite_parameter['trigger_time'] == 'All') or
                      (self.map_elite_parameter['trigger_time'] == 'Improvement' and fitness_improvement >= 0)):
@@ -3238,96 +3190,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             elite_map, pop_pool = self.map_elite_generation(offspring, elite_map, pop_pool)
 
-            # record historical best values
-            if comparison_criterion == 'Case':
-                # consider the best fitness across all generations
-                best_value = np.min([np.min([p.case_values for p in population], axis=0), best_value], axis=0)
-                worst_value = np.max([np.max([p.case_values for p in population], axis=0), worst_value], axis=0)
-            if comparison_criterion == 'Fitness' or comparison_criterion == 'Fitness-Case':
-                # historical best fitness values
-                best_value = max(*[p.fitness.wvalues[0] for p in population], best_value)
-                parent_case_values = np.min([p.case_values for p in population], axis=0)
-            if self.select == 'Auto':
-                mode = self.mab_configuration.mode
-                cnt = Counter({
-                    id: 0
-                    for id in range(0, len(selection_data[0]))
-                })
-                if mode == 'Decay':
-                    selection_data[0] *= self.mab_configuration.decay_ratio
-                    selection_data[1] *= self.mab_configuration.decay_ratio
-                C = self.mab_configuration.threshold
-                if comparison_criterion == 'Case-Simple' or isinstance(comparison_criterion, int):
-                    # consider the best fitness in each generation
-                    best_value = np.min([p.case_values for p in population], axis=0)
-                for o in offspring:
-                    cnt[o.selection_operator] += 1
-                    if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
-                        (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
-                        (comparison_criterion in ['Parent', 'Single-Parent'] and
-                         np.all(o.fitness.wvalues[0] < o.parent_fitness)) or \
-                        (isinstance(comparison_criterion, int) and
-                         np.sum(o.case_values < best_value) > comparison_criterion):
-                        selection_data[0][o.selection_operator] += 1
-                    elif comparison_criterion == 'Fitness-Case' and np.any(o.case_values < parent_case_values):
-                        # don't consider this trial as success or failure
-                        pass
-                    else:
-                        selection_data[1][o.selection_operator] += 1
-                self.operator_selection_history.append(tuple(cnt.values()))
-                if self.verbose:
-                    print(selection_data[0], selection_data[1])
-                    print(cnt)
-                if mode == 'Threshold':
-                    # fixed threshold
-                    for op in range(selection_data.shape[1]):
-                        if selection_data[0][op] + selection_data[1][op] > C:
-                            sum_data = selection_data[0][op] + selection_data[1][op]
-                            selection_data[0][op] = selection_data[0][op] / sum_data * C
-                            selection_data[1][op] = selection_data[1][op] / sum_data * C
-                # avoid trivial probability
-                selection_data = np.clip(selection_data, 1e-2, None)
-
-            if self.select == 'Auto-MCTS':
-                selection_counter = defaultdict(int)
-                gene_counter = defaultdict(int)
-                C = self.mab_configuration.get('threshold', 100)
-                for o in offspring:
-                    if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
-                        (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
-                        (isinstance(comparison_criterion, int) and
-                         np.sum(o.case_values < best_value) > comparison_criterion):
-                        mcts_dict['Survival Operators'][0][o.survival_operator_id] += 1
-                        mcts_dict['Selection Operators'][0][o.selection_operator] += 1
-                    elif comparison_criterion == 'Fitness-Case' and np.any(o.case_values < parent_case_values):
-                        # don't consider this trial as success or failure
-                        pass
-                    else:
-                        mcts_dict['Survival Operators'][1][o.survival_operator_id] += 1
-                        mcts_dict['Selection Operators'][1][o.selection_operator] += 1
-                    selection_counter[o.selection_operator] += 1
-                    gene_counter[o.survival_operator_id] += 1
-
-                if self.verbose:
-                    print(selection_counter, gene_counter)
-
-                mode = self.mab_configuration.get('mode', 'Decay')
-                # fixed threshold
-                for k, data in mcts_dict.items():
-                    if mode == 'Threshold':
-                        # fixed threshold
-                        for op in range(len(data[0])):
-                            if data[0][op] + data[1][op] > C:
-                                sum_data = data[0][op] + data[1][op]
-                                data[0][op] = data[0][op] / sum_data * C
-                                data[1][op] = data[1][op] / sum_data * C
-                    if mode == 'Decay':
-                        data *= self.mab_configuration['decay_ratio']
-                    # avoid trivial solutions
-                    data = np.clip(data, 1e-2, None)
-                    mcts_dict[k] = data
-                if self.verbose:
-                    print('MCTS Result', mcts_dict)
+            if self.select in ['Auto', 'Auto-MCTS']:
+                self.aos.update(population, offspring)
 
             # Update the hall of fame with the generated individuals
             if self.stage_flag:
