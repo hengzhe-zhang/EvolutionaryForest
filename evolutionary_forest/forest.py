@@ -401,10 +401,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.mgp_scope = mgp_scope
         self.semantic_variation = semantic_variation
         self.mab_parameter = mab_parameter
-        if mab_parameter is not None:
-            self.mab_configuration = MABConfiguration(**mab_parameter)
-        else:
-            self.mab_configuration = MABConfiguration()
         self.validation_size = validation_size
         self.class_weight = class_weight
         if random_state is not None:
@@ -3008,8 +3004,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 # only mark this in parallel mode
                                 for o in offspring:
                                     o.crossover_type = 'Micro'
-                            if self.select == 'Auto' and self.mab_configuration.comparison_criterion == 'Single-Parent':
-                                parent = [offspring[0], offspring[1]]
                             # these original individuals will not change,
                             # because var function will copy these individuals internally
                             offspring = varAndPlus(offspring, toolbox, cxpb, mutpb, self.gene_num,
@@ -3017,9 +3011,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                                    semantic_check_tool,
                                                    crossover_configuration=self.crossover_configuration,
                                                    mutation_configuration=self.mutation_configuration)
-                            if self.select == 'Auto' and self.mab_configuration.comparison_criterion == 'Single-Parent':
-                                for o, p in zip(offspring, parent):
-                                    o.parent_fitness = (p.fitness.wvalues[0],)
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
 

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class MultiArmBandit():
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **kwargs):
         self.algorithm = algorithm
-        self.mab_configuration = MABConfiguration()
+        self.mab_configuration = MABConfiguration(**algorithm.mab_parameter)
         self.selection_operators = self.mab_configuration.selection_operators.split(',')
         self.selection_data = np.ones((2, len(self.selection_operators)))
         self.operator_selection_history = []

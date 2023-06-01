@@ -22,6 +22,7 @@ class MABConfiguration():
                  selection_operators='AutomaticLexicase,Tournament-7',
                  comparison_criterion='Case',
                  threshold=100,
+                 **kwargs
                  ) -> None:
         self.mode = mode
         # Decay or Threshold Mode
