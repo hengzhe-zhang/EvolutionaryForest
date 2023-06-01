@@ -4,6 +4,7 @@ import random
 from abc import abstractmethod
 from operator import attrgetter
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import numpy as np
 import seaborn as sns
@@ -27,10 +28,12 @@ from evolutionary_forest.model.VAE import NeuralNetTransformer, VAE
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import efficient_deepcopy
 
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
+
 
 class SelectionConfiguration():
-    def __init__(self, tournament_warmup_round=10, **params):
-        self.tournament_warmup_round = tournament_warmup_round
+    def __init__(self, **params):
         self.current_gen = 0
 
 
@@ -54,13 +57,23 @@ class MTLAutomaticLexicase(Selection):
         return selected_individuals
 
 
-def tournament_lexicase_selection(individuals, k, configuration: SelectionConfiguration):
-    # tournament as first several stages
-    if configuration.tournament_warmup_round:
-        offspring = selTournament(individuals, k, tournsize=7)
-    else:
-        offspring = selAutomaticEpsilonLexicaseFast(individuals, k)
-    return offspring
+class TournamentLexicase(Selection):
+    def __init__(self, algorithm: 'EvolutionaryForestRegressor', tournament_warmup_round=10,
+                 **kwargs):
+        self.algorithm = algorithm
+        self.tournament_warmup_round = tournament_warmup_round
+
+    def select(self, individuals, k):
+        # tournament as first several stages
+        if self.tournament_warmup_round > 0 and self.tournament_warmup_round < 1:
+            warmup_round = self.tournament_warmup_round * self.algorithm.n_gen
+        else:
+            warmup_round = self.tournament_warmup_round
+        if self.algorithm.current_gen <= warmup_round:
+            offspring = selTournament(individuals, k, tournsize=7)
+        else:
+            offspring = selAutomaticEpsilonLexicaseFast(individuals, k)
+        return offspring
 
 
 # @njit(cache=True)

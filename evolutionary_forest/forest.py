@@ -59,8 +59,8 @@ from evolutionary_forest.component.rademacher_complexity import rademacher_compl
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \
-    selAngleDrivenSelection, selStatisticsTournament, selLexicographicParsimonyPressure, tournament_lexicase_selection, \
-    SelectionConfiguration, Selection
+    selAngleDrivenSelection, selStatisticsTournament, selLexicographicParsimonyPressure, \
+    SelectionConfiguration, Selection, TournamentLexicase
 from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderNumpy
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
@@ -1738,7 +1738,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.select == 'Tournament':
             toolbox.register("select", tools.selTournament, tournsize=self.param['tournament_size'])
         elif self.select == 'Tournament-Lexicase':
-            toolbox.select = partial(tournament_lexicase_selection, configuration=self.selection_configuration)
+            select = TournamentLexicase(self, **self.param)
+            toolbox.select = partial(select.select)
         elif self.select.startswith('Tournament-'):
             toolbox.register("select", tools.selTournament, tournsize=int(self.select.split('-')[1]))
         elif self.select.startswith('TournamentNovelty'):
