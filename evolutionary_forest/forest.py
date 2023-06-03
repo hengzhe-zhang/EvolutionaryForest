@@ -456,11 +456,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # average diversity of the ensemble model
         self.archive_cos_similarity_history = []
         # average fitness of the population
-        self.fitness_history = []
+        self.pop_avg_fitness_history = []
         # average diversity of the population
-        self.diversity_history = []
+        self.pop_diversity_history = []
         # average cosine diversity of the population
-        self.cos_similarity_history = []
+        self.pop_cos_similarity_history = []
         self.tree_genotypic_diversity = []
         self.tree_phenotypic_diversity = []
         self.avg_tree_size_history = []
@@ -3876,10 +3876,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if verbose:
                 print('Training Loss', training_loss)
                 print('Testing Loss', testing_loss)
-            self.fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in population]))
-            self.diversity_history.append(self.diversity_calculation(population))
+            self.pop_avg_fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in population]))
+            self.pop_diversity_history.append(self.diversity_calculation(population))
             if not isinstance(self, ClassifierMixin):
-                self.cos_similarity_history.append(self.cos_similarity_calculation(population))
+                self.pop_cos_similarity_history.append(self.cos_similarity_calculation(population))
                 self.archive_cos_similarity_history.append(self.cos_similarity_calculation(self.hof))
             genotype_sum_entropy, phenotype_sum_entropy = self.gp_tree_entropy_calculation(population)
             self.tree_genotypic_diversity.append(genotype_sum_entropy)
