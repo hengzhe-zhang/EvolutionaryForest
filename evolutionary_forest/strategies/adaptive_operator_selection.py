@@ -23,8 +23,6 @@ class MultiArmBandit():
         comparison_criterion = self.mab_configuration.comparison_criterion
         """
         Fitness: Using the fitness improvement as the criterion of a success trial
-        Fitness-Case: Using the fitness improvement as the criterion of a success trial
-                      and the fitness improvement on a single case as the criterion of a neutral trial
         Case: Using the fitness improvement on a single case as the criterion of a success trial
         Case-Simple: Only consider fitness in each generation
         """
@@ -44,16 +42,13 @@ class MultiArmBandit():
 
         for o in offspring:
             cnt[o.selection_operator] += 1
-            if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
+            if (comparison_criterion in ['Fitness', 'Fitness-Simple'] and o.fitness.wvalues[0] > best_value) or \
                 (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
                 (comparison_criterion in ['Parent', 'Single-Parent'] and
                  np.all(o.fitness.wvalues[0] < o.parent_fitness)) or \
                 (isinstance(comparison_criterion, int) and
                  np.sum(o.case_values < best_value) > comparison_criterion):
                 selection_data[0][o.selection_operator] += 1
-            elif comparison_criterion == 'Fitness-Case' and np.any(o.case_values < parent_case_values):
-                # don't consider this trial as success or failure
-                pass
             else:
                 selection_data[1][o.selection_operator] += 1
         self.operator_selection_history.append(tuple(cnt.values()))
@@ -81,10 +76,12 @@ class MultiArmBandit():
             # consider the best fitness across all generations
             best_value = np.min([np.min([p.case_values for p in population], axis=0), self.best_value], axis=0)
             worst_value = np.max([np.max([p.case_values for p in population], axis=0), self.best_value], axis=0)
-        if comparison_criterion == 'Fitness' or comparison_criterion == 'Fitness-Case':
+        if comparison_criterion == 'Fitness':
             # historical best fitness values
             best_value = max(*[p.fitness.wvalues[0] for p in population], self.best_value)
-            parent_case_values = np.min([p.case_values for p in population], axis=0)
+        if comparison_criterion == 'Fitness-Simple':
+            # consider the best fitness in each generation
+            best_value = max([p.fitness.wvalues[0] for p in population])
         if comparison_criterion == 'Case-Simple' or isinstance(comparison_criterion, int):
             # consider the best fitness in each generation
             best_value = np.min([p.case_values for p in population], axis=0)
@@ -92,7 +89,7 @@ class MultiArmBandit():
 
     def best_value_initialization(self, population, comparison_criterion):
         if self.best_value is None:
-            if comparison_criterion in ['Fitness', 'Fitness-Case']:
+            if comparison_criterion in ['Fitness', 'Fitness-Simple']:
                 self.best_value = np.max([p.fitness.wvalues[0] for p in population])
             elif comparison_criterion in ['Case', 'Case-Simple'] or isinstance(comparison_criterion, int):
                 self.best_value = np.min([p.case_values for p in population], axis=0)
@@ -137,15 +134,12 @@ class MCTS(MultiArmBandit):
         best_value, parent_case_values = self.best_value_update(comparison_criterion, population)
 
         for o in offspring:
-            if (comparison_criterion in ['Fitness', 'Fitness-Case'] and o.fitness.wvalues[0] > best_value) or \
+            if (comparison_criterion in ['Fitness', 'Fitness-Simple'] and o.fitness.wvalues[0] > best_value) or \
                 (comparison_criterion in ['Case', 'Case-Simple'] and np.any(o.case_values < best_value)) or \
                 (isinstance(comparison_criterion, int) and
                  np.sum(o.case_values < best_value) > comparison_criterion):
                 mcts_dict['Survival Operators'][0][o.survival_operator_id] += 1
                 mcts_dict['Selection Operators'][0][o.selection_operator] += 1
-            elif comparison_criterion == 'Fitness-Case' and np.any(o.case_values < parent_case_values):
-                # don't consider this trial as success or failure
-                pass
             else:
                 mcts_dict['Survival Operators'][1][o.survival_operator_id] += 1
                 mcts_dict['Selection Operators'][1][o.selection_operator] += 1
