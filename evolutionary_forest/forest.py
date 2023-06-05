@@ -45,6 +45,7 @@ from evolutionary_forest.component.configuration import CrossoverMode, ArchiveCo
     BaseLearnerConfiguration, MABConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
+from evolutionary_forest.component.environmental_selection import NSGA2
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
@@ -454,13 +455,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # average diversity of the ensemble model
         self.archive_diversity_history = []
         # average diversity of the ensemble model
-        self.archive_cos_similarity_history = []
+        self.archive_cos_distance_history = []
         # average fitness of the population
         self.pop_avg_fitness_history = []
         # average diversity of the population
         self.pop_diversity_history = []
         # average cosine diversity of the population
-        self.pop_cos_similarity_history = []
+        self.pop_cos_distance_history = []
         self.tree_genotypic_diversity = []
         self.tree_phenotypic_diversity = []
         self.avg_tree_size_history = []
@@ -479,7 +480,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # final MAP-Elite grid
         self.final_elite_grid = []
         self.early_stop = early_stop
-        self.environmental_selection = environmental_selection
+        if environmental_selection == 'NSGA2':
+            self.environmental_selection = NSGA2(self, None, **self.param)
+        else:
+            self.environmental_selection = environmental_selection
         self.eager_training = eager_training
         self.current_height = 1
         self.repetitive_feature_count = []
@@ -3879,8 +3883,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.pop_avg_fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in population]))
             self.pop_diversity_history.append(self.diversity_calculation(population))
             if not isinstance(self, ClassifierMixin):
-                self.pop_cos_similarity_history.append(self.cos_similarity_calculation(population))
-                self.archive_cos_similarity_history.append(self.cos_similarity_calculation(self.hof))
+                self.pop_cos_distance_history.append(self.cos_distance_calculation(population))
+                self.archive_cos_distance_history.append(self.cos_distance_calculation(self.hof))
             genotype_sum_entropy, phenotype_sum_entropy = self.gp_tree_entropy_calculation(population)
             self.tree_genotypic_diversity.append(genotype_sum_entropy)
             self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
@@ -4348,42 +4352,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ind.fitness.weights = (-1,)
                 ind.fitness.values = getattr(ind, 'original_fitness')
             self.hof = population
-        elif self.environmental_selection in ['NSGA2', 'NSGA2-Normalized', 'NSGA2-Best', 'NSGA2-Best-Half']:
-            # two objectives:
-            # 1. accuracy
-            # 2. node count
-            if self.environmental_selection == 'NSGA2-Best-Half' and gen < (self.n_gen // 2):
-                population[:] = offspring
-            else:
-                def knee_point_detection(front):
-                    p1 = np.max(front, axis=0)
-                    p2 = np.max(front, axis=0)
-                    # 自动选择拐点
-                    ans = max([i for i in range(len(front))],
-                              key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
-                    return ans
-
-                avg_size = np.mean([np.array([len(y) for y in x.gene]) * (x.coef != 0) for x in offspring + population])
-                for ind in offspring + population:
-                    setattr(ind, 'original_fitness', ind.fitness.values)
-                    ind.fitness.weights = (-1, -1)
-                    ind_size = np.mean(np.array([len(y) for y in ind.gene]) * (ind.coef != 0)) / avg_size
-                    if self.environmental_selection == 'NSGA2-Normalized':
-                        ind.fitness.values = (ind.fitness.values[0], max(1, ind_size))
-                    else:
-                        ind.fitness.values = (ind.fitness.values[0], ind_size)
-                population[:] = selNSGA2(offspring + population, len(population))
-                knee = knee_point_detection([p.fitness.wvalues for p in population])
-                if self.verbose:
-                    knee_individual = population[knee]
-                    knee_size = np.sum(knee_individual.coef != 0)
-                    print('Knee Size', knee_size)
-                for ind in population:
-                    ind.fitness.weights = (-1,)
-                    ind.fitness.values = getattr(ind, 'original_fitness')
-                if self.environmental_selection != 'NSGA2-Best':
-                    # Select the knee point as the final model
-                    self.hof = [population[knee]]
         elif self.environmental_selection == 'MOEA/D':
             # MOEA/D with random decomposition
             def selMOEAD(individuals, k):
@@ -4550,18 +4518,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.assign_complexity_pop(population)
 
         # re-assign fitness for all individuals if using PAC-Bayesian
-        if self.score_func in ['R2-L2',
-                               'R2-PAC-Bayesian',
-                               'R2-VC-Dimension',
-                               'R2-Rademacher-Complexity',
-                               'R2-Size-Rademacher-Complexity',
-                               'R2-Tikhonov',
-                               'R2-Size'] and \
-            self.bloat_control is None:
-            assign_rank(population, self.hof, self.external_archive_pop)
+        # if self.score_func in ['R2-L2',
+        #                        'R2-PAC-Bayesian',
+        #                        'R2-VC-Dimension',
+        #                        'R2-Rademacher-Complexity',
+        #                        'R2-Size-Rademacher-Complexity',
+        #                        'R2-Tikhonov',
+        #                        'R2-Size'] and \
+        #     self.bloat_control is None:
+        #     assign_rank(population, self.hof, self.external_archive_pop)
         return invalid_ind
 
-    def cos_similarity_calculation(self, population=None):
+    def cos_distance_calculation(self, population=None):
         inds = self.get_diversity_matrix(population)
         if self.evaluation_configuration.mini_batch:
             inds -= self.get_mini_batch_y()
