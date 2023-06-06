@@ -140,12 +140,19 @@ def assign_rank(population, hof, external_archive):
             for ind in group_list:
                 ind.rank_list[d] = rank
             rank += len(group_list)
+        # after this stage, for R2 scores, smaller values will get a smaller rank
+        # we need to reverse this
 
     # For rank, smaller is better.
     for i, ind in enumerate(all_individuals):
         if isinstance(ind.fitness_list[0], tuple):
-            ind.fitness.values = (np.mean(list(map(lambda x: x[0] * (-x[1][1]),
-                                                   zip(ind.rank_list, ind.fitness_list)))),)
+            # weight rank by weights in the fitness-weight vector
+            ind.fitness.values = (
+                np.mean(list(itertools.starmap(lambda rank, fitness_weight: rank * (-fitness_weight[1]),
+                                               zip(ind.rank_list, ind.fitness_list)))),
+            )
+            # after this stage, R2 scores are weighted by a negative weight
+            # better values will get a smaller rank, which is correct
         else:
             ind.fitness.values = (np.mean(ind.rank_list),)
     return all_individuals

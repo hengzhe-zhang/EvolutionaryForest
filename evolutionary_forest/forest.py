@@ -49,7 +49,8 @@ from evolutionary_forest.component.environmental_selection import NSGA2, Environ
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
-from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2
+from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2, \
+    RademacherComplexityR2Scaler, R2Size, R2SizeScaler
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
     PACBayesianConfiguration, assign_rank
@@ -424,6 +425,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = RademacherComplexityR2(self)
         elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Size':
             self.score_func = RademacherComplexitySizeR2(self)
+        elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Scaler':
+            self.score_func = RademacherComplexityR2Scaler(self)
+        elif isinstance(score_func,str) and  score_func == 'R2-Size':
+            self.score_func = R2Size()
+        elif isinstance(score_func,str) and  score_func == 'R2-Size-Scaler':
+            self.score_func = R2SizeScaler(self)
         else:
             self.score_func = score_func
         self.min_samples_leaf = min_samples_leaf
@@ -683,7 +690,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **params,
             **vars(self),
         )
-        self.external_archive_pop = None
+        self.elites_archive = None
 
     def calculate_diversity(self, population):
         inds = []
@@ -1031,9 +1038,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         """
         if isinstance(self.score_func, Fitness):
             return self.score_func.fitness_value(individual, estimators, Y, y_pred)
-        elif self.score_func == 'R2' or self.score_func == 'NoveltySearch' or self.score_func == 'MAE' or \
-            self.score_func in ['R2-Rademacher-Complexity', 'R2-Size-Rademacher-Complexity',
-                                'R2-VC-Dimension']:
+        elif self.score_func == 'R2' or self.score_func == 'NoveltySearch' or self.score_func == 'MAE':
             # Calculate R2 score
             if self.imbalanced_configuration.balanced_fitness:
                 sample_weight = get_sample_weight(self.X, self.test_X, self.y,
@@ -1056,11 +1061,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             feature_norm = np.linalg.norm(StandardScaler().fit_transform(X_features).flatten()) ** 2
             individual.fitness_list = ((score, 1), (coef_norm, -1 * weights[0]), (feature_norm, -1 * weights[1]))
             return 0,
-        elif self.score_func == 'R2-Size':
-            score = r2_score(Y, y_pred)
-            tree_size = sum([len(tree) for tree in individual.gene])
-            individual.fitness_list = ((score, 1), (tree_size, -self.pac_bayesian.objective))
-            return -1 * score,
         elif self.score_func == 'R2-Tikhonov':
             score = r2_score(Y, y_pred)
             coef_norm = np.linalg.norm(y_pred) ** 2
@@ -1093,74 +1093,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Raise exception if score function is not recognized
             raise Exception
 
-    def assign_complexity_pop(self, pop: List[MultipleGeneGP]):
-        if self.score_func == 'R2-Rademacher-Complexity' or self.score_func == 'R2-Size-Rademacher-Complexity':
-            y = self.y
-            normalize_factor = np.mean((np.mean(y) - y) ** 2)
-            if self.pac_bayesian.bound_reduction:
-                reduced_evaluation = 0
-                for p in pop:
-                    bounded_mse = np.mean(np.clip(p.case_values / normalize_factor, 0, 1))
-                    if self.historical_best_bounded_complexity is None or \
-                        bounded_mse < self.historical_best_bounded_complexity:
-                        self.assign_complexity(p, p.pipe)
-                    else:
-                        if self.score_func == 'R2-Size-Rademacher-Complexity':
-                            tree_size = sum([len(tree) for tree in p.gene])
-                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, self.pac_bayesian.objective),
-                                              (tree_size, self.pac_bayesian.objective)]
-                        else:
-                            p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, self.pac_bayesian.objective)]
-                        reduced_evaluation += 1
-                if self.verbose:
-                    print('reduced_evaluation: ', reduced_evaluation)
-            elif self.pac_bayesian.complexity_estimation_ratio < 1:
-                # get minimum r2
-                q = np.quantile([p.fitness.wvalues[0] for p in pop],
-                                q=1 - self.pac_bayesian.complexity_estimation_ratio)
-                reduced_evaluation = 0
-                for p in pop:
-                    if p.fitness.wvalues[0] > q:
-                        # better fitness value
-                        self.assign_complexity(p, p.pipe)
-                    else:
-                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, self.pac_bayesian.objective)]
-                        reduced_evaluation += 1
-            else:
-                for p in pop:
-                    self.assign_complexity(p, p.pipe)
-        elif self.score_func == 'R2-VC-Dimension':
-            # get minimum r2
-            ratio = 0.2
-            q = np.quantile([p.fitness.wvalues[0] for p in pop],
-                            q=1 - ratio)
-            reduced_evaluation = 0
-            for p in pop:
-                if p.fitness.wvalues[0] > q:
-                    # better fitness value
-                    self.assign_complexity(p, p.pipe)
-                else:
-                    p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
-                    reduced_evaluation += 1
-
-    def assign_complexity(self, individual, estimator):
-        if self.score_func == 'R2-VC-Dimension':
-            # reducing the time of estimating VC-Dimension
-            X_features = self.feature_generation(self.X, individual)
-            feature_generator = partial(self.feature_generation, individual=individual)
-            y = self.y
-            gene_length = sum([len(g) for g in individual.gene])
-            estimation = vc_dimension_estimation(X_features, y, estimator,
-                                                 input_dimension=self.X.shape[1],
-                                                 estimated_vcd=gene_length,
-                                                 feature_generator=feature_generator,
-                                                 optimal_design=self.pac_bayesian.optimal_design)
-            individual.fitness_list = estimation
-            return -1 * individual.fitness_list[0][0],
-
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
-        if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-VC-Dimension','R2-L2', 'R2-Tikhonov', 'R2-Size'] \
+        if self.score_func in ['R2', 'R2-PAC-Bayesian','R2-L2', 'R2-Tikhonov'] \
             or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound' or \
             isinstance(self.score_func, Fitness):
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
@@ -2808,7 +2743,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             afp_archive = None
             best_archive = None
         # self.update_semantic_repair_input_matrix(population)
-        external_archive = self.update_external_archive(population, None)
+        elites_archive = self.update_external_archive(population, None)
 
         # Begin the generational process
         number_of_evaluations = self.n_pop
@@ -2917,16 +2852,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         random.random() < self.crossover_configuration.semantic_crossover_probability:
                         # select two parents using macro-crossover operator
                         # then, apply traditional operators on these selected parents
-                        parents_a, pa = self.semantic_crossover_for_parent(toolbox, parent, external_archive,
+                        parents_a, pa = self.semantic_crossover_for_parent(toolbox, parent, elites_archive,
                                                                            self.crossover_configuration)
-                        parents_b, pb = self.semantic_crossover_for_parent(toolbox, parent, external_archive,
+                        parents_b, pb = self.semantic_crossover_for_parent(toolbox, parent, elites_archive,
                                                                            self.crossover_configuration)
                         offspring = [pa, pb]
                         # No matter whether apply macro-crossover or not, always mark it as macro-crossover
                         self.record_parent_fitness(parents_a, [pa], crossover_type='Macro')
                         self.record_parent_fitness(parents_b, [pb], crossover_type='Macro')
                     else:
-                        offspring = self.traditional_parent_selection(toolbox, parent, external_archive)
+                        offspring = self.traditional_parent_selection(toolbox, parent, elites_archive)
                         if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential:
                             # If this is sequential model, mark as micro-crossover
                             for o in offspring:
@@ -3029,7 +2964,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             if o.coef[id] < self.intron_threshold:
                                 o.gene[id], = self.neutral_mutation(gene)
 
-                self.semantic_repair_features(offspring, external_archive)
+                self.semantic_repair_features(offspring, elites_archive)
 
                 if self.base_learner == 'Hybrid':
                     # Mutation for base learners
@@ -3237,7 +3172,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Replace the current population by the offspring
             self.survival_selection(gen, population, offspring)
             # self.update_semantic_repair_input_matrix(population)
-            external_archive = self.update_external_archive(population, external_archive)
+            elites_archive = self.update_external_archive(population, elites_archive)
 
             # Append the current generation statistics to the logbook
             record = stats.compile(population) if stats else {}
@@ -4072,7 +4007,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     external_archive.append(final_archive)
         else:
             external_archive = None
-        self.external_archive_pop = external_archive
+        self.elites_archive = external_archive
         return external_archive
 
     def offspring_generation(self, toolbox, parent, count, external_archive=None):
@@ -4494,18 +4429,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for p in population:
                 p.partition_scheme = partition_scheme
 
-        self.assign_complexity_pop(population)
-
         # re-assign fitness for all individuals if using PAC-Bayesian
-        # if self.score_func in ['R2-L2',
-        #                        'R2-PAC-Bayesian',
-        #                        'R2-VC-Dimension',
-        #                        'R2-Rademacher-Complexity',
-        #                        'R2-Size-Rademacher-Complexity',
-        #                        'R2-Tikhonov',
-        #                        'R2-Size'] and \
-        #     self.bloat_control is None:
-        #     assign_rank(population, self.hof, self.external_archive_pop)
+        if isinstance(self.score_func,Fitness):
+            self.score_func.post_processing(population, self.hof, self.elites_archive)
+
         return invalid_ind
 
     def cos_distance_calculation(self, population=None):
