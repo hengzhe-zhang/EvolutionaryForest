@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 import numpy as np
-from deap.tools import selNSGA2
+from deap.tools import selNSGA2, sortNondominated
 from numpy.linalg import norm
 
 if TYPE_CHECKING:
@@ -11,8 +11,9 @@ if TYPE_CHECKING:
 
 def knee_point_detection(front):
     # For maximization problem
-    p1 = np.max(front, axis=0)
-    p2 = np.max(front, axis=0)
+    front = np.array(front)
+    p1 = np.array([max(front[:, 0]), min(front[:, 1])])
+    p2 = np.array([min(front[:, 0]), max(front[:, 1])])
     # 自动选择拐点
     ans = max([i for i in range(len(front))],
               key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
@@ -20,7 +21,9 @@ def knee_point_detection(front):
 
 
 class EnvironmentalSelection():
-    pass
+    @abstractmethod
+    def select(self, population, offspring):
+        pass
 
 
 class Objective():
@@ -48,35 +51,43 @@ class TreeSizeObjective(Objective):
 class NSGA2(EnvironmentalSelection):
     def __init__(self,
                  algorithm: "EvolutionaryForestRegressor",
-                 objective: Objective = None,
+                 objective_function: Objective = None,
                  normalization=False,
-                 knee_point=False):
+                 knee_point=False,
+                 **kwargs):
         self.algorithm = algorithm
-        self.objective = objective
+        self.objective_function = objective_function
         self.normalization = normalization
         self.knee_point = knee_point
 
     def select(self, population, offspring):
         individuals = population + offspring
-        if self.objective != None:
-            self.objective.set(individuals)
+        if self.objective_function != None:
+            self.objective_function.set(individuals)
 
         if self.normalization:
-            dims = len(individuals[0].values)
+            dims = len(individuals[0].fitness.values)
+            min_max = []
             for d in range(dims):
-                values = [ind.values[d] for ind in individuals]
+                values = [ind.fitness.values[d] for ind in individuals]
                 min_val = min(values)
                 max_val = max(values)
-                for ind in individuals:
-                    ind.values[d] = (ind.values[d] - min_val) / (max_val - min_val)
+                min_max.append((min_val, max_val))
+            for ind in individuals:
+                values = []
+                for d in range(dims):
+                    min_val, max_val = min_max[d]
+                    values.append((ind.fitness.values[d] - min_val) / (max_val - min_val))
+                ind.fitness.values = values
 
         population[:] = selNSGA2(individuals, len(population))
 
         if self.knee_point:
-            knee = knee_point_detection([p.fitness.wvalues for p in population])
+            first_pareto_front = sortNondominated(population, len(population))[0]
+            knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front])
             # Select the knee point as the final model
-            self.hof = [population[knee]]
+            self.algorithm.hof = [first_pareto_front[knee]]
 
-        if self.objective != None:
-            self.objective.restore(individuals)
+        if self.objective_function != None:
+            self.objective_function.restore(individuals)
         return population

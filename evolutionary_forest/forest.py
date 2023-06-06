@@ -45,11 +45,11 @@ from evolutionary_forest.component.configuration import CrossoverMode, ArchiveCo
     BaseLearnerConfiguration, MABConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
-from evolutionary_forest.component.environmental_selection import NSGA2
+from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
-from evolutionary_forest.component.fitness import Fitness
+from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
     PACBayesianConfiguration, assign_rank
@@ -420,7 +420,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.pre_selection = pre_selection
         self.max_tree_depth = max_tree_depth
         self.elitism = elitism
-        self.score_func = score_func
+        if isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity':
+            self.score_func = RademacherComplexityR2(self)
+        elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Size':
+            self.score_func = RademacherComplexitySizeR2(self)
+        else:
+            self.score_func = score_func
         self.min_samples_leaf = min_samples_leaf
         self.mean_model = mean_model
         self.base_learner = base_learner
@@ -499,8 +504,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.outlier_detection = outlier_detection
         self.intron_nodes_counter = 0
         self.all_nodes_counter = 0
-        self.historical_best_bounded_complexity = None
-        self.historical_best_bounded_complexity_list = None
 
         self.cross_pb = cross_pb
         self.mutation_pb = mutation_pb
@@ -1141,34 +1144,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     reduced_evaluation += 1
 
     def assign_complexity(self, individual, estimator):
-        if self.score_func == 'R2-Rademacher-Complexity' or self.score_func == 'R2-Size-Rademacher-Complexity':
-            # postpone to another stage
-            X_features = self.feature_generation(self.X, individual)
-            y = self.y
-            estimation, bounded_rademacher, bounded_rademacher_list = \
-                rademacher_complexity_estimation(X_features, y, estimator,
-                                                 generate_rademacher_vector(self.X),
-                                                 self.historical_best_bounded_complexity_list,
-                                                 self.pac_bayesian.objective)
-            if self.score_func == 'R2-Size-Rademacher-Complexity':
-                tree_size = sum([len(tree) for tree in individual.gene])
-                individual.fitness_list = (estimation[0], estimation[1], (tree_size, self.pac_bayesian.objective))
-            else:
-                individual.fitness_list = estimation
-
-            normalize_factor = np.mean((np.mean(y) - y) ** 2)
-            bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
-            if self.pac_bayesian.bound_reduction:
-                # Reduce training time based on the Rademacher bound
-                if self.historical_best_bounded_complexity is None:
-                    self.historical_best_bounded_complexity = bounded_mse + 2 * bounded_rademacher
-                    self.historical_best_bounded_complexity_list = bounded_mse + 2 * np.array(bounded_rademacher_list)
-                elif self.historical_best_bounded_complexity > bounded_mse + 2 * bounded_rademacher:
-                    self.historical_best_bounded_complexity = bounded_mse + 2 * bounded_rademacher
-                    self.historical_best_bounded_complexity_list = bounded_mse + 2 * np.array(bounded_rademacher_list)
-            assert abs(individual.fitness.wvalues[0] - individual.fitness_list[0][0]) <= 1e-6
-            return -1 * individual.fitness_list[0][0],
-        elif self.score_func == 'R2-VC-Dimension':
+        if self.score_func == 'R2-VC-Dimension':
             # reducing the time of estimating VC-Dimension
             X_features = self.feature_generation(self.X, individual)
             feature_generator = partial(self.feature_generation, individual=individual)
@@ -1184,8 +1160,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
-        if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-VC-Dimension', 'R2-Rademacher-Complexity',
-                               'R2-Size-Rademacher-Complexity', 'R2-L2', 'R2-Tikhonov', 'R2-Size'] \
+        if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-VC-Dimension','R2-L2', 'R2-Tikhonov', 'R2-Size'] \
             or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound' or \
             isinstance(self.score_func, Fitness):
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
@@ -4283,7 +4258,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             nsga2 = True
         if self.environmental_selection == 'SPEA2':
             spea2 = True
-        if self.environmental_selection in ['NSGA2'] and self.base_learner == 'RDT~LightGBM-Stump':
+        if isinstance(self.environmental_selection, EnvironmentalSelection):
+            population[:] = self.environmental_selection.select(population, offspring)
+        elif self.environmental_selection in ['NSGA2'] and self.base_learner == 'RDT~LightGBM-Stump':
             population[:] = selNSGA2(offspring + population, len(population))
             self.hof = population
         elif self.environmental_selection == 'Alpha-Dominance-NSGA2' or \
@@ -4489,18 +4466,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         """
         # individual evaluation tasks distribution
         invalid_ind = [ind for ind in population if not ind.fitness.valid]
-        fitnesses = list(toolbox.map(toolbox.evaluate, invalid_ind))
+        fitness_values = list(toolbox.map(toolbox.evaluate, invalid_ind))
 
         # distribute tasks
         if self.n_process > 1:
-            data = [next(f) for f in fitnesses]
+            data = [next(f) for f in fitness_values]
             results = list(self.pool.map(calculate_score, data))
         else:
-            results = list(map(lambda f: calculate_score(next(f)), fitnesses))
+            results = list(map(lambda f: calculate_score(next(f)), fitness_values))
 
         # aggregate results
-        for ind, fit, r in zip(invalid_ind, fitnesses, results):
-            value = fit.send(r)
+        for ind, fitness_function, result in zip(invalid_ind, fitness_values, results):
+            value = fitness_function.send(result)
+            # automatically determine the weight length
+            ind.fitness.weights = tuple(-1 for _ in range(len(value)))
             ind.fitness.values = value
 
         # updating all partition scheme
