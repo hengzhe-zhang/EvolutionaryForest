@@ -50,7 +50,7 @@ from evolutionary_forest.component.evaluation import calculate_score, get_cv_spl
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
 from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2, \
-    RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2
+    RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2, TikhonovR2
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
     PACBayesianConfiguration, assign_rank
@@ -429,6 +429,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = RademacherComplexitySizeR2(self)
         elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Scaler':
             self.score_func = RademacherComplexityR2Scaler(self)
+        elif isinstance(score_func,str) and  score_func == 'R2-Tikhonov':
+            self.score_func = TikhonovR2()
         elif isinstance(score_func,str) and  score_func == 'R2-Size':
             self.score_func = R2Size()
         elif isinstance(score_func,str) and  score_func == 'R2-Size-Scaler':
@@ -1063,11 +1065,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             feature_norm = np.linalg.norm(StandardScaler().fit_transform(X_features).flatten()) ** 2
             individual.fitness_list = ((score, 1), (coef_norm, -1 * weights[0]), (feature_norm, -1 * weights[1]))
             return 0,
-        elif self.score_func == 'R2-Tikhonov':
-            score = r2_score(Y, y_pred)
-            coef_norm = np.linalg.norm(y_pred) ** 2
-            individual.fitness_list = ((score, 1), (coef_norm, -1))
-            return -1 * score,
         elif self.score_func == 'R2-PAC-Bayesian':
             X_features = self.feature_generation(self.X, individual)
             pac_bayesian = self.pac_bayesian

@@ -182,6 +182,14 @@ class RademacherComplexityR2Scaler(RademacherComplexityR2):
         assign_rank(population, hall_of_fame, elite_archive)
 
 
+class TikhonovR2(Fitness):
+
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        coef_norm = np.linalg.norm(y_pred) ** 2
+        return (-1 * score, coef_norm)
+
+
 class VCDimensionR2(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
         self.algorithm = algorithm
