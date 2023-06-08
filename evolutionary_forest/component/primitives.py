@@ -1,4 +1,6 @@
+import operator
 import time
+from functools import reduce
 
 import numpy as np
 import pandas as pd
@@ -8,13 +10,19 @@ from scipy.stats import mode
 threshold = 1e-6
 
 
-def protected_division(x1, x2):
+def protected_division(x1, *x2):
     with np.errstate(divide='ignore', invalid='ignore'):
+        x2 = reduce(operator.mul, x2)
         return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
 
 
 def analytical_quotient(x1, x2):
     return x1 / np.sqrt(1 + (x2 ** 2))
+
+
+# def analytical_quotient(x1, *x2):
+#     base_function = lambda x: np.sqrt(1 + (x ** 2))
+#     return x1 / reduce(operator.mul, map(base_function, x2))
 
 
 def individual_to_tuple(ind):
@@ -367,4 +375,4 @@ def groupby_operator_speed_test():
 
 
 if __name__ == '__main__':
-    pass
+    print(protected_division(1, 2, 2))

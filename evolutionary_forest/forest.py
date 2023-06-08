@@ -1954,12 +1954,22 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if p in custom_primitives:
                 primitive = custom_primitives[p]
             else:
+                simple_reduce = lambda function, *x: reduce(function, x)
                 primitive = {
                     # Arithmetic operations
                     'Add': (np.add, 2),  # Addition
                     'Sub': (np.subtract, 2),  # Subtraction
                     'Mul': (np.multiply, 2),  # Multiplication
                     'Div': (protected_division, 2),  # Protected Division for handling divide-by-zero errors
+
+                    'Add3': (partial(simple_reduce,np.add), 3),  # Addition
+                    'Add4': (partial(simple_reduce,np.add), 4),  # Addition
+                    'Sub3': (partial(simple_reduce,np.subtract), 3),  # Subtraction
+                    'Sub4': (partial(simple_reduce,np.subtract), 4),  # Subtraction
+                    'Mul3': (partial(simple_reduce,np.multiply), 3),  # Multiplication
+                    'Mul4': (partial(simple_reduce,np.multiply), 4),  # Multiplication
+                    'Div3': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
+                    'Div4': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
 
                     # Mathematical functions
                     'AQ': (analytical_quotient, 2),  # Analytical Quotient for symbolic differentiation
