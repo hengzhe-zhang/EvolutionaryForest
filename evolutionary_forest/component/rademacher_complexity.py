@@ -1,6 +1,7 @@
 import copy
 
 import numpy as np
+import scipy
 from scipy.stats import mannwhitneyu
 from sklearn.datasets import make_friedman1
 from sklearn.linear_model import Ridge
@@ -48,10 +49,10 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         # bounded_complexity.append(np.abs(bounded_correlation))
 
         bounded_mse = mse
-        weight = np.abs(np.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+        weight = np.abs(scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
                         (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
         rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
-        weight = np.abs(np.linalg.pinv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+        weight = np.abs(scipy.linalg.pinv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
                         (-random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
         rademacher_b = -random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
         rademacher = max(rademacher_a, rademacher_b)
