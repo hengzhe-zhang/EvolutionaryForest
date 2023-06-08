@@ -67,12 +67,12 @@ class RademacherComplexityR2(Fitness):
                                              self.historical_best_bounded_complexity_list,
                                              algorithm.pac_bayesian.objective)
         # Store results in individual's fitness list
+        weighted_rademacher = estimation[1]
         if self.size_objective:
             # Also store individual size
-            tree_size = sum([len(tree) for tree in individual.gene])
-            individual.fitness_list = (estimation[0], estimation[1], (tree_size, algorithm.pac_bayesian.objective))
+            individual.fitness_list = self.get_fitness_list(individual, weighted_rademacher[0])
         else:
-            individual.fitness_list = estimation
+            individual.fitness_list = self.get_fitness_list(individual, weighted_rademacher[0])
         # Normalize mean squared error
         normalize_factor = np.mean((np.mean(y) - y) ** 2)
         bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
@@ -102,14 +102,8 @@ class RademacherComplexityR2(Fitness):
                 if self.historical_best_bounded_complexity is None or bounded_mse < self.historical_best_bounded_complexity:
                     self.assign_complexity(p, p.pipe)
                 else:
-                    if self.size_objective:
-                        # Calculate tree size
-                        tree_size = sum([len(tree) for tree in p.gene])
-                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, algorithm.pac_bayesian.objective),
-                                          (tree_size, algorithm.pac_bayesian.objective)]
-                    else:
-                        p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, algorithm.pac_bayesian.objective)]
-                    reduced_evaluation += 1
+                    p.fitness_list = self.get_fitness_list(p, np.inf)
+                reduced_evaluation += 1
             if algorithm.verbose:
                 print('reduced_evaluation: ', reduced_evaluation)
         # If a complexity estimation ratio < 1 is used
@@ -118,6 +112,16 @@ class RademacherComplexityR2(Fitness):
         else:
             for p in pop:
                 self.assign_complexity(p, p.pipe)
+
+    def get_fitness_list(self, individual, rademacher_complexity):
+        algorithm = self.algorithm
+        if self.size_objective:
+            # Calculate tree size
+            tree_size = sum([len(tree) for tree in individual.gene])
+            return [(individual.fitness.wvalues[0], 1), (rademacher_complexity, algorithm.pac_bayesian.objective),
+                    (tree_size, algorithm.pac_bayesian.objective)]
+        else:
+            return [(individual.fitness.wvalues[0], 1), (rademacher_complexity, algorithm.pac_bayesian.objective)]
 
     def skip_based_on_threshold(self, algorithm, pop):
         # Get R2 score threshold
@@ -129,7 +133,7 @@ class RademacherComplexityR2(Fitness):
             if p.fitness.wvalues[0] > q:
                 self.assign_complexity(p, p.pipe)
             else:
-                p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, algorithm.pac_bayesian.objective)]
+                p.fitness_list = self.get_fitness_list(p, np.inf)
                 reduced_evaluation += 1
 
     def post_processing(self, population, hall_of_fame, elite_archive):
@@ -148,6 +152,18 @@ def reassign_objective_values(pop):
             # do not use inf because this will make NSGA-2 problematic
             rademacher[0] = max_rademacher + 1
         individual.fitness.values = tuple(r2 + rademacher)
+
+
+class LocalRademacherComplexityR2(RademacherComplexityR2):
+
+    def get_fitness_list(self, individual, rademacher_complexity):
+        algorithm = self.algorithm
+        weights = individual.pipe['Ridge'].coef_
+        return [
+            (individual.fitness.wvalues[0], 1),
+            (rademacher_complexity, algorithm.pac_bayesian.objective),
+            (np.linalg.norm(weights, ord=2), algorithm.pac_bayesian.objective),
+        ]
 
 
 class RademacherComplexitySizeR2(RademacherComplexityR2):

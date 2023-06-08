@@ -50,7 +50,7 @@ from evolutionary_forest.component.evaluation import calculate_score, get_cv_spl
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
 from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2, \
-    RademacherComplexityR2Scaler, R2Size, R2SizeScaler
+    RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
     PACBayesianConfiguration, assign_rank
@@ -423,6 +423,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.elitism = elitism
         if isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity':
             self.score_func = RademacherComplexityR2(self)
+        elif isinstance(score_func,str) and  score_func == 'R2-Local-Rademacher-Complexity':
+            self.score_func = LocalRademacherComplexityR2(self)
         elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Size':
             self.score_func = RademacherComplexitySizeR2(self)
         elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Scaler':
