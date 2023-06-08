@@ -30,6 +30,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
     # Relative Squared Error
     r2 = r2_score(y, estimator.predict(X))
+    mse = mean_squared_error(y, estimator.predict(X))
     normalize_factor = np.mean((np.mean(y) - y) ** 2)
 
     estimator = copy.deepcopy(estimator)
@@ -37,14 +38,25 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     complexity = []
     bounded_complexity = []
     for s in range(number_samples):
-        estimator.fit(X, y * random_rademacher_vector[s])
-        normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
-        correlations = calculate_correlation(random_rademacher_vector[s], normalized_squared_error)
-        bounded_mse = np.clip(normalized_squared_error, 0, 1)
-        bounded_correlation = calculate_correlation(random_rademacher_vector[s],
-                                                    bounded_mse)
-        complexity.append(np.abs(correlations))
-        bounded_complexity.append(np.abs(bounded_correlation))
+        # estimator.fit(X, y * random_rademacher_vector[s])
+        # normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
+        # correlations = calculate_correlation(random_rademacher_vector[s], normalized_squared_error)
+        # bounded_mse = np.clip(normalized_squared_error, 0, 1)
+        # bounded_correlation = calculate_correlation(random_rademacher_vector[s],
+        #                                             bounded_mse)
+        # complexity.append(np.abs(correlations))
+        # bounded_complexity.append(np.abs(bounded_correlation))
+
+        bounded_mse = mse
+        weight = np.abs(np.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+                        (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
+        rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
+        weight = np.abs(np.linalg.pinv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+                        (-random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
+        rademacher_b = -random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
+        rademacher = max(rademacher_a, rademacher_b)
+        complexity.append(rademacher)
+        bounded_complexity.append(rademacher)
         if reference_complexity_list is not None:
             mannwhitneyu_result = mannwhitneyu(reference_complexity_list,
                                                np.mean(bounded_mse) + 2 * np.array(bounded_complexity),
@@ -55,6 +67,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     # Calculate the rademacher complexity as the average of the complexity values.
     rademacher_complexity = np.mean(complexity)
     bounded_rademacher_complexity = np.mean(bounded_complexity)
+    # print(rademacher_complexity)
     return ((r2, 1), (rademacher_complexity, -objective_weight)), bounded_rademacher_complexity, bounded_complexity
 
 
