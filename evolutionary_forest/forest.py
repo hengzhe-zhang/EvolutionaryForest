@@ -9,7 +9,7 @@ from deap import tools
 from deap.algorithms import varAnd
 from deap.base import Toolbox
 from deap.tools import selNSGA2, History, selBest, cxTwoPoint, mutFlipBit, selDoubleTournament, sortNondominated, \
-    selSPEA2
+    selSPEA2, selTournamentDCD
 from gplearn.functions import _protected_sqrt
 from lightgbm import LGBMClassifier, LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
@@ -1665,6 +1665,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.select == 'StatisticsTournament':
             toolbox.register("select", selStatisticsTournament,
                              tournsize=self.bloat_control.get('fitness_size', 7))
+        elif self.select == 'TournamentDCD':
+            toolbox.register("select", selTournamentDCD)
         elif self.select == 'BatchTournament':
             toolbox.register("select", batch_tournament_selection)
         elif self.select == 'LPP':
@@ -2832,6 +2834,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                 if self.bloat_control_configuration.hoist_before_selection:
                     self.semantic_hoist_mutation(population, adaptive_hoist_probability)
+
+            if isinstance(self.environmental_selection, EnvironmentalSelection):
+                selNSGA2(population, len(population))
 
             while (len(new_offspring) < pop_size):
                 if count > pop_size * 100:

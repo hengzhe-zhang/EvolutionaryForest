@@ -71,7 +71,6 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     # Calculate the rademacher complexity as the average of the complexity values.
     rademacher_complexity = np.mean(complexity)
     bounded_rademacher_complexity = np.mean(bounded_complexity)
-    # print(rademacher_complexity)
     return ((r2, 1), (rademacher_complexity, -objective_weight)), bounded_rademacher_complexity, bounded_complexity
 
 
