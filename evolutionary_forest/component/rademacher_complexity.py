@@ -38,6 +38,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     calculate_correlation = lambda sigma, fx: np.sum(sigma * fx) / len(fx)
     complexity = []
     bounded_complexity = []
+    X = np.nan_to_num(X, posinf=0, neginf=0)
     for s in range(number_samples):
         # estimator.fit(X, y * random_rademacher_vector[s])
         # normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
