@@ -50,13 +50,14 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
         bounded_mse = mse
         try:
-            weight = np.abs(scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+            weight = np.abs(scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
                             (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
             rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
-            weight = np.abs(scipy.linalg.pinv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+            weight = np.abs(scipy.linalg.inv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
                             (-random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
             rademacher_b = -random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
             rademacher = max(rademacher_a, rademacher_b)
+            # print(rademacher)
         except:
             rademacher = np.inf
         complexity.append(rademacher)
@@ -107,14 +108,16 @@ if __name__ == '__main__':
     print('Test R2', r2_score(y_test, estimator.predict(X_test)))
     print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector))
 
-    estimator = Pipeline(steps=[('PolynomialFeatures', PolynomialFeatures(degree=2)), ('Ridge', Ridge(alpha=0.1))])
-    estimator.fit(X_train, y_train)
+    poly = PolynomialFeatures(degree=2)
+    estimator.fit(poly.fit_transform(X_train), y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(X_test)))
-    print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector))
+    print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
+    print(rademacher_complexity_estimation(poly.transform(X_train),
+                                           y_train, estimator, random_rademacher_vector))
 
-    estimator = Pipeline(steps=[('PolynomialFeatures', PolynomialFeatures(degree=3)), ('Ridge', Ridge(alpha=0.1))])
-    estimator.fit(X_train, y_train)
+    poly = PolynomialFeatures(degree=3)
+    estimator.fit(poly.fit_transform(X_train), y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(X_test)))
-    print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector))
+    print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
+    print(rademacher_complexity_estimation(poly.fit_transform(X_train),
+                                           y_train, estimator, random_rademacher_vector))
