@@ -38,7 +38,6 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     calculate_correlation = lambda sigma, fx: np.sum(sigma * fx) / len(fx)
     complexity = []
     bounded_complexity = []
-    X = np.nan_to_num(X, posinf=0, neginf=0)
     for s in range(number_samples):
         # estimator.fit(X, y * random_rademacher_vector[s])
         # normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
@@ -50,13 +49,16 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         # bounded_complexity.append(np.abs(bounded_correlation))
 
         bounded_mse = mse
-        weight = np.abs(scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
-                        (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
-        rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
-        weight = np.abs(scipy.linalg.pinv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
-                        (-random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
-        rademacher_b = -random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
-        rademacher = max(rademacher_a, rademacher_b)
+        try:
+            weight = np.abs(scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+                            (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
+            rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
+            weight = np.abs(scipy.linalg.pinv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+                            (-random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
+            rademacher_b = -random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
+            rademacher = max(rademacher_a, rademacher_b)
+        except:
+            rademacher = np.inf
         complexity.append(rademacher)
         bounded_complexity.append(rademacher)
         if reference_complexity_list is not None:
