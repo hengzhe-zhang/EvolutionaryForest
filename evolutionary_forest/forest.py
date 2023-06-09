@@ -2756,6 +2756,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # self.update_semantic_repair_input_matrix(population)
         elites_archive = self.update_external_archive(population, None)
 
+        if isinstance(self.environmental_selection, EnvironmentalSelection):
+            selNSGA2(population, len(population))
+
         # Begin the generational process
         number_of_evaluations = self.n_pop
         total_evaluations = (self.n_gen + 1) * self.n_pop
@@ -2834,9 +2837,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                 if self.bloat_control_configuration.hoist_before_selection:
                     self.semantic_hoist_mutation(population, adaptive_hoist_probability)
-
-            if isinstance(self.environmental_selection, EnvironmentalSelection):
-                selNSGA2(population, len(population))
 
             while (len(new_offspring) < pop_size):
                 if count > pop_size * 100:
