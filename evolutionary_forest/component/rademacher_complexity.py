@@ -7,7 +7,6 @@ from sklearn.datasets import make_friedman1
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 number_samples = 20
@@ -50,6 +49,8 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
         bounded_mse = mse
         try:
+            # print('Inv',scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
+            # print('PInv',scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
             weight = np.abs(scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
                             (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
             rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
