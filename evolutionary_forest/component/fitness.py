@@ -20,7 +20,7 @@ class Fitness():
         return -1 * r2_score(Y, y_pred),
 
     @abstractmethod
-    def post_processing(self, population, hall_of_fame, elite_archive):
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
         pass
 
 
@@ -136,16 +136,15 @@ class RademacherComplexityR2(Fitness):
                 p.fitness_list = self.get_fitness_list(p, np.inf)
                 reduced_evaluation += 1
 
-    def post_processing(self, population, hall_of_fame, elite_archive):
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
         self.assign_complexity_pop(population)
-        reassign_objective_values(population)
+        reassign_objective_values(parent, population)
 
 
-def reassign_objective_values(pop):
+def reassign_objective_values(parent, pop):
+    if parent != None:
+        pop = parent + pop
     valid_components = [p.fitness_list[1][0] for p in pop if p.fitness_list[1][0] < np.inf]
-    # if len(valid_components) == 0:
-    #     max_rademacher = 0
-    # else:
     max_rademacher = max(valid_components)
     for individual in pop:
         individual.fitness.weights = tuple(-1 for _ in range(len(individual.fitness_list)))
@@ -181,7 +180,7 @@ class RademacherComplexityR2Scaler(RademacherComplexityR2):
     Aggregating fitness values into a scalar value
     """
 
-    def post_processing(self, population, hall_of_fame, elite_archive):
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
         self.assign_complexity_pop(population)
         assign_rank(population, hall_of_fame, elite_archive)
 
@@ -249,5 +248,5 @@ class R2SizeScaler(Fitness):
         individual.fitness_list = ((score, 1), (tree_size, -self.algorithm.pac_bayesian.objective))
         return -1 * score,
 
-    def post_processing(self, population, hall_of_fame, elite_archive):
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
         assign_rank(population, hall_of_fame, elite_archive)

@@ -2701,6 +2701,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             invalid_ind = self.multiobjective_evaluation(toolbox, population)
         else:
             invalid_ind = self.population_evaluation(toolbox, population)
+
+        self.post_processing_after_evaluation(None, population)
+
         if self.environmental_selection == 'NSGA2-Mixup':
             self.mixup_evaluation(self.toolbox, population)
 
@@ -3067,6 +3070,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 invalid_ind = self.population_evaluation(toolbox, offspring)
 
+            self.post_processing_after_evaluation(population, offspring)
+
             if self.verbose:
                 p_value = self.get_p_value(offspring, population)
                 print('P value of different population', p_value)
@@ -3248,6 +3253,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert not self.base_learner.startswith('Fast-')
         self.post_prune(self.hof)
         return population, logbook
+
+    def post_processing_after_evaluation(self, parent, population):
+        # re-assign fitness for all individuals if using PAC-Bayesian
+        if isinstance(self.score_func, Fitness):
+            self.score_func.post_processing(parent, population, self.hof, self.elites_archive)
 
     def semantic_crossover_for_parent(self, toolbox, parent, external_archive,
                                       crossover_configuration: CrossoverConfiguration):
@@ -4442,11 +4452,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             partition_scheme = partition_scheme.argmax(axis=1)
             for p in population:
                 p.partition_scheme = partition_scheme
-
-        # re-assign fitness for all individuals if using PAC-Bayesian
-        if isinstance(self.score_func, Fitness):
-            self.score_func.post_processing(population, self.hof, self.elites_archive)
-
         return invalid_ind
 
     def cos_distance_calculation(self, population=None):
