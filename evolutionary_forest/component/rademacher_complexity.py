@@ -63,7 +63,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         a = r2_score(random_rademacher_vector[s], estimator.predict(X))
         estimator.fit(X, -random_rademacher_vector[s])
         b = r2_score(-random_rademacher_vector[s], estimator.predict(X))
-        rademacher = max(a, b)
+        rademacher = max(a, b, 0)
         # print(rademacher)
         complexity.append(rademacher)
         bounded_complexity.append(rademacher)
