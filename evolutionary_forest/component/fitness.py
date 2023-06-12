@@ -146,7 +146,7 @@ def reassign_objective_values(pop):
     if len(valid_components) == 0:
         for individual in pop:
             individual.fitness.weights = tuple(-1 for _ in range(len(individual.fitness_list)))
-            r2 = [-1 * individual.fitness_list[0][0]]
+            r2 = -1 * individual.fitness_list[0][0]
             individual.fitness.values = (r2, 1)
         return
     max_rademacher = max(valid_components)
