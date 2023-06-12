@@ -142,7 +142,14 @@ class RademacherComplexityR2(Fitness):
 
 
 def reassign_objective_values(pop):
-    max_rademacher = max([p.fitness_list[1][0] for p in pop if p.fitness_list[1][0] < np.inf])
+    valid_components = [p.fitness_list[1][0] for p in pop if p.fitness_list[1][0] < np.inf]
+    if len(valid_components) == 0:
+        for individual in pop:
+            individual.fitness.weights = tuple(-1 for _ in range(len(individual.fitness_list)))
+            r2 = [-1 * individual.fitness_list[0][0]]
+            individual.fitness.values = (r2, 1)
+        return
+    max_rademacher = max(valid_components)
     for individual in pop:
         individual.fitness.weights = tuple(-1 for _ in range(len(individual.fitness_list)))
         # R2 should be maximized, other should be minimized

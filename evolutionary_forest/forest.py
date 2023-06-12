@@ -421,19 +421,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.pre_selection = pre_selection
         self.max_tree_depth = max_tree_depth
         self.elitism = elitism
-        if isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity':
+        if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
             self.score_func = RademacherComplexityR2(self)
-        elif isinstance(score_func,str) and  score_func == 'R2-Local-Rademacher-Complexity':
+        elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity':
             self.score_func = LocalRademacherComplexityR2(self)
-        elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Size':
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size':
             self.score_func = RademacherComplexitySizeR2(self)
-        elif isinstance(score_func,str) and  score_func == 'R2-Rademacher-Complexity-Scaler':
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Scaler':
             self.score_func = RademacherComplexityR2Scaler(self)
-        elif isinstance(score_func,str) and  score_func == 'R2-Tikhonov':
+        elif isinstance(score_func, str) and score_func == 'R2-Tikhonov':
             self.score_func = TikhonovR2()
-        elif isinstance(score_func,str) and  score_func == 'R2-Size':
+        elif isinstance(score_func, str) and score_func == 'R2-Size':
             self.score_func = R2Size()
-        elif isinstance(score_func,str) and  score_func == 'R2-Size-Scaler':
+        elif isinstance(score_func, str) and score_func == 'R2-Size-Scaler':
             self.score_func = R2SizeScaler(self)
         else:
             self.score_func = score_func
@@ -1094,7 +1094,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
-        if self.score_func in ['R2', 'R2-PAC-Bayesian','R2-L2', 'R2-Tikhonov'] \
+        if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-L2', 'R2-Tikhonov'] \
             or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound' or \
             isinstance(self.score_func, Fitness):
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
@@ -1964,12 +1964,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     'Mul': (np.multiply, 2),  # Multiplication
                     'Div': (protected_division, 2),  # Protected Division for handling divide-by-zero errors
 
-                    'Add3': (partial(simple_reduce,np.add), 3),  # Addition
-                    'Add4': (partial(simple_reduce,np.add), 4),  # Addition
-                    'Sub3': (partial(simple_reduce,np.subtract), 3),  # Subtraction
-                    'Sub4': (partial(simple_reduce,np.subtract), 4),  # Subtraction
-                    'Mul3': (partial(simple_reduce,np.multiply), 3),  # Multiplication
-                    'Mul4': (partial(simple_reduce,np.multiply), 4),  # Multiplication
+                    'Add3': (partial(simple_reduce, np.add), 3),  # Addition
+                    'Add4': (partial(simple_reduce, np.add), 4),  # Addition
+                    'Sub3': (partial(simple_reduce, np.subtract), 3),  # Subtraction
+                    'Sub4': (partial(simple_reduce, np.subtract), 4),  # Subtraction
+                    'Mul3': (partial(simple_reduce, np.multiply), 3),  # Multiplication
+                    'Mul4': (partial(simple_reduce, np.multiply), 4),  # Multiplication
                     'Div3': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
                     'Div4': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
 
@@ -4444,7 +4444,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 p.partition_scheme = partition_scheme
 
         # re-assign fitness for all individuals if using PAC-Bayesian
-        if isinstance(self.score_func,Fitness):
+        if isinstance(self.score_func, Fitness):
             self.score_func.post_processing(population, self.hof, self.elites_archive)
 
         return invalid_ind

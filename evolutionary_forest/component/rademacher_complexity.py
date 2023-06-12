@@ -2,8 +2,8 @@ import copy
 
 import numpy as np
 import scipy
-from scipy.stats import mannwhitneyu
-from sklearn.datasets import make_friedman1
+from scipy.stats import mannwhitneyu, pearsonr
+from sklearn.datasets import make_friedman1, load_diabetes
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import train_test_split
@@ -48,19 +48,23 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         # bounded_complexity.append(np.abs(bounded_correlation))
 
         bounded_mse = mse
-        try:
-            # print('Inv',scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
-            # print('PInv',scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
-            weight = np.abs(scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
-                            (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
-            rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
-            weight = np.abs(scipy.linalg.inv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
-                            (-random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
-            rademacher_b = -random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
-            rademacher = max(rademacher_a, rademacher_b)
-            # print(rademacher)
-        except:
-            rademacher = np.inf
+        # print('Inv',scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
+        # print('PInv',scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
+        # weight = np.abs(scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+        #                 (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
+        # rademacher_a = random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
+        # weight = np.abs(scipy.linalg.inv((np.reshape(-random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
+        #                 (-random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
+        # rademacher_b = -random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2
+        # rademacher = max(rademacher_a, rademacher_b)
+
+        # Calculate Pearson correlation coefficient and p-value
+        estimator.fit(X, random_rademacher_vector[s])
+        a = r2_score(random_rademacher_vector[s], estimator.predict(X))
+        estimator.fit(X, -random_rademacher_vector[s])
+        b = r2_score(-random_rademacher_vector[s], estimator.predict(X))
+        rademacher = max(a, b)
+        # print(rademacher)
         complexity.append(rademacher)
         bounded_complexity.append(rademacher)
         if reference_complexity_list is not None:
@@ -77,8 +81,8 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
 
 if __name__ == '__main__':
-    # X, y = load_diabetes(return_X_y=True)
-    X, y = make_friedman1(n_samples=50)
+    X, y = load_diabetes(return_X_y=True)
+    # X, y = make_friedman1(n_samples=50)
 
     # Split the data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
