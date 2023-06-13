@@ -45,11 +45,12 @@ class MTLR2(Fitness):
 
 
 class RademacherComplexityR2(Fitness):
-    def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
+    def __init__(self, algorithm: "EvolutionaryForestRegressor", rademacher_mode='Analytical', **params):
         self.algorithm = algorithm
         self.size_objective = False
         self.historical_best_bounded_complexity = None
         self.historical_best_bounded_complexity_list = None
+        self.rademacher_mode = rademacher_mode
 
     def fitness_value(self, individual, estimators, Y, y_pred):
         # very simple fitness evaluation
@@ -65,7 +66,8 @@ class RademacherComplexityR2(Fitness):
             rademacher_complexity_estimation(X_features, y, estimator,
                                              generate_rademacher_vector(algorithm.X),
                                              self.historical_best_bounded_complexity_list,
-                                             algorithm.pac_bayesian.objective)
+                                             algorithm.pac_bayesian.objective,
+                                             self.rademacher_mode)
         # Store results in individual's fitness list
         weighted_rademacher = estimation[1]
         if self.size_objective:
