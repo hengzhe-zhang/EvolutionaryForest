@@ -60,9 +60,9 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
         # Calculate Pearson correlation coefficient and p-value
         estimator.fit(X, random_rademacher_vector[s])
-        a = r2_score(random_rademacher_vector[s], estimator.predict(X))
+        a = pearsonr(random_rademacher_vector[s], estimator.predict(X))[0]
         estimator.fit(X, -random_rademacher_vector[s])
-        b = r2_score(-random_rademacher_vector[s], estimator.predict(X))
+        b = pearsonr(-random_rademacher_vector[s], estimator.predict(X))[0]
         rademacher = max(a, b, 0)
         # print(rademacher)
         complexity.append(rademacher)
