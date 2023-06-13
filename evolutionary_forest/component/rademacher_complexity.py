@@ -52,6 +52,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         # print('Inv',scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
         # print('PInv',scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
 
+        # print(rademacher_mode)
         if rademacher_mode == 'Analytical':
             try:
                 weight = np.abs(scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \

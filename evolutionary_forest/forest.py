@@ -422,19 +422,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.max_tree_depth = max_tree_depth
         self.elitism = elitism
         if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
-            self.score_func = RademacherComplexityR2(self)
+            self.score_func = RademacherComplexityR2(self,**params)
         elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity':
-            self.score_func = LocalRademacherComplexityR2(self)
+            self.score_func = LocalRademacherComplexityR2(self,**params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size':
-            self.score_func = RademacherComplexitySizeR2(self)
+            self.score_func = RademacherComplexitySizeR2(self,**params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Scaler':
-            self.score_func = RademacherComplexityR2Scaler(self)
+            self.score_func = RademacherComplexityR2Scaler(self,**params)
         elif isinstance(score_func, str) and score_func == 'R2-Tikhonov':
             self.score_func = TikhonovR2()
         elif isinstance(score_func, str) and score_func == 'R2-Size':
             self.score_func = R2Size()
         elif isinstance(score_func, str) and score_func == 'R2-Size-Scaler':
-            self.score_func = R2SizeScaler(self)
+            self.score_func = R2SizeScaler(self,**params)
         else:
             self.score_func = score_func
         self.min_samples_leaf = min_samples_leaf
