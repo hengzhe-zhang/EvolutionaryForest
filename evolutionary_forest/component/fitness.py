@@ -149,7 +149,10 @@ def reassign_objective_values(parent, pop):
         pop = parent + pop
     valid_components = [p.fitness_list[1][0] for p in pop
                         if p.fitness_list[1][0] < np.inf and not np.isnan(p.fitness_list[1][0])]
-    max_rademacher = max(valid_components)
+    if len(valid_components) == 0:
+        max_rademacher = np.inf
+    else:
+        max_rademacher = max(valid_components)
     for individual in pop:
         individual.fitness.weights = tuple(-1 for _ in range(len(individual.fitness_list)))
         # R2 should be maximized, other should be minimized
@@ -243,7 +246,7 @@ class R2Size(Fitness):
 
 
 class R2FeatureCount(Fitness):
-    def fitness_value(self, individual:MultipleGeneGP, estimators, Y, y_pred):
+    def fitness_value(self, individual: MultipleGeneGP, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
         return (-1 * score, individual.gene_num)
 
