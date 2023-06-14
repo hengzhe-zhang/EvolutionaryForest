@@ -422,19 +422,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.max_tree_depth = max_tree_depth
         self.elitism = elitism
         if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
-            self.score_func = RademacherComplexityR2(self,**params)
+            self.score_func = RademacherComplexityR2(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity':
-            self.score_func = LocalRademacherComplexityR2(self,**params)
+            self.score_func = LocalRademacherComplexityR2(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size':
-            self.score_func = RademacherComplexitySizeR2(self,**params)
+            self.score_func = RademacherComplexitySizeR2(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Scaler':
-            self.score_func = RademacherComplexityR2Scaler(self,**params)
+            self.score_func = RademacherComplexityR2Scaler(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Tikhonov':
             self.score_func = TikhonovR2()
         elif isinstance(score_func, str) and score_func == 'R2-Size':
             self.score_func = R2Size()
         elif isinstance(score_func, str) and score_func == 'R2-Size-Scaler':
-            self.score_func = R2SizeScaler(self,**params)
+            self.score_func = R2SizeScaler(self, **params)
         else:
             self.score_func = score_func
         self.min_samples_leaf = min_samples_leaf
@@ -1402,7 +1402,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                      partition_scheme=partition_scheme,
                                      base_model_list=self.base_model_list, number_of_register=self.number_of_register,
                                      active_gene_num=self.active_gene_num, intron_probability=self.intron_probability,
-                                     intron_threshold=self.intron_threshold)
+                                     intron_threshold=self.intron_threshold, algorithm=self)
         toolbox.population = partial(tools.initRepeat, list, toolbox.individual)
         toolbox.compile = partial(multiple_gene_compile, pset=pset)
 
@@ -3136,9 +3136,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.verbose:
                 if self.semantic_repair > 0:
                     print('Successful Repair', self.successful_repair / (self.successful_repair + self.failed_repair))
+                print('Average number of features', np.mean([o.gene_num for o in offspring]))
                 if self.basic_primitives != 'ML':
                     if self.active_gene_num == 0:
-                        print('Unique Hash', [len(np.unique([o.hash_result[i] for o in offspring]))
+                        print('Unique Hash', [len(np.unique([o.hash_result[i] for o in offspring if
+                                                             i < len(o.hash_result)]))
                                               for i in range(self.gene_num)])
                     else:
                         print('Unique Hash', [len(np.unique([o.hash_result[i] for o in offspring]))
@@ -3203,7 +3205,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # features = set(chain.from_iterable(list(map(lambda x: [str(y) for y in x.gene], self.hof))))
                 print('number of features', len(features))
                 print('archive size', len(self.hof))
-                print('Average Number of Active Genes', np.mean([ind.active_gene for ind in population]))
+                # print('Average Number of Active Genes', np.mean([ind.active_gene for ind in population]))
                 # print('\n'.join(map(lambda x: str(x), population)))
                 print(logbook.stream)
                 if self.base_model_list != None:
@@ -3822,7 +3824,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             genotype_sum_entropy, phenotype_sum_entropy = self.gp_tree_entropy_calculation(population)
             self.tree_genotypic_diversity.append(genotype_sum_entropy)
             self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
-            self.avg_tree_size_history.append(np.mean([[len(g) for g in p.gene] for p in population]))
+            self.avg_tree_size_history.append(np.mean([np.mean([len(g) for g in p.gene]) for p in population]))
             self.archive_fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in self.hof]))
             self.archive_diversity_history.append(self.diversity_calculation())
 

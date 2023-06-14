@@ -5,6 +5,7 @@ import sys
 from functools import wraps, partial
 from inspect import isclass
 from typing import Callable, List
+from typing import TYPE_CHECKING
 
 import numpy as np
 from deap import base
@@ -26,6 +27,9 @@ from evolutionary_forest.component.crossover_mutation import intron_mutation, in
 from evolutionary_forest.component.primitives import individual_to_tuple
 from evolutionary_forest.component.syntax_tools import TransformerTool
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
+
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
 def is_number(string):
@@ -96,28 +100,34 @@ class MultipleGeneGP():
     semantics: np.ndarray
     pipe: GPPipeline
 
+    @property
+    def gene_num(self):
+        return len(self.gene)
+
+    def gene_addition(self):
+        if len(self.gene) < self.max_gene_num:
+            self.gene.append(PrimitiveTree(self.content()))
+
+    def gene_deletion(self):
+        if len(self.gene) > 1:
+            random_index = random.randrange(self.gene_num)
+            del self.gene[random_index]
+
     def __init__(self, content, gene_num, tpot_model: TPOTBase = None, partition_scheme=None,
                  base_model_list=None, number_of_register=0, active_gene_num=0, intron_probability=0,
-                 intron_threshold=0):
+                 intron_threshold=0, algorithm: "EvolutionaryForestRegressor" = None):
+        configuration = algorithm.mutation_configuration
         self.gene: List[PrimitiveTree] = []
         self.fitness = FitnessMin()
         self.mgp_mode = False
         self.layer_mgp = False
         self.mgp_scope = 0
-        # Some more basic features
-        self.gene_num = gene_num
+        self.max_gene_num = gene_num
         self.active_gene_num = active_gene_num
-        # This flag is only used for controlling the mutation and crossover
-        for i in range(self.gene_num):
-            pset: MultiplePrimitiveSet = content.keywords['pset']
-            if isinstance(pset, MultiplePrimitiveSet):
-                if hasattr(pset, 'layer_mgp') and hasattr(pset, 'mgp_scope'):
-                    self.layer_mgp = pset.layer_mgp
-                    self.mgp_scope = pset.mgp_scope
-                    self.mgp_mode = True
-                self.gene.append(PrimitiveTree(content(pset=pset.pset_list[i])))
-            else:
-                self.gene.append(PrimitiveTree(content()))
+        self.content = content
+        if configuration.gene_addition_rate > 0:
+            gene_num = random.randint(1, gene_num)
+        self.tree_initialization(content, gene_num)
         if tpot_model != None:
             self.base_model = tpot_model._toolbox.individual()
         if base_model_list != None:
@@ -136,7 +146,7 @@ class MultipleGeneGP():
             self.partition_scheme = None
         # some active genes
         self.intron_probability = intron_probability
-        self.active_gene = np.random.randn(self.gene_num) < intron_probability
+        self.active_gene = np.random.randn(self.max_gene_num) < intron_probability
 
         # initialize some registers
         self.number_of_register = number_of_register
@@ -151,6 +161,19 @@ class MultipleGeneGP():
         }
         self.parent_fitness: tuple[float] = None
         self.crossover_type = None
+
+    def tree_initialization(self, content, gene_num):
+        # This flag is only used for controlling the mutation and crossover
+        for i in range(gene_num):
+            pset: MultiplePrimitiveSet = content.keywords['pset']
+            if isinstance(pset, MultiplePrimitiveSet):
+                if hasattr(pset, 'layer_mgp') and hasattr(pset, 'mgp_scope'):
+                    self.layer_mgp = pset.layer_mgp
+                    self.mgp_scope = pset.mgp_scope
+                    self.mgp_mode = True
+                self.gene.append(PrimitiveTree(content(pset=pset.pset_list[i])))
+            else:
+                self.gene.append(PrimitiveTree(content()))
 
     def random_select_index(self):
         return random.randint(0, self.gene_num - 1)
@@ -393,6 +416,10 @@ def mutUniform_multiple_gene(individual: MultipleGeneGP, expr, pset,
     if configuration is None:
         configuration = MutationConfiguration()
     intron_parameters = configuration.intron_parameters
+    if random.random() < configuration.gene_addition_rate:
+        individual.gene_addition()
+    elif random.random() < configuration.gene_deletion_rate:
+        individual.gene_deletion()
 
     if intron_parameters is not None and random.random() < intron_parameters.get("intron_mutation_pb", 0):
         gene, id = individual.random_select(with_id=True)

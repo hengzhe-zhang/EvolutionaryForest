@@ -146,14 +146,15 @@ class RademacherComplexityR2(Fitness):
 def reassign_objective_values(parent, pop):
     if parent != None:
         pop = parent + pop
-    valid_components = [p.fitness_list[1][0] for p in pop if p.fitness_list[1][0] < np.inf]
+    valid_components = [p.fitness_list[1][0] for p in pop
+                        if p.fitness_list[1][0] < np.inf and not np.isnan(p.fitness_list[1][0])]
     max_rademacher = max(valid_components)
     for individual in pop:
         individual.fitness.weights = tuple(-1 for _ in range(len(individual.fitness_list)))
         # R2 should be maximized, other should be minimized
         r2 = [-1 * individual.fitness_list[0][0]]
         rademacher = list(map(lambda x: x[0], individual.fitness_list[1:]))
-        if rademacher[0] >= np.inf:
+        if rademacher[0] >= np.inf or np.isnan(rademacher[0]):
             # do not use inf because this will make NSGA-2 problematic
             rademacher[0] = max_rademacher + 1
         individual.fitness.values = tuple(r2 + rademacher)

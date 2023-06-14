@@ -74,12 +74,10 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                     if offspring[i + 1].crossover_type != 'Macro':
                         offspring[i + 1].parent_fitness = None
 
-                if crossover_configuration.number_of_invokes > 0:
-                    invokes = crossover_configuration.number_of_invokes
-                    if invokes < 1:
-                        invokes = int(gene_num * invokes)
-                else:
-                    invokes = gene_num
+                    gene_num = min(offspring[i].gene_num, offspring[i + 1].gene_num)
+
+                # crossover, using the smallest number of genes for a pair of individuals
+                invokes = get_number_of_invokes(gene_num)
                 for c in range(invokes):
                     if i % 2 == 0 and random.random() < cxpb:
                         offspring[i], offspring[i + 1] = toolbox.mate(offspring[i], offspring[i + 1])
@@ -95,6 +93,9 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                             offspring[i + 1].parent_fitness = (offspring[i + 1].fitness.wvalues[0],
                                                                offspring[i].fitness.wvalues[0])
 
+                # mutation, using the number of genes for each individual
+                gene_num = get_number_of_invokes(offspring[i].gene_num)
+                for c in range(invokes):
                     if random.random() < mutpb and (not crossover_configuration.var_or
                                                     or (i not in crossed_individual)):
                         offspring[i], = toolbox.mutate(offspring[i])
@@ -131,5 +132,14 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                             break
             i += 1
         return offspring
+
+    def get_number_of_invokes(gene_num):
+        if crossover_configuration.number_of_invokes > 0:
+            invokes = crossover_configuration.number_of_invokes
+            if invokes < 1:
+                invokes = int(gene_num * invokes)
+        else:
+            invokes = gene_num
+        return invokes
 
     return mutation_function(*population)

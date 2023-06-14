@@ -5,7 +5,7 @@ import scipy
 from numpy.linalg import LinAlgError
 from scipy.stats import mannwhitneyu, pearsonr
 from sklearn.datasets import make_friedman1, load_diabetes
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge, LinearRegression
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
@@ -82,11 +82,11 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
 
 if __name__ == '__main__':
-    # X, y = load_diabetes(return_X_y=True)
-    X, y = make_friedman1(n_samples=50)
+    X, y = load_diabetes(return_X_y=True)
+    # X, y = make_friedman1(n_samples=50, n_features=5)
 
     # Split the data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
     # Standardize X
     scaler_X = StandardScaler()
@@ -112,18 +112,28 @@ if __name__ == '__main__':
     estimator.fit(X_train, y_train)
     # Calculate the R2 score on the test set
     print('Test R2', r2_score(y_test, estimator.predict(X_test)))
-    print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector))
+    print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector,
+                                           rademacher_mode='Analytical'))
+
+    x_transform_train = np.array([X_train[:, i - 1] ** i for i in range(1, 6)]).T
+    x_transform_test = np.array([X_test[:, i - 1] ** i for i in range(1, 6)]).T
+    estimator = Ridge(alpha=0.1)
+    estimator.fit(x_transform_train, y_train)
+    # Calculate the R2 score on the test set
+    print('Test R2', r2_score(y_test, estimator.predict(x_transform_test)))
+    print(rademacher_complexity_estimation(x_transform_train, y_train, estimator, random_rademacher_vector,
+                                           rademacher_mode='Analytical'))
 
     poly = PolynomialFeatures(degree=2)
     estimator.fit(poly.fit_transform(X_train), y_train)
     # Calculate the R2 score on the test set
     print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
     print(rademacher_complexity_estimation(poly.transform(X_train),
-                                           y_train, estimator, random_rademacher_vector))
+                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Analytical'))
 
     poly = PolynomialFeatures(degree=3)
     estimator.fit(poly.fit_transform(X_train), y_train)
     # Calculate the R2 score on the test set
     print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
     print(rademacher_complexity_estimation(poly.fit_transform(X_train),
-                                           y_train, estimator, random_rademacher_vector))
+                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Analytical'))
