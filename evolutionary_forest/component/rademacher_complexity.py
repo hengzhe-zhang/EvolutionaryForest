@@ -54,17 +54,20 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
         # print(rademacher_mode)
         if rademacher_mode == 'Analytical':
-            try:
-                weight = np.abs(scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X) @ \
-                                (random_rademacher_vector[s] * X.T) @ np.reshape(y, (-1, 1)))
-                rademacher = np.abs(random_rademacher_vector[s].T @ ((weight.T @ X.T).flatten() - y) ** 2)
-            except LinAlgError:
-                rademacher = np.inf
-            # print(rademacher)
+            # if Rademacher is 1, then try to fit -y
+            # if Rademacher is -1, then try to fit y
+            estimator.fit(X, -y * random_rademacher_vector[s])
+            pa = pearsonr(random_rademacher_vector[s], (estimator.predict(X) - y) ** 2)[0]
+            random_rademacher_vector[s] = -random_rademacher_vector[s]
+            estimator.fit(X, -y * random_rademacher_vector[s])
+            pb = pearsonr(random_rademacher_vector[s], (estimator.predict(X) - y) ** 2)[0]
+            rademacher = max(pa, pb)
         elif rademacher_mode == 'LeastSquare':
             # Calculate Pearson correlation coefficient and p-value
             estimator.fit(X, random_rademacher_vector[s])
             rademacher = np.abs(pearsonr(random_rademacher_vector[s], estimator.predict(X))[0])
+        else:
+            raise Exception
 
         complexity.append(rademacher)
         bounded_complexity.append(rademacher)
@@ -82,8 +85,8 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
 
 if __name__ == '__main__':
-    X, y = load_diabetes(return_X_y=True)
-    # X, y = make_friedman1(n_samples=50, n_features=5)
+    # X, y = load_diabetes(return_X_y=True)
+    X, y = make_friedman1(n_samples=50, n_features=10)
 
     # Split the data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
@@ -113,15 +116,6 @@ if __name__ == '__main__':
     # Calculate the R2 score on the test set
     print('Test R2', r2_score(y_test, estimator.predict(X_test)))
     print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector,
-                                           rademacher_mode='Analytical'))
-
-    x_transform_train = np.array([X_train[:, i - 1] ** i for i in range(1, 6)]).T
-    x_transform_test = np.array([X_test[:, i - 1] ** i for i in range(1, 6)]).T
-    estimator = Ridge(alpha=0.1)
-    estimator.fit(x_transform_train, y_train)
-    # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(x_transform_test)))
-    print(rademacher_complexity_estimation(x_transform_train, y_train, estimator, random_rademacher_vector,
                                            rademacher_mode='Analytical'))
 
     poly = PolynomialFeatures(degree=2)
