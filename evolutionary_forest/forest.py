@@ -50,7 +50,7 @@ from evolutionary_forest.component.evaluation import calculate_score, get_cv_spl
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
 from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2, \
-    RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2, TikhonovR2
+    RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2, TikhonovR2, R2FeatureCount
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
     PACBayesianConfiguration, assign_rank
@@ -433,6 +433,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = TikhonovR2()
         elif isinstance(score_func, str) and score_func == 'R2-Size':
             self.score_func = R2Size()
+        elif isinstance(score_func, str) and score_func == 'R2-FeatureCount':
+            self.score_func = R2FeatureCount()
         elif isinstance(score_func, str) and score_func == 'R2-Size-Scaler':
             self.score_func = R2SizeScaler(self, **params)
         else:

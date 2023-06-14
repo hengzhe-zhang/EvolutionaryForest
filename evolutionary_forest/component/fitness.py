@@ -9,6 +9,7 @@ from evolutionary_forest.component.pac_bayesian import assign_rank
 from evolutionary_forest.component.rademacher_complexity import generate_rademacher_vector, \
     rademacher_complexity_estimation
 from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
+from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -239,6 +240,12 @@ class R2Size(Fitness):
         score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
         return (-1 * score, tree_size)
+
+
+class R2FeatureCount(Fitness):
+    def fitness_value(self, individual:MultipleGeneGP, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        return (-1 * score, individual.gene_num)
 
 
 class R2SizeScaler(Fitness):
