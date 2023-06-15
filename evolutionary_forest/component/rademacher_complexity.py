@@ -62,6 +62,9 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
             estimator.fit(X, -y * random_rademacher_vector[s])
             pb = pearsonr(random_rademacher_vector[s], (estimator.predict(X) - y) ** 2)[0]
             rademacher = max(pa, pb)
+        elif rademacher_mode == 'Local':
+            estimator.fit(np.concatenate([X, X], axis=0), np.concatenate([random_rademacher_vector[s], y], axis=0))
+            rademacher = np.abs(pearsonr(random_rademacher_vector[s], estimator.predict(X))[0])
         elif rademacher_mode == 'LeastSquare':
             # Calculate Pearson correlation coefficient and p-value
             estimator.fit(X, random_rademacher_vector[s])
@@ -111,23 +114,25 @@ if __name__ == '__main__':
     else:
         print("The two arrays are different.")
 
-    estimator = Ridge(alpha=0.1)
+    # estimator = Ridge(alpha=0.1)
+    estimator = Ridge(alpha=1)
+    # estimator = LinearRegression()
     estimator.fit(X_train, y_train)
     # Calculate the R2 score on the test set
     print('Test R2', r2_score(y_test, estimator.predict(X_test)))
     print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector,
-                                           rademacher_mode='Analytical'))
+                                           rademacher_mode='Local'))
 
     poly = PolynomialFeatures(degree=2)
     estimator.fit(poly.fit_transform(X_train), y_train)
     # Calculate the R2 score on the test set
     print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
     print(rademacher_complexity_estimation(poly.transform(X_train),
-                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Analytical'))
+                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Local'))
 
     poly = PolynomialFeatures(degree=3)
     estimator.fit(poly.fit_transform(X_train), y_train)
     # Calculate the R2 score on the test set
     print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
     print(rademacher_complexity_estimation(poly.fit_transform(X_train),
-                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Analytical'))
+                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Local'))

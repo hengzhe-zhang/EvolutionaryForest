@@ -1,9 +1,12 @@
 from abc import abstractmethod
 from typing import TYPE_CHECKING
 
-import numpy as np
 from deap.tools import selNSGA2, sortNondominated
 from numpy.linalg import norm
+from sklearn.metrics import r2_score
+from sklearn.model_selection import KFold
+
+from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -83,7 +86,9 @@ class NSGA2(EnvironmentalSelection):
                  objective_function: Objective = None,
                  normalization=False,
                  knee_point=False,
+                 bootstrapping_selection=False,
                  **kwargs):
+        self.bootstrapping_selection = bootstrapping_selection
         self.algorithm = algorithm
         self.objective_function = objective_function
         self.normalization = normalization
@@ -116,6 +121,21 @@ class NSGA2(EnvironmentalSelection):
             knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front])
             # Select the knee point as the final model
             self.algorithm.hof = [first_pareto_front[knee]]
+
+        if self.bootstrapping_selection:
+            first_pareto_front:list = sortNondominated(population, len(population))[0]
+
+            def quick_evaluation(ind):
+                r2_scores = []
+                func = multiple_gene_compile(ind, self.algorithm.pset)
+                for train_index, test_index in KFold(shuffle=True).split(self.algorithm.X, self.algorithm.y):
+                    Yp = result_calculation(func, self.algorithm.X, False)
+                    ind.pipe.fit(Yp[train_index], self.algorithm.y[train_index])
+                    r2_scores.append(r2_score(self.algorithm.y[test_index], ind.pipe.predict(Yp[test_index])))
+                return np.mean(r2_scores)
+
+            # Select the minimal cross-validation error as the final model
+            self.algorithm.hof = [max(first_pareto_front, key=quick_evaluation)]
 
         if self.objective_function != None:
             self.objective_function.restore(individuals)
