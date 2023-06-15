@@ -53,18 +53,13 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         # print('PInv',scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
 
         # print(rademacher_mode)
-        if rademacher_mode == 'Analytical':
+        if rademacher_mode == 'Local':
             # if Rademacher is 1, then try to fit -y
             # if Rademacher is -1, then try to fit y
-            estimator.fit(X, -y * random_rademacher_vector[s])
-            pa = pearsonr(random_rademacher_vector[s], (estimator.predict(X) - y) ** 2)[0]
-            random_rademacher_vector[s] = -random_rademacher_vector[s]
-            estimator.fit(X, -y * random_rademacher_vector[s])
-            pb = pearsonr(random_rademacher_vector[s], (estimator.predict(X) - y) ** 2)[0]
-            rademacher = max(pa, pb)
-        elif rademacher_mode == 'Local':
-            estimator.fit(np.concatenate([X, X], axis=0), np.concatenate([random_rademacher_vector[s], y], axis=0))
-            rademacher = np.abs(pearsonr(random_rademacher_vector[s], estimator.predict(X))[0])
+            rademacher_target = -y * random_rademacher_vector[s]
+            estimator.fit(np.concatenate([X, X], axis=0),
+                          np.concatenate([y, rademacher_target], axis=0))
+            rademacher = np.sum(random_rademacher_vector[s] * (estimator.predict(X) - y) ** 2)
         elif rademacher_mode == 'LeastSquare':
             # Calculate Pearson correlation coefficient and p-value
             estimator.fit(X, random_rademacher_vector[s])
@@ -114,8 +109,7 @@ if __name__ == '__main__':
     else:
         print("The two arrays are different.")
 
-    # estimator = Ridge(alpha=0.1)
-    estimator = Ridge(alpha=1)
+    estimator = Ridge(alpha=0.1)
     # estimator = LinearRegression()
     estimator.fit(X_train, y_train)
     # Calculate the R2 score on the test set
