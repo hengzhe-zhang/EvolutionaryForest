@@ -94,6 +94,7 @@ class NSGA2(EnvironmentalSelection):
         self.objective_function = objective_function
         self.normalization = normalization
         self.knee_point = knee_point
+        self.selection_operator = selNSGA2
 
     def select(self, population, offspring):
         individuals = population + offspring
@@ -115,7 +116,7 @@ class NSGA2(EnvironmentalSelection):
                     values.append((ind.fitness.values[d] - min_val) / (max_val - min_val))
                 ind.fitness.values = values
 
-        population[:] = selNSGA2(individuals, len(population))
+        population[:] = self.selection_operator(individuals, len(population))
 
         if self.knee_point:
             first_pareto_front = sortNondominated(population, len(population))[0]
@@ -129,7 +130,8 @@ class NSGA2(EnvironmentalSelection):
             def quick_evaluation(ind):
                 r2_scores = []
                 func = multiple_gene_compile(ind, self.algorithm.pset)
-                for train_index, test_index in KFold(shuffle=True,random_state=0).split(self.algorithm.X, self.algorithm.y):
+                for train_index, test_index in KFold(shuffle=True, random_state=0).split(self.algorithm.X,
+                                                                                         self.algorithm.y):
                     Yp = result_calculation(func, self.algorithm.X, False)
                     ind.pipe.fit(Yp[train_index], self.algorithm.y[train_index])
                     r2_scores.append(r2_score(self.algorithm.y[test_index], ind.pipe.predict(Yp[test_index])))
@@ -144,7 +146,11 @@ class NSGA2(EnvironmentalSelection):
 
 
 class SPEA2(NSGA2):
-    selection_function = selSPEA2
+
+    def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
+                 normalization=False, knee_point=False, bootstrapping_selection=False, **kwargs):
+        super().__init__(algorithm, objective_function, normalization, knee_point, bootstrapping_selection, **kwargs)
+        self.selection_operator = selSPEA2
 
 
 if __name__ == "__main__":
