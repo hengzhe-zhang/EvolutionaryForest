@@ -67,15 +67,18 @@ class RademacherComplexityR2(Fitness):
             rademacher_complexity_estimation(X_features, y, estimator,
                                              generate_rademacher_vector(algorithm.X),
                                              self.historical_best_bounded_complexity_list,
-                                             algorithm.pac_bayesian.objective,
+                                             algorithm.pac_bayesian,
                                              self.rademacher_mode)
         # Store results in individual's fitness list
         weighted_rademacher = estimation[1]
         individual.fitness_list = self.get_fitness_list(individual, weighted_rademacher[0])
         # Normalize mean squared error
         normalize_factor = np.mean((np.mean(y) - y) ** 2)
-        bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
         if algorithm.pac_bayesian.bound_reduction:
+            bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
+        else:
+            bounded_mse = np.mean(individual.case_values / normalize_factor)
+        if algorithm.pac_bayesian.bound_reduction or algorithm.pac_bayesian.direct_reduction:
             # Reduce training time based on the Rademacher bound
             current_bound = bounded_mse + 2 * bounded_rademacher
             current_bound_list = bounded_mse + 2 * np.array(bounded_rademacher_list)
@@ -102,7 +105,7 @@ class RademacherComplexityR2(Fitness):
                     self.assign_complexity(p, p.pipe)
                 else:
                     p.fitness_list = self.get_fitness_list(p, np.inf)
-                reduced_evaluation += 1
+                    reduced_evaluation += 1
             if algorithm.verbose:
                 print('reduced_evaluation: ', reduced_evaluation)
         # If a complexity estimation ratio < 1 is used

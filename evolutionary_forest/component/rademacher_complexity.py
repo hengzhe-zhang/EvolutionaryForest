@@ -10,6 +10,8 @@ from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
+from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration
+
 number_samples = 20
 
 
@@ -21,17 +23,18 @@ def generate_rademacher_vector(X):
 
 def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
                                      reference_complexity_list=None,
-                                     objective_weight=0.1, rademacher_mode='Analytical'):
+                                     configuration:PACBayesianConfiguration=None,
+                                     rademacher_mode='Analytical'):
     """
     Calculates the fitness of a candidate solution/individual by using the relative
     squared errors (RSE) and the Rademacher Complexity.
 
     :return: individual fitness
     """
+    objective_weight = configuration.objective
 
     # Relative Squared Error
     r2 = r2_score(y, estimator.predict(X))
-    mse = mean_squared_error(y, estimator.predict(X))
     normalize_factor = np.mean((np.mean(y) - y) ** 2)
 
     estimator = copy.deepcopy(estimator)
@@ -39,36 +42,30 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     complexity = []
     bounded_complexity = []
     for s in range(number_samples):
-        # estimator.fit(X, y * random_rademacher_vector[s])
-        # normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
-        # correlations = calculate_correlation(random_rademacher_vector[s], normalized_squared_error)
-        # bounded_mse = np.clip(normalized_squared_error, 0, 1)
-        # bounded_correlation = calculate_correlation(random_rademacher_vector[s],
-        #                                             bounded_mse)
-        # complexity.append(np.abs(correlations))
-        # bounded_complexity.append(np.abs(bounded_correlation))
-
-        bounded_mse = mse
-        # print('Inv',scipy.linalg.inv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
-        # print('PInv',scipy.linalg.pinv((np.reshape(random_rademacher_vector[s], (-1, 1)) * X).T @ X))
-
-        # print(rademacher_mode)
         if rademacher_mode == 'Local':
             # if Rademacher is 1, then try to fit -y
             # if Rademacher is -1, then try to fit y
             rademacher_target = -y * random_rademacher_vector[s]
             estimator.fit(np.concatenate([X, X], axis=0),
                           np.concatenate([y, rademacher_target], axis=0))
-            rademacher = np.sum(random_rademacher_vector[s] * (estimator.predict(X) - y) ** 2)
         elif rademacher_mode == 'LeastSquare':
-            # Calculate Pearson correlation coefficient and p-value
-            estimator.fit(X, random_rademacher_vector[s])
-            rademacher = np.abs(pearsonr(random_rademacher_vector[s], estimator.predict(X))[0])
+            rademacher_target = -y * random_rademacher_vector[s]
+            estimator.fit(X, rademacher_target)
         else:
             raise Exception
 
+        normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
+        rademacher = calculate_correlation(random_rademacher_vector[s], normalized_squared_error)
+        rademacher = max(rademacher, 0)
         complexity.append(rademacher)
-        bounded_complexity.append(rademacher)
+
+        if configuration.bound_reduction:
+            bounded_mse = np.clip(normalized_squared_error, 0, 1)
+        else:
+            bounded_mse = normalized_squared_error
+        bounded_rademacher = calculate_correlation(random_rademacher_vector[s], bounded_mse)
+        bounded_rademacher = max(bounded_rademacher, 0)
+        bounded_complexity.append(bounded_rademacher)
         if reference_complexity_list is not None:
             mannwhitneyu_result = mannwhitneyu(reference_complexity_list,
                                                np.mean(bounded_mse) + 2 * np.array(bounded_complexity),
@@ -109,24 +106,27 @@ if __name__ == '__main__':
     else:
         print("The two arrays are different.")
 
-    estimator = Ridge(alpha=0.1)
-    # estimator = LinearRegression()
-    estimator.fit(X_train, y_train)
-    # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(X_test)))
-    print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector,
-                                           rademacher_mode='Local'))
+    for rademacher_mode in ['Local', 'LeastSquare']:
+        estimator = Ridge(alpha=0.1)
+        # estimator = LinearRegression()
+        estimator.fit(X_train, y_train)
+        # Calculate the R2 score on the test set
+        print('Test R2', r2_score(y_test, estimator.predict(X_test)))
+        print(rademacher_complexity_estimation(X_train, y_train, estimator, random_rademacher_vector,
+                                               rademacher_mode=rademacher_mode))
 
-    poly = PolynomialFeatures(degree=2)
-    estimator.fit(poly.fit_transform(X_train), y_train)
-    # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
-    print(rademacher_complexity_estimation(poly.transform(X_train),
-                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Local'))
+        poly = PolynomialFeatures(degree=2)
+        estimator.fit(poly.fit_transform(X_train), y_train)
+        # Calculate the R2 score on the test set
+        print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
+        print(rademacher_complexity_estimation(poly.transform(X_train),
+                                               y_train, estimator, random_rademacher_vector,
+                                               rademacher_mode=rademacher_mode))
 
-    poly = PolynomialFeatures(degree=3)
-    estimator.fit(poly.fit_transform(X_train), y_train)
-    # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
-    print(rademacher_complexity_estimation(poly.fit_transform(X_train),
-                                           y_train, estimator, random_rademacher_vector, rademacher_mode='Local'))
+        poly = PolynomialFeatures(degree=3)
+        estimator.fit(poly.fit_transform(X_train), y_train)
+        # Calculate the R2 score on the test set
+        print('Test R2', r2_score(y_test, estimator.predict(poly.transform(X_test))))
+        print(rademacher_complexity_estimation(poly.fit_transform(X_train),
+                                               y_train, estimator, random_rademacher_vector,
+                                               rademacher_mode=rademacher_mode))
