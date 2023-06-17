@@ -71,11 +71,7 @@ class RademacherComplexityR2(Fitness):
                                              self.rademacher_mode)
         # Store results in individual's fitness list
         weighted_rademacher = estimation[1]
-        if self.size_objective:
-            # Also store individual size
-            individual.fitness_list = self.get_fitness_list(individual, weighted_rademacher[0])
-        else:
-            individual.fitness_list = self.get_fitness_list(individual, weighted_rademacher[0])
+        individual.fitness_list = self.get_fitness_list(individual, weighted_rademacher[0])
         # Normalize mean squared error
         normalize_factor = np.mean((np.mean(y) - y) ** 2)
         bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
@@ -178,7 +174,7 @@ class LocalRademacherComplexityR2(RademacherComplexityR2):
 
 class RademacherComplexitySizeR2(RademacherComplexityR2):
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
-        super().__init__(algorithm)
+        super().__init__(algorithm, **params)
         self.size_objective = True
 
 
@@ -191,6 +187,7 @@ class RademacherComplexityR2Scaler(RademacherComplexityR2):
         self.assign_complexity_pop(population)
         assign_rank(population, hall_of_fame, elite_archive)
 
+
 class LocalRademacherComplexityR2Scaler(LocalRademacherComplexityR2):
     """
     Aggregating fitness values into a scalar value
@@ -199,6 +196,7 @@ class LocalRademacherComplexityR2Scaler(LocalRademacherComplexityR2):
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
         self.assign_complexity_pop(population)
         assign_rank(population, hall_of_fame, elite_archive)
+
 
 class TikhonovR2(Fitness):
 

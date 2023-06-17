@@ -11,16 +11,6 @@ from evolutionary_forest.component.evaluation import quick_evaluate
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.multigene_gp import gene_crossover, MultipleGeneGP, gene_mutation
 
-"""
-Prune-and-plant的要求是在Offspring Production之后再进行修建。
-原因当然是因为，Prune-and-plant如果提前运行的话。
-A<->B
-B<->A
-但是对于Semantic来说，要提前进行Prune-and-plant。否则，Correlation信息会存在失效的问题。
-或者是Prune-and-plant算子进行一定程度的微调。
-"""
-
-
 def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitation_check,
                semantic_check_tool=None,
                crossover_configuration: CrossoverConfiguration = None,

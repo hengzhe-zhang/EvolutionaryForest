@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import TYPE_CHECKING
 
-from deap.tools import selNSGA2, sortNondominated
+from deap.tools import selNSGA2, sortNondominated, selSPEA2
 from numpy.linalg import norm
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
@@ -81,6 +81,7 @@ class TreeSizeObjective(Objective):
 
 
 class NSGA2(EnvironmentalSelection):
+
     def __init__(self,
                  algorithm: "EvolutionaryForestRegressor",
                  objective_function: Objective = None,
@@ -123,12 +124,12 @@ class NSGA2(EnvironmentalSelection):
             self.algorithm.hof = [first_pareto_front[knee]]
 
         if self.bootstrapping_selection:
-            first_pareto_front:list = sortNondominated(population, len(population))[0]
+            first_pareto_front: list = sortNondominated(population, len(population))[0]
 
             def quick_evaluation(ind):
                 r2_scores = []
                 func = multiple_gene_compile(ind, self.algorithm.pset)
-                for train_index, test_index in KFold(shuffle=True).split(self.algorithm.X, self.algorithm.y):
+                for train_index, test_index in KFold(shuffle=True,random_state=0).split(self.algorithm.X, self.algorithm.y):
                     Yp = result_calculation(func, self.algorithm.X, False)
                     ind.pipe.fit(Yp[train_index], self.algorithm.y[train_index])
                     r2_scores.append(r2_score(self.algorithm.y[test_index], ind.pipe.predict(Yp[test_index])))
@@ -140,6 +141,10 @@ class NSGA2(EnvironmentalSelection):
         if self.objective_function != None:
             self.objective_function.restore(individuals)
         return population
+
+
+class SPEA2(NSGA2):
+    selection_function = selSPEA2
 
 
 if __name__ == "__main__":

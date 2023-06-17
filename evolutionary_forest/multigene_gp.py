@@ -418,8 +418,10 @@ def mutUniform_multiple_gene(individual: MultipleGeneGP, expr, pset,
     intron_parameters = configuration.intron_parameters
     if random.random() < configuration.gene_addition_rate:
         individual.gene_addition()
+        return individual,
     elif random.random() < configuration.gene_deletion_rate:
         individual.gene_deletion()
+        return individual,
 
     if intron_parameters is not None and random.random() < intron_parameters.get("intron_mutation_pb", 0):
         gene, id = individual.random_select(with_id=True)

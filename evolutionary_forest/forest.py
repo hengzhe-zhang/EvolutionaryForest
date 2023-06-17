@@ -45,7 +45,7 @@ from evolutionary_forest.component.configuration import CrossoverMode, ArchiveCo
     BaseLearnerConfiguration, MABConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
-from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection
+from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
@@ -503,6 +503,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.early_stop = early_stop
         if environmental_selection == 'NSGA2':
             self.environmental_selection = NSGA2(self, None, **self.param)
+        elif environmental_selection == 'SPEA2':
+            self.environmental_selection = SPEA2(self, None, **self.param)
         else:
             self.environmental_selection = environmental_selection
         self.eager_training = eager_training
@@ -1577,8 +1579,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 random_fix=self.random_fix,
                 failure_counter=self.size_failure_counter
             )
-        if self.multi_gene_mutation():
-            # For multi-tree variation operators, height constraint is applied with decorator mode
+        if self.multi_gene_mutation() and self.mutation_configuration.gene_addition_rate==0:
+            # For multi-tree variation operators, height constraint is only checked once to save computational resources
             pass
         elif self.max_height == 'dynamic':
             toolbox.decorate("mate", staticLimit_multiple_gene(key=operator.attrgetter("height"),
