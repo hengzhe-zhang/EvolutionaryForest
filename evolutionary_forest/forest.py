@@ -430,6 +430,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = RademacherComplexitySizeR2(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Scaler':
             self.score_func = RademacherComplexityR2Scaler(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size-Scaler':
+            self.score_func = RademacherComplexityR2Scaler(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity-Scaler':
             self.score_func = LocalRademacherComplexityR2Scaler(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Tikhonov':
