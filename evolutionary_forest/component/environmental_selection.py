@@ -19,7 +19,11 @@ def knee_point_detection(front):
     ht = HighTradeoffPoints()
     # convert to minimization
     ans = ht.do(-1 * np.array(front))
-    return max(ans, key=lambda x: front[x][0])
+    if ans is None:
+        # if no trade-off point, then choosing the point with the highest R2
+        return max(front, key=lambda x: front[x][0])
+    else:
+        return max(ans, key=lambda x: front[x][0])
 
 
 class EnvironmentalSelection():
