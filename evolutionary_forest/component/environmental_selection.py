@@ -21,7 +21,7 @@ def knee_point_detection(front):
     ans = ht.do(-1 * np.array(front))
     if ans is None:
         # if no trade-off point, then choosing the point with the highest R2
-        return max(front, key=lambda x: front[x][0])
+        return max(range(len(front)), key=lambda x: front[x][0])
     else:
         return max(ans, key=lambda x: front[x][0])
 
