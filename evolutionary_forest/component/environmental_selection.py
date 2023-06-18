@@ -17,8 +17,10 @@ import numpy as np
 
 def knee_point_detection(front):
     ht = HighTradeoffPoints()
+    array = np.array(front)
+    array[:, 0] = array[:, 0] * 10
     # convert to minimization
-    ans = ht.do(-1 * np.array(front))
+    ans = ht.do(-1 * array)
     if ans is None:
         # if no trade-off point, then choosing the point with the highest R2
         return max(range(len(front)), key=lambda x: front[x][0])

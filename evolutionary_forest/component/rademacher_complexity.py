@@ -48,7 +48,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
             rademacher_target = -y * random_rademacher_vector[s]
             estimator.fit(np.concatenate([X, X], axis=0),
                           np.concatenate([y, rademacher_target], axis=0))
-        elif rademacher_mode == 'LeastSquare':
+        elif rademacher_mode == 'Global':
             rademacher_target = -y * random_rademacher_vector[s]
             estimator.fit(X, rademacher_target)
         else:

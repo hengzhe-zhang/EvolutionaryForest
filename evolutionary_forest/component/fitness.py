@@ -190,6 +190,7 @@ class RademacherComplexityR2Scaler(RademacherComplexityR2):
         self.assign_complexity_pop(population)
         assign_rank(population, hall_of_fame, elite_archive)
 
+
 class RademacherComplexitySizeR2Scaler(RademacherComplexitySizeR2):
     """
     Aggregating fitness values into a scalar value
