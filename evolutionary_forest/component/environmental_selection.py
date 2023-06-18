@@ -15,10 +15,10 @@ if TYPE_CHECKING:
 import numpy as np
 
 
-def knee_point_detection(front):
+def knee_point_detection(front, first_objective_weight):
     ht = HighTradeoffPoints()
     array = np.array(front)
-    array[:, 0] = array[:, 0] * 10
+    array[:, 0] = array[:, 0] * first_objective_weight
     try:
         # convert to minimization
         ans = ht.do(-1 * array)
@@ -70,7 +70,8 @@ class NSGA2(EnvironmentalSelection):
                  normalization=False,
                  knee_point=False,
                  bootstrapping_selection=False,
-                 **kwargs):
+                 first_objective_weight=1, **kwargs):
+        self.first_objective_weight = first_objective_weight
         self.bootstrapping_selection = bootstrapping_selection
         self.algorithm = algorithm
         self.objective_function = objective_function
@@ -102,7 +103,8 @@ class NSGA2(EnvironmentalSelection):
 
         if self.knee_point:
             first_pareto_front = sortNondominated(population, len(population))[0]
-            knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front])
+            knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
+                                        self.first_objective_weight)
             # Select the knee point as the final model
             self.algorithm.hof = [first_pareto_front[knee]]
 
