@@ -1232,7 +1232,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def get_base_model(self, regularization_ratio=1, base_model=None, lasso_alpha=None):
         # Get the base model based on the hyperparameter
-        if self.base_learner in ['DT', 'DT-RandomDT', 'PCA-DT'] or \
+        if self.base_learner in ['DT', 'DT-RandomDT', 'PCA-DT', 'Dynamic-DT'] or \
             base_model in ['DT', 'DT-RandomDT', 'PCA-DT']:
             ridge_model = DecisionTreeRegressor(max_depth=self.max_tree_depth,
                                                 min_samples_leaf=self.min_samples_leaf)
@@ -1584,7 +1584,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 random_fix=self.random_fix,
                 failure_counter=self.size_failure_counter
             )
-        if self.multi_gene_mutation() and self.mutation_configuration.gene_addition_rate==0:
+        if self.multi_gene_mutation() and self.mutation_configuration.gene_addition_rate == 0:
             # For multi-tree variation operators, height constraint is only checked once to save computational resources
             pass
         elif self.max_height == 'dynamic':

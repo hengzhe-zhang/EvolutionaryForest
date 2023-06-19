@@ -28,7 +28,7 @@ def knee_point_detection(front, first_objective_weight):
             return max(range(len(front)), key=lambda x: front[x][0])
         else:
             return max(ans, key=lambda x: front[x][0])
-    except ValueError:
+    except (ValueError, IndexError):
         print('Value Error', front)
         # Unknown Exception
         return max(range(len(front)), key=lambda x: front[x][0])

@@ -11,6 +11,7 @@ from evolutionary_forest.component.evaluation import quick_evaluate
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.multigene_gp import gene_crossover, MultipleGeneGP, gene_mutation
 
+
 def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitation_check,
                semantic_check_tool=None,
                crossover_configuration: CrossoverConfiguration = None,
