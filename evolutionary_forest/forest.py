@@ -1289,7 +1289,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == 'RidgeBDT-Plus':
             ridge_model = RidgeDTPlus(decision_tree_count=self.decision_tree_count,
                                       max_leaf_nodes=self.max_leaf_nodes,
-                                      final_model_splitter='best')
+                                      final_model_splitter='best',
+                                      min_samples_leaf=self.min_samples_leaf)
         elif self.base_learner == 'ET':
             ridge_model = ExtraTreesRegressor(n_estimators=100)
         elif self.base_learner == 'GBDT':

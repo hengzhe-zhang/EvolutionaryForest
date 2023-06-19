@@ -249,11 +249,16 @@ class RidgeDTPlus(RidgeDT):
     Using a decision tree regressor to further improve the performance.
     """
 
-    def __init__(self, decision_tree_count=0, max_leaf_nodes=4,
+    def __init__(self, decision_tree_count=0,
+                 max_leaf_nodes=4,
+                 min_samples_leaf=1,  # min_samples_leaf of the last decision tree
                  final_model_splitter='random'):
         super().__init__(decision_tree_count, max_leaf_nodes)
         self.final_model_splitter = final_model_splitter
-        self.dt.append(DecisionTreeRegressor(splitter=final_model_splitter))
+        self.dt.append(DecisionTreeRegressor(
+            splitter=final_model_splitter,
+            min_samples_leaf=min_samples_leaf
+        ))
 
 
 class PLTreeClassifier(DecisionTreeClassifier, PLTree):
