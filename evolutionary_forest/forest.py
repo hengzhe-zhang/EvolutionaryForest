@@ -430,6 +430,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = RademacherComplexitySizeR2(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-FeatureCount':
             self.score_func = RademacherComplexityFeatureCountR2(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-PAC-Bayes':
+            self.score_func = RademacherComplexityFeatureCountR2(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-ALl':
             self.score_func = RademacherComplexityAllR2(self, **params)
         elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Scaler':

@@ -53,8 +53,16 @@ def kl_term_function(m, w, sigma, delta=0.1):
     return 4 * np.sqrt(result)
 
 
+"""
+Three folds:
+1. Add noise to model
+2. Add noise to input data
+3. Add noise to GP
+"""
+
+
 def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfiguration):
-    original_mse = mean_squared_error(y, get_cv_predictions(estimator, y))
+    original_mse = mean_squared_error(y, get_cv_predictions(estimator, X, y))
 
     # Define the number of iterations
     num_iterations = 10
@@ -71,7 +79,7 @@ def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfigura
         # Use the modified Ridge model to predict the outcome variable
         estimator_noise.fit(X_noise, y)
 
-        y_pred = get_cv_predictions(estimator_noise, y)
+        y_pred = get_cv_predictions(estimator_noise, X_noise, y)
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         mse_scores[i] = mean_squared_error(y, y_pred)
@@ -104,12 +112,15 @@ def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfigura
     # return len(X) * perturbation_mse + kl_divergence
 
 
-def get_cv_predictions(estimator_noise, y):
-    base_model = estimator_noise['Ridge']
-    all_y_pred = (base_model.cv_values_ + y.mean())
-    error_list = ((y.reshape(-1, 1) - all_y_pred) ** 2).sum(axis=0)
-    new_best_index = np.argmin(error_list)
-    y_pred = base_model.cv_values_[:, new_best_index]
+def get_cv_predictions(estimator, X, y):
+    base_model = estimator['Ridge']
+    if isinstance(base_model, RidgeCV):
+        all_y_pred = (base_model.cv_values_ + y.mean())
+        error_list = ((y.reshape(-1, 1) - all_y_pred) ** 2).sum(axis=0)
+        new_best_index = np.argmin(error_list)
+        y_pred = base_model.cv_values_[:, new_best_index]
+    else:
+        y_pred = estimator.predict(X)
     return y_pred
 
 
