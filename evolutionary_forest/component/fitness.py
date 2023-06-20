@@ -50,11 +50,14 @@ class RademacherComplexityR2(Fitness):
         self.algorithm = algorithm
         self.size_objective = False
         self.feature_count_objective = False
+        self.all_objectives = False
         self.historical_best_bounded_complexity = None
         self.historical_best_bounded_complexity_list = None
         self.rademacher_mode = rademacher_mode
 
     def fitness_value(self, individual, estimators, Y, y_pred):
+        if self.all_objectives:
+            individual.l2_norm = np.linalg.norm(y_pred) ** 2
         # very simple fitness evaluation
         return -1 * r2_score(Y, y_pred),
 
@@ -116,7 +119,7 @@ class RademacherComplexityR2(Fitness):
             for p in pop:
                 self.assign_complexity(p, p.pipe)
 
-    def get_fitness_list(self, individual, rademacher_complexity):
+    def get_fitness_list(self, individual: MultipleGeneGP, rademacher_complexity):
         algorithm = self.algorithm
         if self.size_objective:
             # Calculate tree size
@@ -127,6 +130,16 @@ class RademacherComplexityR2(Fitness):
             feature_count = len(individual.gene)
             return [(individual.fitness.wvalues[0], 1), (rademacher_complexity, algorithm.pac_bayesian.objective),
                     (feature_count, algorithm.pac_bayesian.objective)]
+        elif self.all_objectives:
+            tree_size = sum([len(tree) for tree in individual.gene])
+            feature_count = len(individual.gene)
+            return [
+                (individual.fitness.wvalues[0], 1),
+                (rademacher_complexity, algorithm.pac_bayesian.objective),
+                (tree_size, algorithm.pac_bayesian.objective),
+                (feature_count, algorithm.pac_bayesian.objective),
+                (individual.l2_norm, algorithm.pac_bayesian.objective),
+            ]
         else:
             return [(individual.fitness.wvalues[0], 1), (rademacher_complexity, algorithm.pac_bayesian.objective)]
 
@@ -190,6 +203,12 @@ class RademacherComplexityFeatureCountR2(RademacherComplexityR2):
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
         super().__init__(algorithm, **params)
         self.feature_count_objective = True
+
+
+class RademacherComplexityAllR2(RademacherComplexityR2):
+    def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
+        super().__init__(algorithm, **params)
+        self.all_objectives = True
 
 
 class RademacherComplexityR2Scaler(RademacherComplexityR2):
