@@ -22,7 +22,9 @@ class PACBayesianConfiguration():
                  direct_reduction=True,
                  optimal_design=False,
                  **params):
+        # For VCD
         self.optimal_design = optimal_design
+        # Using definition of Rademacher complexity to reduce estimated time
         self.bound_reduction = bound_reduction
         self.direct_reduction = direct_reduction
         self.complexity_estimation_ratio = complexity_estimation_ratio
@@ -51,14 +53,6 @@ def kl_term_function(m, w, sigma, delta=0.1):
     log_term = np.log(2 * m / delta)
     result = (1 / m) * (kl_term + log_term)
     return 4 * np.sqrt(result)
-
-
-"""
-Three folds:
-1. Add noise to model
-2. Add noise to input data
-3. Add noise to GP
-"""
 
 
 def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfiguration):
@@ -109,7 +103,6 @@ def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfigura
         else:
             raise ValueError("Unknown objective function!")
     return tuple(objectives)
-    # return len(X) * perturbation_mse + kl_divergence
 
 
 def get_cv_predictions(estimator, X, y):
