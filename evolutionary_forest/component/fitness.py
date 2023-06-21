@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from sklearn.metrics import r2_score
 
-from evolutionary_forest.component.pac_bayesian import assign_rank, pac_bayesian_estimation
+from evolutionary_forest.component.pac_bayesian import assign_rank, pac_bayesian_estimation, SharpnessType
 from evolutionary_forest.component.rademacher_complexity import generate_rademacher_vector, \
     rademacher_complexity_estimation
 from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
@@ -316,18 +316,30 @@ class R2SizeScaler(Fitness):
 
 class R2PACBayesian(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor",
+                 sharpness_type,
                  **params):
         self.algorithm = algorithm
+        if sharpness_type == 'Data':
+            sharpness_type = SharpnessType.Data
+        if sharpness_type == 'Semantics':
+            sharpness_type = SharpnessType.Semantics
+        self.sharpness_type = sharpness_type
 
     def assign_complexity(self, individual, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
         X_features = algorithm.feature_generation(algorithm.X, individual)
-        feature_generator = partial(algorithm.feature_generation, individual=individual)
+        feature_generator = lambda: algorithm.feature_generation(
+            algorithm.X + self.algorithm.pac_bayesian.perturbation_std,
+            individual
+        )
         y = algorithm.y
 
         # PAC-Bayesian estimation
-        estimation = pac_bayesian_estimation(X_features, y, estimator, self.algorithm.pac_bayesian)
+        estimation = pac_bayesian_estimation(X_features, y, estimator,
+                                             self.algorithm.pac_bayesian,
+                                             self.sharpness_type,
+                                             feature_generator)
         individual.fitness_list = estimation
         return -1 * individual.fitness_list[0][0],
 

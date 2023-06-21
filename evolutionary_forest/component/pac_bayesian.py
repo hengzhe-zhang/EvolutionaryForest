@@ -61,7 +61,9 @@ class SharpnessType(Enum):
     Semantics = 2
 
 
-def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfiguration):
+def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfiguration,
+                            sharpness_type: SharpnessType,
+                            feature_generator=None):
     original_mse = mean_squared_error(y, get_cv_predictions(estimator, X, y))
 
     # Define the number of iterations
@@ -73,8 +75,14 @@ def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfigura
     std = configuration.perturbation_std
     # Iterate over the number of iterations
     for i in range(num_iterations):
-        # Add random Gaussian noise to the coefficients and intercept
-        X_noise = X + np.random.normal(scale=std, size=X.shape)
+        if sharpness_type == SharpnessType.Semantics:
+            # Add random Gaussian noise to the coefficients and intercept
+            X_noise = X + np.random.normal(scale=std, size=X.shape)
+        elif sharpness_type == SharpnessType.Data:
+            X_noise = StandardScaler().fit_transform(feature_generator())
+        else:
+            raise Exception("Unknown sharpness type!")
+
         estimator_noise = copy.deepcopy(estimator)
         # Use the modified Ridge model to predict the outcome variable
         estimator_noise.fit(X_noise, y)
