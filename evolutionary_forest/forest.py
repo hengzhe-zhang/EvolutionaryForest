@@ -51,7 +51,7 @@ from evolutionary_forest.component.evaluation import calculate_score, get_cv_spl
     select_from_array, get_sample_weight
 from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2, \
     RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2, TikhonovR2, R2FeatureCount, \
-    LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2
+    LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
     PACBayesianConfiguration, assign_rank
@@ -422,34 +422,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.pre_selection = pre_selection
         self.max_tree_depth = max_tree_depth
         self.elitism = elitism
-        if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
-            self.score_func = RademacherComplexityR2(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity':
-            self.score_func = LocalRademacherComplexityR2(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size':
-            self.score_func = RademacherComplexitySizeR2(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-FeatureCount':
-            self.score_func = RademacherComplexityFeatureCountR2(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-PAC-Bayes':
-            self.score_func = RademacherComplexityFeatureCountR2(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-ALl':
-            self.score_func = RademacherComplexityAllR2(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Scaler':
-            self.score_func = RademacherComplexityR2Scaler(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size-Scaler':
-            self.score_func = RademacherComplexityR2Scaler(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity-Scaler':
-            self.score_func = LocalRademacherComplexityR2Scaler(self, **params)
-        elif isinstance(score_func, str) and score_func == 'R2-Tikhonov':
-            self.score_func = TikhonovR2()
-        elif isinstance(score_func, str) and score_func == 'R2-Size':
-            self.score_func = R2Size()
-        elif isinstance(score_func, str) and score_func == 'R2-FeatureCount':
-            self.score_func = R2FeatureCount()
-        elif isinstance(score_func, str) and score_func == 'R2-Size-Scaler':
-            self.score_func = R2SizeScaler(self, **params)
-        else:
-            self.score_func = score_func
+        self.score_function_controller(params, score_func)
         self.min_samples_leaf = min_samples_leaf
         self.mean_model = mean_model
         self.base_learner = base_learner
@@ -710,6 +683,36 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **vars(self),
         )
         self.elites_archive = None
+
+    def score_function_controller(self, params, score_func):
+        if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
+            self.score_func = RademacherComplexityR2(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity':
+            self.score_func = LocalRademacherComplexityR2(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size':
+            self.score_func = RademacherComplexitySizeR2(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-FeatureCount':
+            self.score_func = RademacherComplexityFeatureCountR2(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-PAC-Bayesian':
+            self.score_func = R2PACBayesian(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-ALl':
+            self.score_func = RademacherComplexityAllR2(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Scaler':
+            self.score_func = RademacherComplexityR2Scaler(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity-Size-Scaler':
+            self.score_func = RademacherComplexityR2Scaler(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Local-Rademacher-Complexity-Scaler':
+            self.score_func = LocalRademacherComplexityR2Scaler(self, **params)
+        elif isinstance(score_func, str) and score_func == 'R2-Tikhonov':
+            self.score_func = TikhonovR2()
+        elif isinstance(score_func, str) and score_func == 'R2-Size':
+            self.score_func = R2Size()
+        elif isinstance(score_func, str) and score_func == 'R2-FeatureCount':
+            self.score_func = R2FeatureCount()
+        elif isinstance(score_func, str) and score_func == 'R2-Size-Scaler':
+            self.score_func = R2SizeScaler(self, **params)
+        else:
+            self.score_func = score_func
 
     def calculate_diversity(self, population):
         inds = []
@@ -1080,13 +1083,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             feature_norm = np.linalg.norm(StandardScaler().fit_transform(X_features).flatten()) ** 2
             individual.fitness_list = ((score, 1), (coef_norm, -1 * weights[0]), (feature_norm, -1 * weights[1]))
             return 0,
-        elif self.score_func == 'R2-PAC-Bayesian':
-            X_features = self.feature_generation(self.X, individual)
-            pac_bayesian = self.pac_bayesian
-            y = self.y
-            estimation = pac_bayesian_estimation(X_features, y, estimators[0], pac_bayesian)
-            individual.fitness_list = estimation
-            return individual.fitness_list[0][0],
         elif self.score_func == 'MSE-Variance':
             # Calculate mean squared error and standard deviation of error
             error = mean_squared_error(Y, y_pred)
@@ -1109,7 +1105,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def calculate_case_values(self, individual, Y, y_pred):
         # Minimize fitness values
-        if self.score_func in ['R2', 'R2-PAC-Bayesian', 'R2-L2', 'R2-Tikhonov'] \
+        if self.score_func in ['R2', 'R2-L2', 'R2-Tikhonov'] \
             or self.score_func == 'MSE-Variance' or self.score_func == 'Lower-Bound' or \
             isinstance(self.score_func, Fitness):
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from sklearn.metrics import r2_score
 
-from evolutionary_forest.component.pac_bayesian import assign_rank
+from evolutionary_forest.component.pac_bayesian import assign_rank, pac_bayesian_estimation
 from evolutionary_forest.component.rademacher_complexity import generate_rademacher_vector, \
     rademacher_complexity_estimation
 from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
@@ -312,3 +312,25 @@ class R2SizeScaler(Fitness):
 
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
         assign_rank(population, hall_of_fame, elite_archive)
+
+
+class R2PACBayesian(Fitness):
+    def __init__(self, algorithm: "EvolutionaryForestRegressor",
+                 **params):
+        self.algorithm = algorithm
+
+    def assign_complexity(self, individual, estimator):
+        # reducing the time of estimating VC-Dimension
+        algorithm = self.algorithm
+        X_features = algorithm.feature_generation(algorithm.X, individual)
+        feature_generator = partial(algorithm.feature_generation, individual=individual)
+        y = algorithm.y
+
+        # PAC-Bayesian estimation
+        estimation = pac_bayesian_estimation(X_features, y, estimator, self.algorithm.pac_bayesian)
+        individual.fitness_list = estimation
+        return -1 * individual.fitness_list[0][0],
+
+    def assign_complexity_pop(self, pop):
+        for p in pop:
+            self.assign_complexity(p, p.pipe)

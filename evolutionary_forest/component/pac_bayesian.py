@@ -1,6 +1,7 @@
 import copy
 import itertools
 import random
+from enum import Enum
 
 import numpy as np
 from deap import creator, base, tools
@@ -53,6 +54,11 @@ def kl_term_function(m, w, sigma, delta=0.1):
     log_term = np.log(2 * m / delta)
     result = (1 / m) * (kl_term + log_term)
     return 4 * np.sqrt(result)
+
+
+class SharpnessType(Enum):
+    Data = 1
+    Semantics = 2
 
 
 def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfiguration):
