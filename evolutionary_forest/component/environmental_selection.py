@@ -2,7 +2,6 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 from deap.tools import selNSGA2, sortNondominated, selSPEA2
-from numpy.linalg import norm
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold

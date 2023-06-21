@@ -349,5 +349,18 @@ class R2PACBayesian(Fitness):
             self.assign_complexity(p, p.pipe)
 
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
-        self.assign_complexity_pop(population)
+        # get minimum r2
+        ratio = self.algorithm.pac_bayesian.complexity_estimation_ratio
+        q = np.quantile([p.fitness.wvalues[0] for p in population],
+                        q=1 - ratio)
+
+        reduced_evaluation = 0
+        for p in population:
+            if p.fitness.wvalues[0] > q:
+                # better fitness value
+                self.assign_complexity(p, p.pipe)
+            else:
+                p.fitness_list = [(p.fitness.wvalues[0], 1), (np.inf, -1)]
+                reduced_evaluation += 1
+
         reassign_objective_values(parent, population)
