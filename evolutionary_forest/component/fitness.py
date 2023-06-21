@@ -330,7 +330,8 @@ class R2PACBayesian(Fitness):
         algorithm = self.algorithm
         X_features = algorithm.feature_generation(algorithm.X, individual)
         feature_generator = lambda: algorithm.feature_generation(
-            algorithm.X + self.algorithm.pac_bayesian.perturbation_std,
+            algorithm.X + np.random.normal(scale=self.algorithm.pac_bayesian.perturbation_std * algorithm.X.std(axis=0),
+                                           size=algorithm.X.shape),
             individual
         )
         y = algorithm.y
