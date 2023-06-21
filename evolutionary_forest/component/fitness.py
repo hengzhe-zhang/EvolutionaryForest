@@ -316,7 +316,7 @@ class R2SizeScaler(Fitness):
 
 class R2PACBayesian(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor",
-                 sharpness_type,
+                 sharpness_type='Semantics',
                  **params):
         self.algorithm = algorithm
         if sharpness_type == 'Data':
@@ -346,3 +346,7 @@ class R2PACBayesian(Fitness):
     def assign_complexity_pop(self, pop):
         for p in pop:
             self.assign_complexity(p, p.pipe)
+
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
+        self.assign_complexity_pop(population)
+        reassign_objective_values(parent, population)

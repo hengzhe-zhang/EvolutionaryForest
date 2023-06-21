@@ -16,7 +16,7 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 class PACBayesianConfiguration():
     def __init__(self, kl_term_weight: float = 1,
                  perturbation_std: float = 0.05,
-                 objective='Perturbed-MSE,KL-Divergence',
+                 objective='R2,Perturbed-MSE,KL-Divergence',
                  l2_penalty=0,
                  complexity_estimation_ratio=1,
                  bound_reduction=False,
@@ -64,7 +64,7 @@ class SharpnessType(Enum):
 def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfiguration,
                             sharpness_type: SharpnessType,
                             feature_generator=None):
-    original_mse = mean_squared_error(y, get_cv_predictions(estimator, X, y))
+    R2 = r2_score(y, get_cv_predictions(estimator, X, y))
 
     # Define the number of iterations
     num_iterations = 10
@@ -108,8 +108,8 @@ def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfigura
         else:
             weight = 1
 
-        if s == 'MSE':
-            objectives.append((original_mse, -1 * weight))
+        if s == 'R2':
+            objectives.append((R2, 1 * weight))
         elif s == 'Perturbed-MSE':
             objectives.append((perturbation_mse, -1 * weight))
         elif s == 'KL-Divergence':
