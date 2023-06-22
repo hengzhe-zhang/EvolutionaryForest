@@ -84,14 +84,16 @@ def pac_bayesian_estimation(X, y, estimator, individual,
         else:
             raise Exception("Unknown sharpness type!")
 
-        estimator_noise = copy.deepcopy(estimator)
         if cross_validation:
-            y_pred = cross_val_predict(estimator_noise, X_noise, y)
+            y_pred = cross_val_predict(estimator, X_noise, y)
         else:
-            # Use the modified Ridge model to predict the outcome variable
-            estimator_noise.fit(X_noise, y)
-
-            y_pred = get_cv_predictions(estimator_noise, X_noise, y)
+            if sharpness_type == SharpnessType.Semantics:
+                estimator_noise = copy.deepcopy(estimator)
+                # Use the modified Ridge model to predict the outcome variable
+                estimator_noise.fit(X_noise, y)
+                y_pred = get_cv_predictions(estimator_noise, X_noise, y)
+            else:
+                y_pred = get_cv_predictions(estimator, X_noise, y)
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         mse_scores[i] = mean_squared_error(y, y_pred)
