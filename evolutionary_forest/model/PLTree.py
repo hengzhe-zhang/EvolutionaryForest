@@ -255,6 +255,7 @@ class RidgeDTPlus(RidgeDT):
                  final_model_splitter='random'):
         super().__init__(decision_tree_count, max_leaf_nodes)
         self.final_model_splitter = final_model_splitter
+        self.min_samples_leaf = min_samples_leaf
         self.dt.append(DecisionTreeRegressor(
             splitter=final_model_splitter,
             min_samples_leaf=min_samples_leaf
