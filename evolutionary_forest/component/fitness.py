@@ -337,7 +337,9 @@ class R2PACBayesian(Fitness):
         y = algorithm.y
 
         # PAC-Bayesian estimation
-        estimation = pac_bayesian_estimation(X_features, y, estimator,
+        estimation = pac_bayesian_estimation(X_features, y,
+                                             estimator, individual,
+                                             self.algorithm.evaluation_configuration.cross_validation,
                                              self.algorithm.pac_bayesian,
                                              self.sharpness_type,
                                              feature_generator)

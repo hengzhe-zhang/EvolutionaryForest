@@ -8,7 +8,7 @@ from deap import creator, base, tools
 from sklearn.datasets import load_diabetes
 from sklearn.linear_model import RidgeCV, Ridge
 from sklearn.metrics import r2_score, mean_squared_error
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_predict
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
@@ -61,11 +61,12 @@ class SharpnessType(Enum):
     Semantics = 2
 
 
-def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfiguration,
+def pac_bayesian_estimation(X, y, estimator, individual,
+                            cross_validation: bool,
+                            configuration: PACBayesianConfiguration,
                             sharpness_type: SharpnessType,
                             feature_generator=None):
-    R2 = r2_score(y, get_cv_predictions(estimator, X, y))
-
+    R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = 10
     X = StandardScaler().fit_transform(X)
@@ -84,10 +85,13 @@ def pac_bayesian_estimation(X, y, estimator, configuration: PACBayesianConfigura
             raise Exception("Unknown sharpness type!")
 
         estimator_noise = copy.deepcopy(estimator)
-        # Use the modified Ridge model to predict the outcome variable
-        estimator_noise.fit(X_noise, y)
+        if cross_validation:
+            y_pred = cross_val_predict(estimator_noise, X_noise, y)
+        else:
+            # Use the modified Ridge model to predict the outcome variable
+            estimator_noise.fit(X_noise, y)
 
-        y_pred = get_cv_predictions(estimator_noise, X_noise, y)
+            y_pred = get_cv_predictions(estimator_noise, X_noise, y)
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         mse_scores[i] = mean_squared_error(y, y_pred)
