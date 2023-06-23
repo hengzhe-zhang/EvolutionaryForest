@@ -32,14 +32,15 @@ def knee_point_detection(front, first_objective_weight):
     #     # Unknown Exception
     #     return max(range(len(front)), key=lambda x: front[x][0])
 
-    front= np.array(front)
-    p1 = np.array([max(front[:, 0]), min(front[:, 1])])
-    p2 = np.array([min(front[:, 0]), max(front[:, 1])])
-    # 自动选择拐点
-    ans = max([i for i in range(len(front))],
-              key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
-    return ans
-
+    # front = np.array(front)
+    # p1 = np.array([max(front[:, 0]), min(front[:, 1])])
+    # p2 = np.array([min(front[:, 0]), max(front[:, 1])])
+    # # 自动选择拐点
+    # ans = max([i for i in range(len(front))],
+    #           key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
+    # return ans
+    front = np.array(front)
+    return np.argmax(front[:, 1])
 
 
 class EnvironmentalSelection():
