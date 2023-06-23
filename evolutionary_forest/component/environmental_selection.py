@@ -126,7 +126,7 @@ class NSGA2(EnvironmentalSelection):
         if self.knee_point != False:
             first_pareto_front = sortNondominated(population, len(population))[0]
             knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
-                                        kenn_point_strategy=self.knee_point)
+                                        knee_point_strategy=self.knee_point)
             # Select the knee point as the final model
             self.algorithm.hof = [first_pareto_front[knee]]
 
