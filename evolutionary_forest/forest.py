@@ -1235,6 +1235,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.base_learner in ['DT', 'DT-RandomDT', 'PCA-DT', 'Dynamic-DT'] or \
             base_model in ['DT', 'DT-RandomDT', 'PCA-DT']:
             ridge_model = DecisionTreeRegressor(max_depth=self.max_tree_depth,
+                                                max_leaf_nodes=self.max_leaf_nodes,
                                                 min_samples_leaf=self.min_samples_leaf)
         elif self.base_learner == 'SimpleDT-RandomDT':
             ridge_model = DecisionTreeRegressor(max_depth=3)

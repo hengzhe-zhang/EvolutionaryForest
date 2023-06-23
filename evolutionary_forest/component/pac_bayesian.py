@@ -69,7 +69,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = 10
-    X = StandardScaler().fit_transform(X)
+    sc = StandardScaler()
+    X = sc.fit_transform(X)
 
     # Create an array to store the R2 scores
     mse_scores = np.zeros(num_iterations)
@@ -80,7 +81,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
             # Add random Gaussian noise to the coefficients and intercept
             X_noise = X + np.random.normal(scale=std, size=X.shape)
         elif sharpness_type == SharpnessType.Data:
-            X_noise = StandardScaler().fit_transform(feature_generator())
+            X_noise = sc.transform(feature_generator())
         else:
             raise Exception("Unknown sharpness type!")
 
@@ -93,6 +94,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                 estimator_noise.fit(X_noise, y)
                 y_pred = get_cv_predictions(estimator_noise, X_noise, y)
             else:
+                # estimator_noise = copy.deepcopy(estimator)
+                # estimator_noise.fit(X_noise, y)
                 y_pred = get_cv_predictions(estimator, X_noise, y)
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
