@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 from deap.tools import selNSGA2, sortNondominated, selSPEA2
-from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
+from numpy.linalg import norm
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 
@@ -15,22 +15,31 @@ import numpy as np
 
 
 def knee_point_detection(front, first_objective_weight):
-    ht = HighTradeoffPoints()
-    array = np.array(front)
-    array[:, 0] = array[:, 0] * first_objective_weight
-    try:
-        # convert to minimization
-        ans = ht.do(-1 * array)
-        if ans is None:
-            print('Empty Answer', front)
-            # if no trade-off point, then choosing the point with the highest R2
-            return max(range(len(front)), key=lambda x: front[x][0])
-        else:
-            return max(ans, key=lambda x: front[x][0])
-    except (ValueError, IndexError):
-        print('Value Error', front)
-        # Unknown Exception
-        return max(range(len(front)), key=lambda x: front[x][0])
+    # ht = HighTradeoffPoints()
+    # array = np.array(front)
+    # array[:, 0] = array[:, 0] * first_objective_weight
+    # try:
+    #     # convert to minimization
+    #     ans = ht.do(-1 * array)
+    #     if ans is None:
+    #         print('Empty Answer', front)
+    #         # if no trade-off point, then choosing the point with the highest R2
+    #         return max(range(len(front)), key=lambda x: front[x][0])
+    #     else:
+    #         return max(ans, key=lambda x: front[x][0])
+    # except (ValueError, IndexError):
+    #     print('Value Error', front)
+    #     # Unknown Exception
+    #     return max(range(len(front)), key=lambda x: front[x][0])
+
+    front= np.array(front)
+    p1 = np.array([max(front[:, 0]), min(front[:, 1])])
+    p2 = np.array([min(front[:, 0]), max(front[:, 1])])
+    # 自动选择拐点
+    ans = max([i for i in range(len(front))],
+              key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
+    return ans
+
 
 
 class EnvironmentalSelection():
