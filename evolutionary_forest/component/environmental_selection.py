@@ -34,7 +34,7 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
             return 0
     elif knee_point_strategy == 'SecondMainObjetive':
         if len(front) > 1:
-            return np.argmax(front[:, 0])[-2]
+            return np.argsort(front[:, 0])[-2]
         else:
             return 0
     elif knee_point_strategy == 'HighTradeoff':
