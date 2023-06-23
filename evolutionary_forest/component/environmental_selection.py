@@ -1,46 +1,59 @@
 from abc import abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from deap.tools import selNSGA2, sortNondominated, selSPEA2
 from numpy.linalg import norm
+from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
+import numpy as np
 
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
-import numpy as np
 
-
-def knee_point_detection(front, first_objective_weight):
-    # ht = HighTradeoffPoints()
-    # array = np.array(front)
-    # array[:, 0] = array[:, 0] * first_objective_weight
-    # try:
-    #     # convert to minimization
-    #     ans = ht.do(-1 * array)
-    #     if ans is None:
-    #         print('Empty Answer', front)
-    #         # if no trade-off point, then choosing the point with the highest R2
-    #         return max(range(len(front)), key=lambda x: front[x][0])
-    #     else:
-    #         return max(ans, key=lambda x: front[x][0])
-    # except (ValueError, IndexError):
-    #     print('Value Error', front)
-    #     # Unknown Exception
-    #     return max(range(len(front)), key=lambda x: front[x][0])
-
-    # front = np.array(front)
-    # p1 = np.array([max(front[:, 0]), min(front[:, 1])])
-    # p2 = np.array([min(front[:, 0]), max(front[:, 1])])
-    # # 自动选择拐点
-    # ans = max([i for i in range(len(front))],
-    #           key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
-    # return ans
+def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     front = np.array(front)
-    return np.argmax(front[:, 1])
+    if knee_point_strategy == 'Knee' or knee_point_strategy == True:
+        p1 = np.array([max(front[:, 0]), min(front[:, 1])])
+        p2 = np.array([min(front[:, 0]), max(front[:, 1])])
+        # 自动选择拐点
+        ans = max([i for i in range(len(front))],
+                  key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
+        return ans
+    elif knee_point_strategy == 'BestAdditionalObjetive':
+        return np.argmax(front[:, 1])
+    elif knee_point_strategy == 'BestMainObjetive':
+        return np.argmax(front[:, 0])
+    elif knee_point_strategy == 'SecondAdditionalObjetive':
+        if len(front) > 1:
+            return np.argsort(front[:, 1])[-2]
+        else:
+            return 0
+    elif knee_point_strategy == 'SecondMainObjetive':
+        if len(front) > 1:
+            return np.argmax(front[:, 0])[-2]
+        else:
+            return 0
+    elif knee_point_strategy == 'HighTradeoff':
+        ht = HighTradeoffPoints()
+        try:
+            # convert to minimization
+            ans = ht.do(-1 * front)
+            if ans is None:
+                print('Empty Answer', front)
+                # if no trade-off point, then choosing the point with the highest R2
+                return max(range(len(front)), key=lambda x: front[x][0])
+            else:
+                return max(ans, key=lambda x: front[x][0])
+        except (ValueError, IndexError):
+            print('Value Error', front)
+            # Unknown Exception
+            return max(range(len(front)), key=lambda x: front[x][0])
+    else:
+        raise Exception('Unknown Knee Point Strategy')
 
 
 class EnvironmentalSelection():
@@ -110,10 +123,10 @@ class NSGA2(EnvironmentalSelection):
 
         population[:] = self.selection_operator(individuals, len(population))
 
-        if self.knee_point:
+        if self.knee_point != False:
             first_pareto_front = sortNondominated(population, len(population))[0]
             knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
-                                        self.first_objective_weight)
+                                        kenn_point_strategy=self.knee_point)
             # Select the knee point as the final model
             self.algorithm.hof = [first_pareto_front[knee]]
 
