@@ -366,3 +366,13 @@ class R2PACBayesian(Fitness):
                 reduced_evaluation += 1
 
         reassign_objective_values(parent, population)
+
+
+class PACBayesianR2Scaler(R2PACBayesian):
+    """
+    Aggregating fitness values into a scalar value
+    """
+
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
+        self.assign_complexity_pop(population)
+        assign_rank(population, hall_of_fame, elite_archive)
