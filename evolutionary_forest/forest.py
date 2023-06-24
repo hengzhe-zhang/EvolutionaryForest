@@ -4,6 +4,7 @@ from multiprocessing import Pool
 from typing import Union
 
 import dill
+import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -1992,8 +1993,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     # Mathematical functions
                     'AQ': (analytical_quotient, 2),  # Analytical Quotient for symbolic differentiation
                     'Sqrt': (protect_sqrt, 1),  # Protected square root for handling negative values
-                    'Log': (analytical_log, 1),  # Analytical Logarithm for symbolic differentiation
-                    'Log10': (analytical_log10, 1),  # Analytical Logarithm base 10 for symbolic differentiation
+                    'ALog': (analytical_log, 1),  # Analytical Logarithm for symbolic differentiation
+                    'ALog10': (analytical_log10, 1),  # Analytical Logarithm base 10 for symbolic differentiation
                     'Sin': (np.sin, 1),  # Sine function
                     'Cos': (np.cos, 1),  # Cosine function
                     'Arctan': (np.arctan, 1),  # Arctangent function
@@ -2001,6 +2002,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     'Cbrt': (np.cbrt, 1),  # Cube root function
                     'Square': (np.square, 1),  # Square function
                     'Cube': (cube, 1),  # Cube function
+                    'Log': (protected_log, 2),
+                    'Inv': (protected_inverse, 1),
 
                     # Comparison operations
                     'GE': (greater_or_equal_than, 2),  # Greater than or equal to comparison

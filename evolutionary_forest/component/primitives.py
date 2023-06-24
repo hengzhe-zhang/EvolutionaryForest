@@ -16,6 +16,18 @@ def protected_division(x1, *x2):
         return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
 
 
+def protected_log(x1, x2):
+    """Closure of log for zero and negative arguments."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(np.abs(x1) > threshold and np.abs(x2) > threshold, np.emath.logn(np.abs(x1)), 0.)
+
+
+def protected_inverse(x1):
+    """Closure of inverse for zero arguments."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(np.abs(x1) > threshold, 1. / x1, 0.)
+
+
 def analytical_quotient(x1, x2):
     return x1 / np.sqrt(1 + (x2 ** 2))
 
