@@ -126,7 +126,7 @@ class MultipleGeneGP():
         self.active_gene_num = active_gene_num
         self.content = content
         if configuration.gene_addition_rate > 0:
-            gene_num = 1
+            gene_num = random.randint(1, gene_num)
         self.tree_initialization(content, gene_num)
         if tpot_model != None:
             self.base_model = tpot_model._toolbox.individual()
