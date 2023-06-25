@@ -89,7 +89,7 @@ from evolutionary_forest.strategies.space_partition import SpacePartition, parti
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
     gene_to_string, get_activations, reset_random, weighted_avg_and_std, save_array, is_float, cross_scale, \
-    extract_numbers, pickle_deepcopy
+    extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor
 
 eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-PM',
@@ -786,7 +786,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             coef = base_learner.feature_importance
         elif hasattr(base_learner, 'feature_importances_'):
             coef = base_learner.feature_importances_
-        elif isinstance(base_learner, KNeighborsRegressor):
+        elif isinstance(base_learner, (KNeighborsRegressor, MeanRegressor, MedianRegressor)):
             # Temporarily set all features to have equal importance values
             coef = np.ones(self.gene_num)
         else:
@@ -1272,6 +1272,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = ElasticNetCV(l1_ratio=[.1, .5, .7, .9, .95, .99, 1], n_alphas=10)
         elif self.base_learner == 'LR':
             ridge_model = LinearRegression()
+        elif self.base_learner == 'Mean':
+            ridge_model = MeanRegressor()
+        elif self.base_learner == 'Median':
+            ridge_model = MedianRegressor()
         elif self.base_learner == 'Lasso':
             ridge_model = LassoCV(n_alphas=10, max_iter=1000)
         elif self.base_learner == 'AdaptiveLasso':

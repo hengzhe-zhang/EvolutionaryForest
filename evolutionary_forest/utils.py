@@ -13,11 +13,28 @@ import torch
 from deap.gp import Primitive
 from matplotlib import pyplot as plt
 from numba import njit
+from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import RidgeCV
 from sympy import latex, parse_expr
 
 from evolutionary_forest.component.primitives import individual_to_tuple
 
+
+class MeanRegressor(BaseEstimator,RegressorMixin):
+
+    def fit(self, X, y=None):
+        return self
+
+    def predict(self, X):
+        return np.mean(X, axis=1)
+
+class MedianRegressor(BaseEstimator,RegressorMixin):
+
+    def fit(self, X, y=None):
+        return self
+
+    def predict(self, X):
+        return np.median(X, axis=1)
 
 def extract_numbers(dimension, s):
     """
