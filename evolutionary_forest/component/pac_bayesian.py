@@ -123,6 +123,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
             objectives.append((perturbation_mse, -1 * weight))
         elif s == 'KL-Divergence':
             objectives.append((kl_divergence, -1 * weight))
+        elif s == 'Size':
+            objectives.append((np.sum([len(g) for g in individual.gene]), -1 * weight))
         else:
             raise ValueError("Unknown objective function!")
     return tuple(objectives)
