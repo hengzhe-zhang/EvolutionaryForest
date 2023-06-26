@@ -1,12 +1,14 @@
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Union
 
+import numpy as np
 from deap.tools import selNSGA2, sortNondominated, selSPEA2
 from numpy.linalg import norm
+from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
+from pymoo.mcdm.pseudo_weights import PseudoWeights
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
-import numpy as np
 
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
@@ -52,6 +54,17 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
             print('Value Error', front)
             # Unknown Exception
             return max(range(len(front)), key=lambda x: front[x][0])
+    elif knee_point_strategy.startswith('CP'):
+        cp_ratio = float(knee_point_strategy.split('-')[1])
+        decomp = ASF()
+        # convert to a minimization problem
+        I = decomp(-1 * front, np.array([cp_ratio, 1 - cp_ratio])).argmin()
+        return I
+    elif knee_point_strategy.startswith('PW'):
+        pw_ratio = float(knee_point_strategy.split('-')[1])
+        # convert to a minimization problem
+        I = PseudoWeights(np.array([pw_ratio, 1 - pw_ratio])).do(-1 * front)
+        return I
     else:
         raise Exception('Unknown Knee Point Strategy')
 
