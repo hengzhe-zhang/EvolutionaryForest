@@ -19,11 +19,14 @@ if TYPE_CHECKING:
 def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     front = np.array(front)
     if knee_point_strategy == 'Knee' or knee_point_strategy == True:
-        p1 = np.array([max(front[:, 0]), min(front[:, 1])])
-        p2 = np.array([min(front[:, 0]), max(front[:, 1])])
+        pf = front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+
+        p1 = pf[pf[:, 0].argmax()]
+        p2 = pf[pf[:, 1].argmax()]
         # 自动选择拐点
-        ans = max([i for i in range(len(front))],
-                  key=lambda i: norm(np.cross(p2 - p1, p1 - front[i])) / norm(p2 - p1))
+        ans = max([i for i in range(len(pf))],
+                  key=lambda i: norm(np.cross(p2 - p1, p1 - pf[i])) / norm(p2 - p1))
         return ans
     elif knee_point_strategy == 'BestAdditionalObjetive':
         return np.argmax(front[:, 1])
@@ -40,6 +43,7 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         else:
             return 0
     elif knee_point_strategy == 'HighTradeoff':
+        front = (front - np.min(front, axis=0)) / (np.max(front, axis=0) - np.min(front, axis=0))
         ht = HighTradeoffPoints()
         try:
             # convert to minimization
