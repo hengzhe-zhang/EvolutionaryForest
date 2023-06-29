@@ -12,6 +12,8 @@ from sklearn.model_selection import train_test_split, cross_val_predict
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
+from evolutionary_forest.utils import cv_prediction_from_ridge
+
 
 class PACBayesianConfiguration():
     def __init__(self, kl_term_weight: float = 1,
@@ -94,9 +96,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                 estimator_noise.fit(X_noise, y)
                 y_pred = get_cv_predictions(estimator_noise, X_noise, y)
             else:
-                # estimator_noise = copy.deepcopy(estimator)
-                # estimator_noise.fit(X_noise, y)
-                y_pred = get_cv_predictions(estimator, X_noise, y)
+                y_pred = get_cv_predictions(estimator, X_noise, y,
+                                            direct_prediction=True)
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         mse_scores[i] = mean_squared_error(y, y_pred)
@@ -130,13 +131,10 @@ def pac_bayesian_estimation(X, y, estimator, individual,
     return tuple(objectives)
 
 
-def get_cv_predictions(estimator, X, y):
+def get_cv_predictions(estimator, X, y, direct_prediction=False):
     base_model = estimator['Ridge']
-    if isinstance(base_model, RidgeCV):
-        all_y_pred = (base_model.cv_values_ + y.mean())
-        error_list = ((y.reshape(-1, 1) - all_y_pred) ** 2).sum(axis=0)
-        new_best_index = np.argmin(error_list)
-        y_pred = base_model.cv_values_[:, new_best_index]
+    if isinstance(base_model, RidgeCV) and not direct_prediction:
+        y_pred = cv_prediction_from_ridge(y, base_model)
     else:
         y_pred = estimator.predict(X)
     return y_pred
