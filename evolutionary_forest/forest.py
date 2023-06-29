@@ -3832,13 +3832,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.test_fun != None:
             self.training_with_validation_set()
             self.second_layer_generation(self.X, self.y)
-            training_loss = self.test_fun[0].predict_loss()
-            self.train_data_history.append(training_loss)
-            testing_loss = self.test_fun[1].predict_loss()
-            self.test_data_history.append(testing_loss)
-            if verbose:
-                print('Training Loss', training_loss)
-                print('Testing Loss', testing_loss)
+            if len(self.test_fun)>0:
+                training_loss = self.test_fun[0].predict_loss()
+                self.train_data_history.append(training_loss)
+                if verbose:
+                    print('Training Loss', training_loss)
+            if len(self.test_fun)>1:
+                testing_loss = self.test_fun[1].predict_loss()
+                self.test_data_history.append(testing_loss)
+                if verbose:
+                    print('Testing Loss', testing_loss)
             self.pop_avg_fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in population]))
             self.pop_diversity_history.append(self.diversity_calculation(population))
             if not isinstance(self, ClassifierMixin):
