@@ -29,6 +29,10 @@ requirements = [
     'mlxtend',
     'sklearn2pmml',
     'tpot',
+    'gplearn',
+    'scorch',
+    'umap-learn',
+    'category_encoders',
 ]
 
 setup_requirements = ['pytest-runner', ]
