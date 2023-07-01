@@ -42,10 +42,17 @@ Features
 
 Installation
 --------------------------------
+From PyPI:
 
 .. code:: bash
 
     pip install -U evolutionary_forest
+
+From GitHub (Latest Code):
+
+.. code:: bash
+
+    pip install git+https://github.com/hengzhe-zhang/EvolutionaryForest.git
 
 Supported Algorithms
 --------------------------------
