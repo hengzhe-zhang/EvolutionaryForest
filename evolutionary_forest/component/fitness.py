@@ -323,14 +323,17 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.Data
         if sharpness_type == 'Semantics':
             sharpness_type = SharpnessType.Semantics
+        if sharpness_type == 'Flatness':
+            sharpness_type = SharpnessType.Flatness
         self.sharpness_type = sharpness_type
 
     def assign_complexity(self, individual, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
         X_features = algorithm.feature_generation(algorithm.X, individual)
-        feature_generator = lambda: algorithm.feature_generation(
-            algorithm.X + np.random.normal(scale=self.algorithm.pac_bayesian.perturbation_std * algorithm.X.std(axis=0),
+        feature_generator = lambda std=None: algorithm.feature_generation(
+            algorithm.X + np.random.normal(scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+                                                 * algorithm.X.std(axis=0),
                                            size=algorithm.X.shape),
             individual
         )

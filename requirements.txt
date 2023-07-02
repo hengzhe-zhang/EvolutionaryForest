@@ -9,3 +9,7 @@ pandas
 scikit_learn
 dill
 lightgbm
+gplearn
+scorch
+umap-learn
+category_encoders

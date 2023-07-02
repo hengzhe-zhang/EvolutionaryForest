@@ -61,6 +61,7 @@ def kl_term_function(m, w, sigma, delta=0.1):
 class SharpnessType(Enum):
     Data = 1
     Semantics = 2
+    Flatness = 3
 
 
 def pac_bayesian_estimation(X, y, estimator, individual,
@@ -74,41 +75,60 @@ def pac_bayesian_estimation(X, y, estimator, individual,
     sc = StandardScaler()
     X = sc.fit_transform(X)
 
-    # Create an array to store the R2 scores
-    mse_scores = np.zeros(num_iterations)
-    std = configuration.perturbation_std
-    # Iterate over the number of iterations
-    for i in range(num_iterations):
-        if sharpness_type == SharpnessType.Semantics:
-            # Add random Gaussian noise to the coefficients and intercept
-            X_noise = X + np.random.normal(scale=std, size=X.shape)
-        elif sharpness_type == SharpnessType.Data:
-            X_noise = sc.transform(feature_generator())
-        else:
-            raise Exception("Unknown sharpness type!")
+    if sharpness_type == SharpnessType.Flatness:
+        low = 1e-4
+        high = 1
 
-        if cross_validation:
-            y_pred = cross_val_predict(estimator, X_noise, y)
-        else:
-            if sharpness_type == SharpnessType.Semantics:
-                estimator_noise = copy.deepcopy(estimator)
-                # Use the modified Ridge model to predict the outcome variable
-                estimator_noise.fit(X_noise, y)
-                y_pred = get_cv_predictions(estimator_noise, X_noise, y)
+        while high - low > 1e-4:
+            noise = (low + high) / 2
+            X_noise = sc.transform(feature_generator(std=noise))
+            y_pred = get_cv_predictions(estimator, X_noise, y, direct_prediction=True)
+            new_r2 = r2_score(y, y_pred)
+
+            if R2 - new_r2 > 0.01:
+                # noise is too much
+                high = noise
             else:
-                y_pred = get_cv_predictions(estimator, X_noise, y,
-                                            direct_prediction=True)
+                low = noise
 
-        # Calculate the R2 score between the predicted outcomes and the true outcomes
-        mse_scores[i] = mean_squared_error(y, y_pred)
-
-    # Compute the mean and standard deviation of the R2 scores
-    perturbation_mse = np.mean(mse_scores)
-
-    if np.sum(std) == 0:
-        kl_divergence = np.inf
+        best_noise = (low + high) / 2
+        perturbation_mse = best_noise
     else:
-        kl_divergence = kl_term_function(len(X.flatten()), X.flatten(), std)
+        # Create an array to store the R2 scores
+        mse_scores = np.zeros(num_iterations)
+        std = configuration.perturbation_std
+        # Iterate over the number of iterations
+        for i in range(num_iterations):
+            if sharpness_type == SharpnessType.Semantics:
+                # Add random Gaussian noise to the coefficients and intercept
+                X_noise = X + np.random.normal(scale=std, size=X.shape)
+            elif sharpness_type == SharpnessType.Data:
+                X_noise = sc.transform(feature_generator())
+            else:
+                raise Exception("Unknown sharpness type!")
+
+            if cross_validation:
+                y_pred = cross_val_predict(estimator, X_noise, y)
+            else:
+                if sharpness_type == SharpnessType.Semantics:
+                    estimator_noise = copy.deepcopy(estimator)
+                    # Use the modified Ridge model to predict the outcome variable
+                    estimator_noise.fit(X_noise, y)
+                    y_pred = get_cv_predictions(estimator_noise, X_noise, y)
+                else:
+                    y_pred = get_cv_predictions(estimator, X_noise, y,
+                                                direct_prediction=True)
+
+            # Calculate the R2 score between the predicted outcomes and the true outcomes
+            mse_scores[i] = mean_squared_error(y, y_pred)
+
+        # Compute the mean and standard deviation of the R2 scores
+        perturbation_mse = np.mean(mse_scores)
+
+        if np.sum(std) == 0:
+            kl_divergence = np.inf
+        else:
+            kl_divergence = kl_term_function(len(X.flatten()), X.flatten(), std)
 
     objectives = []
     for s in configuration.objective.split(','):
@@ -121,7 +141,10 @@ def pac_bayesian_estimation(X, y, estimator, individual,
         if s == 'R2':
             objectives.append((R2, 1 * weight))
         elif s == 'Perturbed-MSE':
-            objectives.append((perturbation_mse, -1 * weight))
+            if sharpness_type == SharpnessType.Flatness:
+                objectives.append((perturbation_mse, weight))
+            else:
+                objectives.append((perturbation_mse, -1 * weight))
         elif s == 'KL-Divergence':
             objectives.append((kl_divergence, -1 * weight))
         elif s == 'Size':
