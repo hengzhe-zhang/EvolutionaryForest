@@ -1,4 +1,5 @@
 import gc
+import math
 from collections import Counter
 from multiprocessing import Pool
 from typing import Union
@@ -1900,8 +1901,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.add_primitives_to_pset(pset)
 
         # add constant
-        if hasattr(gp, 'rand101'):
-            delattr(gp, 'rand101')
+        for constant in ['rand101','pi','e']:
+            if hasattr(gp, constant):
+                delattr(gp, constant)
         if self.constant_type == 'Normal':
             pset.addEphemeralConstant("rand101", lambda: np.random.normal())
         elif self.constant_type is None:
@@ -1910,6 +1912,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1), NumericalFeature)
         elif self.constant_type == 'Float':
             pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
+            pset.addEphemeralConstant("pi", lambda: math.pi)
+            pset.addEphemeralConstant("e", lambda: math.e)
         else:
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
 
