@@ -317,6 +317,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                  rmp_ratio=0.5,  # Multi-task Optimization
                  force_retrain=False,
+                 learner=None,
                  **params):
         """
         Basic GP Parameters:
@@ -353,6 +354,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         SurrogateModel.__init__(self)
         SpacePartition.__init__(self)
         EstimationOfDistribution.__init__(self, **params)
+        self.learner = learner
         self.force_retrain = force_retrain
         self.base_learner_configuration = BaseLearnerConfiguration(**params)
         self.pac_bayesian = PACBayesianConfiguration(**params)
@@ -1901,7 +1903,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.add_primitives_to_pset(pset)
 
         # add constant
-        for constant in ['rand101','pi','e']:
+        for constant in ['rand101', 'pi', 'e']:
             if hasattr(gp, constant):
                 delattr(gp, constant)
         if self.constant_type == 'Normal':
@@ -2200,6 +2202,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.test_X = test_X
             X = self.add_noise_to_data(X)
 
+        X = self.pretrain(X, y)
+
         # Split into train and validation sets if validation size is greater than 0
         if self.validation_size > 0:
             X, self.valid_x, y, self.valid_y = train_test_split(X, y, test_size=self.validation_size)
@@ -2312,6 +2316,26 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.second_layer_generation(X, y)
         self.training_with_validation_set()
         return self
+
+    def pretrain(self, X, y):
+        if self.learner is not None:
+            data = []
+            models = []
+            for learner in self.learner.split(","):
+                if learner == 'LR':
+                    lr = LinearRegression()
+                elif learner == 'LightGBM':
+                    lr = LGBMRegressor()
+                elif learner == 'KNN':
+                    lr = KNeighborsRegressor()
+                else:
+                    raise Exception
+                lr.fit(X, y)
+                data.append(lr.predict(X).flatten())
+                models.append(lr)
+            X = np.concatenate([X, np.array(data).T], axis=1)
+            self.pretrain_models = models
+        return X
 
     def add_noise_to_data(self, X):
         param = self.param
@@ -2535,6 +2559,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.normalize:
             # Scale X data if normalize flag is set
             X = self.x_scaler.transform(X)
+
+        X = self.pretrain_predict(X)
+
         prediction_data_size = X.shape[0]
         if self.test_data_size > 0:
             # Concatenate new X data with existing X data if test_data_size is greater than 0
@@ -3836,12 +3863,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.test_fun != None:
             self.training_with_validation_set()
             self.second_layer_generation(self.X, self.y)
-            if len(self.test_fun)>0:
+            if len(self.test_fun) > 0:
                 training_loss = self.test_fun[0].predict_loss()
                 self.train_data_history.append(training_loss)
                 if verbose:
                     print('Training Loss', training_loss)
-            if len(self.test_fun)>1:
+            if len(self.test_fun) > 1:
                 testing_loss = self.test_fun[1].predict_loss()
                 self.test_data_history.append(testing_loss)
                 if verbose:
@@ -4590,6 +4617,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         assert isinstance(learner, LinearModel)
         genes = best_ind.gene
         return model_to_string(genes, learner, scaler)
+
+    def pretrain_predict(self, X):
+        if self.learner is not None:
+            data=[]
+            for model in self.pretrain_models:
+                data.append(model.predict(X).flatten())
+            X = np.concatenate([X, np.array(data).T], axis=1)
+            return X
 
 
 def model_to_string(genes, learner, scaler):
