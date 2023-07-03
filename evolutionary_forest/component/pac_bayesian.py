@@ -85,7 +85,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
             y_pred = get_cv_predictions(estimator, X_noise, y, direct_prediction=True)
             new_r2 = r2_score(y, y_pred)
 
-            if R2 - new_r2 > 0.01:
+            if R2 - new_r2 > 0.1:
                 # noise is too much
                 high = noise
             else:
