@@ -325,18 +325,21 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.Semantics
         if sharpness_type == 'Flatness':
             sharpness_type = SharpnessType.Flatness
+        if sharpness_type == 'DataLGBM':
+            sharpness_type = SharpnessType.DataLGBM
         self.sharpness_type = sharpness_type
 
     def assign_complexity(self, individual, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
         X_features = algorithm.feature_generation(algorithm.X, individual)
-        feature_generator = lambda std=None: algorithm.feature_generation(
-            algorithm.X + np.random.normal(scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
-                                                 * algorithm.X.std(axis=0),
-                                           size=algorithm.X.shape),
-            individual
+        # random generate training data
+        data_generator = lambda std=None: algorithm.X + np.random.normal(
+            scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+                  * algorithm.X.std(axis=0),
+            size=algorithm.X.shape
         )
+        feature_generator = lambda data: algorithm.feature_generation(data, individual)
         y = algorithm.y
 
         # PAC-Bayesian estimation
@@ -345,7 +348,9 @@ class R2PACBayesian(Fitness):
                                              self.algorithm.evaluation_configuration.cross_validation,
                                              self.algorithm.pac_bayesian,
                                              self.sharpness_type,
-                                             feature_generator)
+                                             feature_generator=feature_generator,
+                                             data_generator=data_generator,
+                                             reference_model=self.algorithm.reference_lgbm)
         individual.fitness_list = estimation
         return -1 * individual.fitness_list[0][0],
 

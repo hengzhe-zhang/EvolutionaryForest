@@ -36,6 +36,7 @@ from sklearn.utils import compute_sample_weight
 from sklearn2pmml.ensemble import GBDTLRClassifier
 from sympy import parse_expr
 from tpot import TPOTClassifier, TPOTRegressor
+from xgboost import XGBRegressor
 
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
@@ -44,7 +45,7 @@ from evolutionary_forest.component.configuration import CrossoverMode, ArchiveCo
     BaseLearnerConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
-from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2
+from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
@@ -484,6 +485,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.environmental_selection: NSGA2 = NSGA2(self, None, **self.param)
         elif environmental_selection == 'SPEA2':
             self.environmental_selection = SPEA2(self, None, **self.param)
+        elif environmental_selection == 'Best':
+            self.environmental_selection = Best()
         else:
             self.environmental_selection = environmental_selection
         self.eager_training = eager_training
@@ -1910,7 +1913,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pset.addEphemeralConstant("pi", lambda: math.pi)
             pset.addEphemeralConstant("e", lambda: math.e)
         elif self.constant_type == 'Normal':
-            pset.addEphemeralConstant("rand101", lambda: np.random.normal(0,1))
+            pset.addEphemeralConstant("rand101", lambda: np.random.normal(0, 1))
         else:
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
 
@@ -2204,7 +2207,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         X = self.pretrain(X, y)
 
-        if isinstance(self.environmental_selection, EnvironmentalSelection) and \
+        if isinstance(self.environmental_selection, (NSGA2, SPEA2)) and \
             self.environmental_selection.knee_point == 'Validation':
             X, valid_x, y, valid_y = train_test_split(X, y, test_size=0.2)
             self.environmental_selection.validation_x = valid_x
@@ -2220,13 +2223,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Fit a model to the data and use it to generate pseudo labels
             regularization_model = self.param['regularization_model']
             if regularization_model == 'LGBM':
-                lgbm = LGBMRegressor()
+                model = LGBMRegressor()
             elif regularization_model == 'SVR':
-                lgbm = SVR()
+                model = SVR()
             else:
                 raise Exception
-            lgbm.fit(self.X, self.y)
-            self.pseudo_label = lgbm.predict(self.test_X)
+            model.fit(self.X, self.y)
+            self.pseudo_label = model.predict(self.test_X)
         if self.environmental_selection == 'NSGA2-100':
             # Generate random objectives
             self.random_objectives = np.random.uniform(0, 1, size=(len(y), 100))
@@ -2324,22 +2327,24 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             models = []
             for learner in self.learner.split(","):
                 if learner == 'LR':
-                    lr = LinearRegression()
+                    model = LinearRegression()
                 elif learner == 'LightGBM':
-                    lr = LGBMRegressor()
+                    model = LGBMRegressor()
                 elif learner == 'KNN':
-                    lr = KNeighborsRegressor()
+                    model = KNeighborsRegressor()
                 else:
                     raise Exception
-                lr.fit(X, y)
-                data.append(lr.predict(X).flatten())
-                models.append(lr)
+                model.fit(X, y)
+                data.append(model.predict(X).flatten())
+                models.append(model)
             X = np.concatenate([X, np.array(data).T], axis=1)
             self.pretrain_models = models
 
-        if isinstance(self.score_func,R2PACBayesian) and self.score_func.sharpness_type==SharpnessType.DataLGBM:
-            self.reference_lgbm=LGBMRegressor()
-            self.reference_lgbm.fit(X,y)
+        if isinstance(self.score_func, R2PACBayesian) and self.score_func.sharpness_type == SharpnessType.DataLGBM:
+            # self.reference_lgbm = LGBMRegressor(n_jobs=1)
+            self.reference_lgbm = XGBRegressor(n_jobs=1)
+            # self.reference_lgbm = DecisionTreeRegressor()
+            self.reference_lgbm.fit(X, y)
         return X
 
     def add_noise_to_data(self, X):

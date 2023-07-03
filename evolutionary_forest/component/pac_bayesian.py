@@ -5,6 +5,7 @@ from enum import Enum
 
 import numpy as np
 from deap import creator, base, tools
+from lightgbm import LGBMRegressor
 from sklearn.datasets import load_diabetes
 from sklearn.linear_model import RidgeCV, Ridge
 from sklearn.metrics import r2_score, mean_squared_error
@@ -69,7 +70,9 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                             cross_validation: bool,
                             configuration: PACBayesianConfiguration,
                             sharpness_type: SharpnessType,
-                            feature_generator=None):
+                            feature_generator=None,
+                            data_generator=None,
+                            reference_model: LGBMRegressor = None):
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = 10
@@ -103,8 +106,9 @@ def pac_bayesian_estimation(X, y, estimator, individual,
             if sharpness_type == SharpnessType.Semantics:
                 # Add random Gaussian noise to the coefficients and intercept
                 X_noise = X + np.random.normal(scale=std, size=X.shape)
-            elif sharpness_type == SharpnessType.Data:
-                X_noise = sc.transform(feature_generator())
+            elif sharpness_type == SharpnessType.Data or sharpness_type == SharpnessType.DataLGBM:
+                data = data_generator()
+                X_noise = sc.transform(feature_generator(data))
             else:
                 raise Exception("Unknown sharpness type!")
 
@@ -122,7 +126,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
 
             # Calculate the R2 score between the predicted outcomes and the true outcomes
             if sharpness_type == SharpnessType.DataLGBM:
-                pass
+                mse_scores[i] = mean_squared_error(reference_model.predict(data), y_pred)
             else:
                 mse_scores[i] = mean_squared_error(y, y_pred)
 

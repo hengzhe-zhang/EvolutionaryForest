@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Union
 
 import numpy as np
-from deap.tools import selNSGA2, sortNondominated, selSPEA2
+from deap.tools import selNSGA2, sortNondominated, selSPEA2, selBest
 from numpy.linalg import norm
 from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
@@ -190,6 +190,12 @@ class SPEA2(NSGA2):
                  normalization=False, knee_point=False, bootstrapping_selection=False, **kwargs):
         super().__init__(algorithm, objective_function, normalization, knee_point, bootstrapping_selection, **kwargs)
         self.selection_operator = selSPEA2
+
+
+class Best(EnvironmentalSelection):
+
+    def select(self, population, offspring):
+        return selBest(population + offspring, len(population))
 
 
 if __name__ == "__main__":
