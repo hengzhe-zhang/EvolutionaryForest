@@ -117,6 +117,8 @@ class NSGA2(EnvironmentalSelection):
         self.normalization = normalization
         self.knee_point = knee_point
         self.selection_operator = selNSGA2
+        self.validation_x = None
+        self.validation_y = None
 
     def select(self, population, offspring):
         individuals = population + offspring
@@ -141,11 +143,25 @@ class NSGA2(EnvironmentalSelection):
         population[:] = self.selection_operator(individuals, len(population))
 
         if self.knee_point != False:
-            first_pareto_front = sortNondominated(population, len(population))[0]
-            knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
-                                        knee_point_strategy=self.knee_point)
-            # Select the knee point as the final model
-            self.algorithm.hof = [first_pareto_front[knee]]
+            if self.knee_point == 'Validation':
+                first_pareto_front = sortNondominated(population, len(population))[0]
+                scores = []
+                for ind in first_pareto_front:
+                    features = self.algorithm.feature_generation(self.validation_x, ind)
+                    scores.append(r2_score(self.validation_y, ind.pipe.predict(features)))
+                self.algorithm.hof = [first_pareto_front[np.argmax(scores)]]
+                # refit
+                ind = self.algorithm.hof[0]
+                concatenate_X = np.concatenate([self.algorithm.X, self.validation_x], axis=0)
+                concatenate_y = np.concatenate([self.algorithm.y, self.validation_y.flatten()])
+                concatenate_X = self.algorithm.feature_generation(concatenate_X, ind)
+                ind.pipe.fit(concatenate_X, concatenate_y)
+            else:
+                first_pareto_front = sortNondominated(population, len(population))[0]
+                knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
+                                            knee_point_strategy=self.knee_point)
+                # Select the knee point as the final model
+                self.algorithm.hof = [first_pareto_front[knee]]
 
         if self.bootstrapping_selection:
             first_pareto_front: list = sortNondominated(population, len(population))[0]

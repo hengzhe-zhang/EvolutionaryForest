@@ -481,7 +481,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.final_elite_grid = []
         self.early_stop = early_stop
         if environmental_selection == 'NSGA2':
-            self.environmental_selection = NSGA2(self, None, **self.param)
+            self.environmental_selection: NSGA2 = NSGA2(self, None, **self.param)
         elif environmental_selection == 'SPEA2':
             self.environmental_selection = SPEA2(self, None, **self.param)
         else:
@@ -2201,6 +2201,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.validation_size > 0:
             X, self.valid_x, y, self.valid_y = train_test_split(X, y, test_size=self.validation_size)
             self.valid_y = self.valid_y.flatten()
+
+        if isinstance(self.environmental_selection, EnvironmentalSelection) and \
+            self.environmental_selection.knee_point == 'Validation':
+            X, valid_x, y, valid_y = train_test_split(X, y, test_size=0.2)
+            self.environmental_selection.validation_x = valid_x
+            self.environmental_selection.validation_y = valid_y
 
         # Save X and y
         self.X: np.ndarray
