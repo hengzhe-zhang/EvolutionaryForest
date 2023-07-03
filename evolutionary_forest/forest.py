@@ -53,7 +53,7 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
     LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
     PACBayesianR2Scaler
 from evolutionary_forest.component.generation import varAndPlus
-from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration
+from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType
 from evolutionary_forest.component.primitives import *
 from evolutionary_forest.component.primitives import np_mean, add_extend_operators
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
@@ -1909,6 +1909,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
             pset.addEphemeralConstant("pi", lambda: math.pi)
             pset.addEphemeralConstant("e", lambda: math.e)
+        elif self.constant_type == 'Normal':
+            pset.addEphemeralConstant("rand101", lambda: np.random.normal(0,1))
         else:
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
 
@@ -2195,12 +2197,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.test_X = test_X
             X = self.add_noise_to_data(X)
 
-        X = self.pretrain(X, y)
-
         # Split into train and validation sets if validation size is greater than 0
         if self.validation_size > 0:
             X, self.valid_x, y, self.valid_y = train_test_split(X, y, test_size=self.validation_size)
             self.valid_y = self.valid_y.flatten()
+
+        X = self.pretrain(X, y)
 
         if isinstance(self.environmental_selection, EnvironmentalSelection) and \
             self.environmental_selection.knee_point == 'Validation':
@@ -2334,6 +2336,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 models.append(lr)
             X = np.concatenate([X, np.array(data).T], axis=1)
             self.pretrain_models = models
+
+        if isinstance(self.score_func,R2PACBayesian) and self.score_func.sharpness_type==SharpnessType.DataLGBM:
+            self.reference_lgbm=LGBMRegressor()
+            self.reference_lgbm.fit(X,y)
         return X
 
     def add_noise_to_data(self, X):

@@ -62,6 +62,7 @@ class SharpnessType(Enum):
     Data = 1
     Semantics = 2
     Flatness = 3
+    DataLGBM = 4
 
 
 def pac_bayesian_estimation(X, y, estimator, individual,
@@ -120,7 +121,10 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                                                 direct_prediction=True)
 
             # Calculate the R2 score between the predicted outcomes and the true outcomes
-            mse_scores[i] = mean_squared_error(y, y_pred)
+            if sharpness_type == SharpnessType.DataLGBM:
+                pass
+            else:
+                mse_scores[i] = mean_squared_error(y, y_pred)
 
         # Compute the mean and standard deviation of the R2 scores
         perturbation_mse = np.mean(mse_scores)
