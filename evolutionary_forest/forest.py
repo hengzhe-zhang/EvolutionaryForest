@@ -1,11 +1,8 @@
 import gc
-import math
-from collections import Counter
 from multiprocessing import Pool
 from typing import Union
 
 import dill
-import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -44,7 +41,7 @@ from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
-    BaseLearnerConfiguration, MABConfiguration
+    BaseLearnerConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2
@@ -56,12 +53,9 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
     LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
     PACBayesianR2Scaler
 from evolutionary_forest.component.generation import varAndPlus
-from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, \
-    PACBayesianConfiguration, assign_rank
+from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration
 from evolutionary_forest.component.primitives import *
 from evolutionary_forest.component.primitives import np_mean, add_extend_operators
-from evolutionary_forest.component.rademacher_complexity import rademacher_complexity_estimation, \
-    generate_rademacher_vector
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \
@@ -71,7 +65,6 @@ from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderN
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.PLTree import SoftPLTreeRegressor, SoftPLTreeRegressorEM, PLTreeRegressor, RidgeDT, \
     LRDTClassifier, RidgeDTPlus, RandomWeightRidge
@@ -4620,11 +4613,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def pretrain_predict(self, X):
         if self.learner is not None:
-            data=[]
+            data = []
             for model in self.pretrain_models:
                 data.append(model.predict(X).flatten())
             X = np.concatenate([X, np.array(data).T], axis=1)
-            return X
+        return X
 
 
 def model_to_string(genes, learner, scaler):
