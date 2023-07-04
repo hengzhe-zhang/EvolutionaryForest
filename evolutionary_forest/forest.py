@@ -2345,6 +2345,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.reference_lgbm = XGBRegressor(n_jobs=1)
             # self.reference_lgbm = DecisionTreeRegressor()
             self.reference_lgbm.fit(X, y)
+        else:
+            self.reference_lgbm = None
         return X
 
     def add_noise_to_data(self, X):
