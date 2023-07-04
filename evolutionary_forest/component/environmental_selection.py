@@ -143,7 +143,10 @@ class NSGA2(EnvironmentalSelection):
         population[:] = self.selection_operator(individuals, len(population))
 
         if self.knee_point != False:
-            if self.knee_point == 'Validation':
+            if self.knee_point=='Ensemble':
+                first_pareto_front = sortNondominated(population, len(population))[0]
+                self.algorithm.hof = first_pareto_front
+            elif self.knee_point == 'Validation':
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 scores = []
                 for ind in first_pareto_front:
