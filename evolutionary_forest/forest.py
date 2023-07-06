@@ -374,6 +374,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.gradient_boosting = gradient_boosting
         self.force_sr_tree = force_sr_tree
         self.bloat_control = bloat_control
+        if self.bloat_control is None:
+            self.bloat_control = {}
         if bloat_control is not None:
             self.bloat_control_configuration = BloatControlConfiguration(**bloat_control)
         else:
@@ -1704,7 +1706,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 chosen = []
                 for _ in range(k):
                     candidates = selAutomaticEpsilonLexicaseFast(pop, lexicase_round)
-                    size_arr = np.array([len(x) for x in candidates])
+                    if isinstance(self.environmental_selection,(NSGA2,SPEA2)):
+                        # For multi-object optimization, this might be a good way
+                        size_arr = [x.fitness.wvalues[1] for x in candidates]
+                        # change maximize to minimize
+                        size_arr= np.array([-x for x in size_arr])
+                    else:
+                        size_arr = np.array([len(x) for x in candidates])
                     if size_selection == 'Roulette':
                         size_arr = np.max(size_arr) + np.min(size_arr) - size_arr
                         index = np.random.choice([i for i in range(0, len(size_arr))], p=size_arr / size_arr.sum())
