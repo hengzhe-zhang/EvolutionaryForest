@@ -317,7 +317,9 @@ class R2SizeScaler(Fitness):
 class R2PACBayesian(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor",
                  sharpness_type='Semantics',
+                 sharpness_distribution='Normal',
                  **params):
+        self.sharpness_distribution = sharpness_distribution
         self.algorithm = algorithm
         if sharpness_type == 'Data':
             sharpness_type = SharpnessType.Data
@@ -334,11 +336,26 @@ class R2PACBayesian(Fitness):
         algorithm = self.algorithm
         X_features = algorithm.feature_generation(algorithm.X, individual)
         # random generate training data
-        data_generator = lambda std=None: algorithm.X + np.random.normal(
-            scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
-                  * algorithm.X.std(axis=0),
-            size=algorithm.X.shape
-        )
+        if self.sharpness_distribution == 'Normal':
+            data_generator = lambda std=None: algorithm.X + np.random.normal(
+                scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+                      * algorithm.X.std(axis=0),
+                size=algorithm.X.shape
+            )
+        elif self.sharpness_distribution == 'Uniform':
+            data_generator = lambda std=None: algorithm.X + np.random.uniform(
+                high=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+                     * algorithm.X.std(axis=0),
+                size=algorithm.X.shape
+            )
+        elif self.sharpness_distribution == 'Laplace':
+            data_generator = lambda std=None: algorithm.X + np.random.laplace(
+                scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+                      * algorithm.X.std(axis=0),
+                size=algorithm.X.shape
+            )
+        else:
+            raise Exception
         feature_generator = lambda data: algorithm.feature_generation(data, individual)
         y = algorithm.y
 

@@ -25,7 +25,7 @@ class PACBayesianConfiguration():
                  bound_reduction=False,
                  direct_reduction=True,
                  optimal_design=False,
-                 reference_model='XGB', **params):
+                 reference_model='KR', **params):
         # For VCD
         self.reference_model = reference_model
         self.optimal_design = optimal_design
