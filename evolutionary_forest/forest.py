@@ -1715,7 +1715,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         size_arr = np.array([len(x) for x in candidates])
                     if size_selection == 'Roulette':
                         size_arr = np.max(size_arr) + np.min(size_arr) - size_arr
-                        index = np.random.choice([i for i in range(0, len(size_arr))], p=size_arr / size_arr.sum())
+                        if size_arr.sum()<=0:
+                            index = np.random.choice([i for i in range(0, len(size_arr))])
+                        else:
+                            index = np.random.choice([i for i in range(0, len(size_arr))], p=size_arr / size_arr.sum())
                     elif size_selection == 'Min':
                         index = np.argmin(size_arr)
                     else:
