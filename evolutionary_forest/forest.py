@@ -27,7 +27,7 @@ from sklearn.linear_model import Ridge, LogisticRegression, LogisticRegressionCV
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split
+from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import MinMaxScaler, FunctionTransformer
@@ -1706,16 +1706,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 chosen = []
                 for _ in range(k):
                     candidates = selAutomaticEpsilonLexicaseFast(pop, lexicase_round)
-                    if isinstance(self.environmental_selection,(NSGA2,SPEA2)):
+                    if isinstance(self.environmental_selection, (NSGA2, SPEA2)):
                         # For multi-object optimization, this might be a good way
                         size_arr = [x.fitness.wvalues[1] for x in candidates]
                         # change maximize to minimize
-                        size_arr= np.array([-x for x in size_arr])
+                        size_arr = np.array([-x for x in size_arr])
                     else:
                         size_arr = np.array([len(x) for x in candidates])
                     if size_selection == 'Roulette':
                         size_arr = np.max(size_arr) + np.min(size_arr) - size_arr
-                        if size_arr.sum()<=0:
+                        if size_arr.sum() <= 0:
                             index = np.random.choice([i for i in range(0, len(size_arr))])
                         else:
                             index = np.random.choice([i for i in range(0, len(size_arr))], p=size_arr / size_arr.sum())
@@ -2366,7 +2366,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             elif self.pac_bayesian.reference_model == 'RF':
                 self.reference_lgbm = RandomForestRegressor()
             elif self.pac_bayesian.reference_model == 'KR':
-                self.reference_lgbm = KernelRidge()
+                self.reference_lgbm = GridSearchCV(
+                    KernelRidge(),
+                    {
+                        'kernel': ('linear', 'poly', 'rbf', 'sigmoid',),
+                        'alpha': (1e-4, 1e-2, 0.1, 1,),
+                    }
+                )
             self.reference_lgbm.fit(X, y)
         else:
             self.reference_lgbm = None
