@@ -25,8 +25,9 @@ class PACBayesianConfiguration():
                  bound_reduction=False,
                  direct_reduction=True,
                  optimal_design=False,
-                 **params):
+                 reference_model='XGB', **params):
         # For VCD
+        self.reference_model = reference_model
         self.optimal_design = optimal_design
         # Using definition of Rademacher complexity to reduce estimated time
         self.bound_reduction = bound_reduction

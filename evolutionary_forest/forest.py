@@ -21,6 +21,7 @@ from sklearn.decomposition import PCA
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor, RandomForestClassifier, \
     RandomForestRegressor
 from sklearn.exceptions import NotFittedError
+from sklearn.kernel_ridge import KernelRidge
 from sklearn.linear_model import Ridge, LogisticRegression, LogisticRegressionCV, HuberRegressor, \
     Lasso, LassoCV, ElasticNetCV
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
@@ -2341,9 +2342,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.pretrain_models = models
 
         if isinstance(self.score_func, R2PACBayesian) and self.score_func.sharpness_type == SharpnessType.DataLGBM:
-            # self.reference_lgbm = LGBMRegressor(n_jobs=1)
-            self.reference_lgbm = XGBRegressor(n_jobs=1)
-            # self.reference_lgbm = DecisionTreeRegressor()
+            if self.pac_bayesian.reference_model == 'XGB':
+                self.reference_lgbm = XGBRegressor(n_jobs=1)
+            elif self.pac_bayesian.reference_model == 'LR':
+                self.reference_lgbm = LinearRegression()
+            elif self.pac_bayesian.reference_model == 'Ridge':
+                self.reference_lgbm = RidgeCV()
+            elif self.pac_bayesian.reference_model == 'KNN':
+                self.reference_lgbm = KNeighborsRegressor(n_jobs=1)
+            elif self.pac_bayesian.reference_model == 'DT':
+                self.reference_lgbm = DecisionTreeRegressor()
+            elif self.pac_bayesian.reference_model == 'RF':
+                self.reference_lgbm = RandomForestRegressor()
+            elif self.pac_bayesian.reference_model == 'KR':
+                self.reference_lgbm = KernelRidge()
             self.reference_lgbm.fit(X, y)
         else:
             self.reference_lgbm = None
