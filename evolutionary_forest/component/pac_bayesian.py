@@ -129,7 +129,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                     if 'Derivative' in configuration.objective:
                         y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
                                                          direct_prediction=True)
-                        derivatives.append(np.mean((y_pred_plus - y_pred)))
+                        derivatives.append(np.mean(np.abs((y_pred_plus - y_pred))))
 
             # Calculate the R2 score between the predicted outcomes and the true outcomes
             if sharpness_type == SharpnessType.DataLGBM:
@@ -139,7 +139,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
 
         # Compute the mean and standard deviation of the R2 scores
         perturbation_mse = np.mean(mse_scores)
-        derivative = np.mean(np.abs(derivatives))
+        derivative = np.mean(derivatives)
 
         if np.sum(std) == 0:
             kl_divergence = np.inf
