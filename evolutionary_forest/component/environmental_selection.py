@@ -7,6 +7,7 @@ from numpy.linalg import norm
 from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from pymoo.mcdm.pseudo_weights import PseudoWeights
+from sklearn.cluster import KMeans
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 
@@ -115,7 +116,7 @@ class NSGA2(EnvironmentalSelection):
         self.algorithm = algorithm
         self.objective_function = objective_function
         self.normalization = normalization
-        self.knee_point = knee_point
+        self.knee_point: str = knee_point
         self.selection_operator = selNSGA2
         self.validation_x = None
         self.validation_y = None
@@ -143,9 +144,28 @@ class NSGA2(EnvironmentalSelection):
         population[:] = self.selection_operator(individuals, len(population))
 
         if self.knee_point != False:
-            if self.knee_point=='Ensemble':
+            if self.knee_point == 'Ensemble':
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 self.algorithm.hof = first_pareto_front
+            elif self.knee_point == 'Cluster+Ensemble' or self.knee_point.startswith('Cluster+Ensemble'):
+                first_pareto_front = sortNondominated(population, len(population))[0]
+                semantics = np.array([p.predicted_values for p in first_pareto_front])
+                if '-' in self.knee_point:
+                    n_clusters = int(self.knee_point.split('-')[1])
+                else:
+                    n_clusters = 10
+                if len(semantics) <= n_clusters:
+                    self.algorithm.hof = first_pareto_front
+                else:
+                    labels = KMeans(n_clusters=n_clusters).fit_predict(semantics)
+                    # get the best individual from each cluster
+                    best_individuals = []
+                    for cluster_label in range(n_clusters):
+                        cluster_indices = np.where(labels == cluster_label)[0]
+                        cluster_front = [first_pareto_front[i] for i in cluster_indices]
+                        best_individual = max(cluster_front, key=lambda x: x.fitness.wvalues)
+                        best_individuals.append(best_individual)
+                    self.algorithm.hof = best_individuals
             elif self.knee_point == 'Validation':
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 scores = []
