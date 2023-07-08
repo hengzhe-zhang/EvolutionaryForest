@@ -383,7 +383,7 @@ class R2PACBayesian(Fitness):
 
         reduced_evaluation = 0
         for p in population:
-            if p.fitness.wvalues[0] > q:
+            if p.fitness.wvalues[0] >= q:
                 # better fitness value
                 self.assign_complexity(p, p.pipe)
             else:

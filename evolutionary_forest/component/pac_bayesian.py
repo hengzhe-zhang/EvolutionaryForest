@@ -101,6 +101,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
     else:
         # Create an array to store the R2 scores
         mse_scores = np.zeros(num_iterations)
+        derivatives = []
         std = configuration.perturbation_std
         # Iterate over the number of iterations
         for i in range(num_iterations):
@@ -110,6 +111,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
             elif sharpness_type == SharpnessType.Data or sharpness_type == SharpnessType.DataLGBM:
                 data = data_generator()
                 X_noise = sc.transform(feature_generator(data))
+                X_noise_plus = sc.transform(feature_generator(data + 1e-3))
             else:
                 raise Exception("Unknown sharpness type!")
 
@@ -124,6 +126,10 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                 else:
                     y_pred = get_cv_predictions(estimator, X_noise, y,
                                                 direct_prediction=True)
+                    if 'Derivative' in configuration.objective:
+                        y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
+                                                         direct_prediction=True)
+                        derivatives.append(np.mean((y_pred_plus - y_pred)))
 
             # Calculate the R2 score between the predicted outcomes and the true outcomes
             if sharpness_type == SharpnessType.DataLGBM:
@@ -133,6 +139,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
 
         # Compute the mean and standard deviation of the R2 scores
         perturbation_mse = np.mean(mse_scores)
+        derivative = np.mean(np.abs(derivatives))
 
         if np.sum(std) == 0:
             kl_divergence = np.inf
@@ -154,6 +161,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                 objectives.append((perturbation_mse, weight))
             else:
                 objectives.append((perturbation_mse, -1 * weight))
+        elif s == 'Derivative':
+            objectives.append((derivative, -1 * weight))
         elif s == 'KL-Divergence':
             objectives.append((kl_divergence, -1 * weight))
         elif s == 'Size':
