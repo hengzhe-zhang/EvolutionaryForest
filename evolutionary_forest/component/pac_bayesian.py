@@ -25,7 +25,8 @@ class PACBayesianConfiguration():
                  bound_reduction=False,
                  direct_reduction=True,
                  optimal_design=False,
-                 reference_model='KR', **params):
+                 reference_model='KR',
+                 precision=10, **params):
         # For VCD
         self.reference_model = reference_model
         self.optimal_design = optimal_design
@@ -37,6 +38,7 @@ class PACBayesianConfiguration():
         self.perturbation_std = perturbation_std
         self.objective = objective
         self.l2_penalty = l2_penalty
+        self.precision = precision
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -111,7 +113,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
             elif sharpness_type == SharpnessType.Data or sharpness_type == SharpnessType.DataLGBM:
                 data = data_generator()
                 X_noise = sc.transform(feature_generator(data))
-                X_noise_plus = sc.transform(feature_generator(data + 1e-3))
+                X_noise_plus = sc.transform(feature_generator(data + 1e-8))
             else:
                 raise Exception("Unknown sharpness type!")
 
@@ -139,7 +141,7 @@ def pac_bayesian_estimation(X, y, estimator, individual,
 
         # Compute the mean and standard deviation of the R2 scores
         perturbation_mse = np.mean(mse_scores)
-        derivative = np.mean(derivatives)
+        derivative = np.mean(np.round(derivatives, configuration.precision))
 
         if np.sum(std) == 0:
             kl_divergence = np.inf
