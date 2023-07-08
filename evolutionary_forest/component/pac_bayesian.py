@@ -141,7 +141,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
 
         # Compute the mean and standard deviation of the R2 scores
         perturbation_mse = np.mean(mse_scores)
-        derivative = np.mean(np.round(derivatives, configuration.precision))
+        if len(derivatives) > 0:
+            derivative = np.max(derivatives)
 
         if np.sum(std) == 0:
             kl_divergence = np.inf
@@ -163,6 +164,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                 objectives.append((perturbation_mse, weight))
             else:
                 objectives.append((perturbation_mse, -1 * weight))
+        elif s == 'MaxSharpness':
+            objectives.append((np.max(mse_scores), -1 * weight))
         elif s == 'Derivative':
             objectives.append((derivative, -1 * weight))
         elif s == 'KL-Divergence':
