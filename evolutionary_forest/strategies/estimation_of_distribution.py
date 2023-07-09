@@ -169,7 +169,7 @@ class EstimationOfDistribution():
                  eda_archive_size=0,
                  decision_tree_mode=False,
                  multi_armed_bandit=False,
-                 **params):
+                 new_frequency_count=False, **params):
         # good individuals have larger weights
         self.weighted_by_fitness = weighted_by_fitness
         # each individual has equal weight, not matter the tree size
@@ -189,6 +189,8 @@ class EstimationOfDistribution():
         self.decision_tree_mode = decision_tree_mode
         self.multi_armed_bandit = multi_armed_bandit
         self.mab = MultiArmBandit()
+        self.new_frequency_count = new_frequency_count
+
 
     def permutation_importance_calculation(self, X, Y, individual):
         # The correct way is to calculate the terminal importance based on the test data
@@ -330,67 +332,19 @@ class EstimationOfDistribution():
             else:
                 # Check based on ensemble size instead of hall of fame.
                 # Sometimes, hof is used for keeping redundant individuals.
-                if self.ensemble_size == 1:
-                    best_size = int(self.elite_ratio * len(self.pop))
+                if self.ensemble_size == 1 or self.new_frequency_count:
+                    if self.elite_ratio > 1:
+                        best_size = self.elite_ratio
+                    else:
+                        best_size = int(self.elite_ratio * len(self.pop))
+
                     if self.eda_archive is not None:
                         top_individuals = self.eda_archive
                     else:
                         top_individuals = sorted(self.pop, key=lambda x: x.fitness.wvalues[0],
                                                  reverse=True)[:best_size]
                     if self.mgp_mode:
-                        terminal_counts = []
-                        # MGP mode, has many primitives
-                        for pset in self.pset.pset_list:
-                            _, terminal_count = self.update_frequency_count(
-                                top_individuals,
-                                1, importance_weight, pset=pset
-                            )
-                            terminal_counts.append(terminal_count)
-                        if self.layer_mgp:
-                            # if layer-wise MGP, then we can merge information in each layer
-                            terminal_counts = sum_by_group(terminal_counts, self.mgp_scope)
-                        if self.shared_eda:
-                            # probability vector should be comprehensive
-                            # even if some features are missing on some locations
-                            pset_list = [[t.__name__ if isclass(t) else t.name
-                                          for (id, t) in enumerate(ps.terminals[object])]
-                                         for ps in self.pset.pset_list]
-                            pset_list = [(terminal_counts[pid], ps)
-                                         for pid, ps in enumerate(pset_list)]
-                            terminal_counts = merge_arrays(pset_list)
-
-                            # do not estimate distribution for building blocks
-                            if self.no_building_blocks:
-                                self.probability_elimination(terminal_counts)
-
-                            # smooth the probability of basic components
-                            if self.softmax_smoothing:
-                                self.probability_smoothing(terminal_counts)
-
-                        if isinstance(terminal_counts, dict):
-                            # if shared probability matrix, then normalize all values
-                            count_sum = np.sum(list(terminal_counts.values()))
-                            for k in terminal_counts.keys():
-                                terminal_counts[k] = terminal_counts[k] / count_sum
-                        if self.multi_armed_bandit:
-                            if isinstance(terminal_counts, dict):
-                                # shared probabilities
-                                for k, v in terminal_counts.items():
-                                    self.mab.update(k, v)
-                                self.terminal_prob_count = self.mab.normalized_probability()
-                            elif isinstance(terminal_counts, list):
-                                if not isinstance(self.mab, list):
-                                    self.mab = MultiArmBandit.create_multiple(len(terminal_counts))
-                                for i, c in enumerate(terminal_counts):
-                                    terminal_counts[i] = c / c.sum()
-                                mabs = self.mab
-                                MultiArmBandit.update_multiple(mabs, terminal_counts)
-                                self.terminal_prob_count = MultiArmBandit.normalized_probability_multiple_list(mabs)
-                                self.terminal_prob_count = np.array([np.array(x) for x in self.terminal_prob_count])
-                            else:
-                                raise Exception()
-                        else:
-                            self.terminal_prob_count = terminal_counts
+                        self.update_modular_gp(top_individuals, importance_weight)
                     else:
                         self.update_frequency_count(top_individuals, 1, importance_weight)
                 else:
@@ -399,6 +353,60 @@ class EstimationOfDistribution():
                         raise ValueError("Unimplemented mgp mode!")
                     else:
                         self.update_frequency_count(self.hof, 1, importance_weight)
+
+    def update_modular_gp(self, top_individuals, importance_weight):
+        terminal_counts = []
+        # MGP mode, has many primitives
+        for pset in self.pset.pset_list:
+            _, terminal_count = self.update_frequency_count(
+                top_individuals,
+                1, importance_weight, pset=pset
+            )
+            terminal_counts.append(terminal_count)
+        if self.layer_mgp:
+            # if layer-wise MGP, then we can merge information in each layer
+            terminal_counts = sum_by_group(terminal_counts, self.mgp_scope)
+        if self.shared_eda:
+            # probability vector should be comprehensive
+            # even if some features are missing on some locations
+            pset_list = [[t.__name__ if isclass(t) else t.name
+                          for (id, t) in enumerate(ps.terminals[object])]
+                         for ps in self.pset.pset_list]
+            pset_list = [(terminal_counts[pid], ps)
+                         for pid, ps in enumerate(pset_list)]
+            terminal_counts = merge_arrays(pset_list)
+
+            # do not estimate distribution for building blocks
+            if self.no_building_blocks:
+                self.probability_elimination(terminal_counts)
+
+            # smooth the probability of basic components
+            if self.softmax_smoothing:
+                self.probability_smoothing(terminal_counts)
+        if isinstance(terminal_counts, dict):
+            # if shared probability matrix, then normalize all values
+            count_sum = np.sum(list(terminal_counts.values()))
+            for k in terminal_counts.keys():
+                terminal_counts[k] = terminal_counts[k] / count_sum
+        if self.multi_armed_bandit:
+            if isinstance(terminal_counts, dict):
+                # shared probabilities
+                for k, v in terminal_counts.items():
+                    self.mab.update(k, v)
+                self.terminal_prob_count = self.mab.normalized_probability()
+            elif isinstance(terminal_counts, list):
+                if not isinstance(self.mab, list):
+                    self.mab = MultiArmBandit.create_multiple(len(terminal_counts))
+                for i, c in enumerate(terminal_counts):
+                    terminal_counts[i] = c / c.sum()
+                mabs = self.mab
+                MultiArmBandit.update_multiple(mabs, terminal_counts)
+                self.terminal_prob_count = MultiArmBandit.normalized_probability_multiple_list(mabs)
+                self.terminal_prob_count = np.array([np.array(x) for x in self.terminal_prob_count])
+            else:
+                raise Exception()
+        else:
+            self.terminal_prob_count = terminal_counts
 
     def probability_elimination(self, terminal_counts):
         average_value = np.mean([terminal_counts[f"ARG{i}"] for i in range(self.X.shape[1])])

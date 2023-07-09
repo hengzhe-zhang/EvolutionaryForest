@@ -1,14 +1,16 @@
 from abc import abstractmethod
+from functools import partial
 from typing import TYPE_CHECKING, Union
 
 import numpy as np
-from deap.tools import selNSGA2, sortNondominated, selSPEA2, selBest
+from deap.tools import selNSGA2, sortNondominated, selSPEA2, selBest, selNSGA3, uniform_reference_points
 from numpy.linalg import norm
 from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from pymoo.mcdm.pseudo_weights import PseudoWeights
 from sklearn.cluster import KMeans
 from sklearn.metrics import r2_score
+from sklearn.metrics.pairwise import cosine_distances
 from sklearn.model_selection import KFold
 
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
@@ -149,7 +151,8 @@ class NSGA2(EnvironmentalSelection):
                 self.algorithm.hof = first_pareto_front
             elif self.knee_point == 'Cluster+Ensemble' or self.knee_point.startswith('Cluster+Ensemble'):
                 first_pareto_front = sortNondominated(population, len(population))[0]
-                semantics = np.array([p.predicted_values for p in first_pareto_front])
+                semantics = np.array([p.predicted_values - self.algorithm.y for p in first_pareto_front])
+                semantics = cosine_distances(semantics)
                 if '-' in self.knee_point:
                     n_clusters = int(self.knee_point.split('-')[1])
                 else:
@@ -219,6 +222,16 @@ class Best(EnvironmentalSelection):
 
     def select(self, population, offspring):
         return selBest(population + offspring, len(population))
+
+
+class NSGA3(NSGA2):
+
+    def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
+                 normalization=False, knee_point=False, bootstrapping_selection=False, first_objective_weight=1,
+                 **kwargs):
+        super().__init__(algorithm, objective_function, normalization, knee_point, bootstrapping_selection,
+                         first_objective_weight, **kwargs)
+        self.selection_operator = partial(selNSGA3, ref_points=uniform_reference_points(3))
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ from evolutionary_forest.component.configuration import CrossoverMode, ArchiveCo
     BaseLearnerConfiguration
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
-from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best
+from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
@@ -486,6 +486,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.early_stop = early_stop
         if environmental_selection == 'NSGA2':
             self.environmental_selection: NSGA2 = NSGA2(self, None, **self.param)
+        elif environmental_selection == 'NSGA3':
+            self.environmental_selection = NSGA3(self, None, **self.param)
         elif environmental_selection == 'SPEA2':
             self.environmental_selection = SPEA2(self, None, **self.param)
         elif environmental_selection == 'Best':
