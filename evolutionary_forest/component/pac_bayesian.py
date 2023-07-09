@@ -164,8 +164,12 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                 objectives.append((perturbation_mse, weight))
             else:
                 objectives.append((perturbation_mse, -1 * weight))
+        elif s == 'MeanSharpness':
+            baseline_mse = mean_squared_error(y, individual.predicted_values)
+            objectives.append((np.mean(mse_scores - baseline_mse), -1 * weight))
         elif s == 'MaxSharpness':
-            objectives.append((np.max(mse_scores), -1 * weight))
+            baseline_mse = mean_squared_error(y, individual.predicted_values)
+            objectives.append((np.max(mse_scores - baseline_mse), -1 * weight))
         elif s == 'Derivative':
             objectives.append((derivative, -1 * weight))
         elif s == 'KL-Divergence':
