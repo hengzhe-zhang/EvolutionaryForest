@@ -2282,15 +2282,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # Set number of genes to 1
             self.gene_num = 1
-            # Calculate new number of generations based on original number of genes
-            n_gen = self.n_gen // original_gene_num * self.gene_num
             # Initialize population with new gene number
             self.lazy_init(X)
-            for g in range(original_gene_num // self.gene_num):
-                if g == 0:
-                    self.n_gen = n_gen
-                else:
-                    self.n_gen = n_gen - 1
+            for g in range(original_gene_num):
                 # Clear fitness values
                 for p in self.pop:
                     del p.fitness.values
@@ -2305,24 +2299,24 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # If using the predict function, we need to consider a lot of details about normalization
                 Yp = self.feature_generation(X, self.hof[0])
                 y_pred = self.hof[0].pipe.predict(Yp)
-                # If R^2 score is greater than 0, add model to best models list
-                if r2_score(self.y, y_pred) > 0:
-                    best_models.extend(copy.deepcopy(self.hof[0].gene))
-                else:
-                    break
+                # Add the best GP tree to a list
+                best_models.extend(copy.deepcopy(self.hof[0].gene))
                 if self.verbose:
                     print('Iteration %d' % g, 'Score: %f' % (r2_score(self.y, y_pred)))
                 # Gradient boost for regression
-                self.y = self.y - 0.5 * y_pred
+                self.y = self.y - y_pred
             # Reset y to original value
             self.y = original_y
             assert len(self.hof) == 1
             # Retrain the best individual with original number of genes
             best_ind: MultipleGeneGP = self.hof[0]
-            best_ind.gene_num = original_gene_num
             best_ind.gene = best_models
             best_ind.pipe = self.get_base_model()
+            # clear hall of fame
+            self.hof.clear()
+            self.hof.update([best_ind])
             self.final_model_lazy_training(self.hof)
+            # in fact, not useful
             self.second_layer_generation(self.X, self.y)
         else:
             # Not using gradient boosting mode
