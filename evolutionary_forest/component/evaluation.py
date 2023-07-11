@@ -1,4 +1,5 @@
 import enum
+import logging
 import random
 import time
 from typing import List, Tuple
@@ -533,7 +534,11 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             prim, args, id = stack.pop()
             equivalent_subtree = -1
             if isinstance(prim, Primitive):
-                result = pset.context[prim.name](*args)
+                try:
+                    result = pset.context[prim.name](*args)
+                except OverflowError as e:
+                    result = args[0]
+                    logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
                 if target is not None:
                     for arg_id, a in enumerate(args):
                         if np.array_equal(result, a):
