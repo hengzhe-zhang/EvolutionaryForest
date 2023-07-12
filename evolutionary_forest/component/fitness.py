@@ -329,6 +329,8 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.Flatness
         if sharpness_type == 'DataLGBM':
             sharpness_type = SharpnessType.DataLGBM
+        if sharpness_type == 'Parameter':
+            sharpness_type = SharpnessType.Parameter
         self.sharpness_type = sharpness_type
 
     def assign_complexity(self, individual, estimator):
@@ -356,11 +358,12 @@ class R2PACBayesian(Fitness):
             )
         else:
             raise Exception
-        feature_generator = lambda data: algorithm.feature_generation(data, individual)
+        feature_generator = lambda data, random_noise=0: \
+            algorithm.feature_generation(data, individual, random_noise=random_noise)
         y = algorithm.y
 
         # PAC-Bayesian estimation
-        estimation = pac_bayesian_estimation(X_features, y,
+        estimation = pac_bayesian_estimation(X_features, algorithm.X, y,
                                              estimator, individual,
                                              self.algorithm.evaluation_configuration.cross_validation,
                                              self.algorithm.pac_bayesian,

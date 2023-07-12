@@ -63,13 +63,14 @@ def kl_term_function(m, w, sigma, delta=0.1):
 
 
 class SharpnessType(Enum):
+    Parameter = 5
     Data = 1
     Semantics = 2
     Flatness = 3
     DataLGBM = 4
 
 
-def pac_bayesian_estimation(X, y, estimator, individual,
+def pac_bayesian_estimation(X, original_X, y, estimator, individual,
                             cross_validation: bool,
                             configuration: PACBayesianConfiguration,
                             sharpness_type: SharpnessType,
@@ -114,6 +115,8 @@ def pac_bayesian_estimation(X, y, estimator, individual,
                 data = data_generator()
                 X_noise = sc.transform(feature_generator(data))
                 X_noise_plus = sc.transform(feature_generator(data + 1e-8))
+            elif sharpness_type == SharpnessType.Parameter:
+                X_noise = sc.transform(feature_generator(original_X, random_noise=configuration.perturbation_std))
             else:
                 raise Exception("Unknown sharpness type!")
 

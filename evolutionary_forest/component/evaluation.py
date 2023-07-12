@@ -437,7 +437,8 @@ def get_cv_splitter(base_model, cv, random_state=0):
 def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_features=False,
                              sklearn_format=False, need_hash=False, register_array=None,
                              target=None, configuration: EvaluationConfiguration = None,
-                             similarity_score=False):
+                             similarity_score=False,
+                             random_noise=0):
     if configuration is None:
         configuration = EvaluationConfiguration()
     intron_gp = configuration.intron_gp
@@ -478,7 +479,8 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
         for gene in func:
             feature, intron_ids = quick_evaluate(gene, pset, data, target=target if similarity_score else None,
                                                  intron_gp=intron_gp, lsh=lsh,
-                                                 return_subtree_information=True)
+                                                 return_subtree_information=True,
+                                                 random_noise=random_noise)
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
@@ -512,7 +514,9 @@ cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
 def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
-                   intron_gp=False, lsh=False, return_subtree_information=False) -> Tuple[np.ndarray, dict]:
+                   intron_gp=False, lsh=False, return_subtree_information=False,
+                   random_noise=0) -> Tuple[np.ndarray, dict]:
+    # random noise is very important for sharpness aware minimization
     # quickly evaluate a primitive tree
     if lsh:
         rng = np.random.RandomState(0)
@@ -536,6 +540,8 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             if isinstance(prim, Primitive):
                 try:
                     result = pset.context[prim.name](*args)
+                    if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1:
+                        result += np.random.normal(0, random_noise*np.std(result), len(result))
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
