@@ -4778,7 +4778,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
 
     def lazy_init(self, x):
         # encoding target labels
-        self.label_encoder = OneHotEncoder(sparse=False)
+        self.label_encoder = OneHotEncoder(sparse_output=False)
         self.label_encoder.fit(self.y.reshape(-1, 1))
         super().lazy_init(x)
         if self.class_weight == 'Balanced':
@@ -4811,7 +4811,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             score = matrix.diagonal() / matrix.sum(axis=1)
             individual.case_values = -1 * score
         elif self.score_func == 'CrossEntropy' or self.score_func == 'NoveltySearch':
-            one_hot_targets = OneHotEncoder(sparse=False).fit_transform(self.y.reshape(-1, 1))
+            one_hot_targets = OneHotEncoder(sparse_output=False).fit_transform(self.y.reshape(-1, 1))
             eps = 1e-15
             # Cross entropy
             individual.case_values = -1 * np.sum(one_hot_targets * np.log(np.clip(y_pred, eps, 1 - eps)), axis=1)

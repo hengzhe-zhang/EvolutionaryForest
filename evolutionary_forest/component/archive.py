@@ -485,7 +485,7 @@ class OOBHallOfFame(HallOfFame):
             n_classes = population[0].pipe['Ridge'].n_classes_
 
             # generate one-hot label
-            encoded_label = OneHotEncoder(sparse=False).fit_transform(self.y.reshape(-1, 1))
+            encoded_label = OneHotEncoder(sparse_output=False).fit_transform(self.y.reshape(-1, 1))
             assert np.all(classes[np.argmax(encoded_label, axis=1)] == self.y)
             assert encoded_label.shape[1] == n_classes
 
