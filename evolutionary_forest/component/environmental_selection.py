@@ -9,6 +9,7 @@ from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from pymoo.mcdm.pseudo_weights import PseudoWeights
 from sklearn.cluster import KMeans
+from sklearn.decomposition import KernelPCA
 from sklearn.metrics import r2_score
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.model_selection import KFold
@@ -149,18 +150,24 @@ class NSGA2(EnvironmentalSelection):
             if self.knee_point == 'Ensemble':
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 self.algorithm.hof = first_pareto_front
-            elif self.knee_point == 'Cluster+Ensemble' or self.knee_point.startswith('Cluster+Ensemble'):
+            elif self.knee_point in ['Cluster+Ensemble', 'Cluster+Ensemble+Fitness'] \
+                or self.knee_point.startswith('Cluster+Ensemble'):
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 semantics = np.array([p.predicted_values - self.algorithm.y for p in first_pareto_front])
-                semantics = cosine_distances(semantics)
+                semantics = KernelPCA(kernel='cosine').fit_transform(semantics)
                 if '-' in self.knee_point:
                     n_clusters = int(self.knee_point.split('-')[1])
                 else:
                     n_clusters = 10
-                if len(semantics) <= n_clusters:
+                if len(first_pareto_front) <= n_clusters:
                     self.algorithm.hof = first_pareto_front
                 else:
-                    labels = KMeans(n_clusters=n_clusters).fit_predict(semantics)
+                    if self.knee_point == 'Cluster+Ensemble+Fitness':
+                        fitness_values = np.array([x.fitness.wvalues for x in first_pareto_front])
+                        labels = KMeans(n_clusters=n_clusters).fit_predict(fitness_values)
+                    else:
+                        labels = KMeans(n_clusters=n_clusters).fit_predict(semantics)
+
                     # get the best individual from each cluster
                     best_individuals = []
                     for cluster_label in range(n_clusters):
