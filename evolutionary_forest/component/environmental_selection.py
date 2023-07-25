@@ -8,7 +8,7 @@ from numpy.linalg import norm
 from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from pymoo.mcdm.pseudo_weights import PseudoWeights
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import r2_score
 from sklearn.metrics.pairwise import cosine_distances
@@ -151,22 +151,34 @@ class NSGA2(EnvironmentalSelection):
             if self.knee_point == 'Ensemble':
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 self.algorithm.hof = first_pareto_front
-            elif self.knee_point in ['Cluster+Ensemble', 'Cluster+Ensemble+Fitness'] \
+            elif self.knee_point in ['Cluster+Ensemble',
+                                     'Cluster+Ensemble+Euclidian',
+                                     'Cluster+Ensemble+Fitness'] \
                 or self.knee_point.startswith('Cluster+Ensemble'):
                 first_pareto_front = sortNondominated(population, len(population))[0]
-                semantics = np.array([p.predicted_values - self.algorithm.y for p in first_pareto_front])
-                semantics = KernelPCA(kernel='cosine').fit_transform(semantics)
                 if '-' in self.knee_point:
                     n_clusters = int(self.knee_point.split('-')[1])
+                    knee_point_mode = self.knee_point.split('-')[0]
                 else:
                     n_clusters = 10
+                    knee_point_mode = self.knee_point
+
+                semantics = np.array([p.predicted_values - self.algorithm.y for p in first_pareto_front])
+                if knee_point_mode == 'Cluster+Ensemble+Euclidian':
+                    semantics = StandardScaler(with_mean=False).fit_transform(semantics)
+                else:
+                    semantics = KernelPCA(kernel='cosine').fit_transform(semantics)
                 if len(first_pareto_front) <= n_clusters:
                     self.algorithm.hof = first_pareto_front
                 else:
-                    if self.knee_point == 'Cluster+Ensemble+Fitness':
-                        fitness_values = np.array([x.fitness.wvalues for x in first_pareto_front])
-                        fitness_values = StandardScaler().fit_transform(fitness_values)
+                    fitness_values = np.array([x.fitness.wvalues for x in first_pareto_front])
+                    fitness_values = StandardScaler().fit_transform(fitness_values)
+                    if knee_point_mode == 'Cluster+Ensemble+Fitness':
                         labels = KMeans(n_clusters=n_clusters).fit_predict(fitness_values)
+                    elif knee_point_mode == 'Cluster+Ensemble+Fitness+Spectral':
+                        labels = SpectralClustering(n_clusters=n_clusters).fit_predict(fitness_values)
+                    elif knee_point_mode == 'Cluster+Ensemble+Fitness+AC':
+                        labels = AgglomerativeClustering(n_clusters=n_clusters).fit_predict(fitness_values)
                     else:
                         labels = KMeans(n_clusters=n_clusters).fit_predict(semantics)
 
