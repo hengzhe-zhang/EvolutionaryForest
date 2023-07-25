@@ -13,6 +13,7 @@ from sklearn.decomposition import KernelPCA
 from sklearn.metrics import r2_score
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.model_selection import KFold
+from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
@@ -164,6 +165,7 @@ class NSGA2(EnvironmentalSelection):
                 else:
                     if self.knee_point == 'Cluster+Ensemble+Fitness':
                         fitness_values = np.array([x.fitness.wvalues for x in first_pareto_front])
+                        fitness_values = StandardScaler().fit_transform(fitness_values)
                         labels = KMeans(n_clusters=n_clusters).fit_predict(fitness_values)
                     else:
                         labels = KMeans(n_clusters=n_clusters).fit_predict(semantics)
@@ -173,6 +175,8 @@ class NSGA2(EnvironmentalSelection):
                     for cluster_label in range(n_clusters):
                         cluster_indices = np.where(labels == cluster_label)[0]
                         cluster_front = [first_pareto_front[i] for i in cluster_indices]
+                        if len(cluster_front) == 0:
+                            continue
                         best_individual = max(cluster_front, key=lambda x: x.fitness.wvalues)
                         best_individuals.append(best_individual)
                     self.algorithm.hof = best_individuals
