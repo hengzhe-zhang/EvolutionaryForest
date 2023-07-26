@@ -193,21 +193,23 @@ def calculate_score(args):
             criterion = torch.nn.MSELoss()
             variables = [f.value for tree in func for f in tree
                          if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)]
-            # useful_trees = [tid for tid, tree in enumerate(func) for f in tree
-            #                 if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)]
+            for v in [weights_torch, bias_torch] + variables:
+                assert v.requires_grad is True
             if len(variables) >= 1:
-                optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=0.1)
-                loss = criterion(Y_pred, torch.from_numpy(Y).float())
-                # print(Yp[useful_trees[0]])
+                if configuration.gradient_optimizer == 'GD' :
+                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=0.1)
+                elif configuration.gradient_optimizer == 'GD-1' :
+                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=1)
+                else:
+                    raise Exception()
+                loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
-                # print(Yp[useful_trees[0]])
 
                 # get results based on new parameters
                 Yp = quick_result_calculation(func, pset, X, original_features,
                                               configuration=configuration)
-                # print(Yp[useful_trees[0]])
 
                 # re-fit a linear model
                 pipe.fit(Yp.detach().numpy(), Y)
@@ -486,7 +488,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
         configuration = EvaluationConfiguration()
 
     gradient_descent = configuration.gradient_descent
-    if gradient_descent:
+    if gradient_descent and isinstance(data, np.ndarray):
         data = torch.from_numpy(data).float().detach()
 
     intron_gp = configuration.intron_gp

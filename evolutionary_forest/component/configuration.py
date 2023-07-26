@@ -186,8 +186,10 @@ class EvaluationConfiguration():
                  bloat_control=None,
                  mini_batch=False,
                  semantic_crossover_probability=0,
-                 gradient_descent=False, **params):
+                 gradient_descent=False,
+                 gradient_optimizer='SGD', **params):
         # prediction results of the neural network
+        self.gradient_optimizer = gradient_optimizer
         self.nn_prediction = nn_prediction
         # random generate cross-validation scheme
         self.dynamic_target = dynamic_target

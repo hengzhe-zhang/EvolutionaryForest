@@ -1919,6 +1919,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         for constant in ['rand101', 'pi', 'e']:
             if hasattr(gp, constant):
                 delattr(gp, constant)
+        attrs_to_remove = [attr for attr in dir(gp)
+                           if attr.startswith("rand") and is_number(attr.replace('rand',''))]
+        for attr in attrs_to_remove:
+            delattr(gp, attr)
+
         if self.constant_type == 'Normal':
             pset.addEphemeralConstant("rand101", lambda: np.random.normal())
         elif self.constant_type is None:
