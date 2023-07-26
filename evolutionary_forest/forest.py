@@ -313,7 +313,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  rmp_ratio=0.5,  # Multi-task Optimization
                  force_retrain=False,
                  learner=None,
-                 **params):
+                 constant_ratio=0, **params):
         """
         Basic GP Parameters:
         n_pop: The size of the population
@@ -349,6 +349,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         SurrogateModel.__init__(self)
         SpacePartition.__init__(self)
         EstimationOfDistribution.__init__(self, **params)
+        self.constant_ratio = constant_ratio
         self.learner = learner
         self.force_retrain = force_retrain
         self.base_learner_configuration = BaseLearnerConfiguration(**params)
@@ -676,6 +677,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **params,
             **vars(self),
         )
+        if self.constant_type == 'GD':
+            self.evaluation_configuration.gradient_descent = True
         self.archive_configuration = ArchiveConfiguration(
             **params,
             **vars(self),
@@ -1928,6 +1931,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pset.addEphemeralConstant("e", lambda: math.e)
         elif self.constant_type == 'Normal':
             pset.addEphemeralConstant("rand101", lambda: np.random.normal(0, 1))
+        elif self.constant_type == 'GD':
+            def random_variable():
+                return torch.randn(1, requires_grad=True, dtype=torch.float32)
+
+            if self.constant_ratio == 0:
+                pset.addEphemeralConstant("rand101", random_variable)
+            else:
+                for i in range(max(int(self.X.shape[1] * self.constant_ratio), 1)):
+                    pset.addEphemeralConstant(f"rand{i}", random_variable)
         else:
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
 
@@ -1996,64 +2008,85 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 primitive = custom_primitives[p]
             else:
                 simple_reduce = lambda function, *x: reduce(function, x)
-                primitive = {
-                    # Arithmetic operations
-                    'Add': (np.add, 2),  # Addition
-                    'Sub': (np.subtract, 2),  # Subtraction
-                    'Mul': (np.multiply, 2),  # Multiplication
-                    'Div': (protected_division, 2),  # Protected Division for handling divide-by-zero errors
+                if self.constant_type == 'GD':
+                    primitive = {
+                        # Arithmetic operations
+                        'Add': (torch.add, 2),  # Addition
+                        'Sub': (torch.subtract, 2),  # Subtraction
+                        'Mul': (torch.multiply, 2),  # Multiplication
+                        'Div': (protected_division_torch, 2),  # Protected Division for handling divide-by-zero errors
+                        'AQ': (analytical_quotient_torch, 2),
+                        # Analytical Quotient for symbolic differentiation
+                        'Sqrt': (protect_sqrt_torch, 1),
+                        # Protected square root for handling negative values
+                        'Sin': (torch.sin, 1),  # Sine function
+                        'Cos': (torch.cos, 1),  # Cosine function
+                        'Max': (torch.maximum, 2),  # Maximum function
+                        'Min': (torch.minimum, 2),  # Minimum function
+                        'Neg': (torch.negative, 1),  # Unary negation function (i.e. negate the input value)
+                    }[p]
+                else:
+                    primitive = {
+                        # Arithmetic operations
+                        'Add': (np.add, 2),  # Addition
+                        'Sub': (np.subtract, 2),  # Subtraction
+                        'Mul': (np.multiply, 2),  # Multiplication
+                        'Div': (protected_division, 2),  # Protected Division for handling divide-by-zero errors
 
-                    'Add3': (partial(simple_reduce, np.add), 3),  # Addition
-                    'Add4': (partial(simple_reduce, np.add), 4),  # Addition
-                    'Sub3': (partial(simple_reduce, np.subtract), 3),  # Subtraction
-                    'Sub4': (partial(simple_reduce, np.subtract), 4),  # Subtraction
-                    'Mul3': (partial(simple_reduce, np.multiply), 3),  # Multiplication
-                    'Mul4': (partial(simple_reduce, np.multiply), 4),  # Multiplication
-                    'Div3': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
-                    'Div4': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
+                        'Add3': (partial(simple_reduce, np.add), 3),  # Addition
+                        'Add4': (partial(simple_reduce, np.add), 4),  # Addition
+                        'Sub3': (partial(simple_reduce, np.subtract), 3),  # Subtraction
+                        'Sub4': (partial(simple_reduce, np.subtract), 4),  # Subtraction
+                        'Mul3': (partial(simple_reduce, np.multiply), 3),  # Multiplication
+                        'Mul4': (partial(simple_reduce, np.multiply), 4),  # Multiplication
+                        'Div3': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
+                        'Div4': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
 
-                    # Mathematical functions
-                    'AQ': (analytical_quotient, 2),  # Analytical Quotient for symbolic differentiation
-                    'Sqrt': (protect_sqrt, 1),  # Protected square root for handling negative values
-                    'ALog': (analytical_log, 1),  # Analytical Logarithm for symbolic differentiation
-                    'ALog10': (analytical_log10, 1),  # Analytical Logarithm base 10 for symbolic differentiation
-                    'Sin': (np.sin, 1),  # Sine function
-                    'Cos': (np.cos, 1),  # Cosine function
-                    'Arctan': (np.arctan, 1),  # Arctangent function
-                    'Tanh': (np.tanh, 1),  # Hyperbolic tangent function
-                    'Cbrt': (np.cbrt, 1),  # Cube root function
-                    'Square': (np.square, 1),  # Square function
-                    'Cube': (cube, 1),  # Cube function
-                    'Log': (protected_log, 2),
-                    'Inv': (protected_inverse, 1),
+                        # Mathematical functions
+                        'AQ': (analytical_quotient, 2),  # Analytical Quotient for symbolic differentiation
+                        'Sqrt': (protect_sqrt, 1),  # Protected square root for handling negative values
+                        'ALog': (analytical_log, 1),  # Analytical Logarithm for symbolic differentiation
+                        'ALog10': (analytical_log10, 1),  # Analytical Logarithm base 10 for symbolic differentiation
+                        'Sin': (np.sin, 1),  # Sine function
+                        'Cos': (np.cos, 1),  # Cosine function
+                        'Arctan': (np.arctan, 1),  # Arctangent function
+                        'Tanh': (np.tanh, 1),  # Hyperbolic tangent function
+                        'Cbrt': (np.cbrt, 1),  # Cube root function
+                        'Square': (np.square, 1),  # Square function
+                        'Cube': (cube, 1),  # Cube function
+                        'Log': (protected_log, 2),
+                        'Inv': (protected_inverse, 1),
 
-                    # Comparison operations
-                    'GE': (greater_or_equal_than, 2),  # Greater than or equal to comparison
-                    'LE': (less_or_equal_than, 2),  # Less than or equal to comparison
-                    'GE4A': (greater_or_equal_than_quadruple_a, 4),  # Greater than or equal to comparison for quadruple
-                    'GE4B': (greater_or_equal_than_quadruple_b, 4),  # Greater than or equal to comparison for quadruple
-                    'GE4C': (greater_or_equal_than_quadruple_c, 4),  # Greater than or equal to comparison for quadruple
-                    'LT4A': (less_than_quadruple_a, 4),  # Less than comparison for quadruple
-                    'LT4B': (less_than_quadruple_b, 4),  # Less than comparison for quadruple
-                    'LT4C': (less_than_quadruple_c, 4),  # Less than comparison for quadruple
-                    'GE2A': (greater_or_equal_than_double_a, 2),  # Greater than or equal to comparison for double
-                    'GE2B': (greater_or_equal_than_double_b, 2),  # Greater than or equal to comparison for double
-                    'GE2C': (greater_or_equal_than_double_c, 2),  # Greater than or equal to comparison for double
-                    'LT2A': (less_than_double_a, 2),  # Less than comparison for double
-                    'LT2B': (less_than_double_b, 2),  # Less than comparison for double
-                    'LT2C': (less_than_double_c, 2),  # Less than comparison for double
+                        # Comparison operations
+                        'GE': (greater_or_equal_than, 2),  # Greater than or equal to comparison
+                        'LE': (less_or_equal_than, 2),  # Less than or equal to comparison
+                        'GE4A': (greater_or_equal_than_quadruple_a, 4),
+                        # Greater than or equal to comparison for quadruple
+                        'GE4B': (greater_or_equal_than_quadruple_b, 4),
+                        # Greater than or equal to comparison for quadruple
+                        'GE4C': (greater_or_equal_than_quadruple_c, 4),
+                        # Greater than or equal to comparison for quadruple
+                        'LT4A': (less_than_quadruple_a, 4),  # Less than comparison for quadruple
+                        'LT4B': (less_than_quadruple_b, 4),  # Less than comparison for quadruple
+                        'LT4C': (less_than_quadruple_c, 4),  # Less than comparison for quadruple
+                        'GE2A': (greater_or_equal_than_double_a, 2),  # Greater than or equal to comparison for double
+                        'GE2B': (greater_or_equal_than_double_b, 2),  # Greater than or equal to comparison for double
+                        'GE2C': (greater_or_equal_than_double_c, 2),  # Greater than or equal to comparison for double
+                        'LT2A': (less_than_double_a, 2),  # Less than comparison for double
+                        'LT2B': (less_than_double_b, 2),  # Less than comparison for double
+                        'LT2C': (less_than_double_c, 2),  # Less than comparison for double
 
-                    # Other functions
-                    'Abs': (np.absolute, 1),  # Absolute value function
-                    'Max': (np.maximum, 2),  # Maximum function
-                    'Min': (np.minimum, 2),  # Minimum function
-                    'Mean': (np_mean, 2),  # Mean function
-                    'Neg': (np.negative, 1),  # Unary negation function (i.e. negate the input value)
-                    'Sigmoid': (sigmoid, 1),  # Sigmoid activation function
-                    'Round': (np.round, 1),  # Round to the nearest integer
-                    'Residual': (residual, 1),  # Residual function for handling negative values
-                    'LeakyRelu': (leaky_relu, 1),  # Leaky ReLU activation function
-                }[p]
+                        # Other functions
+                        'Abs': (np.absolute, 1),  # Absolute value function
+                        'Max': (np.maximum, 2),  # Maximum function
+                        'Min': (np.minimum, 2),  # Minimum function
+                        'Mean': (np_mean, 2),  # Mean function
+                        'Neg': (np.negative, 1),  # Unary negation function (i.e. negate the input value)
+                        'Sigmoid': (sigmoid, 1),  # Sigmoid activation function
+                        'Round': (np.round, 1),  # Round to the nearest integer
+                        'Residual': (residual, 1),  # Residual function for handling negative values
+                        'LeakyRelu': (leaky_relu, 1),  # Leaky ReLU activation function
+                    }[p]
             if transformer_wrapper:
                 pset.addPrimitive(make_class(primitive[0]), primitive[1], name=p)
             else:
@@ -2587,10 +2620,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             genes = individual.gene
         Yp = quick_result_calculation(genes, self.pset, X, self.original_features,
+                                      configuration=self.evaluation_configuration,
                                       sklearn_format=self.basic_primitives == 'ML',
                                       register_array=individual.parameters['Register']
                                       if self.mgp_mode == 'Register' else None,
                                       random_noise=random_noise)
+        if isinstance(Yp, torch.Tensor):
+            Yp = Yp.detach().numpy()
         return Yp
 
     def predict(self, X, return_std=False):
@@ -3037,6 +3073,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
 
+                self.torch_variable_clone(offspring)
+
                 # try to fix zero tree
                 fix_zero_tree = self.bloat_control is not None and self.bloat_control.get("fix_zero_tree", False)
                 if fix_zero_tree:
@@ -3347,6 +3385,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert not self.base_learner.startswith('Fast-')
         self.post_prune(self.hof)
         return population, logbook
+
+    def torch_variable_clone(self, offspring):
+        if self.evaluation_configuration.gradient_descent:
+            # clone all variables
+            for ind in offspring:
+                for tree in ind.gene:
+                    for f in tree:
+                        if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor):
+                            f.value = torch.tensor([f.value.item()],
+                                                   dtype=torch.float32).requires_grad_(True)
 
     def post_processing_after_evaluation(self, parent, population):
         # re-assign fitness for all individuals if using PAC-Bayesian

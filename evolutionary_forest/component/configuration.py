@@ -186,7 +186,7 @@ class EvaluationConfiguration():
                  bloat_control=None,
                  mini_batch=False,
                  semantic_crossover_probability=0,
-                 **params):
+                 gradient_descent=False, **params):
         # prediction results of the neural network
         self.nn_prediction = nn_prediction
         # random generate cross-validation scheme
@@ -216,6 +216,7 @@ class EvaluationConfiguration():
             self.save_semantics = True
         else:
             self.save_semantics = False
+        self.gradient_descent = gradient_descent
 
         # some parameters for bloat control
         self.bloat_control = bloat_control

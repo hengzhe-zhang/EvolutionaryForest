@@ -8,6 +8,7 @@ from typing import Callable, List
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 from deap import base
 from deap.gp import PrimitiveTree, compile, cxOnePoint, mutUniform, mutShrink, mutInsert, cxOnePointLeafBiased, \
     PrimitiveSet, Primitive, Terminal
@@ -1229,15 +1230,26 @@ def result_post_process(result, data, original_features):
     return result
 
 
-def quick_fill(result, data):
+def quick_fill(result, data:np.ndarray):
+    include_tensor = False
     for i in range(len(result)):
         yp = result[i]
-        if not isinstance(yp, np.ndarray):
+        if isinstance(yp, torch.Tensor):
+            include_tensor = True
+
+        if not isinstance(yp, (np.ndarray, torch.Tensor)):
             yp = np.full(len(data), 0)
         elif yp.size == 1:
             yp = np.full(len(data), yp)
+        if isinstance(yp, torch.Tensor) and len(yp) == 1:
+            yp = torch.full([len(data)], yp.item())
         result[i] = yp
-    result = np.nan_to_num(result, posinf=0, neginf=0)
+
+    if not include_tensor:
+        result = np.nan_to_num(result, posinf=0, neginf=0)
+    else:
+        for i in range(len(result)):
+            result[i] = torch.nan_to_num(result[i], posinf=0, neginf=0)
     return result
 
 

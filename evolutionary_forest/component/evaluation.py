@@ -7,6 +7,7 @@ from typing import List, Tuple
 import dill
 import numpy as np
 import shap
+import torch
 from deap import base
 from deap import creator
 from deap import gp
@@ -27,6 +28,7 @@ from sklearn.metrics import make_scorer, accuracy_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split, KFold
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.tree import BaseDecisionTree
+from torch import optim
 
 from evolutionary_forest.component.configuration import EvaluationConfiguration, ImbalancedConfiguration
 from evolutionary_forest.model.MTL import MTLRidgeCV
@@ -124,9 +126,10 @@ def calculate_score(args):
             Yp = np.concatenate([Yp, nn_prediction], axis=1)
         if test_data_size > 0:
             Yp = Yp[:-test_data_size]
-        assert isinstance(Yp, np.ndarray)
-        assert not np.any(np.isnan(Yp))
-        assert not np.any(np.isinf(Yp))
+        assert isinstance(Yp, (np.ndarray, torch.Tensor))
+        if isinstance(Yp, np.ndarray):
+            assert not np.any(np.isnan(Yp))
+            assert not np.any(np.isinf(Yp))
 
         # only use for PS-Tree
         if hasattr(pipe, 'partition_scheme'):
@@ -173,8 +176,45 @@ def calculate_score(args):
             y_pred = result['test_score']
         estimators = result['estimator']
     elif not cross_validation:
-        pipe.fit(Yp, Y)
-        y_pred = pipe.predict(Yp)
+        if configuration.gradient_descent:
+            # print('evaluation')
+            pipe.fit(Yp.detach().numpy(), Y)
+            ridge: LinearModel = pipe['Ridge']
+            assert isinstance(ridge, LinearModel), "Only linear models support gradient descent"
+
+            # extract coefficients from linear model
+            weights = ridge.coef_
+            bias = ridge.intercept_
+            weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=True)
+            bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
+            Y_pred = torch.mm(Yp, weights_torch.view(-1, 1)) + bias_torch
+
+            # gradient descent
+            criterion = torch.nn.MSELoss()
+            variables = [f.value for tree in func for f in tree
+                         if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)]
+            # useful_trees = [tid for tid, tree in enumerate(func) for f in tree
+            #                 if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)]
+            if len(variables) >= 1:
+                optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=0.1)
+                loss = criterion(Y_pred, torch.from_numpy(Y).float())
+                # print(Yp[useful_trees[0]])
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                # print(Yp[useful_trees[0]])
+
+                # get results based on new parameters
+                Yp = quick_result_calculation(func, pset, X, original_features,
+                                              configuration=configuration)
+                # print(Yp[useful_trees[0]])
+
+                # re-fit a linear model
+                pipe.fit(Yp.detach().numpy(), Y)
+            y_pred = pipe.predict(Yp.detach().numpy())
+        else:
+            pipe.fit(Yp, Y)
+            y_pred = pipe.predict(Yp)
         estimators = [pipe]
     else:
         if sklearn_format:
@@ -435,12 +475,20 @@ def get_cv_splitter(base_model, cv, random_state=0):
 
 
 def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_features=False,
-                             sklearn_format=False, need_hash=False, register_array=None,
-                             target=None, configuration: EvaluationConfiguration = None,
+                             sklearn_format=False,
+                             need_hash=False,
+                             register_array=None,
+                             target=None,
+                             configuration: EvaluationConfiguration = None,
                              similarity_score=False,
                              random_noise=0):
     if configuration is None:
         configuration = EvaluationConfiguration()
+
+    gradient_descent = configuration.gradient_descent
+    if gradient_descent:
+        data = torch.from_numpy(data).float().detach()
+
     intron_gp = configuration.intron_gp
     lsh = configuration.lsh
     # evaluate an individual rather than a gene
@@ -488,9 +536,16 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                 correlation_results.append(np.abs(cos_sim(target - target.mean(),
                                                           simple_feature - simple_feature.mean())))
             result.append(feature)
-    if not sklearn_format:
+    if not sklearn_format and not gradient_descent:
         result = result_post_process(result, data, original_features)
         # result = np.reshape(result[:, -1], (-1, 1))
+    if gradient_descent:
+        result = quick_fill(result, data)
+        for i in range(len(result)):
+            if isinstance(result[i], np.ndarray):
+                result[i] = torch.from_numpy(result[i])
+        result = torch.stack(tuple(result)).T
+
     if not need_hash:
         return result
     else:
@@ -541,7 +596,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1:
-                        result += np.random.normal(0, random_noise*np.std(result), len(result))
+                        result += np.random.normal(0, random_noise * np.std(result), len(result))
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
@@ -551,14 +606,14 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                             equivalent_subtree = arg_id
             elif isinstance(prim, Terminal):
                 if prefix in prim.name:
-                    if isinstance(data, np.ndarray):
+                    if isinstance(data, np.ndarray) or isinstance(data, torch.Tensor):
                         result = data[:, int(prim.name.replace(prefix, ''))]
                     elif isinstance(data, (dict, enum.EnumMeta)):
                         result = data[prim.name]
                     else:
                         raise ValueError("Unsupported data type!")
                 else:
-                    result = float(prim.name)
+                    result = prim.value
             else:
                 raise Exception
             if target is not None:
@@ -587,6 +642,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
     if len(subtree_information) > 0:
         assert len(subtree_information) == len(expr)
     if intron_gp:
+        # return subtree information
         return best_subtree_semantics, subtree_information
     else:
         if return_subtree_information:

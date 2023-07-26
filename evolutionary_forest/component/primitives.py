@@ -4,6 +4,7 @@ from functools import reduce
 
 import numpy as np
 import pandas as pd
+import torch
 from hdfe import Groupby
 from scipy.stats import mode
 
@@ -15,6 +16,10 @@ def protected_division(x1, *x2):
         x2 = reduce(operator.mul, x2)
         return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
 
+def protected_division_torch(x1, *x2):
+    with np.errstate(divide='ignore', invalid='ignore'):
+        x2 = reduce(operator.mul, x2)
+        return torch.where(torch.abs(x2) > threshold, torch.divide(x1, x2), 1.)
 
 def protected_log(x1, x2):
     """Closure of log for zero and negative arguments."""
@@ -31,6 +36,8 @@ def protected_inverse(x1):
 def analytical_quotient(x1, x2):
     return x1 / np.sqrt(1 + (x2 ** 2))
 
+def analytical_quotient_torch(x1, x2):
+    return x1 / torch.sqrt(1 + (x2 ** 2))
 
 # def analytical_quotient(x1, *x2):
 #     base_function = lambda x: np.sqrt(1 + (x ** 2))
@@ -66,6 +73,8 @@ def cube(x):
 def protect_sqrt(a):
     return np.sqrt(np.abs(a))
 
+def protect_sqrt_torch(a):
+    return torch.sqrt(torch.abs(a))
 
 def shape_wrapper(x1, x2):
     if np.isscalar(x1):
