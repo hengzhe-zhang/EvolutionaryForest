@@ -325,8 +325,6 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.Data
         if sharpness_type == 'Semantics':
             sharpness_type = SharpnessType.Semantics
-        if sharpness_type == 'Flatness':
-            sharpness_type = SharpnessType.Flatness
         if sharpness_type == 'DataLGBM':
             sharpness_type = SharpnessType.DataLGBM
         if sharpness_type == 'Parameter':

@@ -63,11 +63,10 @@ def kl_term_function(m, w, sigma, delta=0.1):
 
 
 class SharpnessType(Enum):
-    Parameter = 5
     Data = 1
     Semantics = 2
-    Flatness = 3
     DataLGBM = 4
+    Parameter = 5
 
 
 def pac_bayesian_estimation(X, original_X, y, estimator, individual,
@@ -83,74 +82,55 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     sc = StandardScaler()
     X = sc.fit_transform(X)
 
-    if sharpness_type == SharpnessType.Flatness:
-        low = 1e-4
-        high = 1
-
-        while high - low > 1e-4:
-            noise = (low + high) / 2
-            X_noise = sc.transform(feature_generator(std=noise))
-            y_pred = get_cv_predictions(estimator, X_noise, y, direct_prediction=True)
-            new_r2 = r2_score(y, y_pred)
-
-            if R2 - new_r2 > 0.1:
-                # noise is too much
-                high = noise
-            else:
-                low = noise
-
-        best_noise = (low + high) / 2
-        perturbation_mse = best_noise
-    else:
-        # Create an array to store the R2 scores
-        mse_scores = np.zeros(num_iterations)
-        derivatives = []
-        std = configuration.perturbation_std
-        # Iterate over the number of iterations
-        for i in range(num_iterations):
-            if sharpness_type == SharpnessType.Semantics:
-                # Add random Gaussian noise to the coefficients and intercept
-                X_noise = X + np.random.normal(scale=std, size=X.shape)
-            elif sharpness_type == SharpnessType.Data or sharpness_type == SharpnessType.DataLGBM:
-                data = data_generator()
-                X_noise = sc.transform(feature_generator(data))
-                X_noise_plus = sc.transform(feature_generator(data + 1e-8))
-            elif sharpness_type == SharpnessType.Parameter:
-                X_noise = sc.transform(feature_generator(original_X, random_noise=configuration.perturbation_std))
-            else:
-                raise Exception("Unknown sharpness type!")
-
-            if cross_validation:
-                y_pred = cross_val_predict(estimator, X_noise, y)
-            else:
-                if sharpness_type == SharpnessType.Semantics:
-                    estimator_noise = copy.deepcopy(estimator)
-                    # Use the modified Ridge model to predict the outcome variable
-                    estimator_noise.fit(X_noise, y)
-                    y_pred = get_cv_predictions(estimator_noise, X_noise, y)
-                else:
-                    y_pred = get_cv_predictions(estimator, X_noise, y,
-                                                direct_prediction=True)
-                    if 'Derivative' in configuration.objective:
-                        y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
-                                                         direct_prediction=True)
-                        derivatives.append(np.mean(np.abs((y_pred_plus - y_pred))))
-
-            # Calculate the R2 score between the predicted outcomes and the true outcomes
-            if sharpness_type == SharpnessType.DataLGBM:
-                mse_scores[i] = mean_squared_error(reference_model.predict(data), y_pred)
-            else:
-                mse_scores[i] = mean_squared_error(y, y_pred)
-
-        # Compute the mean and standard deviation of the R2 scores
-        perturbation_mse = np.mean(mse_scores)
-        if len(derivatives) > 0:
-            derivative = np.max(derivatives)
-
-        if np.sum(std) == 0:
-            kl_divergence = np.inf
+    # Create an array to store the R2 scores
+    mse_scores = np.zeros(num_iterations, len(X))
+    derivatives = []
+    std = configuration.perturbation_std
+    # Iterate over the number of iterations
+    for i in range(num_iterations):
+        X_noise_plus = None
+        # default using original data
+        data = X
+        if sharpness_type == SharpnessType.Semantics:
+            # Add random Gaussian noise to the coefficients and intercept
+            X_noise = X + np.random.normal(scale=std, size=X.shape)
+        elif sharpness_type == SharpnessType.Data or sharpness_type == SharpnessType.DataLGBM:
+            # Generate some random noise data
+            data = data_generator()
+            X_noise = sc.transform(feature_generator(data))
+            X_noise_plus = sc.transform(feature_generator(data + 1e-8))
+        elif sharpness_type == SharpnessType.Parameter:
+            X_noise = sc.transform(feature_generator(original_X, random_noise=configuration.perturbation_std))
         else:
-            kl_divergence = kl_term_function(len(X.flatten()), X.flatten(), std)
+            raise Exception("Unknown sharpness type!")
+
+        if cross_validation:
+            y_pred = cross_val_predict(estimator, X_noise, y)
+        else:
+            if sharpness_type == SharpnessType.Semantics:
+                # add noise to semantics
+                estimator_noise = copy.deepcopy(estimator)
+                # Use the modified Ridge model to predict the outcome variable
+                estimator_noise.fit(X_noise, y)
+                y_pred = get_cv_predictions(estimator_noise, X_noise, y)
+            else:
+                y_pred = get_cv_predictions(estimator, X_noise, y,
+                                            direct_prediction=True)
+
+            if 'Derivative' in configuration.objective:
+                # numerical differentiation
+                y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
+                                                 direct_prediction=True)
+                derivatives.append(np.mean(np.abs((y_pred_plus - y_pred))))
+
+        # Calculate the R2 score between the predicted outcomes and the true outcomes
+        if sharpness_type == SharpnessType.DataLGBM:
+            mse_scores[i] = (reference_model.predict(data) - y_pred) ** 2
+        else:
+            mse_scores[i] = (y - y_pred) ** 2
+
+    # Compute the mean and standard deviation of the R2 scores
+    perturbed_mse = np.mean(mse_scores)
 
     objectives = []
     for s in configuration.objective.split(','):
@@ -162,21 +142,46 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
 
         if s == 'R2':
             objectives.append((R2, 1 * weight))
-        elif s == 'Perturbed-MSE':
-            if sharpness_type == SharpnessType.Flatness:
-                objectives.append((perturbation_mse, weight))
-            else:
-                objectives.append((perturbation_mse, -1 * weight))
-        elif s == 'MeanSharpness':
+        elif s == 'Perturbed-MSE' or s == 'MeanSharpness':
+            # mean-sharpness, which follows PAC-Bayesian
+            objectives.append((perturbed_mse, -1 * weight))
+        elif s == 'MeanSharpness-Base':
+            # mean-sharpness, which follows PAC-Bayesian
+            # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
-            objectives.append((np.mean(mse_scores - baseline_mse), -1 * weight))
+            sharp_mse = np.mean(mse_scores, axis=0)
+            objectives.append((np.mean(sharp_mse - baseline_mse), -1 * weight))
         elif s == 'MaxSharpness':
+            # n-SAM, reduce the maximum sharpness over all samples
+            sharp_mse = np.mean(mse_scores, axis=0)
+            objectives.append((np.max(sharp_mse), -1 * weight))
+        elif s == 'MaxSharpness-Base':
+            # n-SAM, reduce the maximum sharpness over all samples
+            # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
-            max_sharpness = np.max(mse_scores - baseline_mse)
+            sharp_mse = np.mean(mse_scores, axis=0)
+            max_sharpness = np.max(sharp_mse - baseline_mse)
+            objectives.append((max_sharpness, -1 * weight))
+        elif s == 'MaxSharpness-1':
+            # 1-SAM, reduce the maximum sharpness over each sample
+            max_sharp = np.max(mse_scores, axis=0)
+            max_sharpness = np.mean(max_sharp)
+            objectives.append((max_sharpness, -1 * weight))
+        elif s == 'MaxSharpness-1-Base':
+            # 1-SAM, reduce the maximum sharpness over each sample
+            # subtract baseline MSE
+            baseline = (y - individual.predicted_values) ** 2
+            max_sharp = np.max(mse_scores, axis=0)
+            max_sharpness = np.mean(max_sharp - baseline)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'Derivative':
+            derivative = np.max(derivatives)
             objectives.append((derivative, -1 * weight))
         elif s == 'KL-Divergence':
+            if np.sum(std) == 0:
+                kl_divergence = np.inf
+            else:
+                kl_divergence = kl_term_function(len(X.flatten()), X.flatten(), std)
             objectives.append((kl_divergence, -1 * weight))
         elif s == 'Size':
             objectives.append((np.sum([len(g) for g in individual.gene]), -1 * weight))
