@@ -83,7 +83,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     X = sc.fit_transform(X)
 
     # Create an array to store the R2 scores
-    mse_scores = np.zeros(num_iterations, len(X))
+    mse_scores = np.zeros((num_iterations, len(X)))
     derivatives = []
     std = configuration.perturbation_std
     # Iterate over the number of iterations
@@ -149,29 +149,29 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # mean-sharpness, which follows PAC-Bayesian
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
-            sharp_mse = np.mean(mse_scores, axis=0)
+            sharp_mse = np.mean(mse_scores, axis=1)
             objectives.append((np.mean(sharp_mse - baseline_mse), -1 * weight))
         elif s == 'MaxSharpness':
             # n-SAM, reduce the maximum sharpness over all samples
-            sharp_mse = np.mean(mse_scores, axis=0)
+            sharp_mse = np.mean(mse_scores, axis=1)
             objectives.append((np.max(sharp_mse), -1 * weight))
         elif s == 'MaxSharpness-Base':
             # n-SAM, reduce the maximum sharpness over all samples
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
-            sharp_mse = np.mean(mse_scores, axis=0)
+            sharp_mse = np.mean(mse_scores, axis=1)
             max_sharpness = np.max(sharp_mse - baseline_mse)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'MaxSharpness-1':
             # 1-SAM, reduce the maximum sharpness over each sample
-            max_sharp = np.max(mse_scores, axis=0)
+            max_sharp = np.max(mse_scores, axis=1)
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'MaxSharpness-1-Base':
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             baseline = (y - individual.predicted_values) ** 2
-            max_sharp = np.max(mse_scores, axis=0)
+            max_sharp = np.max(mse_scores, axis=1)
             max_sharpness = np.mean(max_sharp - baseline)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'Derivative':
