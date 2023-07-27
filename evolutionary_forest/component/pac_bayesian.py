@@ -149,29 +149,37 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # mean-sharpness, which follows PAC-Bayesian
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
+            # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
+            # average over perturbations
             objectives.append((np.mean(sharp_mse - baseline_mse), -1 * weight))
         elif s == 'MaxSharpness':
             # n-SAM, reduce the maximum sharpness over all samples
+            # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
+            # max over perturbations
             objectives.append((np.max(sharp_mse), -1 * weight))
         elif s == 'MaxSharpness-Base':
             # n-SAM, reduce the maximum sharpness over all samples
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
+            # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
+            # max over perturbations
             max_sharpness = np.max(sharp_mse - baseline_mse)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'MaxSharpness-1':
             # 1-SAM, reduce the maximum sharpness over each sample
-            max_sharp = np.max(mse_scores, axis=1)
+            # max for each sample
+            max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'MaxSharpness-1-Base':
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             baseline = (y - individual.predicted_values) ** 2
-            max_sharp = np.max(mse_scores, axis=1)
+            # max for each sample
+            max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp - baseline)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'Derivative':
