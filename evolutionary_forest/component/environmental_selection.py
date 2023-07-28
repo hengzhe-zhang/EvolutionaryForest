@@ -151,6 +151,10 @@ class NSGA2(EnvironmentalSelection):
             if self.knee_point == 'Ensemble':
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 self.algorithm.hof = first_pareto_front
+            elif self.knee_point == 'Top-10':
+                first_pareto_front = sortNondominated(population, len(population))[0]
+                best_individuals = sorted(first_pareto_front, key=lambda x: x.fitness.wvalues)[-10:]
+                self.algorithm.hof = best_individuals
             elif self.knee_point in ['Cluster+Ensemble',
                                      'Cluster+Ensemble+Euclidian',
                                      'Cluster+Ensemble+Fitness'] \
