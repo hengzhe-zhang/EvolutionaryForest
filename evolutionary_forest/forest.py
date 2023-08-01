@@ -564,7 +564,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.x_scaler = FeatureTransformer(encoding_scheme=normalize)
             self.y_scaler = StandardScaler()
         elif normalize is False:
-            pass
+            self.x_scaler = None
+            self.y_scaler = None
         else:
             raise Exception
 
@@ -4686,26 +4687,32 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 count += learner.tree_.node_count
             elif isinstance(learner, SoftPLTreeRegressor):
                 count += learner.complexity()
-            elif isinstance(learner,LinearModel):
-                count+= len(learner.coef_)
-                if learner.intercept_!=0:
-                    count+=1
+            elif isinstance(learner, LinearModel):
+                count += len(learner.coef_)
+                if learner.intercept_ != 0:
+                    count += 1
             else:
                 raise Exception("Unknown Learner")
         return count
 
     def model(self, mtl_id=None):
-        assert len(self.hof) == 1
         if len(self.hof) == 1:
-            return self.single_model(mtl_id)
+            assert len(self.hof) == 1
+            best_ind = self.hof[0]
+            return self.single_model(best_ind, mtl_id)
         else:
             final_model = ''
             for ind in self.hof:
-                final_model+= self.single_model(ind)
+                if final_model == '':
+                    final_model += '(' + self.single_model(ind, mtl_id) + ')'
+                else:
+                    final_model += '+(' + self.single_model(ind, mtl_id) + ')'
+            if self.y_scaler is not None:
+                mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
+                final_model = f'((({final_model})/{len(self.hof)}*{std})+{mean})'
             return final_model
 
-    def single_model(self, mtl_id=None):
-        best_ind = self.hof[0]
+    def single_model(self, best_ind, mtl_id=None):
         if isinstance(best_ind.pipe, Pipeline):
             if 'Scaler' in best_ind.pipe.named_steps:
                 scaler: StandardScaler = best_ind.pipe['Scaler']
