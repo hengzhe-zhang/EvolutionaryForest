@@ -1920,7 +1920,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if hasattr(gp, constant):
                 delattr(gp, constant)
         attrs_to_remove = [attr for attr in dir(gp)
-                           if attr.startswith("rand") and is_number(attr.replace('rand',''))]
+                           if attr.startswith("rand") and is_number(attr.replace('rand', ''))]
         for attr in attrs_to_remove:
             delattr(gp, attr)
 
@@ -4684,12 +4684,27 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             learner = h.pipe['Ridge']
             if isinstance(learner, DecisionTreeRegressor):
                 count += learner.tree_.node_count
-            if isinstance(learner, SoftPLTreeRegressor):
+            elif isinstance(learner, SoftPLTreeRegressor):
                 count += learner.complexity()
+            elif isinstance(learner,LinearModel):
+                count+= len(learner.coef_)
+                if learner.intercept_!=0:
+                    count+=1
+            else:
+                raise Exception("Unknown Learner")
         return count
 
     def model(self, mtl_id=None):
         assert len(self.hof) == 1
+        if len(self.hof) == 1:
+            return self.single_model(mtl_id)
+        else:
+            final_model = ''
+            for ind in self.hof:
+                final_model+= self.single_model(ind)
+            return final_model
+
+    def single_model(self, mtl_id=None):
         best_ind = self.hof[0]
         if isinstance(best_ind.pipe, Pipeline):
             if 'Scaler' in best_ind.pipe.named_steps:
