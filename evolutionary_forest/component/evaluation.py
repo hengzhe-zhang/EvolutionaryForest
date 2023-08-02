@@ -484,7 +484,8 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                              configuration: EvaluationConfiguration = None,
                              similarity_score=False,
                              random_noise=0,
-                             noise_type='Normal'):
+                             noise_type='Normal',
+                             noise_to_terminal=False):
     if configuration is None:
         configuration = EvaluationConfiguration()
 
@@ -532,7 +533,8 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                                                  intron_gp=intron_gp, lsh=lsh,
                                                  return_subtree_information=True,
                                                  random_noise=random_noise,
-                                                 noise_type=noise_type)
+                                                 noise_type=noise_type,
+                                                 noise_to_terminal=noise_to_terminal)
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
@@ -574,7 +576,7 @@ cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                    intron_gp=False, lsh=False, return_subtree_information=False,
-                   random_noise=0,noise_type='Normal') -> Tuple[np.ndarray, dict]:
+                   random_noise=0,noise_type='Normal',noise_to_terminal=False) -> Tuple[np.ndarray, dict]:
     # random noise is very important for sharpness aware minimization
     # quickly evaluate a primitive tree
     if lsh:
@@ -600,15 +602,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1:
-                        if noise_type == 'Normal':
-                            noise = np.random.normal(0, 1, len(result))
-                        elif noise_type == 'Uniform':
-                            noise = np.random.uniform(-1, 1, len(result))
-                        else:
-                            raise Exception
-                        l2_norm = np.linalg.norm(noise, ord=2)
-                        noise /= l2_norm
-                        result += noise * random_noise * np.std(result)
+                        result = inject_noise_to_data(result, noise_type, random_noise)
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
@@ -624,6 +618,8 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                         result = data[prim.name]
                     else:
                         raise ValueError("Unsupported data type!")
+                    if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 and noise_to_terminal:
+                        result = inject_noise_to_data(result, noise_type, random_noise)
                 else:
                     result = prim.value
             else:
@@ -661,6 +657,19 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             return result, subtree_information
         else:
             return result
+
+
+def inject_noise_to_data(result, noise_type, random_noise_magnitude):
+    if noise_type == 'Normal':
+        noise = np.random.normal(0, 1, len(result))
+    elif noise_type == 'Uniform':
+        noise = np.random.uniform(-1, 1, len(result))
+    else:
+        raise Exception
+    l2_norm = np.linalg.norm(noise, ord=2)
+    noise /= l2_norm
+    result += noise * random_noise_magnitude * np.std(result)
+    return result
 
 
 def minimal_task():

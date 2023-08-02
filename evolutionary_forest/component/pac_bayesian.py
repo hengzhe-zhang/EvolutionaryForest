@@ -28,7 +28,7 @@ class PACBayesianConfiguration():
                  reference_model='KR',
                  precision=10,
                  noise_type='Normal',
-                 **params):
+                 noise_to_terminal=False, **params):
         # For VCD
         self.reference_model = reference_model
         self.optimal_design = optimal_design
@@ -42,6 +42,7 @@ class PACBayesianConfiguration():
         self.l2_penalty = l2_penalty
         self.precision = precision
         self.noise_type = noise_type
+        self.noise_to_terminal = noise_to_terminal
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -104,7 +105,8 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             X_noise_plus = sc.transform(feature_generator(data + 1e-8))
         elif sharpness_type == SharpnessType.Parameter:
             X_noise = sc.transform(feature_generator(original_X, random_noise=configuration.perturbation_std,
-                                                     noise_type=configuration.noise_type))
+                                                     noise_type=configuration.noise_type,
+                                                     noise_to_terminal=configuration.noise_to_terminal))
         else:
             raise Exception("Unknown sharpness type!")
 

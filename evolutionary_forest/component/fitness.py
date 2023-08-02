@@ -356,8 +356,9 @@ class R2PACBayesian(Fitness):
             )
         else:
             raise Exception
-        feature_generator = lambda data, random_noise=0,noise_type='Normal': \
-            algorithm.feature_generation(data, individual, random_noise=random_noise,noise_type=noise_type)
+        feature_generator = lambda data, random_noise=0,noise_type='Normal',noise_to_terminal=False: \
+            algorithm.feature_generation(data, individual, random_noise=random_noise,noise_type=noise_type,
+                                         noise_to_terminal=noise_to_terminal)
         y = algorithm.y
 
         # PAC-Bayesian estimation
