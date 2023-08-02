@@ -196,9 +196,9 @@ def calculate_score(args):
             for v in [weights_torch, bias_torch] + variables:
                 assert v.requires_grad is True
             if len(variables) >= 1:
-                if configuration.gradient_optimizer == 'GD' :
+                if configuration.gradient_optimizer == 'GD':
                     optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=0.1)
-                elif configuration.gradient_optimizer == 'GD-1' :
+                elif configuration.gradient_optimizer == 'GD-1':
                     optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=1)
                 else:
                     raise Exception()
@@ -483,7 +483,8 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                              target=None,
                              configuration: EvaluationConfiguration = None,
                              similarity_score=False,
-                             random_noise=0):
+                             random_noise=0,
+                             noise_type='Normal'):
     if configuration is None:
         configuration = EvaluationConfiguration()
 
@@ -530,7 +531,8 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
             feature, intron_ids = quick_evaluate(gene, pset, data, target=target if similarity_score else None,
                                                  intron_gp=intron_gp, lsh=lsh,
                                                  return_subtree_information=True,
-                                                 random_noise=random_noise)
+                                                 random_noise=random_noise,
+                                                 noise_type=noise_type)
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
@@ -572,7 +574,7 @@ cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                    intron_gp=False, lsh=False, return_subtree_information=False,
-                   random_noise=0) -> Tuple[np.ndarray, dict]:
+                   random_noise=0,noise_type='Normal') -> Tuple[np.ndarray, dict]:
     # random noise is very important for sharpness aware minimization
     # quickly evaluate a primitive tree
     if lsh:
@@ -598,7 +600,15 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1:
-                        result += np.random.normal(0, random_noise * np.std(result), len(result))
+                        if noise_type == 'Normal':
+                            noise = np.random.normal(0, 1, len(result))
+                        elif noise_type == 'Uniform':
+                            noise = np.random.uniform(-1, 1, len(result))
+                        else:
+                            raise Exception
+                        l2_norm = np.linalg.norm(noise, ord=2)
+                        noise /= l2_norm
+                        result += noise * random_noise * np.std(result)
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
