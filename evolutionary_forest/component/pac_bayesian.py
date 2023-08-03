@@ -28,10 +28,9 @@ class PACBayesianConfiguration():
                  optimal_design=False,
                  reference_model='KR',
                  precision=10,
-                 noise_type='Normal',
-                 noise_to_terminal=False, **params):
+                 **params):
         # For VCD
-        self.noise_configuration =NoiseConfiguration(**params)
+        self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
         self.optimal_design = optimal_design
         # Using definition of Rademacher complexity to reduce estimated time
@@ -43,8 +42,6 @@ class PACBayesianConfiguration():
         self.objective = objective
         self.l2_penalty = l2_penalty
         self.precision = precision
-        self.noise_type = noise_type
-        self.noise_to_terminal = noise_to_terminal
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
