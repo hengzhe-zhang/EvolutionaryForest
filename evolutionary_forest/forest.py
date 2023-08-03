@@ -1386,7 +1386,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         transformed_features = feature_append(self, X, top_features, only_new_features=True)
         return transformed_features
 
+    def reference_copy(self):
+        # ensure changing the algorithm reference
+        for attribute_name in dir(self):
+            attribute = getattr(self, attribute_name,None)
+            if hasattr(attribute, 'algorithm') and \
+                isinstance(attribute.algorithm, EvolutionaryForestRegressor):
+                attribute.algorithm = self
+
     def lazy_init(self, x):
+        self.reference_copy()
         if isinstance(self.n_pop, str) and 'N' in self.n_pop:
             self.n_pop = extract_numbers(x.shape[1], self.n_pop)
         if self.semantic_repair > 0:
@@ -2620,7 +2629,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             Yp = self.feature_generation(X, p)
             self.train_final_model(p, Yp, y, force_training=force_training)
 
-    def feature_generation(self, X, individual, random_noise=0, noise_type='Normal',noise_to_terminal=False):
+    def feature_generation(self, X, individual, random_noise=0, noise_type='Normal', noise_to_terminal=False):
         if individual.active_gene_num > 0:
             genes = individual.gene[:individual.active_gene_num]
         else:
