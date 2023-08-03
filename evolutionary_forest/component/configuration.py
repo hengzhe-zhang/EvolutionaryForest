@@ -19,11 +19,11 @@ class NoiseConfiguration():
     def __init__(self,
                  noise_type='Normal',
                  noise_to_terminal=False,
-                 noise_scale='STD',
+                 noise_normalization='STD',
                  **params):
         self.noise_type = noise_type
         self.noise_to_terminal = noise_to_terminal
-        self.noise_scale = noise_scale
+        self.noise_normalization = noise_normalization
 
 
 class MABConfiguration():

@@ -671,9 +671,9 @@ def inject_noise_to_data(result,
         raise Exception
     l2_norm = np.linalg.norm(noise, ord=2)
     noise /= l2_norm
-    if noise_configuration.noise_scale == 'Instance':
+    if noise_configuration.noise_normalization == 'Instance':
         result += noise * random_noise_magnitude * np.abs(result)
-    elif noise_configuration.noise_scale == 'STD':
+    elif noise_configuration.noise_normalization == 'STD':
         result += noise * random_noise_magnitude * np.std(result)
     else:
         raise Exception
