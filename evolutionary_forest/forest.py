@@ -2629,7 +2629,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             Yp = self.feature_generation(X, p)
             self.train_final_model(p, Yp, y, force_training=force_training)
 
-    def feature_generation(self, X, individual, random_noise=0, noise_type='Normal', noise_to_terminal=False):
+    def feature_generation(self, X, individual, random_noise=0, noise_configuration=None):
         if individual.active_gene_num > 0:
             genes = individual.gene[:individual.active_gene_num]
         else:
@@ -2639,8 +2639,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                       sklearn_format=self.basic_primitives == 'ML',
                                       register_array=individual.parameters['Register']
                                       if self.mgp_mode == 'Register' else None,
-                                      random_noise=random_noise, noise_type=noise_type,
-                                      noise_to_terminal=noise_to_terminal)
+                                      random_noise=random_noise,
+                                      noise_configuration=noise_configuration)
         if isinstance(Yp, torch.Tensor):
             Yp = Yp.detach().numpy()
         return Yp

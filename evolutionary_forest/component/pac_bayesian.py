@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split, cross_val_predict
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
+from evolutionary_forest.component.configuration import NoiseConfiguration
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
@@ -30,6 +31,7 @@ class PACBayesianConfiguration():
                  noise_type='Normal',
                  noise_to_terminal=False, **params):
         # For VCD
+        self.noise_configuration =NoiseConfiguration(**params)
         self.reference_model = reference_model
         self.optimal_design = optimal_design
         # Using definition of Rademacher complexity to reduce estimated time
@@ -105,8 +107,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             X_noise_plus = sc.transform(feature_generator(data + 1e-8))
         elif sharpness_type == SharpnessType.Parameter:
             X_noise = sc.transform(feature_generator(original_X, random_noise=configuration.perturbation_std,
-                                                     noise_type=configuration.noise_type,
-                                                     noise_to_terminal=configuration.noise_to_terminal))
+                                                     noise_configuration=configuration.noise_configuration))
         else:
             raise Exception("Unknown sharpness type!")
 

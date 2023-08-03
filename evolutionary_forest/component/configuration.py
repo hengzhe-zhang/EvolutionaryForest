@@ -15,6 +15,17 @@ def check_semantic_based_bc(bloat_control):
     return False
 
 
+class NoiseConfiguration():
+    def __init__(self,
+                 noise_type='Normal',
+                 noise_to_terminal=False,
+                 noise_scale='STD',
+                 **params):
+        self.noise_type = noise_type
+        self.noise_to_terminal = noise_to_terminal
+        self.noise_scale = noise_scale
+
+
 class MABConfiguration():
     def __init__(self,
                  mode='Decay',

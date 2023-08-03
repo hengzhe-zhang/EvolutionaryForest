@@ -30,7 +30,8 @@ from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.tree import BaseDecisionTree
 from torch import optim
 
-from evolutionary_forest.component.configuration import EvaluationConfiguration, ImbalancedConfiguration
+from evolutionary_forest.component.configuration import EvaluationConfiguration, ImbalancedConfiguration, \
+    NoiseConfiguration
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimitiveSet, quick_fill, GPPipeline
 from evolutionary_forest.sklearn_utils import cross_val_predict
@@ -484,8 +485,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                              configuration: EvaluationConfiguration = None,
                              similarity_score=False,
                              random_noise=0,
-                             noise_type='Normal',
-                             noise_to_terminal=False):
+                             noise_configuration=None):
     if configuration is None:
         configuration = EvaluationConfiguration()
 
@@ -533,8 +533,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                                                  intron_gp=intron_gp, lsh=lsh,
                                                  return_subtree_information=True,
                                                  random_noise=random_noise,
-                                                 noise_type=noise_type,
-                                                 noise_to_terminal=noise_to_terminal)
+                                                 noise_configuration=noise_configuration)
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
@@ -576,7 +575,7 @@ cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                    intron_gp=False, lsh=False, return_subtree_information=False,
-                   random_noise=0,noise_type='Normal',noise_to_terminal=False) -> Tuple[np.ndarray, dict]:
+                   random_noise=0, noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
     # random noise is very important for sharpness aware minimization
     # quickly evaluate a primitive tree
     if lsh:
@@ -602,7 +601,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1:
-                        result = inject_noise_to_data(result, noise_type, random_noise)
+                        result = inject_noise_to_data(result, random_noise, noise_configuration)
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
@@ -618,8 +617,9 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                         result = data[prim.name]
                     else:
                         raise ValueError("Unsupported data type!")
-                    if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 and noise_to_terminal:
-                        result = inject_noise_to_data(result, noise_type, random_noise)
+                    if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 \
+                        and noise_configuration.noise_to_terminal:
+                        result = inject_noise_to_data(result, random_noise, noise_configuration)
                 else:
                     result = prim.value
             else:
@@ -659,7 +659,10 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             return result
 
 
-def inject_noise_to_data(result, noise_type, random_noise_magnitude):
+def inject_noise_to_data(result,
+                         random_noise_magnitude,
+                         noise_configuration: NoiseConfiguration):
+    noise_type = noise_configuration.noise_type
     if noise_type == 'Normal':
         noise = np.random.normal(0, 1, len(result))
     elif noise_type == 'Uniform':
@@ -668,7 +671,12 @@ def inject_noise_to_data(result, noise_type, random_noise_magnitude):
         raise Exception
     l2_norm = np.linalg.norm(noise, ord=2)
     noise /= l2_norm
-    result += noise * random_noise_magnitude * np.std(result)
+    if noise_configuration.noise_scale == 'Instance':
+        result += noise * random_noise_magnitude * np.abs(result)
+    elif noise_configuration.noise_scale == 'STD':
+        result += noise * random_noise_magnitude * np.std(result)
+    else:
+        raise Exception
     return result
 
 
