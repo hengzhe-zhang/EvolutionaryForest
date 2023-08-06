@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 from hdfe import Groupby
+from numba import jit
 from scipy.stats import mode
 
 threshold = 1e-6
@@ -16,10 +17,12 @@ def protected_division(x1, *x2):
         x2 = reduce(operator.mul, x2)
         return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
 
+
 def protected_division_torch(x1, *x2):
     with np.errstate(divide='ignore', invalid='ignore'):
         x2 = reduce(operator.mul, x2)
         return torch.where(torch.abs(x2) > threshold, torch.divide(x1, x2), 1.)
+
 
 def protected_log(x1, x2):
     """Closure of log for zero and negative arguments."""
@@ -36,12 +39,9 @@ def protected_inverse(x1):
 def analytical_quotient(x1, x2):
     return x1 / np.sqrt(1 + (x2 ** 2))
 
+
 def analytical_quotient_torch(x1, x2):
     return x1 / torch.sqrt(1 + (x2 ** 2))
-
-# def analytical_quotient(x1, *x2):
-#     base_function = lambda x: np.sqrt(1 + (x ** 2))
-#     return x1 / reduce(operator.mul, map(base_function, x2))
 
 
 def individual_to_tuple(ind):
@@ -73,8 +73,10 @@ def cube(x):
 def protect_sqrt(a):
     return np.sqrt(np.abs(a))
 
+
 def protect_sqrt_torch(a):
     return torch.sqrt(torch.abs(a))
+
 
 def shape_wrapper(x1, x2):
     if np.isscalar(x1):
@@ -112,38 +114,87 @@ def groupby_generator(function, argument_count=2):
     return groupby_function
 
 
-def group_sum(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.sum, x2, broadcast=True)
+@jit(nopython=True)
+def groupby_mean(keys, values):
+    unique_keys = np.unique(keys)
+    means = np.zeros_like(unique_keys, dtype=np.float64)
+    counts = np.zeros_like(unique_keys, dtype=np.int64)
+
+    # Calculate the sum and counts for each group
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        means[idx] += values[i]
+        counts[idx] += 1
+
+    # Divide the sum by counts to get the mean
+    means /= counts
+
+    # Map the means back to the original keys
+    output_array = np.zeros_like(values, dtype=np.float64)
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        output_array[i] = means[idx]
+
+    return output_array
 
 
-def group_mean(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.mean, x2, broadcast=True)
+@jit(nopython=True)
+def groupby_max(keys, values):
+    unique_keys = np.unique(keys)
+    max_values = np.full_like(unique_keys, -np.inf, dtype=np.float64)  # Initialize with negative infinity
+
+    # Find the max value for each group
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        if values[i] > max_values[idx]:
+            max_values[idx] = values[i]
+
+    # Map the max values back to the original keys
+    output_array = np.zeros_like(values, dtype=np.float64)
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        output_array[i] = max_values[idx]
+
+    return output_array
 
 
-def group_count(x1):
-    if np.isscalar(x1):
-        return x1
-    return Groupby(x1).apply(len, x1, broadcast=True)
+@jit(nopython=True)
+def groupby_min(keys, values):
+    unique_keys = np.unique(keys)
+    min_values = np.full_like(unique_keys, np.inf, dtype=np.float64)  # Initialize with positive infinity
+
+    # Find the min value for each group
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        if values[i] < min_values[idx]:
+            min_values[idx] = values[i]
+
+    # Map the min values back to the original keys
+    output_array = np.zeros_like(values, dtype=np.float64)
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        output_array[i] = min_values[idx]
+
+    return output_array
 
 
-def group_min(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.min, x2, broadcast=True)
+@jit(nopython=True)
+def groupby_count(keys):
+    unique_keys = np.unique(keys)
+    counts = np.zeros_like(unique_keys, dtype=np.int64)
 
+    # Count the occurrences for each key
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        counts[idx] += 1
 
-def group_max(x1, x2):
-    if np.isscalar(x1) and np.isscalar(x2):
-        return x2
-    x1, x2 = shape_wrapper(x1, x2)
-    return Groupby(x1).apply(np.max, x2, broadcast=True)
+    # Map the counts back to the original keys
+    output_array = np.zeros_like(keys, dtype=np.int64)
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        output_array[i] = counts[idx]
+
+    return output_array
 
 
 def group_mode(x1, x2):
@@ -339,11 +390,6 @@ def add_extend_operators(pset, addtional=False, groupby_operators=True,
         return mode(x).mode[0]
 
     # Basic features
-    """
-    目前遗传编程算法最适合传统高阶特征的构建
-    对于决策树算法来说，尽管使用不同的特征划分空间都同样可以取得完美的训练准确率
-    但是不同的特征空间的泛化能力是不同的，因此特征构造的意义是构造出真正具有足够强泛化能力的特征空间
-    """
     pset.addPrimitive(protect_sqrt, 1)
     pset.addPrimitive(analytical_log, 1)
     pset.addPrimitive(np.sin, 1)
@@ -352,14 +398,6 @@ def add_extend_operators(pset, addtional=False, groupby_operators=True,
     pset.addPrimitive(np.minimum, 2)
 
     # GroupBy features
-    """
-    关于统计类特征的一些思考：
-    统计类特征在数据挖掘竞赛中被经常使用以增强模型的预测效果，但是统计类特征会造成信息的丢失
-    此外统计类特征还会出现分布外不稳定的情况，因此统计类特征需要训练集和验证集一起构造
-    如何构造统计类特征无疑是遗传编程算法领域一个非常有待解决的问题，但是目前的算法框架很难实现这一点
-    此外，一个值得思考的问题是统计类特征的真正作用，实际上统计类特征是对类别型特征的重新刻画
-    对于决策树模型来说，统计类特征可能是避免过拟合的利器
-    """
     if groupby_operators:
         pset.addPrimitive(groupby_generator('mean'), 2)
         pset.addPrimitive(groupby_generator('max'), 2)
@@ -396,4 +434,26 @@ def groupby_operator_speed_test():
 
 
 if __name__ == '__main__':
-    print(protected_division(1, 2, 2))
+    # print(protected_division(1, 2, 2))
+    keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
+    values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
+    result = groupby_mean(keys, values)
+    print(result)  # Output: [10. 25. 25. 50. 50. 50.]
+    assert np.array_equal(result, [10, 25, 25, 50, 50, 50])
+
+    keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
+    values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
+    result = groupby_max(keys, values)
+    print(result)  # Output: [10. 30. 30. 60. 60. 60.]
+    assert np.array_equal(result, [10, 30, 30, 60, 60, 60, ])
+
+    keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
+    values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
+    result = groupby_min(keys, values)
+    print(result)  # Output: [10. 20. 20. 40. 40. 40.]
+    assert np.array_equal(result, [10, 20, 20, 40, 40, 40, ])
+
+    keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
+    result = groupby_count(keys)
+    print(result)  # Output: [1 2 2 3 3 3]
+    assert np.array_equal(result, [1, 2, 2, 3, 3, 3])
