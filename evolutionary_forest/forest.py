@@ -1396,6 +1396,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def lazy_init(self, x):
         self.reference_copy()
+        if isinstance(self.gene_num,str) and 'Max' in self.gene_num:
+            self.gene_num=min(int(self.gene_num.replace('Max-','')),x.shape[1])
         if isinstance(self.n_pop, str) and 'N' in self.n_pop:
             self.n_pop = extract_numbers(x.shape[1], self.n_pop)
         if self.semantic_repair > 0:
