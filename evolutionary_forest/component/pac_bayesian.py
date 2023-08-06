@@ -78,7 +78,8 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
                             sharpness_type: SharpnessType,
                             feature_generator=None,
                             data_generator=None,
-                            reference_model: LGBMRegressor = None):
+                            reference_model: LGBMRegressor = None,
+                            sharpness_vector=None):
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = 10
@@ -178,13 +179,19 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
-        elif s == 'MaxSharpness-1-Base':
+        elif s == 'MaxSharpness-1-Base' or s == 'MaxSharpness-1-Base+':
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             baseline = (y - individual.predicted_values) ** 2
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp - baseline)
+            if s == 'MaxSharpness-1-Base':
+                sharpness_vector[:] = max_sharp - baseline
+            elif s == 'MaxSharpness-1-Base+':
+                sharpness_vector[:] = np.maximum(max_sharp - baseline, 0)
+            else:
+                raise Exception
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'Derivative':
             derivative = np.max(derivatives)

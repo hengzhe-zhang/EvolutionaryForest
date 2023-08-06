@@ -356,11 +356,12 @@ class R2PACBayesian(Fitness):
             )
         else:
             raise Exception
-        feature_generator = lambda data, random_noise=0,noise_configuration=None: \
+        feature_generator = lambda data, random_noise=0, noise_configuration=None: \
             algorithm.feature_generation(data, individual, random_noise=random_noise,
                                          noise_configuration=noise_configuration)
         y = algorithm.y
 
+        sharpness_vector = []
         # PAC-Bayesian estimation
         estimation = pac_bayesian_estimation(X_features, algorithm.X, y,
                                              estimator, individual,
@@ -369,8 +370,14 @@ class R2PACBayesian(Fitness):
                                              self.sharpness_type,
                                              feature_generator=feature_generator,
                                              data_generator=data_generator,
-                                             reference_model=self.algorithm.reference_lgbm)
+                                             reference_model=self.algorithm.reference_lgbm,
+                                             sharpness_vector=sharpness_vector)
         individual.fitness_list = estimation
+        assert len(individual.case_values) > 0
+        if len(sharpness_vector) > 0:
+            # if the sharpness vector is available
+            # smaller is  better
+            individual.case_values = np.hstack([individual.case_values, sharpness_vector])
         return -1 * individual.fitness_list[0][0],
 
     def assign_complexity_pop(self, pop):
