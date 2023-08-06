@@ -11,7 +11,6 @@ from pymoo.mcdm.pseudo_weights import PseudoWeights
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import r2_score
-from sklearn.metrics.pairwise import cosine_distances
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
@@ -111,7 +110,7 @@ class NSGA2(EnvironmentalSelection):
     def __init__(self,
                  algorithm: "EvolutionaryForestRegressor",
                  objective_function: Objective = None,
-                 normalization=False,
+                 objective_normalization=False,
                  knee_point=False,
                  bootstrapping_selection=False,
                  first_objective_weight=1, **kwargs):
@@ -119,7 +118,7 @@ class NSGA2(EnvironmentalSelection):
         self.bootstrapping_selection = bootstrapping_selection
         self.algorithm = algorithm
         self.objective_function = objective_function
-        self.normalization = normalization
+        self.objective_normalization = objective_normalization
         self.knee_point: str = knee_point
         self.selection_operator = selNSGA2
         self.validation_x = None
@@ -130,7 +129,7 @@ class NSGA2(EnvironmentalSelection):
         if self.objective_function != None:
             self.objective_function.set(individuals)
 
-        if self.normalization:
+        if self.objective_normalization:
             dims = len(individuals[0].fitness.values)
             min_max = []
             for d in range(dims):
@@ -240,8 +239,8 @@ class NSGA2(EnvironmentalSelection):
 class SPEA2(NSGA2):
 
     def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
-                 normalization=False, knee_point=False, bootstrapping_selection=False, **kwargs):
-        super().__init__(algorithm, objective_function, normalization, knee_point, bootstrapping_selection, **kwargs)
+                 objective_normalization=False, knee_point=False, bootstrapping_selection=False, **kwargs):
+        super().__init__(algorithm, objective_function, objective_normalization, knee_point, bootstrapping_selection, **kwargs)
         self.selection_operator = selSPEA2
 
 
@@ -254,9 +253,9 @@ class Best(EnvironmentalSelection):
 class NSGA3(NSGA2):
 
     def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
-                 normalization=False, knee_point=False, bootstrapping_selection=False, first_objective_weight=1,
+                 objective_normalization=False, knee_point=False, bootstrapping_selection=False, first_objective_weight=1,
                  **kwargs):
-        super().__init__(algorithm, objective_function, normalization, knee_point, bootstrapping_selection,
+        super().__init__(algorithm, objective_function, objective_normalization, knee_point, bootstrapping_selection,
                          first_objective_weight, **kwargs)
         self.selection_operator = partial(selNSGA3, ref_points=uniform_reference_points(3))
 
