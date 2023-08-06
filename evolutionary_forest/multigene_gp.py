@@ -114,9 +114,15 @@ class MultipleGeneGP():
             random_index = random.randrange(self.gene_num)
             del self.gene[random_index]
 
-    def __init__(self, content, gene_num, tpot_model: TPOTBase = None, partition_scheme=None,
-                 base_model_list=None, number_of_register=0, active_gene_num=0, intron_probability=0,
-                 intron_threshold=0, algorithm: "EvolutionaryForestRegressor" = None):
+    def __init__(self, content,
+                 gene_num,
+                 tpot_model: TPOTBase = None,
+                 base_model_list=None,
+                 number_of_register=0,
+                 active_gene_num=0,
+                 intron_probability=0,
+                 intron_threshold=0,
+                 algorithm: "EvolutionaryForestRegressor" = None):
         configuration = algorithm.mutation_configuration
         self.gene: List[PrimitiveTree] = []
         self.fitness = FitnessMin()
@@ -136,15 +142,6 @@ class MultipleGeneGP():
         self.dynamic_leaf_size = random.randint(1, 10)
         self.dynamic_regularization = 1
         self.intron_threshold = intron_threshold
-        if partition_scheme is not None:
-            # self.partition_scheme = np.random.randint(0, partition_scheme[1] , partition_scheme[0])
-            # initialize partition scheme by decision tree
-            if callable(partition_scheme):
-                self.partition_scheme = partition_scheme()
-            else:
-                self.partition_scheme = partition_scheme
-        else:
-            self.partition_scheme = None
         # some active genes
         self.intron_probability = intron_probability
         self.active_gene = np.random.randn(self.max_gene_num) < intron_probability

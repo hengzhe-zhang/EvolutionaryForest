@@ -113,9 +113,9 @@ class PLTree(BaseDecisionTree):
 
 class RandomWeightRidge(Ridge):
 
-    def __init__(self, alpha=1.0, *, fit_intercept=True, normalize="deprecated", copy_X=True, max_iter=None, tol=1e-3,
+    def __init__(self, alpha=1.0, *, fit_intercept=True, copy_X=True, max_iter=None, tol=1e-3,
                  solver="auto", positive=False, random_state=None, initial_weight=None):
-        super().__init__(alpha, fit_intercept=fit_intercept, normalize=normalize, copy_X=copy_X, max_iter=max_iter,
+        super().__init__(alpha, fit_intercept=fit_intercept, copy_X=copy_X, max_iter=max_iter,
                          tol=tol, solver=solver, positive=positive, random_state=random_state)
         self.initial_weight = initial_weight
 
@@ -267,17 +267,9 @@ class PLTreeClassifier(DecisionTreeClassifier, PLTree):
     A simple implementation of piecewise linear regression tree
     """
 
-    def __init__(self, *, criterion="gini", splitter="best", max_depth=None, min_samples_split=2, min_samples_leaf=1,
-                 min_weight_fraction_leaf=0., max_features=None, random_state=None, max_leaf_nodes=None,
-                 min_impurity_decrease=0., min_impurity_split=None, class_weight=None, ccp_alpha=0.0,
-                 base_model='LR'):
+    def __init__(self, base_model='LR', **kwargs):
         self.base_model = base_model
-        super().__init__(criterion=criterion, splitter=splitter, max_depth=max_depth,
-                         min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf,
-                         min_weight_fraction_leaf=min_weight_fraction_leaf, max_features=max_features,
-                         random_state=random_state, max_leaf_nodes=max_leaf_nodes,
-                         min_impurity_decrease=min_impurity_decrease, min_impurity_split=min_impurity_split,
-                         class_weight=class_weight, ccp_alpha=ccp_alpha)
+        super().__init__(**kwargs)
 
     def model_controller(self):
         if self.base_model == 'LR':
@@ -298,12 +290,15 @@ class SoftPLTreeRegressor(RegressorMixin, PLTree):
     A simple implementation of piecewise linear regression tree
     """
 
-    def __init__(self, *, criterion="gini", splitter="best", max_depth=None, min_samples_split=2, min_samples_leaf=1,
-                 min_weight_fraction_leaf=0., max_features=None, random_state=None, max_leaf_nodes=None,
-                 min_impurity_decrease=0., min_impurity_split=None, class_weight=None, ccp_alpha=0.0,
-                 base_model='RidgeCV', feature_num=None, gene_num=None,
-                 only_constructed_features=True, only_original_features=True,
-                 partition_model='DecisionTree', partition_number=1):
+    def __init__(self, *,
+                 base_model='RidgeCV',
+                 feature_num=None,
+                 gene_num=None,
+                 only_constructed_features=True,
+                 only_original_features=True,
+                 partition_model='DecisionTree',
+                 partition_number=1,
+                 **kwargs):
         """
         :param feature_num: Number of all features
         :param gene_num: Number of constructed features
@@ -316,14 +311,8 @@ class SoftPLTreeRegressor(RegressorMixin, PLTree):
         self.only_original_features = only_original_features
         self.partition_model = partition_model
         self.partition_number = partition_number
-        parameters = dict(criterion=criterion, splitter=splitter, max_depth=max_depth,
-                          min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf,
-                          min_weight_fraction_leaf=min_weight_fraction_leaf, max_features=max_features,
-                          random_state=random_state, max_leaf_nodes=max_leaf_nodes,
-                          min_impurity_decrease=min_impurity_decrease, min_impurity_split=min_impurity_split,
-                          class_weight=class_weight, ccp_alpha=ccp_alpha)
         if partition_model == 'DecisionTree':
-            self.partition_tree = DecisionTreeClassifier(**parameters)
+            self.partition_tree = DecisionTreeClassifier(**kwargs)
         elif partition_model == 'DecisionTree-Regression':
             self.partition_tree = DecisionTreeRegressor(max_leaf_nodes=partition_number)
         elif partition_model == 'LogisticRegression':
@@ -334,7 +323,7 @@ class SoftPLTreeRegressor(RegressorMixin, PLTree):
             self.partition_tree = KMeans(n_clusters=partition_number)
         else:
             raise Exception
-        super().__init__(**parameters)
+        super().__init__(**kwargs)
 
     def model_controller(self):
         if self.base_model == 'RidgeCV':
@@ -361,8 +350,7 @@ class SoftPLTreeRegressor(RegressorMixin, PLTree):
             count += len(v.coef_)
         return count
 
-    def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted="deprecated"):
+    def fit(self, X, y, sample_weight=None, check_input=True):
         X, label = X[:, :-1], X[:, -1]
         label = LabelEncoder().fit_transform(label)
         assert X.shape[1] == self.feature_num
@@ -370,13 +358,11 @@ class SoftPLTreeRegressor(RegressorMixin, PLTree):
             if X.shape[1] > self.gene_num and self.only_original_features:
                 # construct the space partition tree with original features
                 self.partition_tree.fit(X[:, self.gene_num:], label, sample_weight=sample_weight,
-                                        check_input=check_input,
-                                        X_idx_sorted=X_idx_sorted)
+                                        check_input=check_input)
                 self.importance_value = np.zeros(self.gene_num)
             else:
                 # construct the space partition tree with constructed features
-                self.partition_tree.fit(X, label, sample_weight=sample_weight, check_input=check_input,
-                                        X_idx_sorted=X_idx_sorted)
+                self.partition_tree.fit(X, label, sample_weight=sample_weight, check_input=check_input)
                 self.importance_value = self.partition_tree.feature_importances_
         elif isinstance(self.partition_tree, DecisionTreeRegressor):
             self.partition_tree.fit(X, label)
@@ -388,8 +374,7 @@ class SoftPLTreeRegressor(RegressorMixin, PLTree):
         elif isinstance(self.partition_tree, KMeans):
             label = self.partition_tree.fit_predict(X)
             self.partition_tree = DecisionTreeClassifier()
-            self.partition_tree.fit(X, label, sample_weight=sample_weight, check_input=check_input,
-                                    X_idx_sorted=X_idx_sorted)
+            self.partition_tree.fit(X, label, sample_weight=sample_weight, check_input=check_input)
             self.importance_value = self.partition_tree.feature_importances_
             self.partition_tree.classes_ = self.partition_tree.predict(X)
         else:

@@ -6,7 +6,6 @@ import dill
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
-from deap.base import Toolbox
 from deap.tools import selNSGA2, History, selBest, cxTwoPoint, mutFlipBit, selDoubleTournament, sortNondominated, \
     selSPEA2, selTournamentDCD
 from gplearn.functions import _protected_sqrt
@@ -57,7 +56,7 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType
 from evolutionary_forest.component.primitives import *
-from evolutionary_forest.component.primitives import np_mean, add_extend_operators
+from evolutionary_forest.component.primitives import np_mean
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \
@@ -80,8 +79,7 @@ from evolutionary_forest.probability_gp import genHalfAndHalf, genFull
 from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.strategies.adaptive_operator_selection import MultiArmBandit, MCTS
 from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution
-from evolutionary_forest.strategies.space_partition import SpacePartition, partition_scheme_varAnd, \
-    partition_scheme_toolbox
+from evolutionary_forest.strategies.space_partition import MultiFidelityEvaluation
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
     gene_to_string, get_activations, reset_random, weighted_avg_and_std, save_array, is_float, cross_scale, \
@@ -179,8 +177,7 @@ def kendall(ya, yb):
     return kendalltau(ya, yb)[0]
 
 
-class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimator,
-                                  SurrogateModel, SpacePartition, EstimationOfDistribution):
+class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimator, EstimationOfDistribution):
     """
     Support both TGP and MGP for evolutionary feature construction
     """
@@ -346,8 +343,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
-        SurrogateModel.__init__(self)
-        SpacePartition.__init__(self)
         EstimationOfDistribution.__init__(self, **params)
         self.constant_ratio = constant_ratio
         self.learner = learner
@@ -569,20 +564,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             raise Exception
 
-        statistical_feature = self.param.get('statistical_feature', False)
-        if statistical_feature:
-            from autox.autox_competition.feature_engineer import FeatureStat
-            class FeatureStatFixed(FeatureStat):
-                def fit_transform(self, df, target=None, df_feature_type=None, silence_group_cols=[],
-                                  silence_agg_cols=[], select_all=True, max_num=None):
-                    return super().fit_transform(df, target, df_feature_type, silence_group_cols, silence_agg_cols,
-                                                 select_all, max_num)
-
-            self.x_scaler = Pipeline([
-                ("StatisticalFeatures", FeatureStatFixed()),
-                ("CategoricalEncoder", self.x_scaler)
-            ])
-
         self.n_process = n_process
 
         if self.base_learner == 'NN':
@@ -692,6 +673,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **params,
             **vars(self),
         )
+        self.multi_fidelity_evaluation = MultiFidelityEvaluation(
+            **params,
+            **vars(self)
+        )
+        self.surrogate_model = SurrogateModel(self)
         self.elites_archive = None
 
     def score_function_controller(self, params, score_func):
@@ -1144,9 +1130,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
 
     def train_final_model(self, individual: MultipleGeneGP, Yp, Y, force_training=False):
-        if self.base_learner == 'Fast-Soft-PLTree-EM':
-            self.base_learner = 'Soft-PLTree-EM'
-            individual.pipe = self.get_base_model()
         if self.base_learner == 'Lasso-RidgeCV':
             self.base_learner = 'RidgeCV'
             individual.pipe = self.get_base_model()
@@ -1352,24 +1335,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 only_original_features=self.only_original_features)
         elif isinstance(self.base_learner, RegressorMixin):
             ridge_model = efficient_deepcopy(self.base_learner)
-            # return GPPipeline([
-            #     ("Ridge", ridge_model),
-            # ])
         else:
             raise Exception
-        if self.base_learner == 'PCA-DT':
-            # projection_matrix = np.random.random((self.gene_num, self.gene_num))
-            # random_projection = StaticRandomProjection(projection_matrix)
-            pipe = GPPipeline([
-                ("Scaler", StandardScaler()),
-                ("Rotation", PCA(n_components=5)),
-                ("Ridge", ridge_model),
-            ])
-        else:
-            pipe = GPPipeline([
-                ("Scaler", SafetyScaler()),
-                ("Ridge", ridge_model),
-            ])
+        pipe = GPPipeline([
+            ("Scaler", SafetyScaler()),
+            ("Ridge", ridge_model),
+        ])
         if isinstance(pipe['Ridge'], BaseDecisionTree) and self.max_tree_depth != None:
             assert pipe['Ridge'].max_depth == self.max_tree_depth
         return pipe
@@ -1389,15 +1360,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def reference_copy(self):
         # ensure changing the algorithm reference
         for attribute_name in dir(self):
-            attribute = getattr(self, attribute_name,None)
+            attribute = getattr(self, attribute_name, None)
             if hasattr(attribute, 'algorithm') and \
                 isinstance(attribute.algorithm, EvolutionaryForestRegressor):
                 attribute.algorithm = self
 
     def lazy_init(self, x):
         self.reference_copy()
-        if isinstance(self.gene_num,str) and 'Max' in self.gene_num:
-            self.gene_num=min(int(self.gene_num.replace('Max-','')),x.shape[1])
+        if isinstance(self.gene_num, str) and 'Max' in self.gene_num:
+            self.gene_num = min(int(self.gene_num.replace('Max-', '')), x.shape[1])
         if isinstance(self.n_pop, str) and 'N' in self.n_pop:
             self.n_pop = extract_numbers(x.shape[1], self.n_pop)
         if self.semantic_repair > 0:
@@ -1436,13 +1407,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 toolbox.expr = partial(gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height)
 
         # individual initialization
-        partition_scheme = self.partition_scheme_initialization()
-        toolbox.individual = partial(multiple_gene_initialization, MultipleGeneGP, toolbox.expr,
-                                     gene_num=self.gene_num, tpot_model=self.tpot_model,
-                                     partition_scheme=partition_scheme,
-                                     base_model_list=self.base_model_list, number_of_register=self.number_of_register,
-                                     active_gene_num=self.active_gene_num, intron_probability=self.intron_probability,
-                                     intron_threshold=self.intron_threshold, algorithm=self)
+        toolbox.individual = partial(multiple_gene_initialization,
+                                     MultipleGeneGP,
+                                     toolbox.expr,
+                                     gene_num=self.gene_num,
+                                     tpot_model=self.tpot_model,
+                                     base_model_list=self.base_model_list,
+                                     number_of_register=self.number_of_register,
+                                     active_gene_num=self.active_gene_num,
+                                     intron_probability=self.intron_probability,
+                                     intron_threshold=self.intron_threshold,
+                                     algorithm=self)
         toolbox.population = partial(tools.initRepeat, list, toolbox.individual)
         toolbox.compile = partial(multiple_gene_compile, pset=pset)
 
@@ -1837,18 +1812,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 pset.addPrimitive(np.logical_or, [BooleanFeature, BooleanFeature], BooleanFeature)
                 pset.addPrimitive(np.logical_xor, [BooleanFeature, BooleanFeature], BooleanFeature)
                 pset.addPrimitive(identical_boolean, [BooleanFeature], GeneralFeature)
-        elif self.basic_primitives == 'extend':
-            pset = PrimitiveSet("MAIN", x.shape[1])
-            add_basic_operators(pset)
-            add_extend_operators(pset)
-        elif self.basic_primitives == 'extend-triple':
-            pset = PrimitiveSet("MAIN", x.shape[1])
-            add_basic_operators(pset)
-            add_extend_operators(pset, triple_groupby_operators=True)
-        elif self.basic_primitives == 'extend-simple':
-            pset = PrimitiveSet("MAIN", x.shape[1])
-            add_basic_operators(pset)
-            add_extend_operators(pset, groupby_operators=False)
         elif isinstance(self.basic_primitives, str) and 'optimal' in self.basic_primitives:
             pset = PrimitiveSet("MAIN", x.shape[1])
             self.basic_primitives = ','.join([
@@ -1856,19 +1819,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 'Sqrt', 'Sin', 'Cos', 'Max', 'Min', 'Neg',
             ])
             self.add_primitives_to_pset(pset)
-        elif self.basic_primitives == 'DIGEN':
-            pset = gp.PrimitiveSet("MAIN", x.shape[1])
-            self.basic_primitives = ','.join([
-                'add', 'subtract', 'multiply', 'analytical_quotient',
-                'protect_sqrt', 'sin', 'cos', 'maximum', 'minimum', 'negative',
-                'greater_or_equal_than', 'less_or_equal_than'
-            ])
-            self.add_primitives_to_pset(pset)
         elif isinstance(self.basic_primitives, str) and self.basic_primitives.startswith('ML'):
             pset = PrimitiveSet("MAIN", x.shape[1])
             primitives = ','.join([
-                'add', 'subtract', 'multiply', 'analytical_quotient',
-                'protect_sqrt', 'sin', 'cos', 'maximum', 'minimum', 'negative',
+                'Add', 'Sub', 'Mul', 'AQ',
+                'Sqrt', 'Sin', 'Cos', 'Max', 'Min', 'Neg',
             ])
             models = self.basic_primitives.replace('ML-', '').split(',')
             for m in models:
@@ -1883,39 +1838,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.add_primitives_to_pset(pset, primitives, transformer_wrapper=True)
             self.basic_primitives = 'ML'
         elif self.basic_primitives == 'CDFC':
-            # primitives used in CDFC
+            # Primitives used in CDFC
             # "Genetic programming for multiple-feature construction on high-dimensional classification"
             pset = gp.PrimitiveSet("MAIN", x.shape[1])
             add_basic_operators(pset)
             pset.addPrimitive(np.maximum, 2)
             pset.addPrimitive(if_function, 3)
-        elif self.basic_primitives == 'logical':
-            pset = gp.PrimitiveSet("MAIN", x.shape[1])
-            add_logical_operators(pset)
-        elif self.basic_primitives == 'relation':
-            pset = gp.PrimitiveSet("MAIN", x.shape[1])
-            add_basic_operators(pset)
-            add_relation_operators(pset)
-        elif self.basic_primitives == 'normalized':
-            pset = gp.PrimitiveSet("MAIN", x.shape[1])
-
-            def tanh_wrapper(func):
-                def simple_func(x1, x2):
-                    return np.tanh(func(x1, x2))
-
-                simple_func.__name__ = f'tanh_{func.__name__}'
-                return simple_func
-
-            pset.addPrimitive(tanh_wrapper(np.add), 2)
-            pset.addPrimitive(tanh_wrapper(np.subtract), 2)
-            pset.addPrimitive(tanh_wrapper(np.multiply), 2)
-            pset.addPrimitive(tanh_wrapper(analytical_quotient), 2)
-        elif self.basic_primitives == 'interpretable':
-            pset = gp.PrimitiveSet("MAIN", x.shape[1])
-            pset.addPrimitive(np.add, 2)
-            pset.addPrimitive(np.subtract, 2)
-            pset.addPrimitive(np.multiply, 2)
-            pset.addPrimitive(protected_division, 2)
         elif isinstance(self.basic_primitives, str) and ',' in self.basic_primitives:
             # an array of basic primitives
             pset = gp.PrimitiveSet("MAIN", x.shape[1])
@@ -3138,20 +3066,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     for o, b in zip(offspring, base_models):
                         o.base_model = b
 
-                if self.base_learner == 'Soft-PLTree':
-                    # Update partition scheme
-                    partition_schemes = [o.partition_scheme for o in offspring]
-                    # Read hyperparameters from parameter dict
-                    ps_tree_cross_pb = self.param.get('ps_tree_cross_pb', 0)
-                    ps_tree_mutate_pb = self.param.get('ps_tree_mutate_pb', 0)
-                    scheme_toolbox: Toolbox = partition_scheme_toolbox(self.partition_number,
-                                                                       ps_tree_cross_pb, ps_tree_mutate_pb)
-                    partition_schemes = partition_scheme_varAnd(partition_schemes,
-                                                                scheme_toolbox,
-                                                                cxpb=1, mutpb=1)
-                    for o, b in zip(offspring, partition_schemes):
-                        o.partition_scheme = b
-
                 self.self_adaptive_evolution(offspring)
                 for o in offspring:
                     self.self_adaptive_mutation(o, population)
@@ -3199,14 +3113,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         delattr(ind, attr)
 
             if self.pre_selection != None:
-                offspring, predicted_values = self.pre_selection_individuals(population, new_offspring,
-                                                                             self.n_pop)
+                offspring, predicted_values = self.surrogate_model.pre_selection_individuals(population,
+                                                                                             new_offspring,
+                                                                                             self.n_pop)
                 assert len(offspring) == self.n_pop, \
                     f"{len(offspring), self.n_pop}"
             else:
                 offspring = new_offspring
 
-            self.partition_scheme_updating()
+            self.multi_fidelity_evaluation.update_evaluation_mode(self.current_gen)
             if self.reduction_ratio >= 1:
                 self.population_reduction(population)
 
@@ -4603,18 +4518,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # automatically determine the weight length
             ind.fitness.weights = tuple(-1 for _ in range(len(value)))
             ind.fitness.values = value
-
-        # updating all partition scheme
-        if self.base_learner == 'Soft-PLTree' and self.shared_partition_scheme:
-            partition_scheme = np.zeros((self.X.shape[0], self.partition_number))
-            for p in population:
-                assert p.partition_scheme.shape[0] == self.X.shape[0]
-                assert len(p.partition_scheme.shape) == 1
-                p.partition_scheme = p.partition_scheme.astype(int)
-                partition_scheme[np.arange(self.X.shape[0]), p.partition_scheme] += 1
-            partition_scheme = partition_scheme.argmax(axis=1)
-            for p in population:
-                p.partition_scheme = partition_scheme
         return invalid_ind
 
     def cos_distance_calculation(self, population=None):
@@ -4979,7 +4882,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         labels = np.sort(np.unique(self.y))
         return labels[np.argmax(predictions, axis=1)]
 
-    def get_base_model(self, regularization_ratio=1, base_model=None):
+    def get_base_model(self, regularization_ratio=1, base_model=None, **kwargs):
         base_model_str = base_model if isinstance(base_model, str) else ''
         if self.base_learner == 'DT' or self.base_learner == 'PCA-DT' or \
             self.base_learner == 'Dynamic-DT' or base_model == 'DT':
