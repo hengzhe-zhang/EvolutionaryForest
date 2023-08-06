@@ -153,7 +153,7 @@ class EstimationOfDistribution():
                  eda_archive_size=0,
                  decision_tree_mode=False,
                  multi_armed_bandit=False,
-                 new_frequency_count=False,
+                 independent_eda_archive=False,
                  algorithm: "EvolutionaryForestRegressor" = None,
                  **params):
         # good individuals have larger weights
@@ -175,8 +175,23 @@ class EstimationOfDistribution():
         self.decision_tree_mode = decision_tree_mode
         self.multi_armed_bandit = multi_armed_bandit
         self.mab = MultiArmBandit()
-        self.new_frequency_count = new_frequency_count
+        self.independent_eda_archive = independent_eda_archive
         self.algorithm: "EvolutionaryForestRegressor" = algorithm
+
+        self.primitive_prob = None
+        self.terminal_prob = None
+
+    def init_probability_matrix(self):
+        if self.terminal_prob is None and self.primitive_prob is None:
+            # Set probability arrays to zero for primitives and terminals
+            self.primitive_prob = np.zeros(self.algorithm.pset.prims_count)
+            self.terminal_prob = np.zeros(self.algorithm.pset.terms_count)
+            # If in MGP mode, set terminal_prob to empty list
+            if self.algorithm.mgp_mode:
+                self.terminal_prob = []
+            if 'Terminal' in self.algorithm.mutation_scheme:
+                # If in Terminal mode, set uniform probability for functions
+                self.primitive_prob = np.ones(self.algorithm.pset.prims_count)
 
     def permutation_importance_calculation(self, X, Y, individual):
         # The correct way is to calculate the terminal importance based on the test data
@@ -290,6 +305,7 @@ class EstimationOfDistribution():
         return primitive_prob_count, terminal_prob_count
 
     def frequency_counting(self, importance_weight=True):
+        self.init_probability_matrix()
         if self.eda_archive is not None:
             self.eda_archive.update(self.algorithm.pop)
 
@@ -320,7 +336,7 @@ class EstimationOfDistribution():
             else:
                 # Check based on ensemble size instead of hall of fame.
                 # Sometimes, hof is used for keeping redundant individuals.
-                if self.algorithm.ensemble_size == 1 or self.new_frequency_count:
+                if self.algorithm.ensemble_size == 1 or self.independent_eda_archive:
                     if self.elite_ratio > 1:
                         best_size = self.elite_ratio
                     else:

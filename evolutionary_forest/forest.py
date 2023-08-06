@@ -1,4 +1,5 @@
 import gc
+import inspect
 from multiprocessing import Pool
 from typing import Union
 
@@ -92,9 +93,11 @@ eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-Balanced', 'EDA-Terminal-SameWeight', 'EDA-Terminal-PMI',
                  'EDA-Terminal-PM-Biased', 'EDA-Terminal-PM-Population', 'EDA-PM-Population',
                  'EDA-Terminal-PM-Frequency', 'EDA-Terminal-PM-Tournament',
-                 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-SBC', 'EDA-Terminal-PM-TSC',
+                 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-BSC', 'EDA-Terminal-PM-TSC',
                  'EDA-Terminal-PM-SC-WS', 'EDA-Terminal-PM-SC-NT',
                  'EDA-Terminal-PM-SameIndex']
+multi_gene_operators = ['uniform-plus', 'uniform-plus-SC', 'uniform-plus-BSC',
+                        'uniform-plus-semantic', 'parsimonious_mutation']
 map_elite_series = ['MAP-Elite-Lexicase', 'MAP-Elite-Tournament',
                     'MAP-Elite-Roulette', 'MAP-Elite-Tournament-3', 'MAP-Elite-Tournament-7',
                     'MAP-Elite-Random', 'MAP-Elite-Knockout', 'MAP-Elite-Knockout-S',
@@ -1433,53 +1436,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # mutation operators
         if 'EDA' in self.mutation_scheme:
             assert self.mutation_scheme in eda_operators, "EDA-based mutation operator must be listed!"
-        self.primitive_prob = None
-        self.terminal_prob = None
-        if 'uniform' in self.mutation_scheme or 'all_gene' in self.mutation_scheme:
-            def convert_to_int(s):
-                if s.replace('.', '').isdecimal():
-                    return float(s)
-                else:
-                    return None
-
+        if 'uniform' in self.mutation_scheme or self.mutation_scheme in multi_gene_operators:
             # extract mutation operator
             if '|' in self.mutation_scheme:
                 mutation_operator = self.mutation_scheme.split('|')[1]
-                crossover_operator = self.mutation_scheme.split('|')[0]
             else:
                 mutation_operator = None
-                crossover_operator = self.mutation_scheme
 
-            # decision threshold for feature crossover and mutation
-            threshold_ratio = convert_to_int(crossover_operator.split('-')[-1])
-            if threshold_ratio is None:
-                threshold_ratio = 0.2
-            else:
-                crossover_operator = '-'.join(crossover_operator.split('-')[:-1])
-            # calculate the threshold for crossover
-            self.cx_threshold_ratio = threshold_ratio
-
-            if not self.basic_primitives:
+            if self.mutation_configuration.mutation_expr_height is not None:
+                # custom defined height
+                min_, max_ = self.mutation_configuration.mutation_expr_height.split('-')
+                min_, max_ = int(min_), int(max_)
+                toolbox.expr_mut = partial(gp.genFull, min_=min_, max_=max_)
+            elif self.basic_primitives == 'StrongTyped':
                 toolbox.expr_mut = partial(gp.genFull, min_=1, max_=3)
             else:
-                if self.mutation_configuration.mutation_expr_height is not None:
-                    min_, max_ = self.mutation_configuration.mutation_expr_height.split('-')
-                    min_, max_ = int(min_), int(max_)
-                    toolbox.expr_mut = partial(gp.genFull, min_=min_, max_=max_)
-                else:
-                    toolbox.expr_mut = partial(gp.genFull, min_=0, max_=2)
+                toolbox.expr_mut = partial(gp.genFull, min_=0, max_=2)
             toolbox.tree_generation = gp.genFull
 
-            # special crossover operators
-            if crossover_operator == 'all_gene':
-                toolbox.register("mate", cxOnePoint_all_gene)
-            elif crossover_operator == 'uniform-plus-same-index':
-                toolbox.register("mate", cxOnePoint_multiple_gene_same_index)
-            else:
-                assert 'uniform' in crossover_operator
-                toolbox.register("mate", cxOnePoint_multiple_gene,
-                                 pset=self.pset,
-                                 crossover_configuration=self.get_crossover_configuration())
+            self.initialize_crossover_operator(toolbox)
 
             # special mutation operators
             if self.transformer_switch:
@@ -1489,6 +1464,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                 toolbox.register("mutate", mutUniform_multiple_gene_transformer, expr=toolbox.expr_mut, pset=pset,
                                  condition_probability=condition_probability, transformer=self.transformer_tool)
+            elif self.mutation_scheme == 'parsimonious_mutation':
+                toolbox.register("mutate", mutProbability_multiple_gene, pset=pset,
+                                 parsimonious_probability=self.parsimonious_probability)
             elif mutation_operator is None:
                 toolbox.register("mutate", mutUniform_multiple_gene, expr=toolbox.expr_mut, pset=pset,
                                  tree_generation=gp.genFull, configuration=self.mutation_configuration)
@@ -1496,44 +1474,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 toolbox.register("mutate", mutUniform_multiple_gene_worst, expr=toolbox.expr_mut, pset=pset)
             else:
                 raise Exception
-        elif self.mutation_scheme == 'parsimonious_mutation':
-            toolbox.register("mate", cxOnePoint_multiple_gene,
-                             pset=self.pset,
-                             crossover_configuration=self.get_crossover_configuration())
-            toolbox.register("mutate", mutProbability_multiple_gene, pset=pset,
-                             parsimonious_probability=self.parsimonious_probability)
         elif self.mutation_scheme in eda_operators:
-            # Define the crossover operator based on the EDA operator
-            if 'Biased' in self.mutation_scheme:
-                toolbox.register("mate", cxOnePoint_multiple_gene_biased)
-            elif 'SameWeight' in self.mutation_scheme:
-                toolbox.register("mate", cxOnePoint_multiple_gene_same_weight)
-            elif 'Tournament' in self.mutation_scheme:
-                toolbox.register("mate", cxOnePoint_multiple_gene_tournament)
-            elif self.mutation_scheme.endswith('-SC'):
-                toolbox.register("mate", partial(cxOnePoint_multiple_gene_SC,
-                                                 crossover_configuration=self.crossover_configuration))
-            elif self.mutation_scheme.endswith('-SBC'):
-                toolbox.register("mate", cxOnePoint_multiple_gene_SBC)
-            elif self.mutation_scheme.endswith('-TSC'):
-                toolbox.register("mate", partial(cxOnePoint_multiple_gene_TSC,
-                                                 crossover_configuration=self.crossover_configuration))
-            elif 'SameIndex' in self.mutation_scheme:
-                toolbox.register("mate", cxOnePoint_multiple_gene_same_index)
-            else:
-                toolbox.register("mate", cxOnePoint_multiple_gene,
-                                 pset=self.pset,
-                                 crossover_configuration=self.get_crossover_configuration())
-
-            # Set probability arrays to zero for primitives and terminals
-            self.primitive_prob = np.zeros(self.pset.prims_count)
-            self.terminal_prob = np.zeros(self.pset.terms_count)
-
-            # If in MGP mode, set terminal_prob to empty list
-            if self.mgp_mode:
-                self.terminal_prob = []
-            if 'Terminal' in self.mutation_scheme:
-                self.primitive_prob = np.ones(self.pset.prims_count)
+            self.initialize_crossover_operator(toolbox)
 
             # If mutation scheme is 'EDA-Terminal', use Dirichlet distribution to sample terminals
             if self.mutation_scheme == 'EDA-Terminal':
@@ -1639,7 +1581,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.neural_network.fit(X_train, y_train)
                 cv_loss.append(r2_score(y_test, self.neural_network.predict(X_test)))
                 self.nn_prediction[test_index] = get_activations(self.neural_network, X_test)[-2]
-            # print('Mean CV loss', np.mean(cv_loss))
 
             self.neural_network.fit(self.X, self.y)
         else:
@@ -1653,6 +1594,34 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.imbalanced_configuration.balanced_evaluation:
             self.evaluation_configuration.sample_weight = get_sample_weight(self.X, self.test_X, self.y,
                                                                             self.imbalanced_configuration)
+
+    def initialize_crossover_operator(self, toolbox):
+        # Define the crossover operator based on the EDA operator
+        if 'Biased' in self.mutation_scheme:
+            toolbox.register("mate", cxOnePoint_multiple_gene_biased)
+        elif 'SameWeight' in self.mutation_scheme:
+            toolbox.register("mate", cxOnePoint_multiple_gene_same_weight)
+        elif 'Tournament' in self.mutation_scheme:
+            toolbox.register("mate", cxOnePoint_multiple_gene_tournament)
+        elif self.mutation_scheme.endswith('-SC'):
+            toolbox.register("mate", partial(cxOnePoint_multiple_gene_SC,
+                                             crossover_configuration=self.crossover_configuration))
+        elif self.mutation_scheme.endswith('-BSC'):
+            # Good Biased
+            toolbox.register("mate", partial(cxOnePoint_multiple_gene_SBC,
+                                             crossover_configuration=self.crossover_configuration))
+        elif self.mutation_scheme.endswith('-TSC'):
+            # Tournament SC
+            toolbox.register("mate", partial(cxOnePoint_multiple_gene_TSC,
+                                             crossover_configuration=self.crossover_configuration))
+        elif 'SameIndex' in self.mutation_scheme:
+            toolbox.register("mate", cxOnePoint_multiple_gene_same_index)
+        elif 'AllGene' in self.mutation_scheme:
+            toolbox.register("mate", cxOnePoint_all_gene)
+        else:
+            toolbox.register("mate", cxOnePoint_multiple_gene,
+                             pset=self.pset,
+                             crossover_configuration=self.get_crossover_configuration())
 
     def get_crossover_configuration(self):
         return self.crossover_configuration
@@ -1955,6 +1924,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             p = p.strip()
             if p in custom_primitives:
                 primitive = custom_primitives[p]
+                number_of_parameters = len(inspect.signature(primitive).parameters)
+                primitive = (primitive, number_of_parameters)
             else:
                 simple_reduce = lambda function, *x: reduce(function, x)
                 if self.constant_type == 'GD':
@@ -2748,9 +2719,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.X, self.valid_x, self.y, self.valid_y = train_test_split(X, y, test_size=self.validation_size)
 
     def multi_gene_mutation(self):
-        return self.mutation_scheme in ['uniform-plus', 'uniform-plus-semantic',
-                                        'parsimonious_mutation'] or \
-            self.mutation_scheme in eda_operators
+        return self.mutation_scheme in multi_gene_operators or self.mutation_scheme in eda_operators
 
     def eaSimple(self, population, toolbox, cxpb, mutpb, ngen, stats=None,
                  halloffame=None, verbose=__debug__):

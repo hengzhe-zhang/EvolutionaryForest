@@ -1,5 +1,8 @@
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.tree import DecisionTreeClassifier
 
 
 class TreeNode:
@@ -35,17 +38,6 @@ def get_parent_of_leaves(root: TreeNode):
     traverse(root)
     return result
 
-
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-
-def is_number(string):
-    try:
-        float(string)
-        return True
-    except ValueError:
-        return False
 
 class StringDecisionTreeClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, max_depth=None, criterion='gini', splitter='best', random_state=None):

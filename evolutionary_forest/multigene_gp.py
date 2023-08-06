@@ -590,8 +590,9 @@ def cxOnePoint_multiple_gene_pool(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
 def cxOnePoint_multiple_gene_SC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
                                 crossover_configuration: CrossoverConfiguration):
     """
-    self-competitive crossover operator
-    Using the worst individual as the base individual and migrate a portion of useful materials from well-behaved one
+    Self-competitive Crossover Operator
+    1. Use the worst individual as the base individual
+    2. Migrate a portion of useful materials from well-behaved one
     """
     temperature = crossover_configuration.sc_temperature
     gene_crossover(ind1.softmax_selection(reverse=True, temperature=temperature),
@@ -606,8 +607,9 @@ def cxOnePoint_multiple_gene_SC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
 def cxOnePoint_multiple_gene_TSC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
                                  crossover_configuration: CrossoverConfiguration):
     """
-    tournament-based self-competitive crossover operator
-    Using the worst individual as the base individual and migrate a portion of useful materials from well-behaved one
+    Tournament-based Self-competitive Crossover Operator
+    1. Use the worst individual as the base individual
+    2. Migrate a portion of useful materials from well-behaved one with Tournament Selection
     """
     tournsize = crossover_configuration.sc_tournament_size
     gene_crossover(ind1.tournament_selection(tournsize, reverse=True),
@@ -619,16 +621,21 @@ def cxOnePoint_multiple_gene_TSC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     return ind1, ind2
 
 
-def cxOnePoint_multiple_gene_SBC(ind1: MultipleGeneGP, ind2: MultipleGeneGP, temperature=1 / 20):
+def cxOnePoint_multiple_gene_SBC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
+                                 crossover_configuration: CrossoverConfiguration):
     """
-    self-competitive biased crossover operator
+    Self-competitive Biased Crossover
+    1. Use the *good individual* as the base individual
+    2. Migrate a portion of useful materials from well-behaved one
+    Never use bad individual as the genetic material
     """
-    a_bad, a_bad_id = ind1.softmax_selection(reverse=True, temperature=temperature, with_id=True)
+    temperature=crossover_configuration.sc_temperature
+    a_bad, a_bad_id = ind1.softmax_selection(temperature=temperature, with_id=True)
     b_good = copy.deepcopy(ind2.softmax_selection(temperature=temperature))
     cxOnePoint(a_bad, b_good)
     ind1.gene[a_bad_id] = b_good
 
-    b_bad, b_bad_id = ind2.softmax_selection(reverse=True, temperature=temperature, with_id=True)
+    b_bad, b_bad_id = ind2.softmax_selection(temperature=temperature, with_id=True)
     a_good = copy.deepcopy(ind1.softmax_selection(temperature=temperature))
     cxOnePoint(b_bad, a_good)
     ind2.gene[b_bad_id] = a_good
@@ -1250,14 +1257,14 @@ def quick_fill(result, data:np.ndarray):
     return result
 
 
-def genFull_with_prob(pset, min_, max_, model,
+def genFull_with_prob(pset, min_, max_, model:"EvolutionaryForestRegressor",
                       type_=None, sample_type=None):
     def condition(height, depth):
         """Expression generation stops when the depth is equal to height."""
         return depth == height
 
-    terminal_probs = model.terminal_prob
-    primitive_probs = model.primitive_prob
+    terminal_probs = model.estimation_of_distribution.terminal_prob
+    primitive_probs = model.estimation_of_distribution.primitive_prob
     return generate_with_prob(pset, min_, max_, condition, terminal_probs, primitive_probs, type_, sample_type)
 
 
