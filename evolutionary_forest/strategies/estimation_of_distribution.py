@@ -1,7 +1,7 @@
 import copy
 from abc import abstractmethod
 from inspect import isclass
-from typing import List, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 import scipy.special
@@ -12,8 +12,10 @@ from mlxtend.evaluate import feature_importance_permutation
 from evolutionary_forest.component.evaluation import quick_result_calculation, get_cv_splitter
 from evolutionary_forest.component.tree_utils import construct_tree, TreeNode, get_parent_of_leaves, \
     StringDecisionTreeClassifier
-from evolutionary_forest.multigene_gp import MultiplePrimitiveSet, MultipleGeneGP
 from evolutionary_forest.strategies.multiarm_bandit import MultiArmBandit
+
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
 def is_number(string):
@@ -138,24 +140,6 @@ class IEstimationOfDistribution:
 
 
 class EstimationOfDistribution():
-    mutation_scheme: str
-    hof: HallOfFame
-    primitive_prob: Union[np.ndarray, dict]
-    terminal_prob: Union[np.ndarray, dict, StringDecisionTreeClassifier]
-    pset: MultiplePrimitiveSet
-    original_features: bool
-    mgp_mode: bool
-    layer_mgp: bool
-    mgp_scope: int
-    shared_eda: bool
-    cv: int
-    pop: List[MultipleGeneGP]
-    X: np.ndarray
-    y: np.ndarray
-    ensemble_size: int
-    verbose: bool
-    gene_num: int
-
     """
     The optimal EDA operator is to share the EDA distribution
     """
@@ -169,7 +153,9 @@ class EstimationOfDistribution():
                  eda_archive_size=0,
                  decision_tree_mode=False,
                  multi_armed_bandit=False,
-                 new_frequency_count=False, **params):
+                 new_frequency_count=False,
+                 algorithm: "EvolutionaryForestRegressor" = None,
+                 **params):
         # good individuals have larger weights
         self.weighted_by_fitness = weighted_by_fitness
         # each individual has equal weight, not matter the tree size
@@ -190,17 +176,17 @@ class EstimationOfDistribution():
         self.multi_armed_bandit = multi_armed_bandit
         self.mab = MultiArmBandit()
         self.new_frequency_count = new_frequency_count
-
+        self.algorithm: "EvolutionaryForestRegressor" = algorithm
 
     def permutation_importance_calculation(self, X, Y, individual):
         # The correct way is to calculate the terminal importance based on the test data
         estimators = individual.estimators
-        kcv = get_cv_splitter(estimators[0]['Ridge'], self.cv)
+        kcv = get_cv_splitter(estimators[0]['Ridge'], self.algorithm.cv)
         all_importance_values = []
         for id, index in enumerate(kcv.split(X, Y)):
             def prediction_function(X):
                 # quickly calculate permutation importance
-                Yp = quick_result_calculation(individual.gene, self.pset, X, self.original_features)
+                Yp = quick_result_calculation(individual.gene, self.algorithm.pset, X, self.algorithm.original_features)
                 return estimators[id].predict(Yp)
 
             train_index, test_index = index
@@ -246,7 +232,7 @@ class EstimationOfDistribution():
         # Improved version: using fitness value and mean feature importance
         # count the frequency of primitives and terminals
         if pset is None:
-            pset = self.pset
+            pset = self.algorithm.pset
             pset_id = None
             primitive_prob_count = self.primitive_prob_count
             terminal_prob_count = self.terminal_prob_count
@@ -305,25 +291,27 @@ class EstimationOfDistribution():
 
     def frequency_counting(self, importance_weight=True):
         if self.eda_archive is not None:
-            self.eda_archive.update(self.pop)
+            self.eda_archive.update(self.algorithm.pop)
 
-        if self.mutation_scheme == 'EDA-Terminal-PMI':
+        if self.algorithm.mutation_scheme == 'EDA-Terminal-PMI':
             # Permutation importance based probability estimation (Slow!)
-            for h in self.hof:
+            for h in self.algorithm.hof:
                 if not hasattr(h, 'terminal_importance_values'):
-                    self.permutation_importance_calculation(self.X, self.y, h)
-            self.primitive_prob_count = np.ones(self.pset.prims_count)
-            self.terminal_prob_count = np.mean([x.terminal_importance_values for x in self.hof], axis=0)
+                    self.permutation_importance_calculation(self.algorithm.X, self.algorithm.y, h)
+            self.primitive_prob_count = np.ones(self.algorithm.pset.prims_count)
+            self.terminal_prob_count = np.mean([x.terminal_importance_values for x in self.algorithm.hof], axis=0)
         else:
             # Feature Importance based on frequency
-            self.primitive_prob_count = np.ones(self.pset.prims_count)
-            self.terminal_prob_count = np.ones(self.pset.terms_count)
-            if self.hof == None:
+            self.primitive_prob_count = np.ones(self.algorithm.pset.prims_count)
+            self.terminal_prob_count = np.ones(self.algorithm.pset.terms_count)
+            if self.algorithm.hof == None:
                 return
-            if self.mutation_scheme == 'EDA-Terminal-Balanced':
+            if self.algorithm.mutation_scheme == 'EDA-Terminal-Balanced':
                 # Separate individuals to two groups, good ones and bad ones
-                positive_sample = list(sorted(self.hof, key=lambda x: x.fitness.wvalues[0]))[len(self.hof) // 2:]
-                negative_sample = list(sorted(self.hof, key=lambda x: x.fitness.wvalues[0]))[:len(self.hof) // 2]
+                positive_sample = list(sorted(self.algorithm.hof, key=lambda x: x.fitness.wvalues[0]))[
+                                  len(self.algorithm.hof) // 2:]
+                negative_sample = list(sorted(self.algorithm.hof, key=lambda x: x.fitness.wvalues[0]))[
+                                  :len(self.algorithm.hof) // 2]
                 self.update_frequency_count(positive_sample, 1, importance_weight)
                 self.update_frequency_count(negative_sample, -1, importance_weight)
                 min_max_scaling = lambda v: (v - v.min())
@@ -332,46 +320,46 @@ class EstimationOfDistribution():
             else:
                 # Check based on ensemble size instead of hall of fame.
                 # Sometimes, hof is used for keeping redundant individuals.
-                if self.ensemble_size == 1 or self.new_frequency_count:
+                if self.algorithm.ensemble_size == 1 or self.new_frequency_count:
                     if self.elite_ratio > 1:
                         best_size = self.elite_ratio
                     else:
-                        best_size = int(self.elite_ratio * len(self.pop))
+                        best_size = int(self.elite_ratio * len(self.algorithm.pop))
 
                     if self.eda_archive is not None:
                         top_individuals = self.eda_archive
                     else:
-                        top_individuals = sorted(self.pop, key=lambda x: x.fitness.wvalues[0],
+                        top_individuals = sorted(self.algorithm.pop, key=lambda x: x.fitness.wvalues[0],
                                                  reverse=True)[:best_size]
-                    if self.mgp_mode:
+                    if self.algorithm.mgp_mode:
                         self.update_modular_gp(top_individuals, importance_weight)
                     else:
                         self.update_frequency_count(top_individuals, 1, importance_weight)
                 else:
                     # ensemble learning mode
-                    if self.mgp_mode:
+                    if self.algorithm.mgp_mode:
                         raise ValueError("Unimplemented mgp mode!")
                     else:
-                        self.update_frequency_count(self.hof, 1, importance_weight)
+                        self.update_frequency_count(self.algorithm.hof, 1, importance_weight)
 
     def update_modular_gp(self, top_individuals, importance_weight):
         terminal_counts = []
         # MGP mode, has many primitives
-        for pset in self.pset.pset_list:
+        for pset in self.algorithm.pset.pset_list:
             _, terminal_count = self.update_frequency_count(
                 top_individuals,
                 1, importance_weight, pset=pset
             )
             terminal_counts.append(terminal_count)
-        if self.layer_mgp:
+        if self.algorithm.layer_mgp:
             # if layer-wise MGP, then we can merge information in each layer
-            terminal_counts = sum_by_group(terminal_counts, self.mgp_scope)
-        if self.shared_eda:
+            terminal_counts = sum_by_group(terminal_counts, self.algorithm.mgp_scope)
+        if self.algorithm.shared_eda:
             # probability vector should be comprehensive
             # even if some features are missing on some locations
             pset_list = [[t.__name__ if isclass(t) else t.name
                           for (id, t) in enumerate(ps.terminals[object])]
-                         for ps in self.pset.pset_list]
+                         for ps in self.algorithm.pset.pset_list]
             pset_list = [(terminal_counts[pid], ps)
                          for pid, ps in enumerate(pset_list)]
             terminal_counts = merge_arrays(pset_list)
@@ -409,11 +397,11 @@ class EstimationOfDistribution():
             self.terminal_prob_count = terminal_counts
 
     def probability_elimination(self, terminal_counts):
-        average_value = np.mean([terminal_counts[f"ARG{i}"] for i in range(self.X.shape[1])])
+        average_value = np.mean([terminal_counts[f"ARG{i}"] for i in range(self.algorithm.X.shape[1])])
         for k in terminal_counts.keys():
             terminal_id = k.replace('ARG', '')
             # replace high-level terminals with average probability
-            if is_number(terminal_id) and int(terminal_id) >= self.X.shape[1]:
+            if is_number(terminal_id) and int(terminal_id) >= self.algorithm.X.shape[1]:
                 terminal_counts[k] = average_value
 
     def probability_smoothing(self, terminal_counts):
@@ -422,7 +410,7 @@ class EstimationOfDistribution():
         # smoothing building block parts to avoid some building blocks have zero probability
         for k in terminal_counts.keys():
             terminal_id = k.replace('ARG', '')
-            if is_number(terminal_id) and int(terminal_id) >= self.X.shape[1]:
+            if is_number(terminal_id) and int(terminal_id) >= self.algorithm.X.shape[1]:
                 terminal_ids.append(k)
                 sum += terminal_counts[k]
         terminal_probs = scipy.special.softmax([terminal_counts[k] for k in terminal_ids])
@@ -433,12 +421,12 @@ class EstimationOfDistribution():
         if self.decision_tree_mode:
             return
         # Sampling primitive and terminal nodes based on the probability matrix
-        if self.mutation_scheme in ['EDA-Terminal']:
+        if self.algorithm.mutation_scheme in ['EDA-Terminal']:
             self.primitive_prob /= np.sum(self.primitive_prob)
             self.terminal_prob += self.terminal_prob_count / np.sum(self.terminal_prob_count)
-        elif self.mutation_scheme in ['EDA-Terminal-Balanced', 'EDA-Terminal-PMI']:
+        elif self.algorithm.mutation_scheme in ['EDA-Terminal-Balanced', 'EDA-Terminal-PMI']:
             self.primitive_prob[:] = self.primitive_prob_count / np.sum(self.primitive_prob_count)
-            if self.mutation_scheme == 'EDA-Terminal-PMI':
+            if self.algorithm.mutation_scheme == 'EDA-Terminal-PMI':
                 # add the probability of constant nodes
                 terminal_prob = np.append(self.terminal_prob_count, np.mean(self.terminal_prob_count))
             else:
@@ -449,13 +437,13 @@ class EstimationOfDistribution():
                 self.terminal_prob[:] = np.full_like(terminal_prob, 1 / len(terminal_prob))
             else:
                 self.terminal_prob[:] = terminal_prob / np.sum(terminal_prob)
-        elif self.mutation_scheme.startswith('EDA-PM'):
+        elif self.algorithm.mutation_scheme.startswith('EDA-PM'):
             self.primitive_prob[:] = self.primitive_prob_count / np.sum(self.primitive_prob_count)
             self.terminal_prob[:] = self.terminal_prob_count / np.sum(self.terminal_prob_count)
-            if self.verbose:
+            if self.algorithm.verbose:
                 print('primitive_prob', self.primitive_prob)
                 print('terminal_prob', self.terminal_prob)
-        elif self.mutation_scheme.startswith('EDA-Terminal-PM'):
+        elif self.algorithm.mutation_scheme.startswith('EDA-Terminal-PM'):
             self.primitive_prob /= np.sum(self.primitive_prob)
             if isinstance(self.terminal_prob_count, dict):
                 # if it is a dict don't do normalization
@@ -479,7 +467,7 @@ class EstimationOfDistribution():
             # self.terminal_prob[:] = self.terminal_prob / np.sum(self.terminal_prob)
         else:
             raise Exception
-        if self.verbose:
+        if self.algorithm.verbose:
             if isinstance(self.terminal_prob, list):
                 print('Terminal Probability\n')
                 print(self.terminal_prob[0])

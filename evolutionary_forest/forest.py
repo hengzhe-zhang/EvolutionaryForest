@@ -79,7 +79,7 @@ from evolutionary_forest.probability_gp import genHalfAndHalf, genFull
 from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.strategies.adaptive_operator_selection import MultiArmBandit, MCTS
 from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution
-from evolutionary_forest.strategies.space_partition import MultiFidelityEvaluation
+from evolutionary_forest.strategies.multifidelity_evaluation import MultiFidelityEvaluation
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
     gene_to_string, get_activations, reset_random, weighted_avg_and_std, save_array, is_float, cross_scale, \
@@ -177,7 +177,7 @@ def kendall(ya, yb):
     return kendalltau(ya, yb)[0]
 
 
-class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimator, EstimationOfDistribution):
+class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimator):
     """
     Support both TGP and MGP for evolutionary feature construction
     """
@@ -218,7 +218,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  ensemble_selection=None,  # Ensemble selection method
                  ensemble_size=100,  # Size of the ensemble model
 
-                 # Soft PS-Tree Parameters
+                 # PS-Tree Parameters
                  partition_number=4,  # Number of partitions in PS-Tree
                  ps_tree_local_model='RidgeCV',  # Type of local model used in PS-Tree
                  dynamic_partition='Self-Adaptive',  # Strategy to dynamically change partition scheme
@@ -343,7 +343,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
-        EstimationOfDistribution.__init__(self, **params)
         self.constant_ratio = constant_ratio
         self.learner = learner
         self.force_retrain = force_retrain
@@ -678,6 +677,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **vars(self)
         )
         self.surrogate_model = SurrogateModel(self)
+        self.estimation_of_distribution = EstimationOfDistribution(
+            algorithm=self,
+            **params,
+            **vars(self)
+        )
         self.elites_archive = None
 
     def score_function_controller(self, params, score_func):
@@ -2857,10 +2861,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.entropy_calculation()
             if self.mutation_scheme in eda_operators or 'EDA' in self.mutation_scheme:
                 if self.mutation_scheme == 'EDA-Terminal-PM-Frequency':
-                    self.frequency_counting(importance_weight=False)
+                    self.estimation_of_distribution.frequency_counting(importance_weight=False)
                 else:
-                    self.frequency_counting()
-                self.probability_sampling()
+                    self.estimation_of_distribution.frequency_counting()
+                self.estimation_of_distribution.probability_sampling()
             if self.external_archive == 'HallOfFame' and (self.hof is not None) and self.score_func == 'NoveltySearch':
                 # recalculate the diversity metric for a fair comparison
                 ensemble_value = np.mean([x.predicted_values for x in self.hof], axis=0)
