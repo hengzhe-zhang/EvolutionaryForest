@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 from hdfe import Groupby
-from numba import jit
+from numba import njit
 from scipy.stats import mode
 
 threshold = 1e-6
@@ -114,7 +114,7 @@ def groupby_generator(function, argument_count=2):
     return groupby_function
 
 
-@jit(nopython=True)
+@njit
 def groupby_mean(keys, values):
     unique_keys = np.unique(keys)
     means = np.zeros_like(unique_keys, dtype=np.float64)
@@ -138,7 +138,7 @@ def groupby_mean(keys, values):
     return output_array
 
 
-@jit(nopython=True)
+@njit
 def groupby_max(keys, values):
     unique_keys = np.unique(keys)
     max_values = np.full_like(unique_keys, -np.inf, dtype=np.float64)  # Initialize with negative infinity
@@ -158,7 +158,7 @@ def groupby_max(keys, values):
     return output_array
 
 
-@jit(nopython=True)
+@njit
 def groupby_min(keys, values):
     unique_keys = np.unique(keys)
     min_values = np.full_like(unique_keys, np.inf, dtype=np.float64)  # Initialize with positive infinity
@@ -178,7 +178,7 @@ def groupby_min(keys, values):
     return output_array
 
 
-@jit(nopython=True)
+@njit
 def groupby_count(keys):
     unique_keys = np.unique(keys)
     counts = np.zeros_like(unique_keys, dtype=np.int64)
