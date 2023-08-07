@@ -6,6 +6,7 @@ from enum import Enum
 import numpy as np
 from deap import creator, base, tools
 from lightgbm import LGBMRegressor
+from numba import njit
 from sklearn.datasets import load_diabetes
 from sklearn.linear_model import RidgeCV, Ridge
 from sklearn.metrics import r2_score, mean_squared_error
@@ -15,6 +16,23 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from evolutionary_forest.component.configuration import NoiseConfiguration
 from evolutionary_forest.utils import cv_prediction_from_ridge
+
+
+@njit
+def m_sharpness(baseline):
+    final_baseline = np.zeros(baseline.shape[0])
+    random_indices = np.random.choice(len(baseline), baseline.shape[0], replace=False)
+    k = 4
+
+    for i in range(0, len(random_indices), k):
+        g = random_indices[i:i + k]
+        tmp = np.zeros(baseline.shape[1])
+        for idx in enumerate(g):
+            tmp += baseline[idx]
+        base_id = np.argmax(tmp)
+        for idx in g:
+            final_baseline[idx] = baseline[idx][base_id]
+    return final_baseline
 
 
 class PACBayesianConfiguration():
@@ -161,7 +179,12 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif s == 'MaxSharpness':
             # n-SAM, reduce the maximum sharpness over all samples
             # average over samples
-            sharp_mse = np.mean(mse_scores, axis=1)
+            baseline_mse = mean_squared_error(y, individual.predicted_values)
+            max_sharp = mse_scores[np.argmax(np.mean(mse_scores, axis=1))]
+            max_sharp = np.maximum(max_sharp - baseline_mse, 0)
+            if s == 'MaxSharpness+':
+                sharpness_vector[:] = max_sharp
+            sharp_mse = np.mean(max_sharp)
             # max over perturbations
             objectives.append((np.max(sharp_mse), -1 * weight))
         elif s == 'MaxSharpness-Base':
@@ -179,19 +202,26 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
+        elif s == 'MaxSharpness-4-Base' or s == 'MaxSharpness-4-Base+':
+            # 1-SAM, reduce the maximum sharpness over each sample
+            # subtract baseline MSE
+            baseline = (y - individual.predicted_values) ** 2
+            max_sharp = m_sharpness(mse_scores.T)
+            max_sharp = np.maximum(max_sharp - baseline, 0)
+            if s == 'MaxSharpness-4-Base+':
+                sharpness_vector[:] = max_sharp
+            max_sharpness = np.mean(max_sharp)
+            objectives.append((max_sharpness, -1 * weight))
         elif s == 'MaxSharpness-1-Base' or s == 'MaxSharpness-1-Base+':
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             baseline = (y - individual.predicted_values) ** 2
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
-            if s == 'MaxSharpness-1-Base':
-                max_sharpness = np.mean(max_sharp - baseline)
-            elif s == 'MaxSharpness-1-Base+':
-                sharpness_vector[:] = np.maximum(max_sharp - baseline, 0)
-                max_sharpness = np.mean(sharpness_vector)
-            else:
-                raise Exception
+            max_sharp = np.maximum(max_sharp - baseline, 0)
+            if s == 'MaxSharpness-1-Base+':
+                sharpness_vector[:] = max_sharp
+            max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
         elif s == 'Derivative':
             derivative = np.max(derivatives)
