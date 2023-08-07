@@ -115,7 +115,8 @@ def groupby_generator(function, argument_count=2):
 
 
 @njit
-def groupby_mean(keys, values):
+def groupby_mean(keys, values, debug=False):
+    keys = discretize(keys, debug=debug)
     unique_keys = np.unique(keys)
     means = np.zeros_like(unique_keys, dtype=np.float64)
     counts = np.zeros_like(unique_keys, dtype=np.int64)
@@ -139,7 +140,8 @@ def groupby_mean(keys, values):
 
 
 @njit
-def groupby_max(keys, values):
+def groupby_max(keys, values, debug=False):
+    keys = discretize(keys, debug=debug)
     unique_keys = np.unique(keys)
     max_values = np.full_like(unique_keys, -np.inf, dtype=np.float64)  # Initialize with negative infinity
 
@@ -159,7 +161,8 @@ def groupby_max(keys, values):
 
 
 @njit
-def groupby_min(keys, values):
+def groupby_min(keys, values, debug=False):
+    keys = discretize(keys, debug=debug)
     unique_keys = np.unique(keys)
     min_values = np.full_like(unique_keys, np.inf, dtype=np.float64)  # Initialize with positive infinity
 
@@ -179,7 +182,8 @@ def groupby_min(keys, values):
 
 
 @njit
-def groupby_count(keys):
+def groupby_count(keys, debug=False):
+    keys = discretize(keys, debug=debug)
     unique_keys = np.unique(keys)
     counts = np.zeros_like(unique_keys, dtype=np.int64)
 
@@ -195,6 +199,53 @@ def groupby_count(keys):
         output_array[i] = counts[idx]
 
     return output_array
+
+
+@njit
+def groupby_median(keys, values, debug=False):
+    keys = discretize(keys, debug=debug)
+    unique_keys = np.unique(keys)
+    grouped_values = [np.zeros(0) for _ in range(len(unique_keys))]
+    medians = np.zeros_like(unique_keys, dtype=np.float64)
+
+    # Group values by keys
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        grouped_values[idx] = np.append(grouped_values[idx], values[i])
+
+    # Find median for each group
+    for i in range(len(unique_keys)):
+        grouped_values[i].sort()
+        n = len(grouped_values[i])
+        if n % 2 == 1:
+            medians[i] = grouped_values[i][n // 2]
+        else:
+            medians[i] = (grouped_values[i][n // 2 - 1] + grouped_values[i][n // 2]) / 2.0
+
+    # Map the medians back to the original keys
+    output_array = np.zeros_like(values, dtype=np.float64)
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        output_array[i] = medians[idx]
+
+    return output_array
+
+
+@njit
+def discretize(arr, ratio=0.20, debug=False):
+    if debug:
+        return arr
+    unique_elements = np.unique(arr)
+    n_unique_elements = unique_elements.shape[0]
+    n_elements = arr.shape[0]
+
+    if n_unique_elements / n_elements > ratio:
+        num_bins = int(n_elements * ratio)
+        bin_edges = np.linspace(arr.min(), arr.max(), num_bins)
+        indices = np.digitize(arr, bin_edges)
+        for i in range(n_elements):
+            arr[i] = bin_edges[indices[i] - 1]
+    return arr
 
 
 def group_mode(x1, x2):
@@ -437,23 +488,34 @@ if __name__ == '__main__':
     # print(protected_division(1, 2, 2))
     keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
     values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
-    result = groupby_mean(keys, values)
+    result = groupby_mean(keys, values, debug=True)
     print(result)  # Output: [10. 25. 25. 50. 50. 50.]
     assert np.array_equal(result, [10, 25, 25, 50, 50, 50])
 
     keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
     values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
-    result = groupby_max(keys, values)
+    result = groupby_max(keys, values, debug=True)
     print(result)  # Output: [10. 30. 30. 60. 60. 60.]
     assert np.array_equal(result, [10, 30, 30, 60, 60, 60, ])
 
     keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
     values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
-    result = groupby_min(keys, values)
+    result = groupby_min(keys, values, debug=True)
     print(result)  # Output: [10. 20. 20. 40. 40. 40.]
     assert np.array_equal(result, [10, 20, 20, 40, 40, 40, ])
 
     keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
-    result = groupby_count(keys)
+    result = groupby_count(keys, debug=True)
     print(result)  # Output: [1 2 2 3 3 3]
     assert np.array_equal(result, [1, 2, 2, 3, 3, 3])
+
+    keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
+    values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
+    result = groupby_median(keys, values, debug=True)
+    print(result)  # Output: [10. 25. 25. 50. 50. 50.]
+    assert np.array_equal(result, [10, 25, 25, 50, 50, 50, ])
+
+    arr = np.random.rand(100)
+    discretized_arr = discretize(arr)
+    print(len(discretized_arr))
+    assert len(np.unique(discretized_arr)) == 20
