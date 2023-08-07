@@ -374,10 +374,12 @@ class R2PACBayesian(Fitness):
                                              sharpness_vector=sharpness_vector)
         individual.fitness_list = estimation
         assert len(individual.case_values) > 0
+        sharpness_value = estimation[1][0]
+        individual.sam_loss = np.mean(individual.case_values) + sharpness_value
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available
             # smaller is  better
-            individual.case_values = np.hstack([individual.case_values, sharpness_vector])
+            individual.case_values = individual.case_values + sharpness_vector
         return -1 * individual.fitness_list[0][0],
 
     def assign_complexity_pop(self, pop):

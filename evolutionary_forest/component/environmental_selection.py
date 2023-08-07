@@ -210,8 +210,11 @@ class NSGA2(EnvironmentalSelection):
                 ind.pipe.fit(concatenate_X, concatenate_y)
             else:
                 first_pareto_front = sortNondominated(population, len(population))[0]
-                knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
-                                            knee_point_strategy=self.knee_point)
+                if self.knee_point == 'SAM':
+                    knee = np.argmin([[p.sam_loss for p in first_pareto_front]])
+                else:
+                    knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
+                                                knee_point_strategy=self.knee_point)
                 # Select the knee point as the final model
                 self.algorithm.hof = [first_pareto_front[knee]]
 
@@ -240,7 +243,8 @@ class SPEA2(NSGA2):
 
     def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
                  objective_normalization=False, knee_point=False, bootstrapping_selection=False, **kwargs):
-        super().__init__(algorithm, objective_function, objective_normalization, knee_point, bootstrapping_selection, **kwargs)
+        super().__init__(algorithm, objective_function, objective_normalization, knee_point, bootstrapping_selection,
+                         **kwargs)
         self.selection_operator = selSPEA2
 
 
@@ -253,7 +257,8 @@ class Best(EnvironmentalSelection):
 class NSGA3(NSGA2):
 
     def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
-                 objective_normalization=False, knee_point=False, bootstrapping_selection=False, first_objective_weight=1,
+                 objective_normalization=False, knee_point=False, bootstrapping_selection=False,
+                 first_objective_weight=1,
                  **kwargs):
         super().__init__(algorithm, objective_function, objective_normalization, knee_point, bootstrapping_selection,
                          first_objective_weight, **kwargs)

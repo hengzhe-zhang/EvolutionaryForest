@@ -185,11 +185,11 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             baseline = (y - individual.predicted_values) ** 2
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
-            max_sharpness = np.mean(max_sharp - baseline)
             if s == 'MaxSharpness-1-Base':
-                sharpness_vector[:] = max_sharp - baseline
+                max_sharpness = np.mean(max_sharp - baseline)
             elif s == 'MaxSharpness-1-Base+':
                 sharpness_vector[:] = np.maximum(max_sharp - baseline, 0)
+                max_sharpness = np.mean(sharpness_vector)
             else:
                 raise Exception
             objectives.append((max_sharpness, -1 * weight))
