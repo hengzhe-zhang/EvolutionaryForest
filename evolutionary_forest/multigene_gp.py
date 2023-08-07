@@ -621,23 +621,25 @@ def cxOnePoint_multiple_gene_TSC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     return ind1, ind2
 
 
-def cxOnePoint_multiple_gene_SBC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
+def cxOnePoint_multiple_gene_BSC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
                                  crossover_configuration: CrossoverConfiguration):
     """
-    Self-competitive Biased Crossover
+    Biased Self-competitive Crossover
     1. Use the *good individual* as the base individual
     2. Migrate a portion of useful materials from well-behaved one
     Never use bad individual as the genetic material
     """
-    temperature=crossover_configuration.sc_temperature
-    a_bad, a_bad_id = ind1.softmax_selection(temperature=temperature, with_id=True)
+    temperature = crossover_configuration.sc_temperature
+    _, a_bad_id = ind1.softmax_selection(temperature=temperature, reverse=True, with_id=True)
+    a_material, _ = ind1.softmax_selection(temperature=temperature, with_id=True)
     b_good = copy.deepcopy(ind2.softmax_selection(temperature=temperature))
-    cxOnePoint(a_bad, b_good)
+    cxOnePoint(a_material, b_good)
     ind1.gene[a_bad_id] = b_good
 
-    b_bad, b_bad_id = ind2.softmax_selection(temperature=temperature, with_id=True)
+    _, b_bad_id = ind2.softmax_selection(temperature=temperature, reverse=True, with_id=True)
+    b_material, _ = ind2.softmax_selection(temperature=temperature, with_id=True)
     a_good = copy.deepcopy(ind1.softmax_selection(temperature=temperature))
-    cxOnePoint(b_bad, a_good)
+    cxOnePoint(b_material, a_good)
     ind2.gene[b_bad_id] = a_good
     return ind1, ind2
 
@@ -1234,7 +1236,7 @@ def result_post_process(result, data, original_features):
     return result
 
 
-def quick_fill(result, data:np.ndarray):
+def quick_fill(result, data: np.ndarray):
     include_tensor = False
     for i in range(len(result)):
         yp = result[i]
@@ -1257,7 +1259,7 @@ def quick_fill(result, data:np.ndarray):
     return result
 
 
-def genFull_with_prob(pset, min_, max_, model:"EvolutionaryForestRegressor",
+def genFull_with_prob(pset, min_, max_, model: "EvolutionaryForestRegressor",
                       type_=None, sample_type=None):
     def condition(height, depth):
         """Expression generation stops when the depth is equal to height."""

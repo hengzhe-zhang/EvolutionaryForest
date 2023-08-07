@@ -1608,7 +1608,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                              crossover_configuration=self.crossover_configuration))
         elif self.mutation_scheme.endswith('-BSC'):
             # Good Biased
-            toolbox.register("mate", partial(cxOnePoint_multiple_gene_SBC,
+            toolbox.register("mate", partial(cxOnePoint_multiple_gene_BSC,
                                              crossover_configuration=self.crossover_configuration))
         elif self.mutation_scheme.endswith('-TSC'):
             # Tournament SC
