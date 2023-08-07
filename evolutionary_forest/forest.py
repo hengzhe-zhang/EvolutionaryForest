@@ -2006,6 +2006,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         'Round': (np.round, 1),  # Round to the nearest integer
                         'Residual': (residual, 1),  # Residual function for handling negative values
                         'LeakyRelu': (leaky_relu, 1),  # Leaky ReLU activation function
+
+                        # GroupBY Features
+                        'GroupByMean': (groupby_mean, 2),
+                        'GroupByMedian': (groupby_median, 2),
+                        'GroupByMax': (groupby_max, 2),
+                        'GroupByMin': (groupby_min, 2),
+                        'GroupByCount': (groupby_count, 1),
                     }[p]
             if transformer_wrapper:
                 pset.addPrimitive(make_class(primitive[0]), primitive[1], name=p)

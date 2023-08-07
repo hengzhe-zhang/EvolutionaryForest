@@ -98,6 +98,20 @@ def shape_wrapper_plus(*args):
             result.append(x)
     return tuple(result)
 
+def shape_decorator(func):
+    def inner_function(*args, **kwargs):
+        if len(args) == 1 and np.isscalar(args[0]):
+            return args[0]
+        elif len(args) == 2:
+            if np.isscalar(args[0]) and np.isscalar(args[1]):
+                return args[1]
+            args = shape_wrapper(args[0], args[1])
+        elif len(args) > 2:
+            raise Exception("The number of arguments should be less than 3")
+        return func(*args, **kwargs)
+
+    return inner_function
+
 
 def groupby_generator(function, argument_count=2):
     # support group_by operators based on Pandas
@@ -114,6 +128,7 @@ def groupby_generator(function, argument_count=2):
     return groupby_function
 
 
+@shape_decorator
 @njit
 def groupby_mean(keys, values, debug=False):
     keys = discretize(keys, debug=debug)
@@ -138,7 +153,7 @@ def groupby_mean(keys, values, debug=False):
 
     return output_array
 
-
+@shape_decorator
 @njit
 def groupby_max(keys, values, debug=False):
     keys = discretize(keys, debug=debug)
@@ -159,7 +174,7 @@ def groupby_max(keys, values, debug=False):
 
     return output_array
 
-
+@shape_decorator
 @njit
 def groupby_min(keys, values, debug=False):
     keys = discretize(keys, debug=debug)
@@ -180,10 +195,14 @@ def groupby_min(keys, values, debug=False):
 
     return output_array
 
-
+@shape_decorator
 @njit
 def groupby_count(keys, debug=False):
-    keys = discretize(keys, debug=debug)
+    ratio = 0.2
+    ratio_of_unique_values = get_ratio_of_unique_values(keys)
+    if ratio_of_unique_values > ratio and (not debug):
+        return keys
+
     unique_keys = np.unique(keys)
     counts = np.zeros_like(unique_keys, dtype=np.int64)
 
@@ -193,14 +212,14 @@ def groupby_count(keys, debug=False):
         counts[idx] += 1
 
     # Map the counts back to the original keys
-    output_array = np.zeros_like(keys, dtype=np.int64)
+    output_array = np.zeros_like(keys, dtype=np.float64)
     for i in range(len(keys)):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = counts[idx]
 
     return output_array
 
-
+@shape_decorator
 @njit
 def groupby_median(keys, values, debug=False):
     keys = discretize(keys, debug=debug)
@@ -232,20 +251,27 @@ def groupby_median(keys, values, debug=False):
 
 
 @njit
-def discretize(arr, ratio=0.20, debug=False):
+def discretize(keys, ratio=0.20, debug=False):
     if debug:
-        return arr
-    unique_elements = np.unique(arr)
-    n_unique_elements = unique_elements.shape[0]
-    n_elements = arr.shape[0]
-
-    if n_unique_elements / n_elements > ratio:
+        return keys
+    unique_ratio = get_ratio_of_unique_values(keys)
+    n_elements = keys.shape[0]
+    if unique_ratio > ratio:
         num_bins = int(n_elements * ratio)
-        bin_edges = np.linspace(arr.min(), arr.max(), num_bins)
-        indices = np.digitize(arr, bin_edges)
+        bin_edges = np.linspace(keys.min(), keys.max(), num_bins)
+        indices = np.digitize(keys, bin_edges)
         for i in range(n_elements):
-            arr[i] = bin_edges[indices[i] - 1]
-    return arr
+            keys[i] = bin_edges[indices[i] - 1]
+    return keys
+
+
+@njit
+def get_ratio_of_unique_values(keys):
+    unique_elements = np.unique(keys)
+    n_elements = keys.shape[0]
+    n_unique_elements = unique_elements.shape[0]
+    unique_ratio = n_unique_elements / n_elements
+    return unique_ratio
 
 
 def group_mode(x1, x2):
