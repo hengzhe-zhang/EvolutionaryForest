@@ -1,6 +1,7 @@
 import copy
 import itertools
 import random
+import re
 from enum import Enum
 
 import numpy as np
@@ -19,10 +20,9 @@ from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
 @njit
-def m_sharpness(baseline):
+def m_sharpness(baseline, k=4):
     final_baseline = np.zeros(baseline.shape[0])
     random_indices = np.random.choice(len(baseline), baseline.shape[0], replace=False)
-    k = 4
 
     for i in range(0, len(random_indices), k):
         g = random_indices[i:i + k]
@@ -202,13 +202,14 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
-        elif s == 'MaxSharpness-4-Base' or s == 'MaxSharpness-4-Base+':
+        elif check_format(s):
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             baseline = (y - individual.predicted_values) ** 2
             mse_scores = np.vstack((mse_scores, baseline))
-            max_sharp = m_sharpness(mse_scores.T)
-            if s == 'MaxSharpness-4-Base+':
+            _, k, _ = s.split('-')
+            max_sharp = m_sharpness(mse_scores.T, int(k))
+            if s.endswith('+'):
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
@@ -237,6 +238,12 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         else:
             raise ValueError("Unknown objective function!")
     return tuple(objectives)
+
+
+def check_format(input_string):
+    pattern = r'^MaxSharpness-(\d+)-Base\+?$'
+    match = re.match(pattern, input_string)
+    return bool(match)
 
 
 def get_cv_predictions(estimator, X, y, direct_prediction=False):
@@ -369,5 +376,15 @@ def rank_fitness_example():
 
 
 if __name__ == '__main__':
-    pac_bayesian_example()
+    # pac_bayesian_example()
     # rank_fitness_example()
+    # Example usage:
+    input_string1 = "MaxSharpness-4-Base"
+    input_string2 = "MaxSharpness-4-Base+"
+    input_string3 = "MaxSharpness-Base"
+    input_string4 = "MaxSharpness-123-Base+"
+
+    print(check_format(input_string1))  # Output: True
+    print(check_format(input_string2))  # Output: True
+    print(check_format(input_string3))  # Output: False
+    print(check_format(input_string4))  # Output: True
