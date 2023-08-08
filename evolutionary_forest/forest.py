@@ -528,6 +528,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.test_fun[0].regr = self
             self.test_fun[1].regr = self
 
+        self.transductive_learning = False
         self.normalize = normalize
         self.time_statistics = {
             'GP Evaluation': [],
@@ -2169,10 +2170,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.normalize:
             X = self.x_scaler.fit_transform(X, y)
             y = self.y_scaler.fit_transform(np.array(y).reshape(-1, 1))
-            if test_X is not None:
-                test_X = self.x_scaler.transform(test_X)
-                self.test_X = test_X
             X = self.add_noise_to_data(X)
+
+        # transductive learning
+        if test_X is not None:
+            if self.normalize:
+                test_X = self.x_scaler.transform(test_X)
+            self.test_X = test_X
+            self.transductive_learning=True
 
         # Split into train and validation sets if validation size is greater than 0
         if self.validation_size > 0:
@@ -4709,7 +4714,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             X = self.x_scaler.transform(X)
         prediction_data_size = X.shape[0]
         if self.test_data_size > 0:
-            X = np.concatenate([self.trainX, X])
+            X = np.concatenate([self.X, X])
         self.final_model_lazy_training(self.hof)
         selection_flag = np.ones(len(self.hof), dtype=bool)
         predictions = []
