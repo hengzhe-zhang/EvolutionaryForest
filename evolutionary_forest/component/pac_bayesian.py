@@ -179,18 +179,17 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif s == 'MaxSharpness':
             # n-SAM, reduce the maximum sharpness over all samples
             # average over samples
+            sharp_mse = np.mean(mse_scores, axis=1)
+            # max over perturbations
+            objectives.append((np.max(sharp_mse), -1 * weight))
+        elif s == 'MaxSharpness-Base' or s == 'MaxSharpness-Base+':
+            # n-SAM, reduce the maximum sharpness over all samples
+            # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
             max_sharp = mse_scores[np.argmax(np.mean(mse_scores, axis=1))]
             max_sharp = np.maximum(max_sharp - baseline_mse, 0)
             if s == 'MaxSharpness+':
                 sharpness_vector[:] = max_sharp
-            sharp_mse = np.mean(max_sharp)
-            # max over perturbations
-            objectives.append((np.max(sharp_mse), -1 * weight))
-        elif s == 'MaxSharpness-Base':
-            # n-SAM, reduce the maximum sharpness over all samples
-            # subtract baseline MSE
-            baseline_mse = mean_squared_error(y, individual.predicted_values)
             # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
             # max over perturbations
