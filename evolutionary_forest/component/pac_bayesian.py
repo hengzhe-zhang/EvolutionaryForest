@@ -27,7 +27,7 @@ def m_sharpness(baseline, k=4):
     for i in range(0, len(random_indices), k):
         g = random_indices[i:i + k]
         tmp = np.zeros(baseline.shape[1])
-        for idx in enumerate(g):
+        for idx in g:
             tmp += baseline[idx]
         base_id = np.argmax(tmp)
         for idx in g:
@@ -202,17 +202,6 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
-        elif check_format(s):
-            # 1-SAM, reduce the maximum sharpness over each sample
-            # subtract baseline MSE
-            baseline = (y - individual.predicted_values) ** 2
-            mse_scores = np.vstack((mse_scores, baseline))
-            _, k, _ = s.split('-')
-            max_sharp = m_sharpness(mse_scores.T, int(k))
-            if s.endswith('+'):
-                sharpness_vector[:] = max_sharp
-            max_sharpness = np.mean(max_sharp)
-            objectives.append((max_sharpness, -1 * weight))
         elif s == 'MaxSharpness-1-Base' or s == 'MaxSharpness-1-Base+':
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
@@ -221,6 +210,17 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
             if s == 'MaxSharpness-1-Base+':
+                sharpness_vector[:] = max_sharp
+            max_sharpness = np.mean(max_sharp)
+            objectives.append((max_sharpness, -1 * weight))
+        elif check_format(s):
+            # 1-SAM, reduce the maximum sharpness over each sample
+            # subtract baseline MSE
+            baseline = (y - individual.predicted_values) ** 2
+            mse_scores = np.vstack((mse_scores, baseline))
+            _, k, _ = s.split('-')
+            max_sharp = m_sharpness(mse_scores.T, int(k))
+            if s.endswith('+'):
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
