@@ -186,8 +186,9 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # n-SAM, reduce the maximum sharpness over all samples
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, individual.predicted_values)
+            baseline = (y - individual.predicted_values) ** 2
+            mse_scores = np.vstack((mse_scores, baseline))
             max_sharp = mse_scores[np.argmax(np.mean(mse_scores, axis=1))]
-            max_sharp = np.maximum(max_sharp - baseline_mse, 0)
             if s == 'MaxSharpness+':
                 sharpness_vector[:] = max_sharp
             # average over samples
@@ -205,8 +206,8 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             baseline = (y - individual.predicted_values) ** 2
+            mse_scores = np.vstack((mse_scores, baseline))
             max_sharp = m_sharpness(mse_scores.T)
-            max_sharp = np.maximum(max_sharp - baseline, 0)
             if s == 'MaxSharpness-4-Base+':
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
@@ -215,9 +216,9 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             baseline = (y - individual.predicted_values) ** 2
+            mse_scores = np.vstack((mse_scores, baseline))
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
-            max_sharp = np.maximum(max_sharp - baseline, 0)
             if s == 'MaxSharpness-1-Base+':
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
