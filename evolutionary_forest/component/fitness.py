@@ -245,7 +245,7 @@ class TikhonovR2(Fitness):
 
     def fitness_value(self, individual, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
-        coef_norm = np.linalg.norm(y_pred) ** 2
+        coef_norm = np.linalg.norm(y_pred, ord=2) ** 2
         return (-1 * score, coef_norm)
 
 
