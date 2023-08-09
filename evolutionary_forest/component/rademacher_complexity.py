@@ -42,9 +42,9 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     complexity = []
     bounded_complexity = []
     for s in range(number_samples):
+        # if Rademacher is 1, then try to fit -y
+        # if Rademacher is -1, then try to fit y
         if rademacher_mode == 'Local':
-            # if Rademacher is 1, then try to fit -y
-            # if Rademacher is -1, then try to fit y
             rademacher_target = -y * random_rademacher_vector[s]
             estimator.fit(np.concatenate([X, X], axis=0),
                           np.concatenate([y, rademacher_target], axis=0))
@@ -54,6 +54,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
         else:
             raise Exception
 
+        # maximize MSE when Rademacher is 1
         normalized_squared_error = (estimator.predict(X) - y) ** 2 / normalize_factor
         rademacher = calculate_correlation(random_rademacher_vector[s], normalized_squared_error)
         rademacher = max(rademacher, 0)
