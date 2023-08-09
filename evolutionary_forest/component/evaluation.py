@@ -77,7 +77,6 @@ def calculate_score(args):
     nn_prediction = configuration.nn_prediction
     dynamic_target = configuration.dynamic_target
     original_features = configuration.original_features
-    test_data_size = configuration.test_data_size
     pset = configuration.pset
     sklearn_format = configuration.sklearn_format
     cross_validation = configuration.cross_validation
@@ -85,6 +84,7 @@ def calculate_score(args):
     filter_elimination = configuration.filter_elimination
     intron_calculation = configuration.intron_calculation
     sample_weight = configuration.sample_weight
+    transductive_learning = configuration.transductive_learning
 
     if configuration.mini_batch:
         X = select_from_array(X, configuration.current_generation * configuration.batch_size // 4,
@@ -125,8 +125,8 @@ def calculate_score(args):
             semantic_results = Yp
         if nn_prediction is not None:
             Yp = np.concatenate([Yp, nn_prediction], axis=1)
-        if test_data_size > 0:
-            Yp = Yp[:-test_data_size]
+        if transductive_learning:
+            Yp = Yp[:len(Y)]
         assert isinstance(Yp, (np.ndarray, torch.Tensor))
         if isinstance(Yp, np.ndarray):
             assert not np.any(np.isnan(Yp))
@@ -600,7 +600,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             if isinstance(prim, Primitive):
                 try:
                     result = pset.context[prim.name](*args)
-                    if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1:
+                    if random_noise > 0 and isinstance(result, np.ndarray) and result.size > 1:
                         result = inject_noise_to_data(result, random_noise, noise_configuration)
                 except OverflowError as e:
                     result = args[0]

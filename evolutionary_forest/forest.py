@@ -522,13 +522,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.ps_tree_ratio, str) and 'Interleave' in self.ps_tree_ratio:
             interleaving_period = int(np.round(n_gen / (n_gen * float(self.ps_tree_ratio.replace('Interleave-', '')))))
         self.interleaving_period = interleaving_period
-        self.test_data_size = 0
+        self.test_data = None
 
         if params.get('record_training_data', False):
             self.test_fun[0].regr = self
             self.test_fun[1].regr = self
 
-        self.transductive_learning = False
         self.normalize = normalize
         self.time_statistics = {
             'GP Evaluation': [],
@@ -1976,6 +1975,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         'Square': (np.square, 1),  # Square function
                         'Cube': (cube, 1),  # Cube function
                         'Log': (protected_log, 2),
+                        'LogE': (protected_loge, 1),
                         'Inv': (protected_inverse, 1),
 
                         # Comparison operations
@@ -2014,6 +2014,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         'GroupByMax': (groupby_max, 2),
                         'GroupByMin': (groupby_min, 2),
                         'GroupByCount': (groupby_count, 1),
+                        'GroupByVar': (groupby_variance, 2),
                     }[p]
             if transformer_wrapper:
                 pset.addPrimitive(make_class(primitive[0]), primitive[1], name=p)
@@ -2177,7 +2178,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.normalize:
                 test_X = self.x_scaler.transform(test_X)
             self.test_X = test_X
-            self.transductive_learning=True
+            self.evaluation_configuration.transductive_learning = True
 
         # Split into train and validation sets if validation size is greater than 0
         if self.validation_size > 0:
@@ -2541,8 +2542,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if y is None:
             y = self.y
         for p in pop:
-            if self.test_data_size > 0:
-                X = X[:-self.test_data_size]
+            if self.test_data is not None:
+                X = X[:-len(self.test_data)]
             Yp = self.feature_generation(X, p)
             self.train_final_model(p, Yp, y, force_training=force_training)
 
@@ -2570,8 +2571,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         X = self.pretrain_predict(X)
 
         prediction_data_size = X.shape[0]
-        if self.test_data_size > 0:
-            # Concatenate new X data with existing X data if test_data_size is greater than 0
+        if self.test_data is not None:
+            # Concatenate new X data with existing X data in the transductive learning setting
             X = np.concatenate([self.X, X])
 
         # Prune genes in hall of fame using hoist mutation
@@ -2602,8 +2603,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 # Generate features using the individual's genes
                 Yp = self.feature_generation(X, individual)
-                if self.test_data_size > 0:
-                    # Truncate Yp if test_data_size is greater than 0
+                if self.test_data is not None:
+                    # In transductive learning setting
                     Yp = Yp[-prediction_data_size:]
                 if self.base_learner == 'NN':
                     # Add neural network activations to Yp if base learner is NN
@@ -4713,7 +4714,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         if self.normalize:
             X = self.x_scaler.transform(X)
         prediction_data_size = X.shape[0]
-        if self.test_data_size > 0:
+        if self.test_data is not None:
             X = np.concatenate([self.X, X])
         self.final_model_lazy_training(self.hof)
         selection_flag = np.ones(len(self.hof), dtype=bool)
@@ -4722,7 +4723,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         for i, individual in enumerate(self.hof):
             func = self.toolbox.compile(individual)
             Yp = result_calculation(func, X, self.original_features)
-            if self.test_data_size > 0:
+            if self.test_data is not None:
                 Yp = Yp[-prediction_data_size:]
             predicted = individual.pipe.predict_proba(Yp)
 

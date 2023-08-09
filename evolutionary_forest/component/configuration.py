@@ -187,7 +187,6 @@ class EvaluationConfiguration():
                  nn_prediction=None,
                  dynamic_target=False,
                  original_features=False,
-                 test_data_size=0,
                  pset=None,
                  basic_primitives=True,
                  cross_validation=True,
@@ -198,7 +197,8 @@ class EvaluationConfiguration():
                  mini_batch=False,
                  semantic_crossover_probability=0,
                  gradient_descent=False,
-                 gradient_optimizer='SGD', **params):
+                 gradient_optimizer='SGD',
+                 transductive_learning=False, **params):
         # prediction results of the neural network
         self.gradient_optimizer = gradient_optimizer
         self.nn_prediction = nn_prediction
@@ -206,8 +206,6 @@ class EvaluationConfiguration():
         self.dynamic_target = dynamic_target
         # using original features
         self.original_features = original_features
-        # number of test data samples, which do not have the label
-        self.test_data_size = test_data_size
         self.pset: Union[PrimitiveSet] = pset
         # check model is in sklearn format or not
         self.basic_primitives = basic_primitives
@@ -230,6 +228,7 @@ class EvaluationConfiguration():
         else:
             self.save_semantics = False
         self.gradient_descent = gradient_descent
+        self.transductive_learning = transductive_learning
 
         # some parameters for bloat control
         self.bloat_control = bloat_control

@@ -30,6 +30,12 @@ def protected_log(x1, x2):
         return np.where(np.abs(x1) > threshold, np.emath.logn(np.abs(x2), np.abs(x1)), 0.)
 
 
+def protected_loge(x1):
+    """Closure of log for zero and negative arguments."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.)
+
+
 def protected_inverse(x1):
     """Closure of inverse for zero arguments."""
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -98,8 +104,10 @@ def shape_wrapper_plus(*args):
             result.append(x)
     return tuple(result)
 
+
 def shape_decorator(func):
     def inner_function(*args, **kwargs):
+        args = [float(x) if isinstance(x, np.ndarray) and x.size == 1 else x for x in args]
         if len(args) == 1 and np.isscalar(args[0]):
             return args[0]
         elif len(args) == 2:
@@ -109,7 +117,6 @@ def shape_decorator(func):
         elif len(args) > 2:
             raise Exception("The number of arguments should be less than 3")
         return func(*args, **kwargs)
-
     return inner_function
 
 
@@ -153,6 +160,7 @@ def groupby_mean(keys, values, debug=False):
 
     return output_array
 
+
 @shape_decorator
 @njit
 def groupby_max(keys, values, debug=False):
@@ -173,6 +181,7 @@ def groupby_max(keys, values, debug=False):
         output_array[i] = max_values[idx]
 
     return output_array
+
 
 @shape_decorator
 @njit
@@ -195,13 +204,14 @@ def groupby_min(keys, values, debug=False):
 
     return output_array
 
+
 @shape_decorator
 @njit
 def groupby_count(keys, debug=False):
     ratio = 0.2
     ratio_of_unique_values = get_ratio_of_unique_values(keys)
     if ratio_of_unique_values > ratio and (not debug):
-        return keys
+        return keys.astype(np.float64)
 
     unique_keys = np.unique(keys)
     counts = np.zeros_like(unique_keys, dtype=np.int64)
@@ -218,6 +228,7 @@ def groupby_count(keys, debug=False):
         output_array[i] = counts[idx]
 
     return output_array
+
 
 @shape_decorator
 @njit
@@ -246,6 +257,37 @@ def groupby_median(keys, values, debug=False):
     for i in range(len(keys)):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = medians[idx]
+
+    return output_array
+
+
+@shape_decorator
+@njit
+def groupby_variance(keys, values, debug=False):
+    keys = discretize(keys, debug=debug)
+    unique_keys = np.unique(keys)
+    sums = np.zeros_like(unique_keys, dtype=np.float64)
+    counts = np.zeros_like(unique_keys, dtype=np.int64)
+    sum_squares = np.zeros_like(unique_keys, dtype=np.float64)
+
+    # Sum values and sum of squares for each group
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        sums[idx] += values[i]
+        sum_squares[idx] += values[i] ** 2
+        counts[idx] += 1
+
+    # Calculate variance for each group
+    variances = np.zeros_like(unique_keys, dtype=np.float64)
+    for i in range(len(unique_keys)):
+        mean = sums[i] / counts[i]
+        variances[i] = sum_squares[i] / counts[i] - mean ** 2
+
+    # Map the variances back to the original keys
+    output_array = np.zeros_like(values, dtype=np.float64)
+    for i in range(len(keys)):
+        idx = np.searchsorted(unique_keys, keys[i])
+        output_array[i] = variances[idx]
 
     return output_array
 
@@ -381,7 +423,7 @@ def sigmoid(x):
 
 
 def residual(x):
-    return x - np.round(x)
+    return x - np.floor(x)
 
 
 def np_mean(a, b):
@@ -545,3 +587,11 @@ if __name__ == '__main__':
     discretized_arr = discretize(arr)
     print(len(discretized_arr))
     assert len(np.unique(discretized_arr)) == 20
+
+    keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
+    values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
+    result = groupby_variance(keys, values, debug=True)
+    b = np.var([20, 30])
+    c = np.var([40, 50, 60])
+    print(result)
+    assert np.allclose(result, [0, b, b, c, c, c])
