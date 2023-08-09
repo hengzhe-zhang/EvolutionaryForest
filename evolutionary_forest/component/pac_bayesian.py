@@ -46,6 +46,7 @@ class PACBayesianConfiguration():
                  optimal_design=False,
                  reference_model='KR',
                  precision=10,
+                 sharpness_iterations=10,
                  **params):
         # For VCD
         self.noise_configuration = NoiseConfiguration(**params)
@@ -60,6 +61,7 @@ class PACBayesianConfiguration():
         self.objective = objective
         self.l2_penalty = l2_penalty
         self.precision = precision
+        self.sharpness_iterations = sharpness_iterations
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -100,7 +102,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
                             sharpness_vector=None):
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
-    num_iterations = 10
+    num_iterations = configuration.sharpness_iterations
     sc = StandardScaler()
     X = sc.fit_transform(X)
 
