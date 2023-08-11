@@ -318,6 +318,7 @@ class R2PACBayesian(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor",
                  sharpness_type='Semantics',
                  sharpness_distribution='Normal',
+                 sharpness_loss_weight=1,
                  **params):
         self.sharpness_distribution = sharpness_distribution
         self.algorithm = algorithm
@@ -330,6 +331,7 @@ class R2PACBayesian(Fitness):
         if sharpness_type == 'Parameter':
             sharpness_type = SharpnessType.Parameter
         self.sharpness_type = sharpness_type
+        self.sharpness_loss_weight = sharpness_loss_weight
 
     def assign_complexity(self, individual, estimator):
         # reducing the time of estimating VC-Dimension
@@ -375,7 +377,9 @@ class R2PACBayesian(Fitness):
         individual.fitness_list = estimation
         assert len(individual.case_values) > 0
         sharpness_value = estimation[1][0]
-        individual.sam_loss = np.mean(individual.case_values) + sharpness_value
+        naive_mse = np.mean(individual.case_values)
+        individual.sam_loss = (1 - self.sharpness_loss_weight) * naive_mse + \
+                              self.sharpness_loss_weight * (naive_mse + sharpness_value)
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available
             # smaller is  better

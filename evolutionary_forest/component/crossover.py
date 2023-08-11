@@ -4,8 +4,10 @@ from collections import defaultdict
 
 __type__ = object
 
+from evolutionary_forest.multigene_gp import MultipleGeneGP
 
-def cxOnePoint(ind1, ind2):
+
+def cxOnePointAdaptive(ind1: MultipleGeneGP, ind2: MultipleGeneGP):
     """Randomly select crossover point in each individual and exchange each
     subtree with the point as root between each individual.
 
@@ -13,12 +15,14 @@ def cxOnePoint(ind1, ind2):
     :param ind2: Second tree participating in the crossover.
     :returns: A tuple of two trees.
     """
+    ind1, ind2 = ind1.random_select(), ind2.random_select()
     if len(ind1) < 2 or len(ind2) < 2:
         # No crossover on single node tree
         return ind1, ind2
 
-    tree1_size = ind1.depth
-    tree2_size = ind2.depth
+    # 1. Firstly, select the depth of first tree
+    tree1_size = ind1.height
+    tree2_size = ind2.height
 
     # List all available primitive types in each individual
     types1 = defaultdict(list)

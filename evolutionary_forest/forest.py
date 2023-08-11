@@ -44,6 +44,7 @@ from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfF
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
     BaseLearnerConfiguration
+from evolutionary_forest.component.crossover import cxOnePointAdaptive
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
@@ -97,6 +98,7 @@ eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-PM-SC-WS', 'EDA-Terminal-PM-SC-NT',
                  'EDA-Terminal-PM-SameIndex']
 multi_gene_operators = ['uniform-plus', 'uniform-plus-SC', 'uniform-plus-BSC',
+                        'uniform-plus-AdaptiveCrossover',
                         'uniform-plus-semantic', 'parsimonious_mutation']
 map_elite_series = ['MAP-Elite-Lexicase', 'MAP-Elite-Tournament',
                     'MAP-Elite-Roulette', 'MAP-Elite-Tournament-3', 'MAP-Elite-Tournament-7',
@@ -1619,7 +1621,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif 'AllGene' in self.mutation_scheme:
             toolbox.register("mate", cxOnePoint_all_gene)
         elif 'AdaptiveCrossover' in self.mutation_scheme:
-            toolbox.register("mate", cxOnePoint_all_gene)
+            toolbox.register("mate", cxOnePointAdaptive)
         else:
             toolbox.register("mate", cxOnePoint_multiple_gene,
                              pset=self.pset,
