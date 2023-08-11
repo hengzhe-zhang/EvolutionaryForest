@@ -1618,6 +1618,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("mate", cxOnePoint_multiple_gene_same_index)
         elif 'AllGene' in self.mutation_scheme:
             toolbox.register("mate", cxOnePoint_all_gene)
+        elif 'AdaptiveCrossover' in self.mutation_scheme:
+            toolbox.register("mate", cxOnePoint_all_gene)
         else:
             toolbox.register("mate", cxOnePoint_multiple_gene,
                              pset=self.pset,
