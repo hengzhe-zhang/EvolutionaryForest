@@ -2794,6 +2794,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # self.pearson_correlation_analysis_pairs(population)
             print(logbook.stream)
 
+        if isinstance(self.environmental_selection, EnvironmentalSelection):
+            self.environmental_selection.select(population, [])
+
         self.redundant_features_calculation(population)
         self.statistical_result_update(population, verbose)
         self.callback()
@@ -2822,9 +2825,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             best_archive = None
         # self.update_semantic_repair_input_matrix(population)
         elites_archive = self.update_external_archive(population, None)
-
-        if isinstance(self.environmental_selection, EnvironmentalSelection):
-            selNSGA2(population, len(population))
 
         # Begin the generational process
         number_of_evaluations = self.n_pop
