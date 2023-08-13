@@ -119,7 +119,7 @@ class NSGA2(EnvironmentalSelection):
         self.algorithm = algorithm
         self.objective_function = objective_function
         self.objective_normalization = objective_normalization
-        self.knee_point: str = knee_point
+        self.knee_point: Union[str, bool] = knee_point
         self.selection_operator = selNSGA2
         self.validation_x = None
         self.validation_y = None
