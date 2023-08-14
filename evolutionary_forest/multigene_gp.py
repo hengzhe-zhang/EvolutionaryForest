@@ -633,13 +633,19 @@ def cxOnePoint_multiple_gene_BSC(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     _, a_bad_id = ind1.softmax_selection(temperature=temperature, reverse=True, with_id=True)
     a_material, _ = copy.deepcopy(ind1.softmax_selection(temperature=temperature, with_id=True))
     b_good = copy.deepcopy(ind2.softmax_selection(temperature=temperature))
-    cxOnePoint(a_material, b_good)
+    if crossover_configuration.root_crossover:
+        cxOnePointWithRoot(a_material, b_good, crossover_configuration)
+    else:
+        cxOnePoint(a_material, b_good)
     ind1.gene[a_bad_id] = b_good
 
     _, b_bad_id = ind2.softmax_selection(temperature=temperature, reverse=True, with_id=True)
     b_material, _ = copy.deepcopy(ind2.softmax_selection(temperature=temperature, with_id=True))
     a_good = copy.deepcopy(ind1.softmax_selection(temperature=temperature))
-    cxOnePoint(b_material, a_good)
+    if crossover_configuration.root_crossover:
+        cxOnePointWithRoot(b_material, a_good, crossover_configuration)
+    else:
+        cxOnePoint(b_material, a_good)
     ind2.gene[b_bad_id] = a_good
     return ind1, ind2
 

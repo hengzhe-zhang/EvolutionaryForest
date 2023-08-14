@@ -117,6 +117,7 @@ def shape_decorator(func):
         elif len(args) > 2:
             raise Exception("The number of arguments should be less than 3")
         return func(*args, **kwargs)
+
     return inner_function
 
 
@@ -158,7 +159,7 @@ def groupby_mean(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = means[idx]
 
-    return output_array
+    return output_array * values
 
 
 @shape_decorator
@@ -180,7 +181,7 @@ def groupby_max(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = max_values[idx]
 
-    return output_array
+    return output_array * values
 
 
 @shape_decorator
@@ -202,7 +203,7 @@ def groupby_min(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = min_values[idx]
 
-    return output_array
+    return output_array * values
 
 
 @shape_decorator
@@ -258,7 +259,7 @@ def groupby_median(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = medians[idx]
 
-    return output_array
+    return output_array * values
 
 
 @shape_decorator
