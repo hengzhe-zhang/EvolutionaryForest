@@ -381,15 +381,13 @@ class R2PACBayesian(Fitness):
         sharpness_value = estimation[1][0]
         # using SAM loss as the final selection criterion
         naive_mse = np.mean(individual.case_values)
+        # sharpness value is a numerical value
+        individual.sam_loss = (1 - self.sharpness_loss_weight) * naive_mse + \
+                              self.sharpness_loss_weight * (naive_mse + sharpness_value)
         if len(sharpness_vector) > 0:
-            # sharpness value is a numerical value
-            individual.sam_loss = (1 - self.sharpness_loss_weight) * naive_mse + \
-                                  self.sharpness_loss_weight * (naive_mse + sharpness_value)
             # if the sharpness vector is available
             # smaller is  better
             individual.case_values = individual.case_values + sharpness_vector
-        else:
-            individual.sam_loss = naive_mse
         return -1 * individual.fitness_list[0][0],
 
     def assign_complexity_pop(self, pop):
