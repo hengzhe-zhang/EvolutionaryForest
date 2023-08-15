@@ -592,6 +592,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
     best_score = None
     # save the semantics of the best subtree
     best_subtree_semantics = None
+    number_of_functions = sum([1 if isinstance(node, Terminal) else 0 for node in expr])
     for id, node in enumerate(expr):
         stack.append((node, [], id))
         while len(stack[-1][1]) == stack[-1][0].arity:
@@ -601,7 +602,8 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and result.size > 1:
-                        result = inject_noise_to_data(result, random_noise, noise_configuration)
+                        result = inject_noise_to_data(result, random_noise, number_of_functions,
+                                                      noise_configuration)
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
@@ -619,7 +621,8 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                         raise ValueError("Unsupported data type!")
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 \
                         and noise_configuration.noise_to_terminal:
-                        result = inject_noise_to_data(result, random_noise, noise_configuration)
+                        result = inject_noise_to_data(result, random_noise, number_of_functions,
+                                                      noise_configuration)
                 else:
                     result = prim.value
             else:
@@ -661,6 +664,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
 
 def inject_noise_to_data(result,
                          random_noise_magnitude,
+                         number_of_functions: int,
                          noise_configuration: NoiseConfiguration):
     noise_type = noise_configuration.noise_type
     if noise_type == 'Normal':
@@ -669,6 +673,8 @@ def inject_noise_to_data(result,
         noise = np.random.uniform(-1, 1, len(result))
     elif noise_type == 'Binomial':
         noise = np.random.choice([-1, 1], len(result))
+    elif noise_type == 'Binomial-N':
+        noise = np.random.choice([-1 / number_of_functions, 1 / number_of_functions], len(result))
     else:
         raise Exception
     if noise_configuration.noise_normalization == 'Instance':
