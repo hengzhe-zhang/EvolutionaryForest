@@ -28,6 +28,32 @@ class StrictlyImprovementHOF(HallOfFame):
         super().update(population)
 
 
+class CustomHOF(HallOfFame):
+    def __init__(self, maxsize, comparison_function, similar=eq):
+        self.comparison_function = comparison_function
+        super().__init__(maxsize, similar)
+
+    def update(self, population):
+        for ind in population:
+            if len(self) == 0 and self.maxsize != 0:
+                # Working on an empty hall of fame is problematic for the
+                # "for else"
+                self.insert(population[0])
+                continue
+            if self.comparison_function(ind, self[-1]) or len(self) < self.maxsize:
+                for hofer in self:
+                    # Loop through the hall of fame to check for any
+                    # similar individual
+                    if self.similar(ind, hofer):
+                        break
+                else:
+                    # The individual is unique and strictly better than
+                    # the worst
+                    if len(self) >= self.maxsize:
+                        self.remove(-1)
+                    self.insert(ind)
+
+
 class GeneralizationHOF(HallOfFame):
     def __init__(self, X, y, pset, maxsize=1, verbose=False):
         super().__init__(maxsize)

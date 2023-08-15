@@ -2030,6 +2030,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.ensemble_size == 'auto':
             # Automatically determine the ensemble size
             self.hof = LexicaseHOF()
+        elif self.ensemble_selection == 'SAM':
+            # Automatically determine the ensemble size
+            def comparison(a, b):
+                return a.sam_loss < b.sam_loss
+
+            self.hof = CustomHOF(self.ensemble_size, comparison_function=comparison)
         elif self.ensemble_selection == 'StrictlyImprovement':
             self.hof = StrictlyImprovementHOF(self.ensemble_size)
         elif self.ensemble_selection == 'GeneralizationHOF':
