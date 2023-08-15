@@ -377,6 +377,7 @@ class R2PACBayesian(Fitness):
         individual.fitness_list = estimation
         assert len(individual.case_values) > 0
         sharpness_value = estimation[1][0]
+        # using SAM loss as the final selection criterion
         naive_mse = np.mean(individual.case_values)
         individual.sam_loss = (1 - self.sharpness_loss_weight) * naive_mse + \
                               self.sharpness_loss_weight * (naive_mse + sharpness_value)
@@ -415,4 +416,6 @@ class PACBayesianR2Scaler(R2PACBayesian):
 
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
         self.assign_complexity_pop(population)
-        assign_rank(population, hall_of_fame, elite_archive)
+        for individual in population:
+            individual.fitness.values = (individual.sam_loss,)
+        # assign_rank(population, hall_of_fame, elite_archive)
