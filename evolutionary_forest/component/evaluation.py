@@ -667,6 +667,8 @@ def inject_noise_to_data(result,
         noise = np.random.normal(0, 1, len(result))
     elif noise_type == 'Uniform':
         noise = np.random.uniform(-1, 1, len(result))
+    elif noise_type == 'Binomial':
+        noise = np.random.choice([-1, 1], len(result))
     else:
         raise Exception
     if noise_configuration.noise_normalization == 'Instance':
