@@ -318,7 +318,7 @@ class R2PACBayesian(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor",
                  sharpness_type='Semantics',
                  sharpness_distribution='Normal',
-                 sharpness_loss_weight=1,
+                 sharpness_loss_weight=0.5,
                  **params):
         self.sharpness_distribution = sharpness_distribution
         self.algorithm = algorithm
@@ -383,7 +383,7 @@ class R2PACBayesian(Fitness):
         naive_mse = np.mean(individual.case_values)
         # sharpness value is a numerical value
         individual.sam_loss = (1 - self.sharpness_loss_weight) * naive_mse + \
-                              self.sharpness_loss_weight * (naive_mse + sharpness_value)
+                              self.sharpness_loss_weight * sharpness_value
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available
             # smaller is  better
