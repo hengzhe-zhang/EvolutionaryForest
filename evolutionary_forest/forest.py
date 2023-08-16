@@ -1851,6 +1851,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
             pset.addEphemeralConstant("pi", lambda: math.pi)
             pset.addEphemeralConstant("e", lambda: math.e)
+        elif self.constant_type == 'CoinFlip':
+            pset.addEphemeralConstant("rand101", lambda: random.choice([-1, 1]))
         elif self.constant_type == 'GD':
             def random_variable():
                 return torch.randn(1, requires_grad=True, dtype=torch.float32)
@@ -1862,7 +1864,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     pset.addEphemeralConstant(f"rand{i}", random_variable)
         else:
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
-
         # Check if MGP mode is enabled and create a new primitive set for each gene
         if isinstance(pset, PrimitiveSet) and self.mgp_mode is True:
             new_pset = MultiplePrimitiveSet("MAIN", self.X.shape[1])
