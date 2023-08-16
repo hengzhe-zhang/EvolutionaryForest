@@ -686,11 +686,11 @@ def inject_noise_to_data(result,
     else:
         raise Exception
     if noise_configuration.noise_normalization == 'Instance':
-        result += noise * random_noise_magnitude * np.abs(result)
+        result = result + noise * random_noise_magnitude * np.abs(result)
     elif noise_configuration.noise_normalization == 'STD':
-        result += noise * random_noise_magnitude * np.std(result)
+        result = result + noise * random_noise_magnitude * np.std(result)
     elif noise_configuration.noise_normalization in ['None', None]:
-        result += noise * random_noise_magnitude
+        result = result + noise * random_noise_magnitude
     else:
         raise Exception
     return result

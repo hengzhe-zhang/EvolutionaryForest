@@ -1851,8 +1851,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
             pset.addEphemeralConstant("pi", lambda: math.pi)
             pset.addEphemeralConstant("e", lambda: math.e)
-        elif self.constant_type == 'Normal':
-            pset.addEphemeralConstant("rand101", lambda: np.random.normal(0, 1))
         elif self.constant_type == 'GD':
             def random_variable():
                 return torch.randn(1, requires_grad=True, dtype=torch.float32)
