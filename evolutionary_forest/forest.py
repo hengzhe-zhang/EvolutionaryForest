@@ -56,7 +56,7 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
     LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
     PACBayesianR2Scaler
 from evolutionary_forest.component.generation import varAndPlus
-from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType
+from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType, pac_bayesian_estimation
 from evolutionary_forest.component.primitives import *
 from evolutionary_forest.component.primitives import np_mean
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
@@ -950,10 +950,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if check_semantic_based_bc(self.bloat_control) or self.intron_gp:
             # only do this in intron mode
             intron_ids = information.introns_results
-            if (self.intron_gp and \
-                (self.bloat_control.get('exon_tournament', False) or \
-                 self.bloat_control.get('exon_tournament_V2', False) or \
-                 self.bloat_control.get('mutation_worst', False) or \
+            if (self.intron_gp and
+                (self.bloat_control.get('exon_tournament', False) or
+                 self.bloat_control.get('exon_tournament_V2', False) or
+                 self.bloat_control.get('mutation_worst', False) or
                  self.bloat_control.get('hoist_one_layer', False))
             ) or check_semantic_based_bc(self.bloat_control):
                 assert len(intron_ids) == len(individual.gene)
@@ -2771,6 +2771,34 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             invalid_ind = self.multiobjective_evaluation(toolbox, population)
         else:
             invalid_ind = self.population_evaluation(toolbox, population)
+
+        if self.pac_bayesian.perturbation_std == 'Auto':
+            best_score = -1
+            best_alpha = 0.01
+            for alpha in [1, 5e-1, 1e-1, 5e-2, 1e-2, 1e-3, 0]:
+                self.pac_bayesian.perturbation_std = alpha
+                scores = []
+                sharpness = []
+                # automatically determine parameter
+                for individual in population:
+                    feature_generator = lambda data, random_noise=0, noise_configuration=None: \
+                        self.feature_generation(data, individual, random_noise=random_noise,
+                                                noise_configuration=noise_configuration)
+                    features = feature_generator(self.X)
+                    estimation = pac_bayesian_estimation(features, self.X, self.y, individual.pipe, individual,
+                                                         self.evaluation_configuration.cross_validation,
+                                                         self.pac_bayesian, SharpnessType.Parameter,
+                                                         feature_generator=feature_generator)
+                    score = cross_val_score(individual.pipe, feature_generator(self.X), self.y)
+                    scores.append(np.mean(score))
+                    sharpness_value = estimation[1][0]
+                    naive_mse = np.mean(individual.case_values)
+                    sharpness.append(-1 * (naive_mse + sharpness_value))
+                correlation = spearmanr(scores, sharpness)[0]
+                if best_score < correlation:
+                    best_score = correlation
+                    best_alpha = alpha
+            self.pac_bayesian.perturbation_std = best_alpha
 
         self.post_processing_after_evaluation(None, population)
 

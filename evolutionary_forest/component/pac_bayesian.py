@@ -103,8 +103,9 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = configuration.sharpness_iterations
-    sc = StandardScaler()
-    X = sc.fit_transform(X)
+    # sc = StandardScaler()
+    # X = sc.fit_transform(X)
+    sc = estimator['Scaler']
 
     # Create an array to store the R2 scores
     mse_scores = np.zeros((num_iterations, len(X)))
@@ -211,6 +212,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             mse_scores = np.vstack((mse_scores, baseline))
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
+            max_sharp -= baseline
             if s == 'MaxSharpness-1-Base+':
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
@@ -222,6 +224,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             mse_scores = np.vstack((mse_scores, baseline))
             _, k, _ = s.split('-')
             max_sharp = m_sharpness(mse_scores.T, int(k))
+            max_sharp -= baseline
             if s.endswith('+'):
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
@@ -253,7 +256,7 @@ def get_cv_predictions(estimator, X, y, direct_prediction=False):
     if isinstance(base_model, RidgeCV) and not direct_prediction:
         y_pred = cv_prediction_from_ridge(y, base_model)
     else:
-        y_pred = estimator.predict(X)
+        y_pred = base_model.predict(X)
     return y_pred
 
 
