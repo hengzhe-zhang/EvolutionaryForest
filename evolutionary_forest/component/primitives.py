@@ -159,7 +159,7 @@ def groupby_mean(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = means[idx]
 
-    return output_array * values
+    return values / output_array
 
 
 @shape_decorator
@@ -181,7 +181,7 @@ def groupby_max(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = max_values[idx]
 
-    return output_array * values
+    return values / output_array
 
 
 @shape_decorator
@@ -203,7 +203,7 @@ def groupby_min(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = min_values[idx]
 
-    return output_array * values
+    return values / output_array
 
 
 @shape_decorator
@@ -259,7 +259,7 @@ def groupby_median(keys, values, debug=False):
         idx = np.searchsorted(unique_keys, keys[i])
         output_array[i] = medians[idx]
 
-    return output_array * values
+    return values / output_array
 
 
 @shape_decorator
