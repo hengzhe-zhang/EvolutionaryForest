@@ -1986,6 +1986,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         'Cube': (cube, 1),  # Cube function
                         'Log': (protected_log, 2),
                         'LogE': (protected_loge, 1),
+                        'Log2': (protected_log2, 1),
                         'Inv': (protected_inverse, 1),
 
                         # Comparison operations

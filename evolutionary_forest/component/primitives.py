@@ -36,6 +36,12 @@ def protected_loge(x1):
         return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.)
 
 
+def protected_log2(x1):
+    """Closure of log for zero and negative arguments."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(np.abs(x1) > threshold, np.log2(np.abs(x1)), 0.)
+
+
 def protected_inverse(x1):
     """Closure of inverse for zero arguments."""
     with np.errstate(divide='ignore', invalid='ignore'):
