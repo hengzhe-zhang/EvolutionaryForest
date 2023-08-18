@@ -130,24 +130,21 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         else:
             raise Exception("Unknown sharpness type!")
 
-        if cross_validation:
-            y_pred = cross_val_predict(estimator, X_noise, y)
+        if sharpness_type == SharpnessType.Semantics:
+            # add noise to semantics
+            estimator_noise = copy.deepcopy(estimator)
+            # Use the modified Ridge model to predict the outcome variable
+            estimator_noise.fit(X_noise, y)
+            y_pred = get_cv_predictions(estimator_noise, X_noise, y)
         else:
-            if sharpness_type == SharpnessType.Semantics:
-                # add noise to semantics
-                estimator_noise = copy.deepcopy(estimator)
-                # Use the modified Ridge model to predict the outcome variable
-                estimator_noise.fit(X_noise, y)
-                y_pred = get_cv_predictions(estimator_noise, X_noise, y)
-            else:
-                y_pred = get_cv_predictions(estimator, X_noise, y,
-                                            direct_prediction=True)
+            y_pred = get_cv_predictions(estimator, X_noise, y,
+                                        direct_prediction=True)
 
-            if 'Derivative' in configuration.objective:
-                # numerical differentiation
-                y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
-                                                 direct_prediction=True)
-                derivatives.append(np.mean(np.abs((y_pred_plus - y_pred))))
+        if 'Derivative' in configuration.objective:
+            # numerical differentiation
+            y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
+                                             direct_prediction=True)
+            derivatives.append(np.mean(np.abs((y_pred_plus - y_pred))))
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         if sharpness_type == SharpnessType.DataLGBM:
