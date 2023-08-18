@@ -56,6 +56,7 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
     LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
     PACBayesianR2Scaler
 from evolutionary_forest.component.generation import varAndPlus
+from evolutionary_forest.component.normalizer import TargetEncoder
 from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType, pac_bayesian_estimation
 from evolutionary_forest.component.primitives import *
 from evolutionary_forest.component.primitives import np_mean
@@ -538,6 +539,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         }
         if normalize is True:
             self.x_scaler = StandardScaler()
+            self.y_scaler = StandardScaler()
+        elif normalize == 'LN':
+            self.x_scaler = Pipeline([
+                ('TE', TargetEncoder()),
+                ('SC', StandardScaler()),
+            ])
             self.y_scaler = StandardScaler()
         elif normalize == 'MinMax':
             self.x_scaler = MinMaxScaler()
