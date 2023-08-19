@@ -62,6 +62,11 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
             print('Value Error', front)
             # Unknown Exception
             return max(range(len(front)), key=lambda x: front[x][0])
+    elif knee_point_strategy == 'BestSum':
+        pf = front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        id = pf.sum(axis=1).argmax()
+        return id
     elif knee_point_strategy.startswith('CP'):
         cp_ratio = float(knee_point_strategy.split('-')[1])
         decomp = ASF()
