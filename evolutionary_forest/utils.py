@@ -427,7 +427,7 @@ def pickle_deepcopy(a):
 def cv_prediction_from_ridge(Y, base_model: RidgeCV):
     all_y_pred = base_model.cv_values_ + Y.mean()
     errors = (Y.reshape(-1, 1) - all_y_pred) ** 2
-    assert errors.size == Y.size
+    assert errors.size == Y.size * len(base_model.alphas)
     error_list = errors.sum(axis=0)
     new_best_index = np.argmin(error_list)
     real_prediction = base_model.cv_values_[:, new_best_index]
