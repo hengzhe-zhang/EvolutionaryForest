@@ -14,10 +14,15 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
+from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+
+def point_to_line_distance(p1, p2, point):
+    return norm(np.cross(p2 - p1, p1 - point)) / norm(p2 - p1)
 
 
 def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
@@ -30,7 +35,7 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         p2 = pf[pf[:, 1].argmax()]
         # 自动选择拐点
         ans = max([i for i in range(len(pf))],
-                  key=lambda i: norm(np.cross(p2 - p1, p1 - pf[i])) / norm(p2 - p1))
+                  key=lambda i: point_to_line_distance(p1, p2, pf[i]))
         return ans
     elif knee_point_strategy == 'BestAdditionalObjetive':
         return np.argmax(front[:, 1])
@@ -216,6 +221,11 @@ class NSGA2(EnvironmentalSelection):
             else:
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 if self.knee_point == 'SAM':
+                    if not isinstance(self.algorithm.score_func, R2PACBayesian):
+                        pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
+                        for ind in first_pareto_front:
+                            if not hasattr(ind, 'sam_loss'):
+                                pac.assign_complexity(ind, ind.pipe)
                     knee = np.argmin([[p.sam_loss for p in first_pareto_front]])
                 else:
                     knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
@@ -271,4 +281,9 @@ class NSGA3(NSGA2):
 
 
 if __name__ == "__main__":
-    pass
+    p1 = np.array([0, -4 / 3])
+    p2 = np.array([2, 0])
+    p3 = np.array([5, 6])
+    distance = point_to_line_distance(p1, p2, p3)
+    assert abs(distance - 3.32) < 0.01
+    print(distance)
