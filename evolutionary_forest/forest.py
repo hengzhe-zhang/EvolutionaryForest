@@ -2017,6 +2017,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         'Sigmoid': (sigmoid, 1),  # Sigmoid activation function
                         'Round': (np.round, 1),  # Round to the nearest integer
                         'Residual': (residual, 1),  # Residual function for handling negative values
+                        'Relu': (relu, 1),  # Residual function for handling negative values
                         'LeakyRelu': (leaky_relu, 1),  # Leaky ReLU activation function
 
                         # GroupBY Features
