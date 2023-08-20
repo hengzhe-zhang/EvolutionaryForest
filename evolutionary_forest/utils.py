@@ -20,7 +20,7 @@ from sympy import latex, parse_expr
 from evolutionary_forest.component.primitives import individual_to_tuple
 
 
-class MeanRegressor(BaseEstimator,RegressorMixin):
+class MeanRegressor(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y=None):
         return self
@@ -28,13 +28,15 @@ class MeanRegressor(BaseEstimator,RegressorMixin):
     def predict(self, X):
         return np.mean(X, axis=1)
 
-class MedianRegressor(BaseEstimator,RegressorMixin):
+
+class MedianRegressor(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y=None):
         return self
 
     def predict(self, X):
         return np.median(X, axis=1)
+
 
 def extract_numbers(dimension, s):
     """
@@ -424,7 +426,9 @@ def pickle_deepcopy(a):
 
 def cv_prediction_from_ridge(Y, base_model: RidgeCV):
     all_y_pred = base_model.cv_values_ + Y.mean()
-    error_list = ((Y.reshape(-1, 1) - all_y_pred) ** 2).sum(axis=0)
+    errors = (Y.reshape(-1, 1) - all_y_pred) ** 2
+    assert errors.size == Y.size
+    error_list = errors.sum(axis=0)
     new_best_index = np.argmin(error_list)
     real_prediction = base_model.cv_values_[:, new_best_index]
     real_prediction = real_prediction + Y.mean()
