@@ -43,7 +43,7 @@ from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
-    BaseLearnerConfiguration
+    BaseLearnerConfiguration, ExperimentalConfiguration
 from evolutionary_forest.component.crossover import cxOnePointAdaptive
 from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
     individual_combination
@@ -694,7 +694,26 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **params,
             **vars(self)
         )
+        self.experimental_configuration = ExperimentalConfiguration(
+            **params,
+            **vars(self)
+        )
         self.elites_archive = None
+
+    def calculate_pf_objectives(self):
+        if self.experimental_configuration.pac_bayesian_comparison and \
+            isinstance(self.environmental_selection, EnvironmentalSelection):
+            self.pareto_front = []
+            pac = R2PACBayesian(self, **self.param)
+            self.pac_bayesian.objective = 'R2,MaxSharpness-1-Base'
+            first_pareto_front = sortNondominated(self.pop, len(self.pop))[0]
+            for ind in first_pareto_front:
+                normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
+                if not hasattr(ind, 'fitness_list'):
+                    pac.assign_complexity(ind, ind.pipe)
+                sharpness_value = ind.fitness_list[1][0]
+                self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor),
+                                          float(sharpness_value / normalization_factor)))
 
     def score_function_controller(self, params, score_func):
         if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
@@ -3349,6 +3368,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.base_learner, str):
             assert not self.base_learner.startswith('Fast-')
         self.post_prune(self.hof)
+        self.calculate_pf_objectives()
         return population, logbook
 
     def torch_variable_clone(self, offspring):
@@ -4072,22 +4092,23 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return offspring
 
     def redundant_features_calculation(self, offspring):
-        current_redundant_features = 0
-        current_irrelevant_features = 0
-        for o in offspring:
-            hash_set = set()
-            for g in o.hash_result:
-                if g in hash_set:
-                    current_redundant_features += 1
-                    self.redundant_features += 1
-                else:
-                    hash_set.add(g)
-            for g in o.coef:
-                if g < self.irrelevant_feature_ratio:
-                    current_irrelevant_features += 1
-                    self.irrelevant_features += 1
-        self.redundant_features_history.append(current_redundant_features)
-        self.irrelevant_features_history.append(current_irrelevant_features)
+        if self.mgp_mode:
+            current_redundant_features = 0
+            current_irrelevant_features = 0
+            for o in offspring:
+                hash_set = set()
+                for g in o.hash_result:
+                    if g in hash_set:
+                        current_redundant_features += 1
+                        self.redundant_features += 1
+                    else:
+                        hash_set.add(g)
+                for g in o.coef:
+                    if g < self.irrelevant_feature_ratio:
+                        current_irrelevant_features += 1
+                        self.irrelevant_features += 1
+            self.redundant_features_history.append(current_redundant_features)
+            self.irrelevant_features_history.append(current_irrelevant_features)
 
     def update_external_archive(self, population, external_archive):
         if isinstance(self.external_archive, int):

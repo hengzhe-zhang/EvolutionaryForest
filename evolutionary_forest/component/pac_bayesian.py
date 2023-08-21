@@ -140,7 +140,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             y_pred = get_cv_predictions(estimator, X_noise, y,
                                         direct_prediction=True)
 
-        if 'Derivative' in configuration.objective:
+        if isinstance(configuration.objective, str) and 'Derivative' in configuration.objective:
             # numerical differentiation
             y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
                                              direct_prediction=True)

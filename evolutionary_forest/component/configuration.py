@@ -257,3 +257,12 @@ class BaseLearnerConfiguration():
     def __init__(self, ridge_alpha=1,
                  **params):
         self.ridge_alpha = ridge_alpha
+
+
+class ExperimentalConfiguration():
+    def __init__(self,
+                 pac_bayesian_comparison=False,
+                 **params) -> None:
+        # Here are some configurations only used for experiments
+        # This flag is only used for experimental comparison
+        self.pac_bayesian_comparison = pac_bayesian_comparison
