@@ -86,7 +86,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import MultiFidelit
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
     gene_to_string, get_activations, reset_random, weighted_avg_and_std, save_array, is_float, cross_scale, \
-    extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor
+    extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor, pareto_front_2d
 
 eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-PM',
@@ -700,20 +700,36 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         )
         self.elites_archive = None
 
-    def calculate_pf_objectives(self):
+    def calculate_pareto_front(self):
+        self.pareto_front = []
         if self.experimental_configuration.pac_bayesian_comparison and \
             isinstance(self.environmental_selection, EnvironmentalSelection):
-            self.pareto_front = []
             pac = R2PACBayesian(self, **self.param)
             self.pac_bayesian.objective = 'R2,MaxSharpness-1-Base'
             first_pareto_front = sortNondominated(self.pop, len(self.pop))[0]
+            normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
             for ind in first_pareto_front:
-                normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
                 if not hasattr(ind, 'fitness_list'):
                     pac.assign_complexity(ind, ind.pipe)
                 sharpness_value = ind.fitness_list[1][0]
                 self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor),
                                           float(sharpness_value / normalization_factor)))
+            # self.pareto_front = pareto_front_2d(self.pareto_front)
+
+    def calculate_test_pareto_front(self, test_x, test_y):
+        self.test_pareto_front = []
+        if self.experimental_configuration.pac_bayesian_comparison and \
+            isinstance(self.environmental_selection, EnvironmentalSelection):
+            self.test_pareto_front = []
+            first_pareto_front = sortNondominated(self.pop, len(self.pop))[0]
+            predictions = self.individual_prediction(test_x, first_pareto_front)
+            normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
+            test_normalization_factor = np.mean((test_y - np.mean(test_y)) ** 2)
+            for ind, prediction in zip(first_pareto_front, predictions):
+                sharpness_value = ind.fitness_list[1][0]
+                self.test_pareto_front.append((float(np.mean((test_y - predictions) ** 2)
+                                                     / test_normalization_factor),
+                                               float(sharpness_value / normalization_factor)))
 
     def score_function_controller(self, params, score_func):
         if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
@@ -2544,13 +2560,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         weight[i] = 0
             self.tree_weight = weight / np.sum(weight)
 
-    def individual_prediction(self, X):
+    def individual_prediction(self, X, individuals=None):
         if self.normalize:
             X = self.x_scaler.transform(X)
 
         # get detailed prediction results instead of an ensemble
         predictions = []
-        for individual in self.hof:
+        if individuals is None:
+            individuals = self.hof
+        for individual in individuals:
             if len(individual.gene) == 0:
                 continue
             Yp = quick_result_calculation(individual.gene, self.pset, X, self.original_features,
@@ -2562,7 +2580,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         predictions = np.array(predictions)
 
         if self.normalize:
-            predictions = self.y_scaler.inverse_transform(predictions.reshape(-1, 1)).reshape(len(self.hof), -1)
+            predictions = self.y_scaler.inverse_transform(predictions.reshape(-1, 1)).reshape(len(individuals), -1)
         return predictions
 
     def bootstrap_fitness(self, Yp, Y_true):
@@ -2670,29 +2688,39 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             predictions = np.array(predictions).T
             final_prediction = predictions @ self.tree_weight
         elif len(weight_list) > 0:
-            predictions = np.array(predictions).T
-            weight_list = np.array(weight_list)
-            if return_std:
-                final_prediction = weighted_avg_and_std(predictions.T, weight_list)
-            else:
-                final_prediction = predictions @ weight_list / weight_list.sum()
+            final_prediction = self.weighted_ensemble_prediction(predictions, weight_list, return_std)
         else:
             if return_std:
                 final_prediction = np.mean(predictions, axis=0), np.std(predictions, axis=0)
             else:
-                # for x in self.hof[0].gene:
-                #     print(x)
-                if self.ensemble_prediction == 'Mean':
-                    final_prediction = np.mean(predictions, axis=0)
-                elif self.ensemble_prediction == 'Median':
-                    final_prediction = np.median(predictions, axis=0)
-                else:
-                    raise Exception
+                final_prediction = self.make_ensemble_prediction(predictions)
+        final_prediction = self.multi_task_reshape(final_prediction)
+        if len(self.y_shape) == 2 and np.any(self.y_shape == 1):
+            final_prediction = final_prediction.reshape(-1, 1)
+        return final_prediction
+
+    def weighted_ensemble_prediction(self, predictions, weight_list, return_std):
+        predictions = np.array(predictions).T
+        weight_list = np.array(weight_list)
+        if return_std:
+            final_prediction = weighted_avg_and_std(predictions.T, weight_list)
+        else:
+            final_prediction = predictions @ weight_list / weight_list.sum()
+        return final_prediction
+
+    def multi_task_reshape(self, final_prediction):
         if len(self.X) != len(self.y):
             number_of_tasks = len(self.y) // len(self.X)
             final_prediction = final_prediction.reshape(-1, number_of_tasks)
-        if len(self.y_shape) == 2 and np.any(self.y_shape == 1):
-            final_prediction = final_prediction.reshape(-1, 1)
+        return final_prediction
+
+    def make_ensemble_prediction(self, predictions):
+        if self.ensemble_prediction == 'Mean':
+            final_prediction = np.mean(predictions, axis=0)
+        elif self.ensemble_prediction == 'Median':
+            final_prediction = np.median(predictions, axis=0)
+        else:
+            raise Exception
         return final_prediction
 
     def get_hof(self):
@@ -3368,7 +3396,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.base_learner, str):
             assert not self.base_learner.startswith('Fast-')
         self.post_prune(self.hof)
-        self.calculate_pf_objectives()
+        self.calculate_pareto_front()
         return population, logbook
 
     def torch_variable_clone(self, offspring):

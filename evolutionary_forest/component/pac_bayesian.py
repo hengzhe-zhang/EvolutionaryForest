@@ -37,7 +37,7 @@ def m_sharpness(baseline, k=4):
 
 class PACBayesianConfiguration():
     def __init__(self, kl_term_weight: float = 1,
-                 perturbation_std: float = 0.05,
+                 perturbation_std: float = 1,
                  objective='R2,Perturbed-MSE,KL-Divergence',
                  l2_penalty=0,
                  complexity_estimation_ratio=1,

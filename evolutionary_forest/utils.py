@@ -433,3 +433,17 @@ def cv_prediction_from_ridge(Y, base_model: RidgeCV):
     real_prediction = base_model.cv_values_[:, new_best_index]
     real_prediction = real_prediction + Y.mean()
     return real_prediction
+
+
+def pareto_front_2d(points):
+    # warning: only can be usd for 2D
+    # minimization problem
+    pareto_front = []
+    sorted_points = sorted(points, key=lambda x: x[0])
+    pareto_front.append(sorted_points[0])
+
+    for point in sorted_points[1:]:
+        if point[1] < pareto_front[-1][1]:
+            pareto_front.append(point)
+
+    return pareto_front
