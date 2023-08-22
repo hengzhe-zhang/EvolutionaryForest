@@ -727,8 +727,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             test_normalization_factor = np.mean((test_y - np.mean(test_y)) ** 2)
             for ind, prediction in zip(first_pareto_front, predictions):
                 sharpness_value = ind.fitness_list[1][0]
-                self.test_pareto_front.append((float(np.mean((test_y - predictions) ** 2)
-                                                     / test_normalization_factor),
+                errors = (test_y - prediction) ** 2
+                assert len(errors) == len(test_y)
+                self.test_pareto_front.append((float(np.mean(errors) / test_normalization_factor),
                                                float(sharpness_value / normalization_factor)))
 
     def score_function_controller(self, params, score_func):
