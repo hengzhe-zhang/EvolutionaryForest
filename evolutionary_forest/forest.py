@@ -718,6 +718,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def calculate_test_pareto_front(self, test_x, test_y):
         self.test_pareto_front = []
+        self.size_pareto_front = []
         if self.experimental_configuration.pac_bayesian_comparison and \
             isinstance(self.environmental_selection, EnvironmentalSelection):
             self.test_pareto_front = []
@@ -729,8 +730,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 sharpness_value = ind.fitness_list[1][0]
                 errors = (test_y - prediction) ** 2
                 assert len(errors) == len(test_y)
-                self.test_pareto_front.append((float(np.mean(errors) / test_normalization_factor),
-                                               float(sharpness_value / normalization_factor)))
+                normalized_test_error = float(np.mean(errors) / test_normalization_factor)
+                normalized_sharpness = float(sharpness_value / normalization_factor)
+                self.test_pareto_front.append((normalized_test_error, normalized_sharpness))
+                self.size_pareto_front.append((normalized_test_error, sum([len(gene) for gene in ind.gene])))
 
     def score_function_controller(self, params, score_func):
         if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
