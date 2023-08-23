@@ -265,11 +265,7 @@ def get_adaptive_std(estimator):
 
 
 def assign_rank(population, hof, external_archive):
-    # Combine population and hall of fame
-    if external_archive != None:
-        all_individuals = population + list(hof) + list(external_archive)
-    else:
-        all_individuals = population + list(hof)
+    all_individuals = combine_individuals(population, hof, external_archive)
 
     # Compute ranks for each fitness dimension
     fitness_dims = len(all_individuals[0].fitness_list)
@@ -301,6 +297,15 @@ def assign_rank(population, hof, external_archive):
             # better values will get a smaller rank, which is correct
         else:
             ind.fitness.values = (np.mean(ind.rank_list),)
+    return all_individuals
+
+
+def combine_individuals(population, hof, external_archive):
+    # Combine population and hall of fame
+    if external_archive != None:
+        all_individuals = population + list(hof) + list(external_archive)
+    else:
+        all_individuals = population + list(hof)
     return all_individuals
 
 

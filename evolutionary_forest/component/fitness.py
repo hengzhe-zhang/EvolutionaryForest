@@ -3,9 +3,13 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import numpy as np
+from deap.tools import sortNondominated
 from sklearn.metrics import r2_score
 
-from evolutionary_forest.component.pac_bayesian import assign_rank, pac_bayesian_estimation, SharpnessType
+from evolutionary_forest.component.generalization.iodc import create_z, create_w, calculate_iodc
+from evolutionary_forest.component.generalization.wcrv import calculate_WCRV, calculate_mic
+from evolutionary_forest.component.pac_bayesian import assign_rank, pac_bayesian_estimation, SharpnessType, \
+    combine_individuals
 from evolutionary_forest.component.rademacher_complexity import generate_rademacher_vector, \
     rademacher_complexity_estimation
 from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
@@ -18,6 +22,7 @@ if TYPE_CHECKING:
 class Fitness():
     def fitness_value(self, individual, estimators, Y, y_pred):
         # very simple fitness evaluation
+        # warning: Minimization
         return -1 * r2_score(Y, y_pred),
 
     @abstractmethod
@@ -247,6 +252,63 @@ class TikhonovR2(Fitness):
         score = r2_score(Y, y_pred)
         coef_norm = np.linalg.norm(y_pred, ord=2) ** 2
         return (-1 * score, coef_norm)
+
+
+class R2GrandComplexity(Fitness):
+
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        coef_norm = np.linalg.norm(y_pred, ord=2) ** 2
+        tree_size = sum([len(tree) for tree in individual.gene])
+        individual.grand_complexity = (coef_norm, tree_size)
+        return (-1 * score, 0)
+
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
+        if parent is not None:
+            population = parent + population
+        all_individuals = combine_individuals(population, hall_of_fame, elite_archive)
+        for ind in all_individuals:
+            ind.temp_fitness = ind.fitness.values
+            ind.fitness.values = ind.grand_complexity
+        layers = sortNondominated(all_individuals, len(all_individuals))
+        for gid, layer in enumerate(layers):
+            for ind in layer:
+                ind.fitness.values = (ind.temp_fitness[0], gid)
+
+
+class R2WCRV(Fitness):
+    def __init__(self, algorithm: "EvolutionaryForestRegressor"):
+        self.algorithm = algorithm
+
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        prefix = 'ARG'
+        # get used variables
+        variables = []
+        for gene in individual.gene:
+            variables.extend([int(node.name.replace(prefix, '')) for node in gene if prefix in node.name])
+        variables = set(variables)
+        # calculate the WCRV
+        inputs = np.array([self.algorithm.X[:, x] for x in variables]).T
+        residuals = (Y - y_pred)
+        weights = [calculate_mic(inputs[:, i], residuals)
+                   for i in range(inputs.shape[1])]  # Calculate the weight for each input variable
+        median_weight = np.median(weights)  # Calculate the median weight
+        wcrv = calculate_WCRV(inputs, residuals, weights, median_weight)
+        return (-1 * score, wcrv)
+
+
+class R2IODC(Fitness):
+    def __init__(self, algorithm: "EvolutionaryForestRegressor"):
+        self.algorithm = algorithm
+
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        z = create_z(self.algorithm.X)
+        w = create_w(y_pred)
+        # maximize IODC
+        iodc = calculate_iodc(z, w)
+        return (-1 * score, -1 * iodc)
 
 
 class VCDimensionR2(Fitness):
