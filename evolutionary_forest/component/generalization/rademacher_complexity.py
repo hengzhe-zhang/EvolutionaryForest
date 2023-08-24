@@ -29,7 +29,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
 
     :return: individual fitness
     """
-    objective_weight = configuration.objective
+    objective_weight = 1
 
     # Relative Squared Error
     r2 = r2_score(y, estimator.predict(X))
@@ -75,6 +75,7 @@ def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
     # Calculate the rademacher complexity as the average of the complexity values.
     rademacher_complexity = np.mean(complexity)
     bounded_rademacher_complexity = np.mean(bounded_complexity)
+    # Maximize R2, Minimize Rademacher Complexity
     return ((r2, 1), (rademacher_complexity, -objective_weight)), bounded_rademacher_complexity, bounded_complexity
 
 
