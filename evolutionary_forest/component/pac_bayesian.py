@@ -11,7 +11,7 @@ from numba import njit
 from sklearn.datasets import load_diabetes
 from sklearn.linear_model import RidgeCV, Ridge
 from sklearn.metrics import r2_score, mean_squared_error
-from sklearn.model_selection import train_test_split, cross_val_predict
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 

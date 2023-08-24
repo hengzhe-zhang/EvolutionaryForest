@@ -10,9 +10,9 @@ from evolutionary_forest.component.generalization.iodc import create_z, create_w
 from evolutionary_forest.component.generalization.wcrv import calculate_WCRV, calculate_mic
 from evolutionary_forest.component.pac_bayesian import assign_rank, pac_bayesian_estimation, SharpnessType, \
     combine_individuals
-from evolutionary_forest.component.rademacher_complexity import generate_rademacher_vector, \
+from evolutionary_forest.component.generalization.rademacher_complexity import generate_rademacher_vector, \
     rademacher_complexity_estimation
-from evolutionary_forest.component.vc_dimension import vc_dimension_estimation
+from evolutionary_forest.component.generalization.vc_dimension import vc_dimension_estimation
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 if TYPE_CHECKING:
@@ -125,28 +125,37 @@ class RademacherComplexityR2(Fitness):
                 self.assign_complexity(p, p.pipe)
 
     def get_fitness_list(self, individual: MultipleGeneGP, rademacher_complexity):
-        algorithm = self.algorithm
+        objective_weight = 1
         if self.size_objective:
             # Calculate tree size
             tree_size = sum([len(tree) for tree in individual.gene])
-            return [(individual.fitness.wvalues[0], 1), (rademacher_complexity, algorithm.pac_bayesian.objective),
-                    (tree_size, algorithm.pac_bayesian.objective)]
+            return [
+                (individual.fitness.wvalues[0], 1),
+                (rademacher_complexity, objective_weight),
+                (tree_size, objective_weight)
+            ]
         elif self.feature_count_objective:
             feature_count = len(individual.gene)
-            return [(individual.fitness.wvalues[0], 1), (rademacher_complexity, algorithm.pac_bayesian.objective),
-                    (feature_count, algorithm.pac_bayesian.objective)]
+            return [
+                (individual.fitness.wvalues[0], 1),
+                (rademacher_complexity, objective_weight),
+                (feature_count, objective_weight)
+            ]
         elif self.all_objectives:
             tree_size = sum([len(tree) for tree in individual.gene])
             feature_count = len(individual.gene)
             return [
                 (individual.fitness.wvalues[0], 1),
-                (rademacher_complexity, algorithm.pac_bayesian.objective),
-                (tree_size, algorithm.pac_bayesian.objective),
-                (feature_count, algorithm.pac_bayesian.objective),
-                (individual.l2_norm, algorithm.pac_bayesian.objective),
+                (rademacher_complexity, objective_weight),
+                (tree_size, objective_weight),
+                (feature_count, objective_weight),
+                (individual.l2_norm, objective_weight),
             ]
         else:
-            return [(individual.fitness.wvalues[0], 1), (rademacher_complexity, algorithm.pac_bayesian.objective)]
+            return [
+                (individual.fitness.wvalues[0], 1),
+                (rademacher_complexity, objective_weight)
+            ]
 
     def skip_based_on_threshold(self, algorithm, pop):
         # Get R2 score threshold
@@ -191,10 +200,11 @@ class LocalRademacherComplexityR2(RademacherComplexityR2):
     def get_fitness_list(self, individual, rademacher_complexity):
         algorithm = self.algorithm
         weights = individual.pipe['Ridge'].coef_
+        objective_weight = 1
         return [
             (individual.fitness.wvalues[0], 1),
-            (rademacher_complexity, algorithm.pac_bayesian.objective),
-            (np.linalg.norm(weights, ord=2), algorithm.pac_bayesian.objective),
+            (rademacher_complexity, objective_weight),
+            (np.linalg.norm(weights, ord=2), objective_weight),
         ]
 
 
@@ -369,7 +379,7 @@ class R2SizeScaler(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
-        individual.fitness_list = ((score, 1), (tree_size, -self.algorithm.pac_bayesian.objective))
+        individual.fitness_list = ((score, 1), (tree_size, -1))
         return -1 * score,
 
     def post_processing(self, parent, population, hall_of_fame, elite_archive):

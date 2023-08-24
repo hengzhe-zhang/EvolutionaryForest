@@ -1,4 +1,4 @@
-from evolutionary_forest.component.vc_dimension import simple_argmin
+from evolutionary_forest.component.generalization.vc_dimension import simple_argmin
 
 
 def test_argmin():

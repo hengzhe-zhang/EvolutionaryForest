@@ -1,12 +1,10 @@
 import copy
 
 import numpy as np
-import scipy
-from numpy.linalg import LinAlgError
-from scipy.stats import mannwhitneyu, pearsonr
-from sklearn.datasets import make_friedman1, load_diabetes
-from sklearn.linear_model import Ridge, LinearRegression
-from sklearn.metrics import r2_score, mean_squared_error
+from scipy.stats import mannwhitneyu
+from sklearn.datasets import make_friedman1
+from sklearn.linear_model import Ridge
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
@@ -23,7 +21,7 @@ def generate_rademacher_vector(X):
 
 def rademacher_complexity_estimation(X, y, estimator, random_rademacher_vector,
                                      reference_complexity_list=None,
-                                     configuration:PACBayesianConfiguration=None,
+                                     configuration: PACBayesianConfiguration = None,
                                      rademacher_mode='Analytical'):
     """
     Calculates the fitness of a candidate solution/individual by using the relative

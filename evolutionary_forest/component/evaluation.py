@@ -79,7 +79,6 @@ def calculate_score(args):
     original_features = configuration.original_features
     pset = configuration.pset
     sklearn_format = configuration.sklearn_format
-    cross_validation = configuration.cross_validation
     feature_importance_method = configuration.feature_importance_method
     filter_elimination = configuration.filter_elimination
     intron_calculation = configuration.intron_calculation
@@ -176,7 +175,7 @@ def calculate_score(args):
         else:
             y_pred = result['test_score']
         estimators = result['estimator']
-    elif not cross_validation:
+    elif not configuration.cross_validation:
         if configuration.gradient_descent:
             # print('evaluation')
             pipe.fit(Yp.detach().numpy(), Y)
