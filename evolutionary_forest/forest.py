@@ -174,8 +174,6 @@ def similar(a, b):
 
 
 def spearman(ya, yb):
-    if ya.std() < 1e-10:
-        return 1
     return spearmanr(ya, yb)[0]
 
 
