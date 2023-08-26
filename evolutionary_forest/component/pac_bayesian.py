@@ -42,7 +42,7 @@ class PACBayesianConfiguration():
                  l2_penalty=0,
                  complexity_estimation_ratio=1,
                  bound_reduction=False,
-                 direct_reduction=True,
+                 direct_reduction=False,
                  optimal_design=False,
                  reference_model='KR',
                  precision=10,

@@ -151,7 +151,10 @@ class NSGA2(EnvironmentalSelection):
                 values = []
                 for d in range(dims):
                     min_val, max_val = min_max[d]
-                    values.append((ind.fitness.values[d] - min_val) / (max_val - min_val))
+                    normalized_fitness = (ind.fitness.values[d] - min_val)
+                    if (max_val - min_val) > 0:
+                        normalized_fitness = normalized_fitness / (max_val - min_val)
+                    values.append(normalized_fitness)
                 ind.fitness.values = values
 
         population[:] = self.selection_operator(individuals, len(population))

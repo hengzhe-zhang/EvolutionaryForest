@@ -86,7 +86,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import MultiFidelit
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
     gene_to_string, get_activations, reset_random, weighted_avg_and_std, save_array, is_float, cross_scale, \
-    extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor, pareto_front_2d
+    extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor
 
 eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
                  'EDA-Terminal-PM',
@@ -174,6 +174,8 @@ def similar(a, b):
 
 
 def spearman(ya, yb):
+    if np.var(ya) == 0 or np.var(yb) == 0:
+        return 0
     return spearmanr(ya, yb)[0]
 
 
@@ -707,7 +709,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             first_pareto_front = sortNondominated(self.pop, len(self.pop))[0]
             normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
             for ind in first_pareto_front:
-                if not hasattr(ind, 'fitness_list'):
+                if not isinstance(self.score_func, R2PACBayesian):
+                    if isinstance(self.score_func, RademacherComplexityR2):
+                        ind.rademacher_fitness_list = ind.fitness_list
                     pac.assign_complexity(ind, ind.pipe)
                 sharpness_value = ind.fitness_list[1][0]
                 self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor),

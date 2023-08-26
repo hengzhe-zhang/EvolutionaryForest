@@ -84,6 +84,7 @@ class RademacherComplexityR2(Fitness):
         # Normalize mean squared error
         normalize_factor = np.mean((np.mean(y) - y) ** 2)
         if algorithm.pac_bayesian.bound_reduction:
+            # strictly follow the definition of Rademacher complexity
             bounded_mse = np.mean(np.clip(individual.case_values / normalize_factor, 0, 1))
         else:
             bounded_mse = np.mean(individual.case_values / normalize_factor)

@@ -436,14 +436,20 @@ def cv_prediction_from_ridge(Y, base_model: RidgeCV):
 
 
 def pareto_front_2d(points):
-    # warning: only can be usd for 2D
+    # warning: only can be used for 2D
     # minimization problem
     pareto_front = []
-    sorted_points = sorted(points, key=lambda x: x[0])
-    pareto_front.append(sorted_points[0])
+    pareto_indices = []
+    sorted_points = sorted(enumerate(points), key=lambda x: x[1][0])
+    best_point = sorted_points[0]
+    best_point_id = best_point[0]
+    best_point_objectives = best_point[1]
+    pareto_front.append(best_point_objectives)
+    pareto_indices.append(best_point_id)
 
-    for point in sorted_points[1:]:
+    for idx, point in sorted_points[1:]:
         if point[1] < pareto_front[-1][1]:
             pareto_front.append(point)
+            pareto_indices.append(idx)
 
-    return pareto_front
+    return pareto_front, pareto_indices
