@@ -19,7 +19,7 @@ class NoiseConfiguration():
     def __init__(self,
                  noise_type='Normal',
                  noise_to_terminal=False,
-                 noise_normalization='STD',
+                 noise_normalization='Instance',
                  **params):
         self.noise_type = noise_type
         self.noise_to_terminal = noise_to_terminal
