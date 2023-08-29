@@ -123,13 +123,16 @@ class NSGA2(EnvironmentalSelection):
                  objective_normalization=False,
                  knee_point=False,
                  bootstrapping_selection=False,
-                 first_objective_weight=1, **kwargs):
+                 first_objective_weight=1,
+                 max_cluster_point=True, **kwargs):
         self.first_objective_weight = first_objective_weight
         self.bootstrapping_selection = bootstrapping_selection
         self.algorithm = algorithm
         self.objective_function = objective_function
         self.objective_normalization = objective_normalization
         self.knee_point: Union[str, bool] = knee_point
+        # if using clustering for ensemble, max point in each cluster
+        self.max_cluster_point = max_cluster_point
         self.selection_operator = selNSGA2
         self.validation_x = None
         self.validation_y = None
@@ -179,11 +182,6 @@ class NSGA2(EnvironmentalSelection):
                     n_clusters = 10
                     knee_point_mode = self.knee_point
 
-                semantics = np.array([p.predicted_values - self.algorithm.y for p in first_pareto_front])
-                if knee_point_mode == 'Cluster+Ensemble+Euclidian':
-                    semantics = StandardScaler(with_mean=False).fit_transform(semantics)
-                else:
-                    semantics = KernelPCA(kernel='cosine').fit_transform(semantics)
                 if len(first_pareto_front) <= n_clusters:
                     self.algorithm.hof = first_pareto_front
                 else:
@@ -196,6 +194,21 @@ class NSGA2(EnvironmentalSelection):
                     elif knee_point_mode == 'Cluster+Ensemble+Fitness+AC':
                         labels = AgglomerativeClustering(n_clusters=n_clusters).fit_predict(fitness_values)
                     else:
+                        # normalization + reference point synthesis
+                        # (1,1,1)-(0,0,0)=(1,1,1,)
+                        semantics = np.array([p.predicted_values - self.algorithm.y for p in first_pareto_front])
+                        # (0,0,0)-((1,1,1)-(0,0,0))=(-1,-1,-1)
+                        inverse_semantics = np.array([self.algorithm.y - (p.predicted_values - self.algorithm.y)
+                                                      for p in first_pareto_front])
+                        symmetric_semantics = np.concatenate([semantics, inverse_semantics])
+                        if knee_point_mode == 'Cluster+Ensemble+Euclidian':
+                            model = StandardScaler(with_mean=False)
+                        elif knee_point_mode == 'Cluster+Ensemble+Cosine':
+                            model = KernelPCA(kernel='cosine')
+                        else:
+                            raise Exception('Unknown Knee Point Strategy')
+                        model.fit(symmetric_semantics)
+                        semantics = model.transform(semantics)
                         labels = KMeans(n_clusters=n_clusters).fit_predict(semantics)
 
                     # get the best individual from each cluster
@@ -205,7 +218,10 @@ class NSGA2(EnvironmentalSelection):
                         cluster_front = [first_pareto_front[i] for i in cluster_indices]
                         if len(cluster_front) == 0:
                             continue
-                        best_individual = max(cluster_front, key=lambda x: x.fitness.wvalues)
+                        if self.max_cluster_point:
+                            best_individual = max(cluster_front, key=lambda x: x.fitness.wvalues)
+                        else:
+                            best_individual = min(cluster_front, key=lambda x: x.fitness.wvalues)
                         best_individuals.append(best_individual)
                     self.algorithm.hof = best_individuals
             elif self.knee_point == 'Validation':
