@@ -1216,7 +1216,7 @@ def staticLimit_multiple_gene(key, max_value, min_value=0, random_fix=True, fail
                         else:
                             parent = keep_inds[i]
 
-                        if len(parent) < j:
+                        if len(parent) <= j:
                             # not enough gene
                             gene = copy.deepcopy(random.choice(parent))
                         else:
