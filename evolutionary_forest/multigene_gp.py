@@ -1215,7 +1215,12 @@ def staticLimit_multiple_gene(key, max_value, min_value=0, random_fix=True, fail
                             parent = random.choice(keep_inds)
                         else:
                             parent = keep_inds[i]
-                        gene = copy.deepcopy(parent[j])
+
+                        if len(parent) < j:
+                            # not enough gene
+                            gene = copy.deepcopy(random.choice(parent))
+                        else:
+                            gene = copy.deepcopy(parent[j])
                         ind.gene[j] = gene
                     assert key(ind.gene[j]) <= height_limitation
                     assert key(ind.gene[j]) >= min_value

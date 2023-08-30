@@ -1590,7 +1590,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 random_fix=self.random_fix,
                 failure_counter=self.size_failure_counter
             )
-        if self.multi_gene_mutation() and self.mutation_configuration.gene_addition_rate == 0:
+        if self.multi_gene_mutation():
             # For multi-tree variation operators, height constraint is only checked once to save computational resources
             pass
         elif self.max_height == 'dynamic':
