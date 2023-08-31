@@ -45,7 +45,6 @@ class PACBayesianConfiguration():
                  direct_reduction=False,
                  optimal_design=False,
                  reference_model='KR',
-                 precision=10,
                  sharpness_iterations=10,
                  **params):
         # For VCD
@@ -60,7 +59,6 @@ class PACBayesianConfiguration():
         self.perturbation_std = perturbation_std
         self.objective = objective
         self.l2_penalty = l2_penalty
-        self.precision = precision
         self.sharpness_iterations = sharpness_iterations
 
 
