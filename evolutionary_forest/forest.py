@@ -74,6 +74,7 @@ from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.PLTree import SoftPLTreeRegressor, SoftPLTreeRegressorEM, PLTreeRegressor, RidgeDT, \
     LRDTClassifier, RidgeDTPlus, RandomWeightRidge
 from evolutionary_forest.model.RBFN import RBFN
+from evolutionary_forest.model.SafeRidgeCV import BoundedRidgeCV
 from evolutionary_forest.model.SafetyLR import SafetyLogisticRegression
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.multigene_gp import *
@@ -1323,6 +1324,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ridge = eval(self.ridge_alphas)
             ridge_model = RidgeCV(alphas=ridge, store_cv_values=True,
                                   scoring=make_scorer(r2_score))
+        elif self.base_learner == 'Bounded-RidgeCV':
+            ridge_model = BoundedRidgeCV(store_cv_values=True, scoring=make_scorer(r2_score))
         elif self.base_learner == 'ElasticNetCV':
             ridge_model = ElasticNetCV(l1_ratio=[.1, .5, .7, .9, .95, .99, 1], n_alphas=10)
         elif self.base_learner == 'LR':
