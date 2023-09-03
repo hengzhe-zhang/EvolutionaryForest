@@ -159,6 +159,8 @@ class NSGA2(EnvironmentalSelection):
                         normalized_fitness = normalized_fitness / (max_val - min_val)
                     values.append(normalized_fitness)
                 ind.fitness.values = values
+                if hasattr(ind, 'temp_fitness'):
+                    ind.temp_fitness = ind.fitness.values
 
         population[:] = self.selection_operator(individuals, len(population))
 

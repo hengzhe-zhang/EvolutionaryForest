@@ -2004,13 +2004,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             def comparison(a, b):
                 return a.sam_loss < b.sam_loss
 
-            self.hof = CustomHOF(self.ensemble_size, comparison_function=comparison)
+            self.hof = CustomHOF(self.ensemble_size, comparison_function=comparison,
+                                 key_metric=lambda x: -x.sam_loss)
         elif self.ensemble_selection == 'WeightedSum':
             # Automatically determine the ensemble size
             def comparison(a, b):
                 return sum(a.fitness.wvalues) > sum(b.fitness.wvalues)
 
-            self.hof = CustomHOF(self.ensemble_size, comparison_function=comparison)
+            self.hof = CustomHOF(self.ensemble_size, comparison_function=comparison,
+                                 key_metric=lambda x: sum(x.fitness.wvalues))
         elif self.ensemble_selection == 'StrictlyImprovement':
             self.hof = StrictlyImprovementHOF(self.ensemble_size)
         elif self.ensemble_selection == 'GeneralizationHOF':

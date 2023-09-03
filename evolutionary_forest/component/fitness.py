@@ -278,8 +278,12 @@ class R2GrandComplexity(Fitness):
         if parent is not None:
             population = parent + population
         all_individuals = combine_individuals(population, hall_of_fame, elite_archive)
+        for ind in hall_of_fame:
+            assert abs(ind.fitness.values[0] - ind.temp_fitness[0]) < 1e-10, \
+                f"{ind.fitness.values[0], ind.temp_fitness[0]}"
         for ind in all_individuals:
             ind.temp_fitness = ind.fitness.values
+            ind.fitness.weights = len(ind.grand_complexity) * (-1,)
             ind.fitness.values = ind.grand_complexity
         layers = sortNondominated(all_individuals, len(all_individuals))
         for gid, layer in enumerate(layers):

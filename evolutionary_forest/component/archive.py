@@ -1,6 +1,7 @@
 import copy
 import math
 import operator
+from bisect import bisect_right
 from collections import defaultdict
 from functools import partial
 from itertools import chain, compress
@@ -29,8 +30,10 @@ class StrictlyImprovementHOF(HallOfFame):
 
 
 class CustomHOF(HallOfFame):
-    def __init__(self, maxsize, comparison_function, similar=eq):
+    def __init__(self, maxsize, comparison_function, key_metric,
+                 similar=eq):
         self.comparison_function = comparison_function
+        self.key_metric = key_metric
         super().__init__(maxsize, similar)
 
     def update(self, population):
@@ -52,6 +55,12 @@ class CustomHOF(HallOfFame):
                     if len(self) >= self.maxsize:
                         self.remove(-1)
                     self.insert(ind)
+
+    def insert(self, item):
+        item = copy.deepcopy(item)
+        i = bisect_right(self.keys, self.key_metric(item))
+        self.items.insert(len(self) - i, item)
+        self.keys.insert(i, self.key_metric(item))
 
 
 class GeneralizationHOF(HallOfFame):
