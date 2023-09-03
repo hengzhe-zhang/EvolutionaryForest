@@ -305,6 +305,8 @@ class R2WCRV(Fitness):
         variables = set(variables)
         # calculate the WCRV
         inputs = np.array([self.algorithm.X[:, x] for x in variables]).T
+        if len(inputs) == 0:
+            return (-1 * score, 0)
         residuals = (Y - y_pred)
         weights = [calculate_mic(inputs[:, i], residuals)
                    for i in range(inputs.shape[1])]  # Calculate the weight for each input variable
