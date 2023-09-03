@@ -1220,6 +1220,9 @@ def staticLimit_multiple_gene(key, max_value, min_value=0, random_fix=True, fail
                             # not enough gene
                             gene = copy.deepcopy(random.choice(parent))
                         else:
+                            # When having deletion or addition operators,
+                            # the same index may not be the original one.
+                            # However, this is a reasonable temporary solution.
                             gene = copy.deepcopy(parent[j])
                         ind.gene[j] = gene
                     assert key(ind.gene[j]) <= height_limitation
