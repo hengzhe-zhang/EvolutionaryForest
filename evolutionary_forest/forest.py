@@ -664,6 +664,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.evaluation_configuration = EvaluationConfiguration(
             **params,
             **vars(self),
+            classification=isinstance(self, ClassifierMixin)
         )
         if self.constant_type == 'GD':
             self.evaluation_configuration.gradient_descent = True
@@ -957,7 +958,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 assert len(individual.case_values) == self.evaluation_configuration.batch_size, \
                     len(individual.case_values)
             else:
-                assert len(individual.case_values) == len(Y), len(individual.case_values)
+                assert len(individual.case_values) == len(Y), f'{len(individual.case_values)},{len(Y)}'
 
         individual.hash_result = information.hash_result
         individual.semantics = information.semantic_results
@@ -4598,6 +4599,8 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
 
         # smaller is better
         if self.score_func == 'ZeroOne' or self.score_func == 'ZeroOne-NodeCount':
+            if y_pred.size != Y.size:
+                y_pred = np.argmax(Y, axis=0)
             individual.case_values = -1 * (y_pred.flatten() == Y.flatten())
         elif self.score_func == 'CDFC':
             matrix = confusion_matrix(Y.flatten(), y_pred.flatten())
@@ -4605,7 +4608,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             individual.case_values = -1 * score
         elif self.score_func == 'CrossEntropy' or self.score_func == 'NoveltySearch':
             one_hot_targets = OneHotEncoder(sparse_output=False).fit_transform(self.y.reshape(-1, 1))
-            eps = 1e-15
+            eps = np.finfo(y_pred.dtype).eps
             # Cross entropy
             individual.case_values = -1 * np.sum(one_hot_targets * np.log(np.clip(y_pred, eps, 1 - eps)), axis=1)
             assert not np.any(np.isnan(individual.case_values)), save_array(individual.case_values)

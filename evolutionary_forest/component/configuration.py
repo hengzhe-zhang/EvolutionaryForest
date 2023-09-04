@@ -198,7 +198,9 @@ class EvaluationConfiguration():
                  semantic_crossover_probability=0,
                  gradient_descent=False,
                  gradient_optimizer='SGD',
-                 transductive_learning=False, **params):
+                 transductive_learning=False,
+                 classification=False,
+                 **params):
         # prediction results of the neural network
         self.gradient_optimizer = gradient_optimizer
         self.nn_prediction = nn_prediction
@@ -241,6 +243,7 @@ class EvaluationConfiguration():
                 lsh_key = self.bloat_control["lsh_size"]
         # locality sensitive hashing, a very rare case
         self.lsh = lsh_key
+        self.classification = classification
 
         # weights
         self.sample_weight = None

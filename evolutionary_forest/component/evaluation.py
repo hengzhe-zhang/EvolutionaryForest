@@ -35,7 +35,7 @@ from evolutionary_forest.component.configuration import EvaluationConfiguration,
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimitiveSet, quick_fill, GPPipeline
 from evolutionary_forest.sklearn_utils import cross_val_predict
-from evolutionary_forest.utils import reset_random, cv_prediction_from_ridge
+from evolutionary_forest.utils import reset_random, cv_prediction_from_ridge, one_hot_encode
 
 np.seterr(invalid='ignore')
 reset_random(0)
@@ -492,8 +492,6 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
     if gradient_descent and isinstance(data, np.ndarray):
         data = torch.from_numpy(data).float().detach()
 
-    intron_gp = configuration.intron_gp
-    lsh = configuration.lsh
     # evaluate an individual rather than a gene
     if sklearn_format:
         data = enum.Enum('Enum', {f"ARG{i}": i for i in range(data.shape[1])})
@@ -529,9 +527,9 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
         # ordinary GP evaluation
         for gene in func:
             feature, intron_ids = quick_evaluate(gene, pset, data, target=target if similarity_score else None,
-                                                 intron_gp=intron_gp, lsh=lsh,
                                                  return_subtree_information=True,
                                                  random_noise=random_noise,
+                                                 evaluation_configuration=configuration,
                                                  noise_configuration=noise_configuration)
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
@@ -573,18 +571,16 @@ cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
 def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
-                   intron_gp=False, lsh=False, return_subtree_information=False,
-                   random_noise=0, noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
+                   return_subtree_information=False, random_noise=0,
+                   evaluation_configuration: EvaluationConfiguration = None,
+                   noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
     # random noise is very important for sharpness aware minimization
     # quickly evaluate a primitive tree
+    intron_gp = evaluation_configuration.intron_gp
+    lsh = evaluation_configuration.lsh
+    classification = evaluation_configuration.classification
     if lsh:
-        rng = np.random.RandomState(0)
-        if lsh == 'Log':
-            random_matrix = rng.randn(len(data), int(np.ceil(np.log2(len(data)))))
-        elif not isinstance(lsh, bool) and isinstance(lsh, int):
-            random_matrix = rng.randn(len(data), int(lsh))
-        else:
-            random_matrix = rng.randn(len(data), 10)
+        random_matrix = lsh_matrix_initialization(lsh, data)
     result = None
     stack = []
     subtree_information = {}
@@ -639,14 +635,14 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                     # If this primitive outputs constant, this can be viewed as an intron
                     subtree_information[id] = -1
                 else:
-                    subtree_information[id] = np.abs(cos_sim(result - result.mean(), target - target.mean()))
+                    if classification:
+                        one_hot = one_hot_encode(target)
+                        similarity = max(map(lambda t: np.abs(cos_sim(result - result.mean(), t)), one_hot.T))
+                        subtree_information[id] = similarity
+                    else:
+                        subtree_information[id] = np.abs(cos_sim(result - result.mean(), target - target.mean()))
                     if lsh:
-                        # locality sensitive hash
-                        hash_id = 0
-                        final_sign = (result - result.mean()) @ random_matrix
-                        for s_id, s in enumerate(final_sign):
-                            if s > 0:
-                                hash_id += 1 << s_id
+                        hash_id = local_sensitive_hash(random_matrix, result)
                         subtree_information[id] = (subtree_information[id], hash_id)
                     if best_subtree_semantics is None or best_score < subtree_information[id]:
                         best_score = subtree_information[id]
@@ -667,6 +663,27 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             return result, subtree_information
         else:
             return result
+
+
+def lsh_matrix_initialization(lsh, data):
+    rng = np.random.RandomState(0)
+    if lsh == 'Log':
+        random_matrix = rng.randn(len(data), int(np.ceil(np.log2(len(data)))))
+    elif not isinstance(lsh, bool) and isinstance(lsh, int):
+        random_matrix = rng.randn(len(data), int(lsh))
+    else:
+        random_matrix = rng.randn(len(data), 10)
+    return random_matrix
+
+
+def local_sensitive_hash(random_matrix: np.ndarray, result):
+    # locality sensitive hash
+    hash_id = 0
+    final_sign = (result - result.mean()) @ random_matrix
+    for s_id, s in enumerate(final_sign):
+        if s > 0:
+            hash_id += 1 << s_id
+    return hash_id
 
 
 def inject_noise_to_data(result,

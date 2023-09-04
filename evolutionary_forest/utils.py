@@ -453,3 +453,26 @@ def pareto_front_2d(points):
             pareto_indices.append(idx)
 
     return pareto_front, pareto_indices
+
+
+def one_hot_encode(categories):
+    """
+    Perform One-Hot Encoding on a given NumPy array of integer categories.
+
+    Parameters:
+        categories (np.array): The NumPy array containing integer categories.
+
+    Returns:
+        np.array: A NumPy array with One-Hot Encoded columns.
+    """
+
+    # Find all unique categories and their corresponding indices in the original array
+    unique_categories, inverse = np.unique(categories, return_inverse=True)
+
+    # Initialize a zero array with shape (number of samples, number of unique categories)
+    one_hot = np.zeros((categories.shape[0], unique_categories.shape[0]))
+
+    # Set appropriate positions to 1 based on original category positions
+    one_hot[np.arange(categories.shape[0]), inverse] = 1
+
+    return one_hot

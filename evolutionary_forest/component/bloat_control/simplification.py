@@ -31,7 +31,7 @@ class Simplification():
                     tree = gene.searchSubtree(gid)
                     value = quick_evaluate(gene[tree], self.algorithm.pset, self.algorithm.X[:1])
                     if isinstance(value, np.ndarray):
-                        value = value.flatten()[0]
+                        value = float(value.flatten()[0])
                     c = IntronTerminal(value, False, object)
                     gene[tree] = [c]
                 gid += 1
