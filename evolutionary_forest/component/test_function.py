@@ -1,8 +1,9 @@
 import copy
+from typing import TYPE_CHECKING
 
 import numpy as np
-from sklearn.metrics import r2_score
-from typing import TYPE_CHECKING
+from sklearn.base import ClassifierMixin
+from sklearn.metrics import r2_score, balanced_accuracy_score
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -42,7 +43,10 @@ class TestFunction():
     def predict_loss(self):
         if len(self.x) > 0:
             y_p = self.regr.predict(self.x)
-            return r2_score(self.y, y_p)
+            if isinstance(self.regr, ClassifierMixin):
+                return balanced_accuracy_score(self.y, y_p)
+            else:
+                return r2_score(self.y, y_p)
         else:
             return 0
 

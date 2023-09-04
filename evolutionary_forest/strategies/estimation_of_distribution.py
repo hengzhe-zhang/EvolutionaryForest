@@ -410,6 +410,7 @@ class EstimationOfDistribution():
                     self.mab.update(k, v)
                 self.terminal_prob_count = self.mab.normalized_probability()
             elif isinstance(terminal_counts, list):
+                # independent for each location
                 if not isinstance(self.mab, list):
                     self.mab = MultiArmBandit.create_multiple(len(terminal_counts))
                 for i, c in enumerate(terminal_counts):

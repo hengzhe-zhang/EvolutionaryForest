@@ -2,6 +2,7 @@ from collections import Counter, defaultdict
 from typing import TYPE_CHECKING
 
 import numpy as np
+from deap.tools import selNSGA2, selBest
 
 from evolutionary_forest.component.configuration import MABConfiguration
 
@@ -201,3 +202,39 @@ class MCTS(MultiArmBandit):
         for o in parent:
             o.survival_operator_id = survival_operator_id
         return parent
+
+    def archive_initialization(self, population):
+        self.nsga_archive = population
+        self.afp_archive = population
+        self.best_archive = population
+
+    def store_in_archive(self, offspring):
+        nsga_archive = self.nsga_archive
+        afp_archive = self.afp_archive
+        best_archive = self.best_archive
+
+        for ind in offspring + nsga_archive + afp_archive + best_archive:
+            setattr(ind, 'original_fitness', ind.fitness.values)
+            ind.fitness.weights = (-1, -1)
+            ind.fitness.values = [ind.fitness.values[0], sum([len(x) for x in ind.gene])]
+        nsga_archive = selNSGA2(offspring + nsga_archive, len(offspring))
+        best_archive = selBest(offspring + best_archive, len(offspring))
+        for ind in offspring:
+            ind.age = 0
+            ind.fitness.values = [ind.fitness.values[0], ind.age]
+
+        # multiobjective GP based on age-fitness
+        for ind in nsga_archive + afp_archive + best_archive:
+            if hasattr(ind, 'age'):
+                ind.age += 1
+            else:
+                ind.age = 0
+            ind.fitness.values = [ind.fitness.values[0], ind.age]
+        afp_archive = selNSGA2(offspring + afp_archive, len(offspring))
+        for ind in offspring + nsga_archive + afp_archive + best_archive:
+            ind.fitness.weights = (-1,)
+            ind.fitness.values = getattr(ind, 'original_fitness')
+
+        self.nsga_archive = nsga_archive
+        self.afp_archive = afp_archive
+        self.best_archive = best_archive

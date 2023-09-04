@@ -484,7 +484,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                              configuration: EvaluationConfiguration = None,
                              similarity_score=False,
                              random_noise=0,
-                             noise_configuration=None):
+                             noise_configuration: NoiseConfiguration = None):
     if configuration is None:
         configuration = EvaluationConfiguration()
 
@@ -574,6 +574,8 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                    return_subtree_information=False, random_noise=0,
                    evaluation_configuration: EvaluationConfiguration = None,
                    noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
+    if evaluation_configuration is None:
+        evaluation_configuration = EvaluationConfiguration()
     # random noise is very important for sharpness aware minimization
     # quickly evaluate a primitive tree
     intron_gp = evaluation_configuration.intron_gp
@@ -627,7 +629,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                         and noise_configuration.noise_to_terminal:
                         result = inject_noise_to_data(result, random_noise, noise_configuration)
                 else:
-                    result = prim.value
+                    result = float(prim.value)
             else:
                 raise Exception
             if target is not None:

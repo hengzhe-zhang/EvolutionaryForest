@@ -2836,13 +2836,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         # archive initialization
         if self.select == 'Auto-MCTS':
-            nsga_archive = population
-            afp_archive = population
-            best_archive = population
-        else:
-            nsga_archive = None
-            afp_archive = None
-            best_archive = None
+            self.aos: MCTS
+            self.aos.archive_initialization(population)
         # self.update_semantic_repair_input_matrix(population)
         elites_archive = self.update_external_archive(population, None)
 
@@ -3208,26 +3203,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # multiobjective GP based on fitness-size
             if self.select == 'Auto-MCTS':
-                for ind in offspring + nsga_archive + afp_archive + best_archive:
-                    setattr(ind, 'original_fitness', ind.fitness.values)
-                    ind.fitness.weights = (-1, -1)
-                    ind.fitness.values = [ind.fitness.values[0], sum([len(x) for x in ind.gene])]
-                nsga_archive = selNSGA2(offspring + nsga_archive, len(population))
-                best_archive = selBest(offspring + best_archive, len(population))
-                for ind in offspring:
-                    ind.age = 0
-                    ind.fitness.values = [ind.fitness.values[0], ind.age]
-                # multiobjective GP based on age-fitness
-                for ind in nsga_archive + afp_archive + best_archive:
-                    if hasattr(ind, 'age'):
-                        ind.age += 1
-                    else:
-                        ind.age = 0
-                    ind.fitness.values = [ind.fitness.values[0], ind.age]
-                afp_archive = selNSGA2(offspring + afp_archive, len(population))
-                for ind in offspring + nsga_archive + afp_archive + best_archive:
-                    ind.fitness.weights = (-1,)
-                    ind.fitness.values = getattr(ind, 'original_fitness')
+                self.aos.store_in_archive(offspring)
 
             self.redundant_features_calculation(offspring)
             # Replace the current population by the offspring
@@ -3694,7 +3670,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 testing_loss = self.test_fun[1].predict_loss()
                 self.test_data_history.append(testing_loss)
                 if verbose:
-                    print('Testing Loss', testing_loss)
+                    print('Test Loss', testing_loss)
             self.pop_avg_fitness_history.append(np.mean([ind.fitness.wvalues[0] for ind in population]))
             self.pop_diversity_history.append(self.diversity_calculation(population))
             if not isinstance(self, ClassifierMixin):
@@ -4539,8 +4515,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         predictions = []
         weight_list = []
         for i, individual in enumerate(self.hof):
-            func = self.toolbox.compile(individual)
-            Yp = result_calculation(func, X, self.original_features)
+            Yp = quick_result_calculation(individual.gene, self.pset, X)
             if self.test_data is not None:
                 Yp = Yp[-prediction_data_size:]
             predicted = individual.pipe.predict_proba(Yp)
