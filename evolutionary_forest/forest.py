@@ -41,12 +41,16 @@ from xgboost import XGBRegressor
 
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
+from evolutionary_forest.component.bloat_control.direct_semantic_approximation import DSA
+from evolutionary_forest.component.bloat_control.prune_and_plant import PAP
+from evolutionary_forest.component.bloat_control.semantic_hoist import SHM
+from evolutionary_forest.component.bloat_control.simplification import Simplification
+from evolutionary_forest.component.bloat_control.tarpeian import Tarpeian
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
     BaseLearnerConfiguration, ExperimentalConfiguration
 from evolutionary_forest.component.crossover import cxOnePointAdaptive
-from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal, \
-    individual_combination
+from evolutionary_forest.component.crossover_mutation import hoistMutation, individual_combination
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
@@ -60,7 +64,6 @@ from evolutionary_forest.component.normalizer import TargetEncoder
 from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType, pac_bayesian_estimation
 from evolutionary_forest.component.primitive_functions import get_functions, get_differentiable_functions
 from evolutionary_forest.component.primitives import *
-from evolutionary_forest.component.primitives import np_mean
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \
@@ -83,23 +86,13 @@ from evolutionary_forest.preprocess_utils import GeneralFeature, CategoricalFeat
 from evolutionary_forest.probability_gp import genHalfAndHalf, genFull
 from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.strategies.adaptive_operator_selection import MultiArmBandit, MCTS
-from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution
+from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution, eda_operators
 from evolutionary_forest.strategies.multifidelity_evaluation import MultiFidelityEvaluation
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
     gene_to_string, get_activations, reset_random, weighted_avg_and_std, save_array, is_float, cross_scale, \
     extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor
 
-eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
-                 'EDA-Terminal-PM',
-                 # Using mean importance value, which is more reasonable
-                 'EDA-Terminal-PM!', 'EDA-Terminal-PM!!',
-                 'EDA-Terminal-Balanced', 'EDA-Terminal-SameWeight', 'EDA-Terminal-PMI',
-                 'EDA-Terminal-PM-Biased', 'EDA-Terminal-PM-Population', 'EDA-PM-Population',
-                 'EDA-Terminal-PM-Frequency', 'EDA-Terminal-PM-Tournament',
-                 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-BSC', 'EDA-Terminal-PM-TSC',
-                 'EDA-Terminal-PM-SC-WS', 'EDA-Terminal-PM-SC-NT',
-                 'EDA-Terminal-PM-SameIndex']
 multi_gene_operators = ['uniform-plus', 'uniform-plus-SC', 'uniform-plus-BSC',
                         'uniform-plus-AdaptiveCrossover',
                         'uniform-plus-semantic', 'parsimonious_mutation']
@@ -2918,19 +2911,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     # Hoist mutation is almost able to hoist the most important part.
                     self.hash_based_simplification(population, self.hof)
 
-                if self.bloat_control.get("hoist_probability") == 'adaptive':
-                    if adaptive_hoist_probability is None:
-                        adaptive_hoist_probability = 1
-                    if no_improvement_iteration > 0:
-                        adaptive_hoist_probability -= 0.1
-                    else:
-                        adaptive_hoist_probability += 0.1
-                    adaptive_hoist_probability = np.clip(adaptive_hoist_probability, 0, 1)
-                    print(adaptive_hoist_probability)
+                adaptive_hoist_probability = self.tune_hoist_probability(adaptive_hoist_probability,
+                                                                         no_improvement_iteration)
 
                 if self.bloat_control_configuration.hoist_before_selection:
-                    self.semantic_hoist_mutation(population, adaptive_hoist_probability)
+                    shm = SHM(self, **self.bloat_control)
+                    shm.semantic_hoist_mutation(population, adaptive_hoist_probability)
 
+            # offspring generation
             while (len(new_offspring) < pop_size):
                 if count > pop_size * 100:
                     raise Exception("Error!")
@@ -2976,14 +2964,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                 offspring: List[MultipleGeneGP] = offspring[:]
                 if not self.bloat_control_configuration.hoist_before_selection:
+                    shm = SHM(self, **self.bloat_control)
                     # deep copy and then hoist
                     offspring = pickle_deepcopy(offspring)
-                    self.semantic_hoist_mutation(offspring, adaptive_hoist_probability)
+                    shm.semantic_hoist_mutation(offspring, adaptive_hoist_probability)
 
-                if self.bloat_control is not None and self.bloat_control.get('semantic_prune_and_plant', False):
-                    # Semantic Prune-and-Plant (Before Mutation)
-                    if random.random() < self.bloat_control.get('prune_and_plant_pb', 1):
-                        offspring = self.prune_and_plant(offspring, best=True)
+                offspring = self.semantic_prune_and_plant(offspring)
 
                 # Vary the pool of individuals
                 if self.multi_gene_mutation():
@@ -3061,10 +3047,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                     o.gene[id] = self.new_tree_generation()
                             previous_set.add(str(gene))
 
-                if self.bloat_control is not None and self.bloat_control.get('prune_and_plant', False):
-                    # Traditional Prune-and-Plant (After Mutation)
-                    if random.random() < self.bloat_control.get('prune_and_plant_pb', 1):
-                        offspring = self.prune_and_plant(offspring, best=False)
+                offspring = self.prune_and_plant(offspring)
 
                 # very strong mutation
                 if self.intron_threshold > 0:
@@ -3095,28 +3078,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             new_offspring.append(o)
 
             assert len(new_offspring) == pop_size
-            if self.bloat_control is not None and self.bloat_control.get('subtree_approximation', False):
-                static_limit_function = staticLimit_multiple_gene(
-                    key=operator.attrgetter("height"),
-                    max_value=self.max_height,
-                    min_value=self.min_height,
-                    random_fix=False
-                )
-                subtree_approximation = static_limit_function(self.subtree_approximation)
-                new_offspring = subtree_approximation(*new_offspring)
-
-            # Tarpeian
-            if self.bloat_control and self.bloat_control.get('tarpeian', False):
-                # If lexicase selection, individuals can be directly deleted
-                assert 'Lexicase' in self.select
-                avg_size = np.mean([len(o) for o in new_offspring])
-                candidates = []
-                candidates.extend(list(filter(lambda o: len(o) <= avg_size, new_offspring)))
-                for o in filter(lambda o: len(o) > avg_size, new_offspring):
-                    # random drop some big individuals
-                    if random.random() > self.bloat_control.get('reduce_fraction', 0.3):
-                        candidates.append(o)
-                new_offspring = candidates
+            new_offspring = self.semantic_approximation(new_offspring)
+            new_offspring = self.tarpeian(new_offspring)
 
             self.time_statistics['GP Generation'].append(time.time() - start_time)
             # delete some inherited information
@@ -3155,10 +3118,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 p_value = self.get_p_value(offspring, population)
                 print('P value of different population', p_value)
 
-            # prune after evaluation
-            for o in offspring:
-                for gene in o.gene:
-                    self.gene_prune(gene)
+            self.gp_simplification(offspring)
 
             if self.environmental_selection == 'NSGA2-Mixup':
                 self.mixup_evaluation(self.toolbox, offspring)
@@ -3336,6 +3296,63 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.calculate_pareto_front()
         return population, logbook
 
+    def semantic_approximation(self, new_offspring):
+        if self.bloat_control is not None and self.bloat_control.get('subtree_approximation', False):
+            static_limit_function = staticLimit_multiple_gene(
+                key=operator.attrgetter("height"),
+                max_value=self.max_height,
+                min_value=self.min_height,
+                random_fix=False
+            )
+            dsa = DSA(self)
+            subtree_approximation = static_limit_function(dsa.subtree_semantic_approximation)
+            new_offspring = subtree_approximation(*new_offspring)
+        return new_offspring
+
+    def tune_hoist_probability(self, adaptive_hoist_probability, no_improvement_iteration):
+        if self.bloat_control.get("hoist_probability") == 'adaptive':
+            if adaptive_hoist_probability is None:
+                adaptive_hoist_probability = 1
+            if no_improvement_iteration > 0:
+                adaptive_hoist_probability -= 0.1
+            else:
+                adaptive_hoist_probability += 0.1
+            adaptive_hoist_probability = np.clip(adaptive_hoist_probability, 0, 1)
+            print(adaptive_hoist_probability)
+        return adaptive_hoist_probability
+
+    def gp_simplification(self, offspring):
+        # prune after evaluation
+        simplification = Simplification(self, **self.bloat_control)
+        for o in offspring:
+            for gene in o.gene:
+                simplification.gene_prune(gene)
+
+    def tarpeian(self, new_offspring):
+        # Tarpeian
+        if self.bloat_control and self.bloat_control.get('tarpeian', False):
+            # If lexicase selection, individuals can be directly deleted
+            assert 'Lexicase' in self.select
+            tpe = Tarpeian(self, **self.bloat_control)
+            new_offspring = tpe.tarpeian(new_offspring)
+        return new_offspring
+
+    def prune_and_plant(self, offspring):
+        if self.bloat_control is not None and self.bloat_control.get('prune_and_plant', False):
+            # Traditional Prune-and-Plant (After Mutation)
+            if random.random() < self.bloat_control.get('prune_and_plant_pb', 1):
+                pap = PAP(self)
+                offspring = pap.prune_and_plant(offspring, best=False)
+        return offspring
+
+    def semantic_prune_and_plant(self, offspring):
+        if self.bloat_control is not None and self.bloat_control.get('semantic_prune_and_plant', False):
+            # Semantic Prune-and-Plant (Before Mutation)
+            if random.random() < self.bloat_control.get('prune_and_plant_pb', 1):
+                pap = PAP(self)
+                offspring = pap.prune_and_plant(offspring, best=True)
+        return offspring
+
     def torch_variable_clone(self, offspring):
         if self.evaluation_configuration.gradient_descent:
             # clone all variables
@@ -3378,20 +3395,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for o in offspring:
                 o.parent_fitness = parent_fitness
                 o.crossover_type = crossover_type
-
-    def semantic_hoist_mutation(self, population, adaptive_hoist_probability):
-        if self.gene_num == 1:
-            # Check across different individual to ensure diversity
-            previous_gene = set()
-            for o in sorted(population, key=lambda x: x.fitness.wvalues, reverse=True):
-                if self.bloat_control.get("diversity_enhancement", False):
-                    self.hoist_mutation(o, adaptive_hoist_probability, previous_gene)
-                else:
-                    self.hoist_mutation(o, adaptive_hoist_probability)
-        else:
-            for o in population:
-                o: MultipleGeneGP
-                self.hoist_mutation(o, adaptive_hoist_probability)
 
     def get_p_value(self, offspring, population):
         num_top_individuals = 30
@@ -3469,34 +3472,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if isinstance(self.mutation_pb, str):
                 mutpb = float(self.mutation_pb.replace('InverseAdaptive-', '').replace('Adaptive-', ''))
         return cxpb, mutpb
-
-    def subtree_approximation(self, *population):
-        toolbox = self.toolbox
-        mean_size = np.mean([len(p.gene) for p in population])
-        for p in population:
-            for g in p.gene:
-                if len(g) > mean_size:
-                    index = random.randrange(len(g))
-                    slice_ = g.searchSubtree(index)
-                    if slice_.stop - slice_.start <= 3:
-                        continue
-                    type_ = g[index].ret
-                    old_y = quick_evaluate(g[slice_], self.pset, self.X)
-                    old_y = quick_fill([old_y], self.y)[0]
-                    new_ind = None
-                    # 1000 trails
-                    for _ in range(0, 1000):
-                        new_ind = toolbox.expr_mut(pset=self.pset, type_=type_)
-                        if len(new_ind) < slice_.stop - slice_.start - 2:
-                            break
-                    if new_ind is not None:
-                        new_y = quick_evaluate(new_ind, self.pset, self.X)
-                        new_y = quick_fill([new_y], self.y)[0]
-                        theta = np.dot(new_y, old_y) / np.dot(new_y, new_y)
-                        new_ind.insert(0, self.pset.mapping["Mul"])
-                        new_ind.insert(1, Terminal(theta, False, object))
-                        g[slice_] = new_ind
-        return population
 
     def hash_based_simplification(self, population, simplification_pop):
         best_gene = {}
@@ -3581,142 +3556,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             out[k] = v
         return out
 
-    def hoist_mutation(self, o, hoist_probability=None, previous_gene=None):
-        hoist_frequency = self.bloat_control.get('hoist_frequency', 0)
-        if hoist_frequency != 0 and self.current_gen % hoist_frequency != 0 and self.current_gen != self.n_gen:
-            # skip hoist operation after a few iterations
-            return
-
-        if previous_gene is None:
-            previous_gene = set()
-
-        if self.bloat_control.get("rank_by_size", False):
-            order = list(enumerate(np.argsort([len(g) for g in o.gene])))
-        elif self.bloat_control.get("rank_by_size_inverse", False):
-            order = list(enumerate(np.argsort([len(g) for g in o.gene])))
-        elif self.bloat_control.get("rank_by_weight", False):
-            order = list(enumerate(np.argsort(-1 * o.coef)))
-        else:
-            order = list(enumerate(range(0, len(o.gene))))
-
-        """
-        Iteratively hoist trees, until used all trees
-        """
-        iteratively_check = self.bloat_control.get("iteratively_check", False)
-        key_item = self.bloat_control.get("key_item", 'String')
-        new_gene = []
-
-        # rank all gene
-        all_genes = [list(sorted([(k, getattr(g, 'corr', 0), gid) for k, g in enumerate(gene)],
-                                 key=lambda x: (x[1], x[0]),
-                                 reverse=True)) for gid, gene in enumerate(o.gene)]
-
-        dynamic_threshold = np.mean(list(map(lambda g: g[1], chain.from_iterable(all_genes))))
-        dynamic_threshold = dynamic_threshold * self.bloat_control.get("dynamic_threshold", 0)
-
-        dropout_probability = self.bloat_control.get("dropout_probability", 0)
-        shared_gene = self.bloat_control.get("shared_gene", False)
-        if shared_gene:
-            all_genes = list(sorted(chain.from_iterable(all_genes), key=lambda x: (x[1], x[0]), reverse=True))
-
-        while len(new_gene) < self.gene_num:
-            fail = True
-            for eid, gid in order:
-                gene = o.gene[gid]
-                if hoist_probability is None:
-                    hoist_probability = self.bloat_control.get('hoist_probability', 1)
-                hoisted = False
-                if random.random() < hoist_probability:
-                    """
-                    Take correlation into consideration
-                    """
-                    if dropout_probability > 0 and random.random() < dropout_probability:
-                        # Random dropout a gene
-                        new_tree = self.new_tree_generation()
-                        new_gene.append(new_tree)
-                        continue
-
-                    no_check = self.bloat_control.get("no_check", False)
-                    if shared_gene:
-                        gene_list = all_genes
-                    else:
-                        gene_list = all_genes[gid]
-                    for c_index, candidate_id in enumerate(gene_list):
-                        if shared_gene:
-                            gene = o.gene[candidate_id[2]]
-                        # get a string of a subtree
-                        sub_tree_id: slice = gene.searchSubtree(candidate_id[0])
-                        if key_item == 'String':
-                            # String is the simplest way to avoid identical features
-                            gene_str = gene_to_string(gene[sub_tree_id])
-                        elif key_item == 'Correlation':
-                            gene_str = gene[sub_tree_id][0].corr
-                        elif key_item == 'LSH':
-                            # LSH is an ideal way to avoid hoisting similar features
-                            # np.unique([o.hash_id for o in chain.from_iterable(o.gene)])
-                            gene_str = gene[sub_tree_id][0].hash_id
-                        else:
-                            raise Exception("Unexpected Key!")
-
-                        if no_check or (gene_str not in previous_gene and
-                                        getattr(gene[candidate_id[0]], 'corr', 0) > dynamic_threshold):
-                            # never hoist a redundant gene or a irrelevant gene
-                            previous_gene.add(gene_str)
-                            new_gene.append(hoistMutation(copy.deepcopy(gene), candidate_id[0]))
-                            hoisted = True
-                            # any successful hoist is okay
-                            fail = False
-                            # all previous genes are not re-usable, thus skip them
-                            if shared_gene:
-                                all_genes = all_genes[c_index + 1:]
-                            else:
-                                all_genes[gid] = all_genes[gid][c_index + 1:]
-                            break
-
-                    if not hoisted and self.bloat_control.get("feature_reinitialization", False) and not no_check:
-                        if shared_gene:
-                            all_genes = []
-                        else:
-                            all_genes[gid] = []
-                        new_tree = self.new_tree_generation()
-                        new_gene.append(new_tree)
-                        continue
-
-                    if not hoisted and self.bloat_control.get("do_nothing", False) and not no_check:
-                        new_gene.append(gene)
-                        continue
-
-                    # add a zero tree
-                    if not hoisted and self.bloat_control.get("zero_tree", False) and not no_check:
-                        new_gene.append(PrimitiveTree([Terminal(0, False, object)]))
-                        continue
-
-                    if not hoisted and not iteratively_check:
-                        """
-                        All possible operations:
-                        1. Randomly initialize a new tree
-                        2. Generate a zero tree
-                        3. Skip checking
-                        4. Iteratively check
-                        """
-                        raise Exception(f'There is no available operation for tree {gid}!')
-                else:
-                    new_gene.append(gene)
-
-            if not iteratively_check or fail:
-                break
-
-        assert len(new_gene) >= 0
-        if not iteratively_check:
-            assert len(new_gene) == self.gene_num, f'Number of Genes {len(new_gene)}'
-        # may sample more trees, just taking a few is enough
-        new_gene = new_gene[:self.gene_num]
-        while len(new_gene) < self.gene_num:
-            new_tree = self.new_tree_generation()
-            new_gene.append(new_tree)
-        assert len(new_gene) == self.gene_num, f'Number of Genes {len(new_gene)}'
-        o.gene = new_gene
-
     def new_tree_generation(self):
         # randomly generate a new tree
         # Return: a new gene
@@ -3736,60 +3575,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             new_tree = genFull(self.pset, a, b)
         new_tree = PrimitiveTree(new_tree)
         return new_tree
-
-    def gene_prune(self, gene):
-        if self.bloat_control is None or (not self.bloat_control.get('hoist_mutation', False)):
-            return
-        constant_prune = self.bloat_control.get('constant_prune', True)
-        if constant_prune:
-            # constant prune
-            gid = 0
-            while gid < len(gene):
-                if getattr(gene[gid], 'corr', None) == -1:
-                    tree = gene.searchSubtree(gid)
-                    value = quick_evaluate(gene[tree], self.pset, self.X[:1])
-                    if isinstance(value, np.ndarray):
-                        value = value.flatten()[0]
-                    c = IntronTerminal(value, False, object)
-                    gene[tree] = [c]
-                gid += 1
-        equal_prune = self.bloat_control.get('equal_prune', True)
-        if equal_prune:
-            gid = 0
-            while gid < len(gene):
-                equal_subtree = getattr(gene[gid], 'equal_subtree', -1)
-                if equal_subtree >= 0:
-                    tree = gene.searchSubtree(gid)
-                    subtree = gid + 1
-                    subtree_id = 0
-                    while subtree_id < equal_subtree:
-                        subtree = gene.searchSubtree(subtree).stop
-                        subtree_id += 1
-                    gene[tree] = gene[gene.searchSubtree(subtree)]
-                gid += 1
-
-    def prune_and_plant(self, offspring, best=False):
-        new_population = []
-        for o in offspring:
-            new_o = copy.deepcopy(o)
-            for id, gene, new_gene in zip(range(0, len(o.gene)), o.gene, new_o.gene):
-                # avoid to prune a trivial tree with only one node, as it cannot reduce the tree size
-                primitive_nodes = list(filter(lambda x: x != 0 and isinstance(gene[x], Primitive), range(0, len(gene))))
-                if len(primitive_nodes) == 0:
-                    continue
-                if best:
-                    best_id = max([(k, getattr(gene[k], 'corr', 0)) for k in primitive_nodes],
-                                  key=lambda x: (x[1], x[0]))[0]
-                else:
-                    best_id = random.choice(primitive_nodes)
-                # small tree
-                hoistMutation(new_gene, best_id)
-                # remove small tree from original tree
-                hoistMutationWithTerminal(gene, best_id, self.pset, self.terminal_prob)
-            new_population.append(o)
-            new_population.append(new_o)
-        offspring = new_population
-        return offspring
 
     def thread_pool_initialization(self):
         arg = (self.X, self.y, self.score_func, self.cv, self.evaluation_configuration)

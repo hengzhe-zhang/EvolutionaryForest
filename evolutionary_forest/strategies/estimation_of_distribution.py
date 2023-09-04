@@ -17,6 +17,17 @@ from evolutionary_forest.strategies.multiarm_bandit import MultiArmBandit
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
+eda_operators = ['probability-TS', 'EDA-Primitive', 'EDA-Terminal', 'EDA-PM',
+                 'EDA-Terminal-PM',
+                 # Using mean importance value, which is more reasonable
+                 'EDA-Terminal-PM!', 'EDA-Terminal-PM!!',
+                 'EDA-Terminal-Balanced', 'EDA-Terminal-SameWeight', 'EDA-Terminal-PMI',
+                 'EDA-Terminal-PM-Biased', 'EDA-Terminal-PM-Population', 'EDA-PM-Population',
+                 'EDA-Terminal-PM-Frequency', 'EDA-Terminal-PM-Tournament',
+                 'EDA-Terminal-PM-SC', 'EDA-Terminal-PM-BSC', 'EDA-Terminal-PM-TSC',
+                 'EDA-Terminal-PM-SC-WS', 'EDA-Terminal-PM-SC-NT',
+                 'EDA-Terminal-PM-SameIndex']
+
 
 def is_number(string):
     try:
