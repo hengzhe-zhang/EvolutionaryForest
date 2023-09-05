@@ -107,7 +107,13 @@ class MultipleGeneGP():
 
     def gene_addition(self):
         if len(self.gene) < self.max_gene_num:
-            self.gene.append(PrimitiveTree(self.content()))
+            existing_genes = set([str(g) for g in self.gene])
+            tree = PrimitiveTree(self.content())
+            iteration = 0
+            while str(tree) in existing_genes and iteration < 100:
+                tree = PrimitiveTree(self.content())
+                iteration += 1
+            self.gene.append(tree)
 
     def gene_deletion(self):
         if len(self.gene) > 1:
@@ -132,7 +138,7 @@ class MultipleGeneGP():
         self.max_gene_num = gene_num
         self.active_gene_num = active_gene_num
         self.content = content
-        if configuration.gene_addition_rate > 0:
+        if configuration.gene_addition_rate > 0 or configuration.gene_deletion_rate > 0:
             gene_num = 1
         self.tree_initialization(content, gene_num)
         if tpot_model != None:

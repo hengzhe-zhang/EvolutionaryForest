@@ -157,11 +157,12 @@ class MutationConfiguration():
                  safe_mutation=False,
                  mutation_expr_height=None,
                  max_height=10,
-                 gene_add_del_rate=0,
+                 gene_addition_rate=0,
+                 gene_deletion_rate=0,
                  **params):
         self.intron_parameters: dict = intron_parameters
-        self.gene_addition_rate = gene_add_del_rate
-        self.gene_deletion_rate = gene_add_del_rate
+        self.gene_addition_rate = gene_addition_rate
+        self.gene_deletion_rate = gene_deletion_rate
         self.safe_mutation = safe_mutation
         self.mutation_expr_height: str = mutation_expr_height
         self.max_height = max_height
