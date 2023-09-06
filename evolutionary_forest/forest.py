@@ -60,6 +60,9 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
     LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
     PACBayesianR2Scaler, R2WCRV, R2IODC, R2GrandComplexity
 from evolutionary_forest.component.generation import varAndPlus
+from evolutionary_forest.component.initialization import initialize_crossover_operator
+from evolutionary_forest.component.mutation.common import MutationOperator
+from evolutionary_forest.component.mutation.learning_based_mutation import BuildingBlockLearning
 from evolutionary_forest.component.normalizer import TargetEncoder
 from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType, pac_bayesian_estimation
 from evolutionary_forest.component.primitive_functions import get_functions, get_differentiable_functions
@@ -1490,25 +1493,21 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # mutation operators
         if 'EDA' in self.mutation_scheme:
             assert self.mutation_scheme in eda_operators, "EDA-based mutation operator must be listed!"
-        if 'uniform' in self.mutation_scheme or self.mutation_scheme in multi_gene_operators:
+        if 'LBM' in self.mutation_scheme:
+            initialize_crossover_operator(self, toolbox)
+            self.mutation_scheme = BuildingBlockLearning(pset)
+            toolbox.mutate = self.mutation_scheme.mutate
+        elif 'uniform' in self.mutation_scheme or self.mutation_scheme in multi_gene_operators:
             # extract mutation operator
             if '|' in self.mutation_scheme:
                 mutation_operator = self.mutation_scheme.split('|')[1]
             else:
                 mutation_operator = None
 
-            if self.mutation_configuration.mutation_expr_height is not None:
-                # custom defined height
-                min_, max_ = self.mutation_configuration.mutation_expr_height.split('-')
-                min_, max_ = int(min_), int(max_)
-                toolbox.expr_mut = partial(gp.genFull, min_=min_, max_=max_)
-            elif self.basic_primitives == 'StrongTyped':
-                toolbox.expr_mut = partial(gp.genFull, min_=1, max_=3)
-            else:
-                toolbox.expr_mut = partial(gp.genFull, min_=0, max_=2)
+            self.mutation_expression_function(toolbox)
             toolbox.tree_generation = gp.genFull
 
-            self.initialize_crossover_operator(toolbox)
+            initialize_crossover_operator(self, toolbox)
 
             # special mutation operators
             if self.transformer_switch:
@@ -1529,9 +1528,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 raise Exception
         elif self.mutation_scheme in eda_operators:
-            self.initialize_crossover_operator(toolbox)
+            initialize_crossover_operator(self, toolbox)
 
-            # If mutation scheme is 'EDA-Terminal', use Dirichlet distribution to sample terminals
+            # If the mutation scheme is 'EDA-Terminal', use Dirichlet distribution to sample terminals
             if self.mutation_scheme == 'EDA-Terminal':
                 partial_func = partial(genFull_with_prob, model=self, sample_type='Dirichlet')
             else:
@@ -1566,8 +1565,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             history = History()
             self.history = history
             # Decorate the variation operators
-            toolbox.decorate("mate", history.decorator)
-            toolbox.decorate("mutate", history.decorator)
+            # toolbox.decorate("mate", history.decorator)
+            # toolbox.decorate("mutate", history.decorator)
 
         self.size_failure_counter = FailureCounter()
         if isinstance(self.max_height, str) and self.max_height.startswith("fix"):
@@ -1649,35 +1648,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.evaluation_configuration.sample_weight = get_sample_weight(self.X, self.test_X, self.y,
                                                                             self.imbalanced_configuration)
 
-    def initialize_crossover_operator(self, toolbox):
-        # Define the crossover operator based on the EDA operator
-        if 'Biased' in self.mutation_scheme:
-            toolbox.register("mate", cxOnePoint_multiple_gene_biased)
-        elif 'SameWeight' in self.mutation_scheme:
-            toolbox.register("mate", cxOnePoint_multiple_gene_same_weight)
-        elif 'Tournament' in self.mutation_scheme:
-            toolbox.register("mate", cxOnePoint_multiple_gene_tournament)
-        elif self.mutation_scheme.endswith('-SC'):
-            toolbox.register("mate", partial(cxOnePoint_multiple_gene_SC,
-                                             crossover_configuration=self.crossover_configuration))
-        elif self.mutation_scheme.endswith('-BSC'):
-            # Good Biased
-            toolbox.register("mate", partial(cxOnePoint_multiple_gene_BSC,
-                                             crossover_configuration=self.crossover_configuration))
-        elif self.mutation_scheme.endswith('-TSC'):
-            # Tournament SC
-            toolbox.register("mate", partial(cxOnePoint_multiple_gene_TSC,
-                                             crossover_configuration=self.crossover_configuration))
-        elif 'SameIndex' in self.mutation_scheme:
-            toolbox.register("mate", cxOnePoint_multiple_gene_same_index)
-        elif 'AllGene' in self.mutation_scheme:
-            toolbox.register("mate", cxOnePoint_all_gene)
-        elif 'AdaptiveCrossover' in self.mutation_scheme:
-            toolbox.register("mate", cxOnePointAdaptive)
+    def mutation_expression_function(self, toolbox):
+        if self.mutation_configuration.mutation_expr_height is not None:
+            # custom defined height
+            min_, max_ = self.mutation_configuration.mutation_expr_height.split('-')
+            min_, max_ = int(min_), int(max_)
+            toolbox.expr_mut = partial(gp.genFull, min_=min_, max_=max_)
+        elif self.basic_primitives == 'StrongTyped':
+            # STGP
+            toolbox.expr_mut = partial(gp.genFull, min_=1, max_=3)
         else:
-            toolbox.register("mate", cxOnePoint_multiple_gene,
-                             pset=self.pset,
-                             crossover_configuration=self.get_crossover_configuration())
+            toolbox.expr_mut = partial(gp.genFull, min_=0, max_=2)
 
     def get_crossover_configuration(self):
         return self.crossover_configuration
@@ -2661,7 +2642,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return None
 
     def append_evaluated_features(self, pop):
-        if self.mutation_scheme in eda_operators or 'uniform' in self.mutation_scheme:
+        if isinstance(self.mutation_scheme, MutationOperator) or \
+            self.mutation_scheme in eda_operators or 'uniform' in self.mutation_scheme:
             return
         # append evaluated features to an archive
         # this archive can be used to eliminate repetitive features
@@ -2708,6 +2690,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def callback(self):
         self.validation_set_generation()
         gc.collect()
+        if isinstance(self.mutation_scheme, MutationOperator):
+            self.mutation_scheme.callback(self.pop)
         # callback function after each generation
         if self.verbose:
             pop = self.pop
@@ -2728,7 +2712,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.X, self.valid_x, self.y, self.valid_y = train_test_split(X, y, test_size=self.validation_size)
 
     def multi_gene_mutation(self):
-        return self.mutation_scheme in multi_gene_operators or self.mutation_scheme in eda_operators
+        return self.mutation_scheme in multi_gene_operators or self.mutation_scheme in eda_operators or \
+            isinstance(self.mutation_scheme, MutationOperator)
 
     def eaSimple(self, population, toolbox, cxpb, mutpb, ngen, stats=None,
                  halloffame=None, verbose=__debug__):
@@ -2804,7 +2789,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.diversity_search != 'None':
             self.diversity_assignment(population)
 
-        if 'global' in self.mutation_scheme or 'extreme' in self.mutation_scheme:
+        if isinstance(self.mutation_scheme, str) and \
+            ('global' in self.mutation_scheme or 'extreme' in self.mutation_scheme):
             self.construct_global_feature_pool(population)
 
         record = stats.compile(population) if stats else {}
@@ -2860,7 +2846,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             self.repetitive_feature_count.append(0)
             self.entropy_calculation()
-            if self.mutation_scheme in eda_operators or 'EDA' in self.mutation_scheme:
+            if isinstance(self.mutation_scheme, str) and \
+                (self.mutation_scheme in eda_operators or 'EDA' in self.mutation_scheme):
                 if self.mutation_scheme == 'EDA-Terminal-PM-Frequency':
                     self.estimation_of_distribution.frequency_counting(importance_weight=False)
                 else:
@@ -3191,7 +3178,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.stage_flag:
                 print('Stop HOF updating')
 
-            if 'global' in self.mutation_scheme or 'extreme' in self.mutation_scheme:
+            if isinstance(self.mutation_scheme, str) and \
+                ('global' in self.mutation_scheme or 'extreme' in self.mutation_scheme):
                 self.construct_global_feature_pool(population)
             self.append_evaluated_features(offspring)
 

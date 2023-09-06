@@ -90,7 +90,7 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                     if random.random() < mutpb and (not crossover_configuration.var_or
                                                     or (i not in crossed_individual)):
                         offspring[i], = toolbox.mutate(offspring[i])
-                        # if an individual is already modified by crossover,
+                        # if crossover already modifies an individual,
                         # then set its parent fitness as the fitness values of two parents
                         if offspring[i].parent_fitness is None:
                             parent_fitness = offspring[i].fitness.wvalues[0]

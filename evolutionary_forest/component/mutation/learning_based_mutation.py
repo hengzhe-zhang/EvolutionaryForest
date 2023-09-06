@@ -2,6 +2,7 @@ import copy
 import operator
 import random
 from inspect import isclass
+from itertools import chain
 from typing import List
 
 import numpy as np
@@ -11,6 +12,9 @@ from deap.gp import PrimitiveTree, Primitive, Terminal, PrimitiveSet
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
+
+from evolutionary_forest.component.mutation.common import MutationOperator
+from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
 def parse_tree_to_tuples(root: PrimitiveTree):
@@ -53,7 +57,7 @@ def get_name(parent):
     return name
 
 
-class BuildingBlockLearning():
+class BuildingBlockLearning(MutationOperator):
     def __init__(self, pset):
         # generate a primitive mapping dict
         self.pset: PrimitiveSet = pset
@@ -96,6 +100,8 @@ class BuildingBlockLearning():
         return training_data, training_label
 
     def sampling(self, tree: PrimitiveTree):
+        if len(tree) <= 1:
+            return tree
         tree = copy.copy(tree)
         # random sampling a non-root node
         index = random_non_leaf_node(tree)
@@ -111,7 +117,7 @@ class BuildingBlockLearning():
 
         if prediction not in self.pset.mapping:
             # must be random constant
-            tree[index + idx] = Terminal(float(prediction), False, float(prediction))
+            subtree_list = [Terminal(float(prediction), False, object)]
         else:
             # if primitive, recursively generate a whole tree
             if isinstance(self.pset.mapping[prediction], Primitive):
@@ -132,7 +138,10 @@ class BuildingBlockLearning():
                         now = existing + ['?' for _ in range(parent.arity - (len(existing) - 1))]
                         prediction = self.make_prediction_by_incomplete_tree(now, only_terminal)
 
-                        node = self.pset.mapping[prediction]
+                        if prediction not in self.pset.mapping:
+                            node = Terminal(float(prediction), False, object)
+                        else:
+                            node = self.pset.mapping[prediction]
                         if only_terminal:
                             assert isinstance(node, Terminal)
                         existing.append(get_name(node))
@@ -143,28 +152,27 @@ class BuildingBlockLearning():
                             subtree_list.append(node)
                         elif isinstance(node, Primitive):
                             subtree_list.append(node)
-                            recursive(depth + 1, parent)
+                            recursive(depth + 1, node)
 
                 recursive(0, root_node)
             else:
                 assert isinstance(self.pset.mapping[prediction], Terminal)
                 subtree_list = [self.pset.mapping[prediction]]
 
-            if isinstance(tree[index + idx], Primitive):
-                # the original is a subtree
-                sub_tree_range = tree.searchSubtree(index + idx)
-                tree[sub_tree_range] = subtree_list
-            else:
-                # the original is a leaf node
-                try:
-                    tree[slice(index + idx, index + idx + 1)] = subtree_list
-                except:
-                    pass
+        if isinstance(tree[index + idx], Primitive):
+            # the original is a subtree
+            sub_tree_range = tree.searchSubtree(index + idx)
+            tree[sub_tree_range] = subtree_list
+        else:
+            # the original is a leaf node
+            tree[slice(index + idx, index + idx + 1)] = subtree_list
 
         return tree
 
     def make_prediction_by_incomplete_tree(self, current_tree, only_terminal=False):
         # make predictions
+        if len(current_tree) < self.decision_tree.n_features_in_:
+            current_tree += [np.nan for _ in range(self.decision_tree.n_features_in_ - len(current_tree))]
         current_tree = pd.DataFrame([current_tree]).astype(str)
         prediction = self.decision_tree.predict_proba(current_tree)
         prediction = prediction[0]
@@ -172,9 +180,13 @@ class BuildingBlockLearning():
             possible_index = []
             # only consider terminal variables
             for x in range(len(prediction)):
-                if not isinstance(self.pset.mapping[self.decision_tree.classes_[x]], Primitive):
+                cs = self.decision_tree.classes_[x]
+                if (cs not in self.pset.mapping) or (not isinstance(self.pset.mapping[cs], Primitive)):
                     possible_index.append(x)
             prediction = prediction[np.array(possible_index)]
+            if np.sum(prediction) == 0:
+                # sometimes, may be unable to sample terminals
+                prediction = np.full_like(prediction, 1)
             # probability normalization
             prediction = prediction / np.sum(prediction)
         else:
@@ -183,6 +195,18 @@ class BuildingBlockLearning():
         classes = list(self.decision_tree.classes_)
         prediction = str(classes[random_id[0]])
         return prediction
+
+    def callback(self, population):
+        # learning good individuals
+        individuals: List[MultipleGeneGP] = list(sorted(population, key=lambda x: x.fitness.wvalues, reverse=True)) \
+            [:int(0.1 * len(population))]
+        self.fit(chain.from_iterable([ind.gene for ind in individuals]))
+
+    def mutate(self, individual: MultipleGeneGP):
+        tree, tid = individual.random_select(with_id=True)
+        tree = self.sampling(tree)
+        individual.gene[tid] = tree
+        return individual,
 
 
 def generate_random_tree(pset: PrimitiveSet):
@@ -202,7 +226,9 @@ def pset_intialization():
     pset.addPrimitive(operator.add, 2)
     pset.addPrimitive(operator.sub, 2)
     pset.addPrimitive(operator.mul, 2)
-    pset.addTerminal(1)
+    pset.addPrimitive(np.sin, 1)
+    pset.addPrimitive(np.cos, 1)
+    pset.addEphemeralConstant('rand', lambda: random.random())
     pset.addTerminal(2)
     return pset
 

@@ -1,10 +1,12 @@
 import copy
 import random
+from inspect import isclass
 from typing import TYPE_CHECKING, List
 
+import numpy as np
 from deap.gp import Primitive
 
-from evolutionary_forest.component.crossover_mutation import hoistMutation, hoistMutationWithTerminal
+from evolutionary_forest.component.crossover_mutation import hoistMutation
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 if TYPE_CHECKING:
@@ -38,3 +40,21 @@ class PAP():
             new_population.extend((o, new_o))
         offspring = new_population
         return offspring
+
+
+def hoistMutationWithTerminal(ind, best_index, pset, terminal_probs=None):
+    """
+    Bloat control: Replace one subtree with a constant
+    """
+    sub_slice = ind.searchSubtree(best_index)
+    if terminal_probs is None:
+        # Terminal without a probability
+        terminal_node = random.choice(pset.terminals[pset.ret])
+    else:
+        terminal_probs = terminal_probs / terminal_probs.sum()
+        terminal_node = np.random.choice(pset.terminals[pset.ret], p=terminal_probs)
+    if isclass(terminal_node):
+        # For random constants
+        terminal_node = terminal_node()
+    ind[sub_slice] = [terminal_node]
+    return ind

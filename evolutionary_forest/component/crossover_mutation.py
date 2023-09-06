@@ -2,11 +2,9 @@ import copy
 import random
 from collections import defaultdict
 from functools import partial
-from inspect import isclass
 from operator import eq, lt
 from typing import List
 
-import numpy as np
 from deap.gp import __type__, mutUniform, cxOnePoint, PrimitiveTree, Primitive
 
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration
@@ -330,25 +328,4 @@ def cxOnePointWithRoot(ind1, ind2, configuration: CrossoverConfiguration):
 def hoistMutation(ind, best_index):
     sub_slice = ind.searchSubtree(best_index)
     ind[0:len(ind)] = ind[sub_slice]
-    return ind
-
-
-def hoistMutationWithTerminal(ind, best_index, pset, terminal_probs=None):
-    """
-    Bloat control
-    Intron deletion
-    Replace most important subtree with a constant
-    Random sampling or EDA sampling?
-    """
-    sub_slice = ind.searchSubtree(best_index)
-    if terminal_probs is None:
-        # Terminal with probability
-        terminal_node = random.choice(pset.terminals[pset.ret])
-    else:
-        terminal_probs = terminal_probs / terminal_probs.sum()
-        terminal_node = np.random.choice(pset.terminals[pset.ret], p=terminal_probs)
-    if isclass(terminal_node):
-        # For random constants
-        terminal_node = terminal_node()
-    ind[sub_slice] = [terminal_node]
     return ind
