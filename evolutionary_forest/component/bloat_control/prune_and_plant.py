@@ -20,22 +20,21 @@ class PAP():
         for o in offspring:
             new_o = copy.deepcopy(o)
             for id, gene, new_gene in zip(range(0, len(o.gene)), o.gene, new_o.gene):
-                # avoid to prune a trivial tree with only one node, as it cannot reduce the tree size
-                primitive_nodes = list(
-                    filter(lambda x: x != 0 and isinstance(gene[x], Primitive), range(0, len(gene))))
+                # avoid pruning a trivial tree with only one node, as it cannot reduce the tree size
+                primitive_nodes = list(filter(lambda x: x != 0 and isinstance(gene[x], Primitive),
+                                              range(len(gene))))
                 if len(primitive_nodes) == 0:
                     continue
                 if best:
-                    best_id = max([(k, getattr(gene[k], 'corr', 0)) for k in primitive_nodes],
+                    best_id = max(((k, getattr(gene[k], 'corr', 0)) for k in primitive_nodes),
                                   key=lambda x: (x[1], x[0]))[0]
                 else:
                     best_id = random.choice(primitive_nodes)
                 # small tree
                 hoistMutation(new_gene, best_id)
-                # remove small tree from original tree
+                # remove a small tree from an original tree
                 hoistMutationWithTerminal(gene, best_id, self.algorithm.pset,
                                           self.algorithm.estimation_of_distribution.terminal_prob)
-            new_population.append(o)
-            new_population.append(new_o)
+            new_population.extend((o, new_o))
         offspring = new_population
         return offspring
