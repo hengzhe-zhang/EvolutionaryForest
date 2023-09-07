@@ -107,17 +107,30 @@ class MultipleGeneGP():
 
     def gene_addition(self):
         if len(self.gene) < self.max_gene_num:
+            # not add the same gene
             existing_genes = set([str(g) for g in self.gene])
             tree = PrimitiveTree(self.content())
             iteration = 0
-            while str(tree) in existing_genes and iteration < 100:
+            while str(tree) in existing_genes:
+                if iteration >= 100:
+                    # not try to add genes
+                    return
                 tree = PrimitiveTree(self.content())
                 iteration += 1
             self.gene.append(tree)
 
-    def gene_deletion(self):
+    def gene_deletion(self, weighted=False):
         if len(self.gene) > 1:
-            random_index = random.randrange(self.gene_num)
+            if weighted:
+                # The less important, the large chance to be deleted
+                coefs = 1 / np.maximum(abs(self.coef), 1e-10)
+                if coefs.sum() == 0:
+                    coefs = np.full_like(self.coef, 1)
+                coefs = coefs / np.sum(coefs)
+                random_index = np.random.choice(np.arange(len(coefs)), p=coefs)
+            else:
+                # can delete anyone, including randomly generated
+                random_index = random.randrange(self.gene_num)
             del self.gene[random_index]
 
     def __init__(self, content,
