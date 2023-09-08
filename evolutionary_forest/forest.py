@@ -27,7 +27,7 @@ from sklearn.linear_model import Ridge, LogisticRegression, LogisticRegressionCV
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split, GridSearchCV
+from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split, GridSearchCV, KFold
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import MinMaxScaler, FunctionTransformer
@@ -2279,6 +2279,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             X = np.concatenate([X, np.array(data).T], axis=1)
             self.pretrain_models = models
 
+        self.pretrain_reference_model(X, y)
+        return X
+
+    def pretrain_reference_model(self, X, y):
         if isinstance(self.score_func, R2PACBayesian) and self.score_func.sharpness_type == SharpnessType.DataLGBM:
             if self.pac_bayesian.reference_model == 'XGB':
                 self.reference_lgbm = XGBRegressor(n_jobs=1)
@@ -2303,7 +2307,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.reference_lgbm.fit(X, y)
         else:
             self.reference_lgbm = None
-        return X
 
     def add_noise_to_data(self, X):
         param = self.param
@@ -2744,32 +2747,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             invalid_ind = self.population_evaluation(toolbox, population)
 
         if self.pac_bayesian.perturbation_std == 'Auto':
-            best_score = -1
-            best_alpha = 0.01
-            for alpha in [1, 5e-1, 1e-1, 5e-2, 1e-2, 1e-3, 0]:
-                self.pac_bayesian.perturbation_std = alpha
-                scores = []
-                sharpness = []
-                # automatically determine parameter
-                for individual in population:
-                    feature_generator = lambda data, random_noise=0, noise_configuration=None: \
-                        self.feature_generation(data, individual, random_noise=random_noise,
-                                                noise_configuration=noise_configuration)
-                    features = feature_generator(self.X)
-                    estimation = pac_bayesian_estimation(features, self.X, self.y, individual.pipe, individual,
-                                                         self.evaluation_configuration.cross_validation,
-                                                         self.pac_bayesian, SharpnessType.Parameter,
-                                                         feature_generator=feature_generator)
-                    score = cross_val_score(individual.pipe, feature_generator(self.X), self.y)
-                    scores.append(np.mean(score))
-                    sharpness_value = estimation[1][0]
-                    naive_mse = np.mean(individual.case_values)
-                    sharpness.append(-1 * (naive_mse + sharpness_value))
-                correlation = spearmanr(scores, sharpness)[0]
-                if best_score < correlation:
-                    best_score = correlation
-                    best_alpha = alpha
-            self.pac_bayesian.perturbation_std = best_alpha
+            self.automatic_perturbation_std(population)
 
         self.post_processing_after_evaluation(None, population)
 
@@ -3260,6 +3238,52 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.post_prune(self.hof)
         self.calculate_pareto_front()
         return population, logbook
+
+    def automatic_perturbation_std(self, population):
+        best_score = np.inf
+        best_alpha = 0.1
+        for alpha in [1, 5e-1, 1e-1, 5e-2, 1e-2, 1e-3, 0]:
+            self.pac_bayesian.perturbation_std = alpha
+            scores = []
+            val_scores = []
+
+            # automatically determine parameter
+            for individual in population:
+                feature_generator = lambda data, random_noise=0, noise_configuration=None: \
+                    self.feature_generation(data, individual, random_noise=random_noise,
+                                            noise_configuration=noise_configuration)
+                kf_scores = []
+                kf_val_scores = []
+
+                kf = KFold(n_splits=5)
+                for train_index, val_index in kf.split(self.X):
+                    X_train, X_val = self.X[train_index], self.X[val_index]
+                    y_train, y_val = self.y[train_index], self.y[val_index]
+                    features = feature_generator(X_train)
+
+                    # refit pipe
+                    individual.pipe.fit(features, y_train)
+                    individual.predicted_values = individual.pipe.predict(features)
+
+                    # PAC-Bayesian
+                    estimation = pac_bayesian_estimation(features, X_train, y_train, individual.pipe, individual,
+                                                         self.evaluation_configuration.cross_validation,
+                                                         self.pac_bayesian, SharpnessType.Parameter,
+                                                         feature_generator=feature_generator)
+                    sharpness_value = estimation[1][0]
+                    kf_scores.append(sharpness_value + mean_squared_error(y_train, individual.predicted_values))
+
+                    # prediction on validation
+                    val_features = feature_generator(X_val)
+                    val_prediction = individual.pipe.predict(val_features)
+                    kf_val_scores.append(mean_squared_error(y_val, val_prediction))
+                scores.append(np.mean(kf_scores))
+                val_scores.append(np.mean(kf_val_scores))
+            best_val_score = val_scores[np.argmin(scores)]
+            if best_score > best_val_score:
+                best_score = best_val_score
+                best_alpha = alpha
+        self.pac_bayesian.perturbation_std = best_alpha
 
     def semantic_approximation(self, new_offspring):
         if self.bloat_control is not None and self.bloat_control.get('subtree_approximation', False):
