@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 class Fitness():
     def fitness_value(self, individual, estimators, Y, y_pred):
-        # very simple fitness evaluation
+        # basic fitness evaluation
         # warning: Minimization
         return -1 * r2_score(Y, y_pred),
 
@@ -461,11 +461,10 @@ class R2PACBayesian(Fitness):
         # using SAM loss as the final selection criterion
         naive_mse = np.mean(individual.case_values)
         # sharpness value is a numerical value
-        individual.sam_loss = (1 - self.sharpness_loss_weight) * naive_mse + \
-                              self.sharpness_loss_weight * sharpness_value
+        individual.sam_loss = naive_mse + sharpness_value
         if len(sharpness_vector) > 0:
-            # if the sharpness vector is available
-            # smaller is  better
+            # if the sharpness vector is available,
+            # smaller is better
             individual.case_values = individual.case_values + sharpness_vector
         return -1 * individual.fitness_list[0][0],
 

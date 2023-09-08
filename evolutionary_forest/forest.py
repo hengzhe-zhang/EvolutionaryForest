@@ -59,6 +59,7 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
     RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2, TikhonovR2, R2FeatureCount, \
     LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
     PACBayesianR2Scaler, R2WCRV, R2IODC, R2GrandComplexity
+from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.initialization import initialize_crossover_operator
 from evolutionary_forest.component.mutation.common import MutationOperator
@@ -355,7 +356,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.rmp_ratio = rmp_ratio
         self.columns = None
         self.custom_primitives = custom_primitives
-        # EDA distribution are shared across different genes
+        # EDA distribution is shared across different genes
         # This can alleviate the genetic drift on a specific gene
         self.shared_eda = shared_eda
         # feature boosting means generate data iteratively
@@ -2710,7 +2711,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # print(parameters)
 
         if self.pac_bayesian.automatic_std and (self.current_gen % 20 == 0 and self.current_gen != 0):
-            self.automatic_perturbation_std(self.pop)
+            automatic_perturbation_std(self, self.pop)
 
     def validation_set_generation(self):
         if self.archive_configuration.dynamic_validation:
@@ -2750,7 +2751,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             invalid_ind = self.population_evaluation(toolbox, population)
 
         if self.pac_bayesian.automatic_std:
-            self.automatic_perturbation_std(population)
+            automatic_perturbation_std(self, population)
 
         self.post_processing_after_evaluation(None, population)
 
@@ -3241,65 +3242,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.post_prune(self.hof)
         self.calculate_pareto_front()
         return population, logbook
-
-    def automatic_perturbation_std(self, population):
-        for individual in population:
-            individual.backup_predictions = individual.predicted_values
-        best_score = np.inf
-        best_alpha = 0.1
-        for alpha in [1, 3e-1, 1e-1, 3e-2, 1e-2, 1e-3, 0]:
-            self.pac_bayesian.perturbation_std = alpha
-            scores = []
-            val_scores = []
-
-            # automatically determine parameter
-            for individual in population:
-                feature_generator = lambda data, random_noise=0, noise_configuration=None: \
-                    self.feature_generation(data, individual, random_noise=random_noise,
-                                            noise_configuration=noise_configuration)
-                kf_scores = []
-                kf_val_scores = []
-
-                kf = KFold(n_splits=5)
-                for train_index, val_index in kf.split(self.X):
-                    X_train, X_val = self.X[train_index], self.X[val_index]
-                    y_train, y_val = self.y[train_index], self.y[val_index]
-                    features = feature_generator(X_train)
-
-                    # please do not touch the original pipeline
-                    pipe = copy.deepcopy(individual.pipe)
-                    pipe.fit(features, y_train)
-                    individual.predicted_values = pipe.predict(features)
-
-                    # PAC-Bayesian
-                    estimation = pac_bayesian_estimation(features, X_train, y_train, pipe, individual,
-                                                         self.evaluation_configuration.cross_validation,
-                                                         self.pac_bayesian, SharpnessType.Parameter,
-                                                         feature_generator=feature_generator)
-                    sharpness_value = estimation[1][0]
-                    mse_training = mean_squared_error(y_train, individual.predicted_values)
-                    kf_scores.append(sharpness_value + mse_training)
-
-                    # prediction on validation
-                    val_features = feature_generator(X_val)
-                    val_prediction = pipe.predict(val_features)
-                    mse_validation = mean_squared_error(y_val, val_prediction)
-                    kf_val_scores.append(mse_validation)
-                scores.append(np.mean(kf_scores))
-                val_scores.append(np.mean(kf_val_scores))
-            best_val_score = val_scores[np.argmin(scores)]
-            # print('alpha', alpha,
-            #       'correlation', spearman(scores, val_scores),
-            #       'best score', best_val_score,
-            #       'best sharpness', np.min(scores))
-            if best_score > best_val_score:
-                best_score = best_val_score
-                best_alpha = alpha
-        self.pac_bayesian.perturbation_std = best_alpha
-        print('Current best alpha', best_alpha)
-        for individual in population:
-            individual.predicted_values = individual.backup_predictions
-            del individual.backup_predictions
 
     def semantic_approximation(self, new_offspring):
         if self.bloat_control is not None and self.bloat_control.get('subtree_approximation', False):

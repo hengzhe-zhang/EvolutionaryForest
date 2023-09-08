@@ -46,7 +46,9 @@ class PACBayesianConfiguration():
                  optimal_design=False,
                  reference_model='KR',
                  sharpness_iterations=10,
-                 automatic_std=False, **params):
+                 automatic_std=False,
+                 automatic_std_model='KNN',
+                 **params):
         # For VCD
         self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
@@ -61,6 +63,7 @@ class PACBayesianConfiguration():
         self.objective = objective
         self.l2_penalty = l2_penalty
         self.sharpness_iterations = sharpness_iterations
+        self.automatic_std_model = automatic_std_model
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
