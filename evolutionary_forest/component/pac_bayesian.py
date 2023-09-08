@@ -46,7 +46,7 @@ class PACBayesianConfiguration():
                  optimal_design=False,
                  reference_model='KR',
                  sharpness_iterations=10,
-                 **params):
+                 automatic_std=False, **params):
         # For VCD
         self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
@@ -57,6 +57,7 @@ class PACBayesianConfiguration():
         self.complexity_estimation_ratio = complexity_estimation_ratio
         self.kl_term_weight = kl_term_weight
         self.perturbation_std = perturbation_std
+        self.automatic_std = automatic_std
         self.objective = objective
         self.l2_penalty = l2_penalty
         self.sharpness_iterations = sharpness_iterations

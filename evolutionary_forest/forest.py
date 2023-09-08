@@ -2709,6 +2709,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 print('Ratio of Introns', self.intron_nodes_counter / self.all_nodes_counter)
             # print(parameters)
 
+        if self.pac_bayesian.automatic_std and (self.current_gen % 20 == 0 and self.current_gen != 0):
+            self.automatic_perturbation_std(self.pop)
+
     def validation_set_generation(self):
         if self.archive_configuration.dynamic_validation:
             X, y = np.concatenate([self.X, self.valid_x], axis=0), np.concatenate([self.y, self.valid_y], axis=0)
@@ -2746,7 +2749,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             invalid_ind = self.population_evaluation(toolbox, population)
 
-        if self.pac_bayesian.perturbation_std == 'Auto':
+        if self.pac_bayesian.automatic_std:
             self.automatic_perturbation_std(population)
 
         self.post_processing_after_evaluation(None, population)
@@ -3240,9 +3243,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return population, logbook
 
     def automatic_perturbation_std(self, population):
+        for individual in population:
+            individual.backup_predictions = individual.predicted_values
         best_score = np.inf
         best_alpha = 0.1
-        for alpha in [1, 5e-1, 1e-1, 5e-2, 1e-2, 1e-3, 0]:
+        for alpha in [1, 3e-1, 1e-1, 3e-2, 1e-2, 1e-3, 0]:
             self.pac_bayesian.perturbation_std = alpha
             scores = []
             val_scores = []
@@ -3261,29 +3266,40 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     y_train, y_val = self.y[train_index], self.y[val_index]
                     features = feature_generator(X_train)
 
-                    # refit pipe
-                    individual.pipe.fit(features, y_train)
-                    individual.predicted_values = individual.pipe.predict(features)
+                    # please do not touch the original pipeline
+                    pipe = copy.deepcopy(individual.pipe)
+                    pipe.fit(features, y_train)
+                    individual.predicted_values = pipe.predict(features)
 
                     # PAC-Bayesian
-                    estimation = pac_bayesian_estimation(features, X_train, y_train, individual.pipe, individual,
+                    estimation = pac_bayesian_estimation(features, X_train, y_train, pipe, individual,
                                                          self.evaluation_configuration.cross_validation,
                                                          self.pac_bayesian, SharpnessType.Parameter,
                                                          feature_generator=feature_generator)
                     sharpness_value = estimation[1][0]
-                    kf_scores.append(sharpness_value + mean_squared_error(y_train, individual.predicted_values))
+                    mse_training = mean_squared_error(y_train, individual.predicted_values)
+                    kf_scores.append(sharpness_value + mse_training)
 
                     # prediction on validation
                     val_features = feature_generator(X_val)
-                    val_prediction = individual.pipe.predict(val_features)
-                    kf_val_scores.append(mean_squared_error(y_val, val_prediction))
+                    val_prediction = pipe.predict(val_features)
+                    mse_validation = mean_squared_error(y_val, val_prediction)
+                    kf_val_scores.append(mse_validation)
                 scores.append(np.mean(kf_scores))
                 val_scores.append(np.mean(kf_val_scores))
             best_val_score = val_scores[np.argmin(scores)]
+            # print('alpha', alpha,
+            #       'correlation', spearman(scores, val_scores),
+            #       'best score', best_val_score,
+            #       'best sharpness', np.min(scores))
             if best_score > best_val_score:
                 best_score = best_val_score
                 best_alpha = alpha
         self.pac_bayesian.perturbation_std = best_alpha
+        print('Current best alpha', best_alpha)
+        for individual in population:
+            individual.predicted_values = individual.backup_predictions
+            del individual.backup_predictions
 
     def semantic_approximation(self, new_offspring):
         if self.bloat_control is not None and self.bloat_control.get('subtree_approximation', False):
