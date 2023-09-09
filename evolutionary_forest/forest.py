@@ -27,7 +27,7 @@ from sklearn.linear_model import Ridge, LogisticRegression, LogisticRegressionCV
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split, GridSearchCV, KFold
+from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import MinMaxScaler, FunctionTransformer
@@ -49,7 +49,6 @@ from evolutionary_forest.component.bloat_control.tarpeian import Tarpeian
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
     BaseLearnerConfiguration, ExperimentalConfiguration
-from evolutionary_forest.component.crossover import cxOnePointAdaptive
 from evolutionary_forest.component.crossover_mutation import hoistMutation, individual_combination
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
@@ -65,7 +64,7 @@ from evolutionary_forest.component.initialization import initialize_crossover_op
 from evolutionary_forest.component.mutation.common import MutationOperator
 from evolutionary_forest.component.mutation.learning_based_mutation import BuildingBlockLearning
 from evolutionary_forest.component.normalizer import TargetEncoder
-from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration, SharpnessType, pac_bayesian_estimation
+from evolutionary_forest.component.generalization.pac_bayesian import PACBayesianConfiguration, SharpnessType
 from evolutionary_forest.component.primitive_functions import get_functions, get_differentiable_functions
 from evolutionary_forest.component.primitives import *
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \

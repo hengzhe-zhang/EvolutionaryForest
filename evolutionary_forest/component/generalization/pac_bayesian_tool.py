@@ -9,7 +9,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
-from evolutionary_forest.component.pac_bayesian import pac_bayesian_estimation, SharpnessType, PACBayesianConfiguration
+from evolutionary_forest.component.generalization.pac_bayesian import pac_bayesian_estimation, SharpnessType, \
+    PACBayesianConfiguration
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor

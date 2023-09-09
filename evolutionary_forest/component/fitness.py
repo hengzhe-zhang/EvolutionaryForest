@@ -8,7 +8,8 @@ from sklearn.metrics import r2_score
 
 from evolutionary_forest.component.generalization.iodc import create_z, create_w, calculate_iodc
 from evolutionary_forest.component.generalization.wcrv import calculate_WCRV, calculate_mic
-from evolutionary_forest.component.pac_bayesian import assign_rank, pac_bayesian_estimation, SharpnessType, \
+from evolutionary_forest.component.generalization.pac_bayesian import assign_rank, pac_bayesian_estimation, \
+    SharpnessType, \
     combine_individuals
 from evolutionary_forest.component.generalization.rademacher_complexity import generate_rademacher_vector, \
     rademacher_complexity_estimation

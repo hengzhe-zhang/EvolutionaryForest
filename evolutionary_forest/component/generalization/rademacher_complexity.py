@@ -8,7 +8,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
-from evolutionary_forest.component.pac_bayesian import PACBayesianConfiguration
+from evolutionary_forest.component.generalization.pac_bayesian import PACBayesianConfiguration
 
 number_samples = 20
 
