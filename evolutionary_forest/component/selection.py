@@ -809,15 +809,14 @@ def selRoulette(individuals, k, fit_attr="fitness"):
     return chosen
 
 
+class MockIndividual():
+    def __init__(self, case_values):
+        self.case_values = case_values
+        self.fitness = SimpleNamespace()
+        self.fitness.weights = (1,)
+
+
 if __name__ == '__main__':
-    class MockIndividual():
-        def __init__(self):
-            self.case_values = np.random.randint(0, 2, 5)
-            self.fitness = SimpleNamespace()
-            self.fitness.weights = (1,)
-            pass
-
-
-    individuals = [MockIndividual() for _ in range(20)]
+    individuals = [MockIndividual(np.random.randint(0, 2, 5)) for _ in range(20)]
     pop = selAutomaticEpsilonLexicase(individuals, 1)
     print(pop)

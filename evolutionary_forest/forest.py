@@ -30,7 +30,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import cross_val_score, ParameterGrid, train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import MinMaxScaler, FunctionTransformer
+from sklearn.preprocessing import MinMaxScaler, FunctionTransformer, LabelEncoder
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeClassifier, BaseDecisionTree
 from sklearn.utils import compute_sample_weight
@@ -4515,6 +4515,9 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             return np.mean(predictions, axis=0)
 
     def lazy_init(self, x):
+        # sometimes, labels are not from 0-n-1, need to process
+        self.order_encoder = LabelEncoder()
+        self.y = self.order_encoder.fit_transform(self.y)
         # encoding target labels
         self.label_encoder = OneHotEncoder(sparse_output=False)
         self.label_encoder.fit(self.y.reshape(-1, 1))
@@ -4537,15 +4540,15 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             return self.ensemble_value
 
     def calculate_case_values(self, individual, Y, y_pred):
-        # Minimize fitness values
+        # Minimize case values
         if self.score_func == 'NoveltySearch':
             Y = self.label_encoder.transform(Y.reshape(-1, 1))
 
         # smaller is better
         if self.score_func == 'ZeroOne' or self.score_func == 'ZeroOne-NodeCount':
-            if y_pred.size != Y.size:
-                y_pred = np.argmax(Y, axis=0)
-            individual.case_values = -1 * (y_pred.flatten() == Y.flatten())
+            if len(y_pred.shape) == 2:
+                y_pred = np.argmax(y_pred, axis=1)
+            individual.case_values = -1 * (y_pred == Y)
         elif self.score_func == 'CDFC':
             matrix = confusion_matrix(Y.flatten(), y_pred.flatten())
             score = matrix.diagonal() / matrix.sum(axis=1)
@@ -4577,14 +4580,14 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
                     eps = 1e-15
                     ambiguity = np.sum((y_pred * ensemble_value), axis=1) / \
                                 np.maximum(norm(y_pred, axis=1) * norm(ensemble_value, axis=1), eps)
-                    assert not (np.isnan(ambiguity).any() or np.isinf(ambiguity).any()), save_array((ambiguity, y_pred,
-                                                                                                     ensemble_value))
+                    assert not (np.isnan(ambiguity).any() or np.isinf(ambiguity).any()), \
+                        save_array((ambiguity, y_pred, ensemble_value))
                 elif self.diversity_metric == 'KL-Divergence':
                     # smaller indicates similar
                     kl_divergence = lambda a, b: np.sum(np.nan_to_num(a * np.log(a / b), posinf=0, neginf=0), axis=1)
                     ambiguity = (kl_divergence(y_pred, ensemble_value) + kl_divergence(ensemble_value, y_pred)) / 2
-                    assert not (np.isnan(ambiguity).any() or np.isinf(ambiguity).any()), save_array((ambiguity, y_pred,
-                                                                                                     ensemble_value))
+                    assert not (np.isnan(ambiguity).any() or np.isinf(ambiguity).any()), \
+                        save_array((ambiguity, y_pred, ensemble_value))
                     ambiguity *= -1
                 else:
                     raise Exception
@@ -4610,13 +4613,17 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         # smaller is better, similar to negative R^2
         if self.score_func == 'ZeroOne' or self.score_func == 'CDFC':
             # larger is better
-            score = np.sum(y_pred.flatten() == Y.flatten())
+            if self.class_weight is not None:
+                score = np.mean((y_pred.argmax(axis=1) == Y) * self.class_weight)
+            else:
+                score = np.mean(y_pred.argmax(axis=1) == Y)
             if self.weighted_coef:
                 individual.coef = np.array(individual.coef) * (score)
             return -1 * score,
         elif self.score_func == 'NoveltySearch':
             return np.mean(individual.original_case_values),
         elif self.score_func == 'CrossEntropy':
+            # weight is already included in case values
             return np.mean(individual.case_values),
         elif self.score_func == 'CV-NodeCount' or self.score_func == 'ZeroOne-NodeCount':
             score = -1 * np.sum(y_pred.flatten() == Y.flatten())
@@ -4629,8 +4636,8 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
     def predict(self, X, return_std=False):
         predictions = self.predict_proba(X)
         assert np.all(np.sum(predictions, axis=1))
-        labels = np.sort(np.unique(self.y))
-        return labels[np.argmax(predictions, axis=1)]
+        argmax_predictions = np.argmax(predictions, axis=1)
+        return self.order_encoder.inverse_transform(argmax_predictions)
 
     def get_base_model(self, regularization_ratio=1, base_model=None, **kwargs):
         base_model_str = base_model if isinstance(base_model, str) else ''
