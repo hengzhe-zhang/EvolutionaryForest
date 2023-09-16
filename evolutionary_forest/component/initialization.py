@@ -1,4 +1,4 @@
-from evolutionary_forest.component.crossover import cxOnePointAdaptive
+from evolutionary_forest.component.adaptive_crossover import cxOnePointAdaptive
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.multigene_gp import *
 
@@ -9,8 +9,6 @@ def initialize_crossover_operator(self: "EvolutionaryForestRegressor", toolbox: 
         toolbox.mate = cxOnePoint_multiple_gene_biased
     elif 'SameWeight' in self.mutation_scheme:
         toolbox.mate = cxOnePoint_multiple_gene_same_weight
-    elif 'Tournament' in self.mutation_scheme:
-        toolbox.mate = cxOnePoint_multiple_gene_tournament
     elif self.mutation_scheme.endswith('-SC'):
         toolbox.mate = partial(cxOnePoint_multiple_gene_SC,
                                crossover_configuration=self.crossover_configuration)
