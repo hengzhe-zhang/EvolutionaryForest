@@ -22,7 +22,7 @@ def complexity(est: EvolutionaryForestRegressor):
 model = None
 
 if __name__ == '__main__':
-    # Test the complexity function
+    # Test the complexity of function
     X, y = load_iris(return_X_y=True)
     print(cross_val_score(est, X, y, n_jobs=-1))
     est.fit(X, y)

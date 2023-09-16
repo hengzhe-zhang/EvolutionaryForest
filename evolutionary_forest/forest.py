@@ -188,13 +188,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def __init__(self,
                  # Basic GP Parameters (Core)
-                 n_pop=50,  # Population size
-                 n_gen=20,  # Number of generations
-                 cross_pb=0.5,  # Probability of crossover
+                 n_pop=200,  # Population size
+                 n_gen=50,  # Number of generations
+                 cross_pb=0.9,  # Probability of crossover
                  mutation_pb=0.1,  # Probability of mutation
-                 max_height=8,  # Maximum height of a GP tree
+                 max_height=10,  # Maximum height of a GP tree
                  min_height=0,  # Minimum height of a GP tree
-                 gene_num=5,  # Number of genes in each GP individual
+                 gene_num=10,  # Number of genes in each GP individual
                  mutation_scheme='uniform',  # Mutation scheme used in GP
                  verbose=False,  # Whether to print verbose information
                  basic_primitives=True,  # Primitive set used in GP
@@ -247,9 +247,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                  # MEGP Parameters (EuroGP 2023)
                  map_elite_parameter=None,  # Hyper-parameters for MAP-Elite
-
-                 # EvoFeat Parameters
-                 class_weight=None,  # Weight for each class in multi-class classification
 
                  # Deprecated parameters
                  boost_size=None,  # Alias of "ensemble_size"
@@ -406,7 +403,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.semantic_variation = semantic_variation
         self.mab_parameter = mab_parameter
         self.validation_size = validation_size
-        self.class_weight = class_weight
         if random_state is not None:
             reset_random(random_state)
         self.random_state = random_state
@@ -4421,13 +4417,18 @@ def model_to_string(genes, learner, scaler):
 
 
 class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor):
-    def __init__(self, score_func='ZeroOne', **params):
+    def __init__(self,
+                 score_func='ZeroOne',
+                 # Balanced Classification
+                 class_weight='Balanced',
+                 **params):
         super().__init__(score_func=score_func, **params)
         # Define a function that simply passes the input data through unchanged.
         identity_func = lambda x: x
         # Use FunctionTransformer to create a transformer object that applies the identity_func to input data.
         identity_transformer = FunctionTransformer(identity_func)
         self.y_scaler = identity_transformer
+        self.class_weight = class_weight
 
         if self.base_learner == 'Hybrid':
             config_dict = {
