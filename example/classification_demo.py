@@ -2,7 +2,8 @@ from lightgbm import LGBMClassifier
 from sklearn.datasets import load_iris
 from sklearn.model_selection import cross_val_score
 
-from evolutionary_forest.forest import EvolutionaryForestRegressor, EvolutionaryForestClassifier
+from evolutionary_forest.forest import EvolutionaryForestRegressor
+from evolutionary_forest.classifier import EvolutionaryForestClassifier
 
 hyper_params = [
     {

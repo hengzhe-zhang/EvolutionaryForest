@@ -5,9 +5,39 @@ from deap.gp import PrimitiveTree
 
 from evolutionary_forest.component.crossover.intron_based_crossover import IntronTerminal
 from evolutionary_forest.component.evaluation import quick_evaluate
+from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+
+def simplify_gene(best_gene, simplification_pop):
+    for o in simplification_pop:
+        for gid, g, hash in zip(range(0, len(o.gene)), o.gene, o.hash_result):
+            if hash in best_gene and len(best_gene[hash]) < len(g):
+                # replace with a smaller gene
+                o.gene[gid] = best_gene[hash]
+
+
+def generate_smallest_gene_dict(population):
+    best_gene = {}
+    for o in population:
+        o: MultipleGeneGP
+        for gid, g, hash in zip(range(0, len(o.gene)), o.gene, o.hash_result):
+            if hash in best_gene:
+                if len(g) < len(best_gene[hash]):
+                    best_gene[hash] = g
+                else:
+                    pass
+            else:
+                best_gene[hash] = g
+    return best_gene
+
+
+def hash_based_simplification(population, simplification_pop):
+    # replace some genes with the smaller gene with equal semantics
+    best_gene = generate_smallest_gene_dict(population)
+    simplify_gene(best_gene, simplification_pop)
 
 
 class Simplification():
