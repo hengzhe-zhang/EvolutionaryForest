@@ -691,6 +691,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             'ML Evaluation': [],
             'GP Generation': [],
         }
+        self.safe_initialization_check()
 
     def counter_initialization(self):
         self.current_gen = 0
@@ -2729,6 +2730,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return self.mutation_scheme in multi_gene_operators or self.mutation_scheme in eda_operators or \
             isinstance(self.mutation_scheme, MutationOperator)
 
+    def safe_initialization_check(self):
+        attributes = self.__dict__.values()
+        lists_and_sets = [attr for attr in attributes if isinstance(attr, (list, set))]
+        # Iterate through all lists and sets to check for numbers.
+        for lst_or_set in lists_and_sets:
+            for item in lst_or_set:
+                if isinstance(item, (int, float)):
+                    raise Exception
+
+        # Return True if no numbers are found.
+        return True
+
     def eaSimple(self, population, toolbox, cxpb, mutpb, ngen, stats=None,
                  halloffame=None, verbose=__debug__):
         """
@@ -2807,7 +2820,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # iterations of no fitness improvement on training set
         no_improvement_iteration = 0
         adaptive_hoist_probability = None
-        historical_best_fitness = np.max([ind.fitness.wvalues[0] for ind in population])
+        historical_best_fitness = self.get_current_best_fitness()
 
         # archive initialization
         if self.select == 'Auto-MCTS':
@@ -3212,10 +3225,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     print('Hall of fame', model_dict)
 
             # statistical information for adaptive GP
-            if isinstance(self.score_func, R2PACBayesian):
-                current_best_fitness = np.min([ind.sam_loss for ind in self.hof])
-            else:
-                current_best_fitness = np.max([ind.fitness.wvalues[0] for ind in self.hof])
+            current_best_fitness = self.get_current_best_fitness()
 
             if historical_best_fitness < current_best_fitness:
                 historical_best_fitness = current_best_fitness
@@ -3253,6 +3263,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.post_prune(self.hof)
         self.calculate_pareto_front()
         return population, logbook
+
+    def get_current_best_fitness(self):
+        if isinstance(self.score_func, R2PACBayesian):
+            current_best_fitness = np.max([-1 * ind.sam_loss for ind in self.hof])
+        else:
+            current_best_fitness = np.max([ind.fitness.wvalues[0] for ind in self.hof])
+        return current_best_fitness
 
     def semantic_approximation(self, new_offspring):
         if self.bloat_control is not None and self.bloat_control.get('subtree_approximation', False):
