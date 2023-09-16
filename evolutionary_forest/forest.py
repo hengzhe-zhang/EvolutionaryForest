@@ -49,6 +49,7 @@ from evolutionary_forest.component.bloat_control.tarpeian import Tarpeian
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
     BaseLearnerConfiguration, ExperimentalConfiguration
+from evolutionary_forest.component.crossover.intron_based_crossover import IntronPrimitive, IntronTerminal
 from evolutionary_forest.component.crossover_mutation import hoistMutation, individual_combination
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \

@@ -3,8 +3,7 @@ from typing import Callable
 from deap.gp import mutInsert
 
 from evolutionary_forest.component.crossover_mutation import intron_mutation
-from evolutionary_forest.multigene_gp import get_cross_point
-from evolutionary_forest.component.crossover.intron_based_crossover import get_intron_id
+from evolutionary_forest.component.crossover.intron_based_crossover import get_intron_id, get_cross_point
 
 
 def mutation_based_on_intron(individual, expr: Callable, intron_parameters, pset):

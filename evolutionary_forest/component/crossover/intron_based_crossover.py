@@ -1,5 +1,7 @@
+from deap.gp import Primitive, Terminal
+from deap.tools import selRandom
+
 from evolutionary_forest.component.crossover_mutation import intron_crossover, random_combination
-from evolutionary_forest.multigene_gp import get_cross_point, IntronPrimitive, IntronTerminal
 
 
 def crossover_based_on_intron(ind1, ind2, intron_parameters, pset):
@@ -31,3 +33,43 @@ def get_intron_id(gene):
         if isinstance(g, (IntronPrimitive, IntronTerminal)) and g.intron:
             introns_results.append(id)
     return introns_results
+
+
+class IntronPrimitive(Primitive):
+    __slots__ = ('name', 'arity', 'args', 'ret', 'seq', 'corr', 'level', 'equal_subtree', 'hash_id')
+
+    @property
+    def intron(self):
+        return self.corr < 0.01
+
+    def __init__(self, name, args, ret):
+        super().__init__(name, args, ret)
+        self.corr = 0
+        self.level = 0
+        self.equal_subtree = -1
+        self.hash_id = 0
+
+
+class IntronTerminal(Terminal):
+    __slots__ = ('name', 'value', 'ret', 'conv_fct', 'corr', 'level', 'hash_id')
+
+    @property
+    def intron(self):
+        return self.corr < 0.01
+
+    def __init__(self, terminal, symbolic, ret):
+        super().__init__(terminal, symbolic, ret)
+        self.corr = 0
+        self.level = 0
+        self.hash_id = 0
+
+
+def get_cross_point(gene, inverse=False, min_tournament_size=1):
+    # least min_tournament_size individuals
+    tournsize = min(max(min_tournament_size, round(0.1 * len(gene))), len(gene))
+    aspirants = selRandom(list([(k, getattr(g, 'corr', 0)) for k, g in enumerate(gene)]), tournsize)
+    if inverse:
+        point = min(aspirants, key=lambda x: x[1])
+    else:
+        point = max(aspirants, key=lambda x: x[1])
+    return point[0]

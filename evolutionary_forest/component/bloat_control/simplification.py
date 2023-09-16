@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 from deap.gp import PrimitiveTree
 
+from evolutionary_forest.component.crossover.intron_based_crossover import IntronTerminal
 from evolutionary_forest.component.evaluation import quick_evaluate
-from evolutionary_forest.multigene_gp import IntronTerminal, MultipleGeneGP
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor

@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from deap import base
 from deap.gp import PrimitiveTree, compile, cxOnePoint, mutUniform, mutShrink, mutInsert, cxOnePointLeafBiased, \
-    PrimitiveSet, Primitive, Terminal
+    PrimitiveSet, Terminal
 from deap.tools import selTournament, selRandom
 from scipy.special import softmax
 from scipy.stats import pearsonr
@@ -50,35 +50,6 @@ class GPPipeline(Pipeline):
 class FailureCounter:
     def __init__(self):
         self.value = 0
-
-
-class IntronPrimitive(Primitive):
-    __slots__ = ('name', 'arity', 'args', 'ret', 'seq', 'corr', 'level', 'equal_subtree', 'hash_id')
-
-    @property
-    def intron(self):
-        return self.corr < 0.01
-
-    def __init__(self, name, args, ret):
-        super().__init__(name, args, ret)
-        self.corr = 0
-        self.level = 0
-        self.equal_subtree = -1
-        self.hash_id = 0
-
-
-class IntronTerminal(Terminal):
-    __slots__ = ('name', 'value', 'ret', 'conv_fct', 'corr', 'level', 'hash_id')
-
-    @property
-    def intron(self):
-        return self.corr < 0.01
-
-    def __init__(self, terminal, symbolic, ret):
-        super().__init__(terminal, symbolic, ret)
-        self.corr = 0
-        self.level = 0
-        self.hash_id = 0
 
 
 def selTournamentFeature(individuals, k, tournsize):
@@ -284,17 +255,6 @@ class MultipleGeneGP():
 
     def __repr__(self):
         return str([str(g) for g in self.gene])
-
-
-def get_cross_point(gene, inverse=False, min_tournament_size=1):
-    # least min_tournament_size individuals
-    tournsize = min(max(min_tournament_size, round(0.1 * len(gene))), len(gene))
-    aspirants = selRandom(list([(k, getattr(g, 'corr', 0)) for k, g in enumerate(gene)]), tournsize)
-    if inverse:
-        point = min(aspirants, key=lambda x: x[1])
-    else:
-        point = max(aspirants, key=lambda x: x[1])
-    return point[0]
 
 
 def get_random_from_interval(x, c):
