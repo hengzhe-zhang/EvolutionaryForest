@@ -366,8 +366,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.redundant_hof_size = redundant_hof_size
         self.parsimonious_probability = parsimonious_probability
         self.post_prune_threshold = post_prune_threshold
-        self.historical_largest = 0
-        self.historical_smallest = math.inf
         self.intron_gp = intron_gp
         self.gradient_boosting = gradient_boosting
         self.force_sr_tree = force_sr_tree
@@ -383,10 +381,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.active_gene_num = active_gene_num
         self.dynamic_reduction = dynamic_reduction
         self.irrelevant_feature_ratio = irrelevant_feature_ratio
-        self.redundant_features = 0
-        self.redundant_features_history = []
-        self.irrelevant_features = 0
-        self.irrelevant_features_history = []
         self.delete_irrelevant = delete_irrelevant
         self.delete_redundant = delete_redundant
         self.register_mutation_probability = register_mutation_probability
@@ -439,8 +433,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.max_height: Union[str, int] = max_height
         self.min_height = min_height
         self.initialized = False
-        self.evaluated_pop = set()
-        self.generated_features = set()
         self.pop: List[MultipleGeneGP] = []
         self.basic_primitives = basic_primitives
         self.select = select
@@ -449,37 +441,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.diversity_search = diversity_search
         self.second_layer = second_layer
         self.test_fun: List[TestFunction] = test_fun
-        self.train_data_history = []
-        self.test_data_history = []
-        # average fitness of the ensemble model
-        self.archive_fitness_history = []
-        # average diversity of the ensemble model
-        self.archive_diversity_history = []
-        # average diversity of the ensemble model
-        self.archive_cos_distance_history = []
-        # average fitness of the population
-        self.pop_avg_fitness_history = []
-        # average diversity of the population
-        self.pop_diversity_history = []
-        # average cosine diversity of the population
-        self.pop_cos_distance_history = []
-        self.tree_genotypic_diversity = []
-        self.tree_phenotypic_diversity = []
-        self.avg_tree_size_history = []
-        # best fitness of the ensemble model
-        self.best_fitness_history = []
-        # average fitness of individuals in grid
-        self.elite_grid_avg_fitness_history = []
-        # average diversity of individuals in grid
-        self.elite_grid_avg_diversity_history = []
-        # successful rate of macro-crossover and micro-crossover
-        self.macro_crossover_successful_rate = []
-        self.micro_crossover_successful_rate = []
-        # successful rate of crossover
-        self.crossover_successful_rate = []
-        self.mutation_successful_rate = []
-        # final MAP-Elite grid
-        self.final_elite_grid = []
+        self.history_initialization()
         self.early_stop = early_stop
         if environmental_selection == 'NSGA2':
             self.environmental_selection: NSGA2 = NSGA2(self, None, **self.param)
@@ -492,8 +454,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             self.environmental_selection = environmental_selection
         self.eager_training = eager_training
-        self.current_height = 1
-        self.repetitive_feature_count = []
         self.useless_feature_ratio = useless_feature_ratio
         self.weighted_coef = weighted_coef
         self.feature_selection = feature_selection
@@ -504,20 +464,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.correlation_threshold = correlation_threshold
         self.correlation_mode = correlation_mode
         self.outlier_detection = outlier_detection
-        self.intron_nodes_counter = 0
-        self.all_nodes_counter = 0
+        self.counter_initialization()
 
         self.cross_pb = cross_pb
         self.mutation_pb = mutation_pb
-        self.current_gen = 0
         self.partition_number = partition_number
         self.ps_tree_local_model = ps_tree_local_model
         self.dynamic_partition = dynamic_partition
         self.max_leaf_nodes = max_leaf_nodes
         self.ps_tree_ratio = ps_tree_ratio
         self.semantic_repair = semantic_repair
-        self.successful_repair = 0
-        self.failed_repair = 0
+
         if isinstance(self.ps_tree_ratio, str) and 'Interleave' in self.ps_tree_ratio:
             interleaving_period = int(np.round(n_gen / (n_gen * float(self.ps_tree_ratio.replace('Interleave-', '')))))
         self.interleaving_period = interleaving_period
@@ -528,11 +485,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.test_fun[1].regr = self
 
         self.normalize = normalize
-        self.time_statistics = {
-            'GP Evaluation': [],
-            'ML Evaluation': [],
-            'GP Generation': [],
-        }
         if normalize is True:
             self.x_scaler = StandardScaler()
             self.y_scaler = StandardScaler()
@@ -650,9 +602,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         for k in delete_keys:
             del params[k]
 
-        # history of adaptive crossover probability
-        self.adaptive_probability_history = [[], []]
-
         self.crossover_configuration = CrossoverConfiguration(
             intron_parameters=bloat_control,
             **params,
@@ -696,6 +645,64 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **vars(self)
         )
         self.elites_archive = None
+
+    def history_initialization(self):
+        self.train_data_history = []
+        self.test_data_history = []
+        # average fitness of the ensemble model
+        self.archive_fitness_history = []
+        # average diversity of the ensemble model
+        self.archive_diversity_history = []
+        # average diversity of the ensemble model
+        self.archive_cos_distance_history = []
+        # average fitness of the population
+        self.pop_avg_fitness_history = []
+        # average diversity of the population
+        self.pop_diversity_history = []
+        # average cosine diversity of the population
+        self.pop_cos_distance_history = []
+        self.tree_genotypic_diversity = []
+        self.tree_phenotypic_diversity = []
+        self.avg_tree_size_history = []
+        # best fitness of the ensemble model
+        self.best_fitness_history = []
+        # average fitness of individuals in grid
+        self.elite_grid_avg_fitness_history = []
+        # average diversity of individuals in grid
+        self.elite_grid_avg_diversity_history = []
+        # successful rate of macro-crossover and micro-crossover
+        self.macro_crossover_successful_rate = []
+        self.micro_crossover_successful_rate = []
+        # successful rate of crossover
+        self.crossover_successful_rate = []
+        self.mutation_successful_rate = []
+        # final MAP-Elite grid
+        self.final_elite_grid = []
+        # modular GP
+        self.redundant_features_history = []
+        self.irrelevant_features_history = []
+        self.repetitive_feature_count = []
+        # history of adaptive crossover probability
+        self.adaptive_probability_history = [[], []]
+        self.evaluated_pop = set()
+        self.generated_features = set()
+        self.time_statistics = {
+            'GP Evaluation': [],
+            'ML Evaluation': [],
+            'GP Generation': [],
+        }
+
+    def counter_initialization(self):
+        self.current_gen = 0
+        self.intron_nodes_counter = 0
+        self.all_nodes_counter = 0
+        self.successful_repair = 0
+        self.failed_repair = 0
+        self.historical_largest = 0
+        self.historical_smallest = math.inf
+        self.current_height = 1
+        self.redundant_features = 0
+        self.irrelevant_features = 0
 
     def calculate_pareto_front(self):
         self.pareto_front = []
@@ -2135,6 +2142,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             X = self.x_scaler.fit_transform(X, y)
             y = self.y_scaler.fit_transform(np.array(y).reshape(-1, 1))
             X = self.add_noise_to_data(X)
+
+        self.counter_initialization()
+        self.history_initialization()
 
         # transductive learning
         if test_X is not None:

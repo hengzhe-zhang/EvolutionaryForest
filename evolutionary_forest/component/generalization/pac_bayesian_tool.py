@@ -122,7 +122,7 @@ def get_cross_validation_model(automatic_std_model, features, pipe, y_train):
     return pipe
 
 
-def tune_perturbation_std(param: dict, X, y):
+def tune_perturbation_std(model, X, y):
     # Define the range of perturbation_std values to try
     perturbation_std_values = [0.05, 0.1, 0.25, 0.5]
 
@@ -140,7 +140,6 @@ def tune_perturbation_std(param: dict, X, y):
             y_train, y_test = y[train_idx], y[test_idx]
 
             # Create an EvolutionaryForestRegressor model and set the perturbation_std parameter
-            model = EvolutionaryForestRegressor(**param)
             model.pac_bayesian.perturbation_std = perturbation_std
             model.early_stop = 10
 
