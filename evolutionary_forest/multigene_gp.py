@@ -23,9 +23,10 @@ from tpot.base import TPOTBase
 
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration, \
     MAPElitesConfiguration
-from evolutionary_forest.component.crossover_mutation import intron_mutation, intron_crossover, cxOnePointWithRoot, \
-    random_combination, cxOnePointSizeSafe, mutUniformSizeSafe
-from evolutionary_forest.component.primitives import individual_to_tuple
+from evolutionary_forest.component.crossover.intron_based_crossover import crossover_based_on_intron
+from evolutionary_forest.component.crossover_mutation import cxOnePointWithRoot, \
+    cxOnePointSizeSafe, mutUniformSizeSafe
+from evolutionary_forest.component.mutation.intron_based_mutation import mutation_based_on_intron
 from evolutionary_forest.component.syntax_tools import TransformerTool
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
 
@@ -286,6 +287,7 @@ class MultipleGeneGP():
 
 
 def get_cross_point(gene, inverse=False, min_tournament_size=1):
+    # least min_tournament_size individuals
     tournsize = min(max(min_tournament_size, round(0.1 * len(gene))), len(gene))
     aspirants = selRandom(list([(k, getattr(g, 'corr', 0)) for k, g in enumerate(gene)]), tournsize)
     if inverse:
@@ -315,41 +317,10 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     same_index = crossover_configuration.same_index
 
     if intron_parameters is not None and random.random() < intron_parameters.get("intron_crossover_pb", 0):
-        gene1, id1 = ind1.random_select(with_id=True)
-        gene2, id2 = ind2.random_select(with_id=True)
-        if intron_parameters.get('exon_tournament', False):
-            # Warning: After mutation, there may exist some undefined parameters
-            introns_a = [get_cross_point(gene1)]
-            introns_b = [get_cross_point(gene2)]
-            intron_crossover(gene1, gene2, introns_a, introns_b, cross_intron=False, avoid_fallback=True)
-        elif intron_parameters.get('exon_tournament_V2', False):
-            # Warning: After mutation, there may exist some undefined parameters
-            introns_a = [get_cross_point(gene1, min_tournament_size=2)]
-            introns_b = [get_cross_point(gene2, min_tournament_size=2)]
-            intron_crossover(gene1, gene2, introns_a, introns_b, cross_intron=False, avoid_fallback=True)
-        elif intron_parameters.get("intron_crossover", False):
-            # Using exons to replace introns
-            introns_a, introns_b = get_intron_id(gene1), get_intron_id(gene2)
-            intron_crossover(gene1, gene2, introns_a, introns_b, cross_intron=True)
-        elif intron_parameters.get("random_combination", False):
-            random_combination(gene1, gene2, pset)
-        elif intron_parameters.get("exon_crossover", False):
-            introns_a, introns_b = get_intron_id(gene1), get_intron_id(gene2)
-            intron_crossover(gene1, gene2,
-                             list(filter(lambda x: x not in introns_a, range(0, len(gene1)))),
-                             list(filter(lambda x: x not in introns_b, range(0, len(gene2)))))
-        else:
-            raise Exception
+        crossover_based_on_intron(ind1, ind2, intron_parameters, pset)
     else:
         if ind1.mgp_mode == True:
-            gene1, id1 = ind1.random_select(with_id=True)
-            if ind1.layer_mgp:
-                gene2 = get_random_from_interval(id1, ind1.mgp_scope)
-                gene2 = ind2.gene[min(gene2, len(ind2.gene) - 1)]
-            else:
-                gene2 = ind2.gene[id1]
-            # must be the same index
-            id2 = id1
+            gene1, gene2, id1, id2 = modular_gp_crossover(ind1, ind2)
         else:
             if crossover_configuration.tree_selection == 'Random':
                 gene1, id1 = ind1.random_select(with_id=True)
@@ -382,6 +353,19 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     return ind1, ind2
 
 
+def modular_gp_crossover(ind1, ind2):
+    # modular GP must cross the same index!
+    gene1, id1 = ind1.random_select(with_id=True)
+    if ind1.layer_mgp:
+        gene2 = get_random_from_interval(id1, ind1.mgp_scope)
+        gene2 = ind2.gene[min(gene2, len(ind2.gene) - 1)]
+    else:
+        gene2 = ind2.gene[id1]
+    # must be the same index
+    id2 = id1
+    return gene1, gene2, id1, id2
+
+
 def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration):
     if configuration.safe_crossover:
         gene1, gene2 = cxOnePointSizeSafe(gene1, gene2, configuration)
@@ -392,7 +376,7 @@ def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration):
     return gene1, gene2
 
 
-# Perform mutation that takes a MultipleGeneGP individual and a primitive set as inputs
+# Perform a mutation that takes a MultipleGeneGP individual and a primitive set as inputs
 def mutProbability_multiple_gene(individual: MultipleGeneGP, pset, parsimonious_probability=0.9):
     # Get the frequency vector of the terminals in the individual using a helper function
     terminal_prob = get_frequency_vector(individual, pset)
@@ -428,36 +412,14 @@ def get_frequency_vector(individual, pset):
     return terminal_prob
 
 
-def mutUniform_multiple_gene(individual: MultipleGeneGP, expr, pset,
+def mutUniform_multiple_gene(individual: MultipleGeneGP, expr: Callable, pset,
                              tree_generation=None, configuration=None):
     if configuration is None:
         configuration = MutationConfiguration()
     intron_parameters = configuration.intron_parameters
 
     if intron_parameters is not None and random.random() < intron_parameters.get("intron_mutation_pb", 0):
-        gene, id = individual.random_select(with_id=True)
-
-        if intron_parameters.get('exon_tournament', False):
-            introns = [get_cross_point(gene, inverse=True)]
-            intron_mutation(gene, expr, pset, introns)
-        elif intron_parameters.get('exon_tournament_V2', False):
-            introns = [get_cross_point(gene, inverse=True, min_tournament_size=2)]
-            intron_mutation(gene, expr, pset, introns)
-        elif intron_parameters.get('mutation_worst', False):
-            introns = [min(list([(k, getattr(g, 'corr', 0)) for k, g in enumerate(gene)]), key=lambda x: x[1])[0]]
-            intron_mutation(gene, expr, pset, introns)
-        elif intron_parameters.get('intron_mutation', False):
-            introns = get_intron_id(gene)
-            intron_mutation(gene, expr, pset, introns)
-        elif intron_parameters.get('insert_mutation', False):
-            mutInsert(gene, pset)
-        elif intron_parameters.get('exon_mutation', False):
-            # only mutate exons
-            introns = get_intron_id(gene)
-            list_of_exons = list(filter(lambda x: x not in introns, range(0, len(gene))))
-            intron_mutation(gene, expr, pset, list_of_exons)
-        else:
-            raise Exception
+        id = mutation_based_on_intron(individual, expr, intron_parameters, pset)
     else:
         if isinstance(pset, MultiplePrimitiveSet):
             gene, id = individual.random_select(with_id=True)
@@ -503,49 +465,12 @@ def multiple_gene_compile(expr: MultipleGeneGP, pset):
     return gene_compiled
 
 
-def pearson_check(x, y):
-    if np.abs(pearsonr(x, y)[0]) < 0.95:
-        return True
-    else:
-        return False
-
-
-def cxOnePoint_multiple_gene_novelty(ind1: MultipleGeneGP, ind2: MultipleGeneGP, test_func):
-    a = ind1.random_select()
-    b = ind2.random_select()
-    x, y = test_func(a), test_func(b)
-    while True:
-        cxOnePoint(a, b)
-        z, w = test_func(a), test_func(b)
-        if pearson_check(x, z) and pearson_check(y, z) and pearson_check(x, w) and pearson_check(y, w):
-            break
-    return ind1, ind2
-
-
-def cxOnePoint_multiple_gene_diversity(ind1: MultipleGeneGP, ind2: MultipleGeneGP, visited_features: set):
-    while True:
-        a = ind1.random_select()
-        b = ind2.random_select()
-        cxOnePoint(a, b)
-        if individual_to_tuple(a) in visited_features or individual_to_tuple(b) in visited_features:
-            continue
-    return ind1, ind2
-
-
 def get_intron_id(gene):
     introns_results = []
     for id, g in enumerate(gene):
         if isinstance(g, (IntronPrimitive, IntronTerminal)) and g.intron:
             introns_results.append(id)
     return introns_results
-
-
-def cxOnePoint_multiple_gene_tournament(ind1: MultipleGeneGP, ind2: MultipleGeneGP):
-    """
-    A feature importance aware crossover operator based on the tournament selection
-    """
-    cxOnePoint(ind1.tournament_selection(), ind2.tournament_selection())
-    return ind1, ind2
 
 
 def selTournamentGenePool(coef_list, tournsize=7):
@@ -583,7 +508,7 @@ def cxOnePoint_multiple_gene_pool(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
             coef_list = coef_list[coef_list > 0]
         a, b = selTournamentGenePool(coef_list), selTournamentGenePool(coef_list)
         if (a, b) in ind1_set:
-            # Remove potential redundant features
+            # Remove potentially redundant features
             continue
         else:
             ind1_set.add((a, b))
@@ -848,12 +773,6 @@ def mutUniform_multiple_gene_with_prob(individual: MultipleGeneGP, expr, pset, t
 def mutInsert_multiple_gene(individual: MultipleGeneGP, pset):
     mutInsert(individual.random_select(), pset)
     return individual,
-
-
-def cxOnePoint_multiple_gene_weighted(ind1: MultipleGeneGP, ind2: MultipleGeneGP):
-    # Potential issue: This operator may overly cross important features and ignore useless features
-    cxOnePoint(ind1.weighted_selection(), ind2.weighted_selection())
-    return ind1, ind2
 
 
 def mutWeight_multiple_gene(individual: MultipleGeneGP, expr, pset, threshold_ratio=0.2):
