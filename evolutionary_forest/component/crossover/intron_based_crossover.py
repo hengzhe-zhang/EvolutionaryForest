@@ -1,5 +1,5 @@
 from evolutionary_forest.component.crossover_mutation import intron_crossover, random_combination
-from evolutionary_forest.multigene_gp import get_cross_point, get_intron_id
+from evolutionary_forest.multigene_gp import get_cross_point, IntronPrimitive, IntronTerminal
 
 
 def crossover_based_on_intron(ind1, ind2, intron_parameters, pset):
@@ -23,3 +23,11 @@ def crossover_based_on_intron(ind1, ind2, intron_parameters, pset):
                          list(filter(lambda x: x not in introns_b, range(0, len(gene2)))))
     else:
         raise Exception
+
+
+def get_intron_id(gene):
+    introns_results = []
+    for id, g in enumerate(gene):
+        if isinstance(g, (IntronPrimitive, IntronTerminal)) and g.intron:
+            introns_results.append(id)
+    return introns_results

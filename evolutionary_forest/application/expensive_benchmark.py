@@ -10,7 +10,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.evaluation import quick_evaluate
-from evolutionary_forest.component.primitives import analytical_quotient
+from evolutionary_forest.component.primitive_functions import analytical_quotient
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.forest import spearman
 from evolutionary_forest.multigene_gp import *

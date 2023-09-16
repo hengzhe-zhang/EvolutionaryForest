@@ -65,8 +65,8 @@ from evolutionary_forest.component.mutation.common import MutationOperator
 from evolutionary_forest.component.mutation.learning_based_mutation import BuildingBlockLearning
 from evolutionary_forest.component.normalizer import TargetEncoder
 from evolutionary_forest.component.generalization.pac_bayesian import PACBayesianConfiguration, SharpnessType
-from evolutionary_forest.component.primitive_functions import get_functions, get_differentiable_functions
-from evolutionary_forest.component.primitives import *
+from evolutionary_forest.component.primitive_controller import get_functions, get_differentiable_functions
+from evolutionary_forest.component.primitive_functions import *
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \

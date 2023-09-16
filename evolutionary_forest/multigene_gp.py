@@ -465,14 +465,6 @@ def multiple_gene_compile(expr: MultipleGeneGP, pset):
     return gene_compiled
 
 
-def get_intron_id(gene):
-    introns_results = []
-    for id, g in enumerate(gene):
-        if isinstance(g, (IntronPrimitive, IntronTerminal)) and g.intron:
-            introns_results.append(id)
-    return introns_results
-
-
 def selTournamentGenePool(coef_list, tournsize=7):
     individuals = [i for i in range(len(coef_list))]
     aspirants = selRandom(individuals, tournsize)

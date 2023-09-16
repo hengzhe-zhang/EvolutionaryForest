@@ -16,7 +16,7 @@ from sklearn.tree import DecisionTreeRegressor
 
 from evolutionary_forest.component.configuration import ArchiveConfiguration
 from evolutionary_forest.component.evaluation import quick_result_calculation
-from evolutionary_forest.component.primitives import individual_to_tuple
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.component.subset_selection import EnsembleSelectionADE
 
 

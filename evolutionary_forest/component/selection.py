@@ -175,8 +175,8 @@ def selRandomPlus(individuals, k, fit_attr="fitness"):
 def selKnockout(individuals, k, version='O', auto_case=False):
     """
     version:
-    'O' represents only the one individual each round
-    'S' represents only the multiple individuals each round
+    'O' represents only the one individual in each round
+    'S' represents only the multiple individuals in each round
     """
     # np.unique([x.fitness.wvalues for x in final_pool],return_counts=True)
     cases = np.array(list(range(len(individuals[0].case_values))))

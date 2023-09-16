@@ -11,7 +11,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.tensorboard import SummaryWriter
 
 from evolutionary_forest.component.evaluation import quick_evaluate
-from evolutionary_forest.component.primitives import analytical_quotient
+from evolutionary_forest.component.primitive_functions import analytical_quotient
 from evolutionary_forest.utils import reset_random
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

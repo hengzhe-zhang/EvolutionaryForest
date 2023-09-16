@@ -2,7 +2,7 @@ import numpy as np
 from deap.gp import cxOnePoint
 from scipy.stats import pearsonr
 
-from evolutionary_forest.component.primitives import individual_to_tuple
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 

@@ -17,7 +17,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import RidgeCV
 from sympy import latex, parse_expr
 
-from evolutionary_forest.component.primitives import individual_to_tuple
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 
 
 class MeanRegressor(BaseEstimator, RegressorMixin):

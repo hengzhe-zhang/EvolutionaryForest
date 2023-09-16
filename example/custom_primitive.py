@@ -12,7 +12,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 from evolutionary_forest import forest
-from evolutionary_forest.component.primitives import individual_to_tuple
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 
 
 class EvolutionaryForestRegressor(forest.EvolutionaryForestRegressor):
