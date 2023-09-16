@@ -59,7 +59,8 @@ from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR
     RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2, TikhonovR2, R2FeatureCount, \
     LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
     PACBayesianR2Scaler, R2WCRV, R2IODC, R2GrandComplexity
-from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std
+from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std, \
+    tune_perturbation_std
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.initialization import initialize_crossover_operator
 from evolutionary_forest.component.mutation.common import MutationOperator
@@ -1645,6 +1646,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.evaluation_configuration.sample_weight = get_sample_weight(self.X, self.test_X, self.y,
                                                                             self.imbalanced_configuration)
 
+        if self.pac_bayesian.perturbation_std == 'Auto':
+            tune_perturbation_std(self, self.X, self.y)
+
     def mutation_expression_function(self, toolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
             # custom defined height
@@ -3201,7 +3205,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     print('Hall of fame', model_dict)
 
             # statistical information for adaptive GP
-            current_best_fitness = np.max([ind.fitness.wvalues[0] for ind in population])
+            if isinstance(self.score_func, R2PACBayesian):
+                current_best_fitness = np.min([ind.sam_loss for ind in self.hof])
+            else:
+                current_best_fitness = np.max([ind.fitness.wvalues[0] for ind in self.hof])
+
             if historical_best_fitness < current_best_fitness:
                 historical_best_fitness = current_best_fitness
                 no_improvement_iteration = 0

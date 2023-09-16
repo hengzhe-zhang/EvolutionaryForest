@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.metrics import *
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -120,3 +120,27 @@ def get_cross_validation_model(automatic_std_model, features, pipe, y_train):
     else:
         pass
     return pipe
+
+
+def tune_perturbation_std(regr: "EvolutionaryForestRegressor", X, y):
+    # Define the range of perturbation_std values to try
+    perturbation_std_values = [0.05, 0.1, 0.25, 0.5]
+
+    # Create an empty list to store cross-validation scores for each perturbation_std value
+    cv_scores = []
+
+    # Evaluate the performance of each perturbation_std value using cross-validation with R2 scoring
+    for perturbation_std in perturbation_std_values:
+        regr = copy.deepcopy(regr)
+        regr.pac_bayesian.perturbation_std = perturbation_std
+        regr.early_stop = 10
+
+        # Use 5-fold cross-validation to assess model performance with R2 scoring
+        scores = cross_val_score(regr, X, y, cv=3, scoring='r2')
+        # Calculate the average R2 score and add it to the cv_scores list
+        cv_scores.append(np.mean(scores))
+
+    # Find the best perturbation_std value based on R2 performance
+    best_perturbation_std = perturbation_std_values[np.argmax(cv_scores)]
+    best_score = cv_scores[np.argmax(cv_scores)]
+    return best_perturbation_std
