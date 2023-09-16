@@ -283,10 +283,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  # Debug Parameters
                  test_fun=None,  # Test function for evaluation
 
-                 # Experimental Parameters (Maybe deprecated at any version)
+                 # Experimental Parameters (Maybe deprecated in any version)
                  diversity_search='None',  # Strategy to assign diversity objective
                  bootstrap_training=False,  # Whether to use bootstrap samples for training
-                 mean_model=False,  # Whether to use mean model for predictions
+                 mean_model=False,  # Whether to use the mean model for predictions
                  environmental_selection=None,  # Environmental selection method
                  pre_selection=None,  # Pre-selection method
                  eager_training=False,  # Whether to train models eagerly
@@ -298,11 +298,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  dynamic_reduction=0,  # Dynamic reduction strategy
                  active_gene_num=0,  # Number of active genes in MGP
                  intron_threshold=0,  # Threshold for identifying introns in MGP
-                 force_sr_tree=False,  # Whether to force use SR-Tree
+                 force_sr_tree=False,  # Whether to force to use SR-Tree
                  gradient_boosting=False,  # Whether to use gradient boosting
                  post_prune_threshold=0,  # Threshold for post-pruning of features in GP
                  redundant_hof_size=0,  # Size of redundant Hall of Fame
-                 delete_low_similarity=False,  # Whether to delete low similarity genes
+                 delete_low_similarity=False,  # Whether to delete low-similarity genes
                  importance_propagation=False,  # Whether to use importance propagation in GP
                  ridge_alphas=None,  # Alpha values for Ridge regression
                  parsimonious_probability=1,  # Probability of GP with parsimonious terminal usage
