@@ -1646,9 +1646,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.evaluation_configuration.sample_weight = get_sample_weight(self.X, self.test_X, self.y,
                                                                             self.imbalanced_configuration)
 
-        if self.pac_bayesian.perturbation_std == 'Auto':
-            tune_perturbation_std(self, self.X, self.y)
-
     def mutation_expression_function(self, toolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
             # custom defined height

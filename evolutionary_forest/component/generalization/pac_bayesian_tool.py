@@ -122,25 +122,43 @@ def get_cross_validation_model(automatic_std_model, features, pipe, y_train):
     return pipe
 
 
-def tune_perturbation_std(regr: "EvolutionaryForestRegressor", X, y):
+def tune_perturbation_std(param: dict, X, y):
     # Define the range of perturbation_std values to try
     perturbation_std_values = [0.05, 0.1, 0.25, 0.5]
 
-    # Create an empty list to store cross-validation scores for each perturbation_std value
-    cv_scores = []
+    # Create an empty list to store R2 scores for each perturbation_std value
+    r2_scores = []
 
-    # Evaluate the performance of each perturbation_std value using cross-validation with R2 scoring
+    # Perform 3-fold cross-validation manually
+    kf = KFold(n_splits=3, shuffle=True, random_state=0)
+
     for perturbation_std in perturbation_std_values:
-        regr = copy.deepcopy(regr)
-        regr.pac_bayesian.perturbation_std = perturbation_std
-        regr.early_stop = 10
+        r2_fold_scores = []
 
-        # Use 5-fold cross-validation to assess model performance with R2 scoring
-        scores = cross_val_score(regr, X, y, cv=3, scoring='r2')
-        # Calculate the average R2 score and add it to the cv_scores list
-        cv_scores.append(np.mean(scores))
+        for train_idx, test_idx in kf.split(X):
+            X_train, X_test = X[train_idx], X[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+
+            # Create an EvolutionaryForestRegressor model and set the perturbation_std parameter
+            model = EvolutionaryForestRegressor(**param)
+            model.pac_bayesian.perturbation_std = perturbation_std
+            model.early_stop = 10
+
+            # Train the model on the training data
+            model.fit(X_train, y_train)
+
+            # Make predictions on the test data
+            y_pred = model.predict(X_test)
+
+            # Calculate the R2 score for this fold
+            r2_fold = r2_score(y_test, y_pred)
+            r2_fold_scores.append(r2_fold)
+
+        # Calculate the average R2 score across all folds for this perturbation_std value
+        r2_mean = np.mean(r2_fold_scores)
+        r2_scores.append(r2_mean)
 
     # Find the best perturbation_std value based on R2 performance
-    best_perturbation_std = perturbation_std_values[np.argmax(cv_scores)]
-    best_score = cv_scores[np.argmax(cv_scores)]
+    best_perturbation_std = perturbation_std_values[np.argmax(r2_scores)]
+    best_score = r2_scores[np.argmax(r2_scores)]
     return best_perturbation_std
