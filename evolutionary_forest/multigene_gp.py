@@ -268,7 +268,6 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     """
     :param ind1: parent A
     :param ind2: parent B
-    :param intron_parameters: using intron-aware operator
     :return:
     """
     if crossover_configuration is None:

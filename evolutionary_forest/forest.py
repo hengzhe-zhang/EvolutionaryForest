@@ -7,6 +7,7 @@ import dill
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
+from deap.gp import Primitive
 from deap.tools import selNSGA2, History, selBest, cxTwoPoint, mutFlipBit, selDoubleTournament, sortNondominated, \
     selSPEA2, selTournamentDCD
 from gplearn.functions import _protected_sqrt
@@ -26,7 +27,7 @@ from sklearn.linear_model import Ridge, HuberRegressor, \
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import MinMaxScaler
@@ -49,6 +50,7 @@ from evolutionary_forest.component.configuration import CrossoverMode, ArchiveCo
     BaseLearnerConfiguration, ExperimentalConfiguration
 from evolutionary_forest.component.crossover.intron_based_crossover import IntronPrimitive, IntronTerminal
 from evolutionary_forest.component.crossover_mutation import hoistMutation, individual_combination
+from evolutionary_forest.component.ensemble_learning.stacking_strategy import StackingStrategy
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
@@ -85,7 +87,6 @@ from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.preprocess_utils import GeneralFeature, CategoricalFeature, BooleanFeature, \
     NumericalFeature, FeatureTransformer
 from evolutionary_forest.probability_gp import genHalfAndHalf, genFull
-from evolutionary_forest.pruning import oob_pruning
 from evolutionary_forest.strategies.adaptive_operator_selection import MultiArmBandit, MCTS
 from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution, eda_operators
 from evolutionary_forest.strategies.multifidelity_evaluation import MultiFidelityEvaluation
@@ -641,6 +642,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **vars(self)
         )
         self.elites_archive = None
+        self.stacking_strategy = StackingStrategy(self)
 
     def history_initialization(self):
         self.train_data_history = []
@@ -2231,7 +2233,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.pop = pop
                 self.hof[0].pipe = self.get_base_model()
                 self.final_model_lazy_training(self.hof)
-                self.second_layer_generation(self.X, self.y)
+                self.stacking_strategy.stacking_layer_generation(self.X, self.y)
                 # If using the predict function, we need to consider a lot of details about normalization
                 Yp = self.feature_generation(X, self.hof[0])
                 y_pred = self.hof[0].pipe.predict(Yp)
@@ -2253,7 +2255,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof.update([best_ind])
             self.final_model_lazy_training(self.hof)
             # in fact, not useful
-            self.second_layer_generation(self.X, self.y)
+            self.stacking_strategy.stacking_layer_generation(self.X, self.y)
         else:
             # Not using gradient boosting mode
             pop, log = self.eaSimple(self.pop, self.toolbox, self.cross_pb, self.mutation_pb, self.n_gen,
@@ -2261,7 +2263,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.pop = pop
 
             self.final_model_lazy_training(self.hof)
-            self.second_layer_generation(X, y)
+            self.stacking_strategy.stacking_layer_generation(X, y)
         self.training_with_validation_set()
         return self
 
@@ -2321,164 +2323,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Add the noise to `X`
             X = X + noise
         return X
-
-    def second_layer_generation(self, X, y):
-        # Check if second layer is specified
-        if self.second_layer == 'None' or self.second_layer == None:
-            return
-
-        # Collect predictions from base models
-        y_data = self.y
-        predictions = []
-        for individual in self.hof:
-            predictions.append(individual.predicted_values)
-        predictions = np.array(predictions)
-
-        if self.second_layer == 'DREP':
-            # DREP (Diversity Regularized Ensemble Pruning) algorithm for generating ensemble weights
-            y_sample = y_data.flatten()
-            current_prediction = np.zeros_like(y_sample)
-            remain_ind = set([i for i in range(len(self.hof))])
-            min_index = 0
-            # Find the base model with the smallest error
-            for i in remain_ind:
-                error = np.mean((predictions[i] - y_sample) ** 2)
-                if error < np.mean((current_prediction - y_sample) ** 2):
-                    current_prediction = predictions[i]
-                    min_index = i
-            remain_ind.remove(min_index)
-
-            ensemble_list = np.zeros(len(self.hof))
-            ensemble_list[min_index] = 1
-            # Repeat until no more improvement is possible
-            while True:
-                div_list = []
-                # Calculate diversity and loss for each remaining base model
-                for i in remain_ind:
-                    diversity = np.mean(((current_prediction - predictions[i]) ** 2))
-                    loss = np.mean(((y_sample - predictions[i]) ** 2))
-                    div_list.append((diversity, loss, i))
-                # Select diverse models
-                div_list = list(sorted(div_list, key=lambda x: -x[0]))[:int(round(len(div_list) * 0.5))]
-                # Sort them by loss
-                div_list = list(sorted(div_list, key=lambda x: x[1]))
-                index = div_list[0][2]
-                ensemble_size = np.sum(ensemble_list)
-                trial_prediction = ensemble_size / (ensemble_size + 1) * current_prediction + \
-                                   1 / (ensemble_size + 1) * predictions[index]
-                # Check if adding the selected model improves performance
-                if np.mean(((trial_prediction - y_sample) ** 2)) > np.mean(((current_prediction - y_sample) ** 2)):
-                    break
-                current_prediction = trial_prediction
-                ensemble_list[index] = 1
-                remain_ind.remove(index)
-            # Normalize the ensemble weights
-            ensemble_list /= np.sum(ensemble_list)
-            self.tree_weight = ensemble_list
-        elif self.second_layer == 'Ridge':
-            # Ridge regression for generating ensemble weights
-            self.ridge = Ridge(alpha=1e-3, normalize=True, fit_intercept=False)
-            self.ridge.fit(predictions.T, y_data)
-            x = self.ridge.coef_
-            x[x < 0] = 0
-            x[x > 0] = 1
-            x /= np.sum(x)
-            x = x.flatten()
-            self.tree_weight = x
-        elif self.second_layer == 'Ridge-Prediction':
-            predictions = self.individual_prediction(X)
-            # fitting predicted values
-            self.ridge = RidgeCV(fit_intercept=False)
-            self.ridge.fit(predictions.T, y_data)
-            self.tree_weight = self.ridge.coef_.flatten()
-        elif self.second_layer == 'RF-Routing':
-            predictions = self.individual_prediction(X)
-            # fitting predicted values
-            self.ridge = RandomForestClassifier(n_estimators=10)
-            best_arg = ((predictions - y_data) ** 2).argmin(axis=0)
-            self.ridge.candidates = np.sort(np.unique(best_arg))
-            self.ridge.fit(X, best_arg)
-            self.tree_weight = None
-        elif self.second_layer == 'TreeBaseline':
-            base_line_score = np.mean(cross_val_score(DecisionTreeRegressor(), X, y))
-            score = np.array(list(map(lambda x: x.fitness.wvalues[0], self.hof.items)))
-            x = np.zeros_like(score)
-            x[score > base_line_score] = 1
-            if np.sum(x) == 0:
-                x[0] = 1
-            x /= np.sum(x)
-            x = x.flatten()
-            self.tree_weight = x
-        elif self.second_layer == 'DiversityPrune':
-            sample_len = 500
-            predictions = []
-            for individual in self.hof:
-                func = self.toolbox.compile(individual)
-                x = np.random.randn(sample_len, X.shape[1])
-                Yp = result_calculation(func, x, self.original_features)
-                predicted = individual.pipe.predict(Yp)
-                predictions.append(predicted)
-            predictions = np.array(predictions)
-
-            # forward selection
-            current_prediction = np.zeros(sample_len)
-            remain_ind = set([i for i in range(len(self.hof))])
-
-            # select first regressor
-            min_index = 0
-            remain_ind.remove(min_index)
-
-            ensemble_list = np.zeros(len(self.hof))
-            ensemble_list[min_index] = 1
-            while True:
-                div_list = []
-                for i in remain_ind:
-                    diversity = np.mean(((current_prediction - predictions[i]) ** 2))
-                    div_list.append((diversity, i))
-                div_list = list(sorted(div_list, key=lambda x: -x[0]))
-                index = div_list[0][1]
-                ensemble_size = np.sum(ensemble_list)
-                trial_prediction = ensemble_size / (ensemble_size + 1) * current_prediction + \
-                                   1 / (ensemble_size + 1) * predictions[index]
-                if np.mean(((current_prediction - trial_prediction) ** 2)) < 0.05:
-                    break
-                current_prediction = trial_prediction
-                ensemble_list[index] = 1
-                remain_ind.remove(index)
-            ensemble_list /= np.sum(ensemble_list)
-            self.tree_weight = ensemble_list
-        elif self.second_layer == 'GA':
-            # oob calculation
-            pop = self.hof
-            x_train = self.X
-            oob = np.zeros((len(pop), len(x_train)))
-            for i, ind in enumerate(pop):
-                sample = ind.out_of_bag
-                chosen = np.zeros(len(x_train))
-                chosen[sample] = 1
-                out_of_bag = np.where(chosen == 0)[0]
-                func = self.toolbox.compile(individual)
-                Yp = result_calculation(func, x_train[out_of_bag], self.original_features)
-                oob[i][out_of_bag] = ind.pipe.predict(Yp)
-
-            weight = oob_pruning(oob, self.y)
-            weight = weight / np.sum(weight)
-            self.tree_weight = weight
-        elif self.second_layer == 'CAWPE':
-            pop = self.hof
-            weight = np.ones(len(pop))
-            for i, ind in enumerate(pop):
-                fitness = ind.fitness.wvalues[0]
-                if isinstance(self, ClassifierMixin):
-                    # using MSE as the default fitness criterion
-                    weight[i] = (1 / fitness) ** 4
-                else:
-                    # using R^2 as the default fitness criterion
-                    if fitness > 0:
-                        weight[i] = (fitness) ** 4
-                    else:
-                        weight[i] = 0
-            self.tree_weight = weight / np.sum(weight)
 
     def individual_prediction(self, X, individuals=None):
         if self.normalize:
@@ -3635,7 +3479,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.historical_largest = max(self.historical_largest, max([len(p) for p in population]))
         if self.test_fun != None:
             self.training_with_validation_set()
-            self.second_layer_generation(self.X, self.y)
+            self.stacking_strategy.stacking_layer_generation(self.X, self.y)
             if len(self.test_fun) > 0:
                 training_loss = self.test_fun[0].predict_loss()
                 self.train_data_history.append(training_loss)
