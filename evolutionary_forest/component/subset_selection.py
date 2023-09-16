@@ -4,7 +4,6 @@ import random
 import numpy
 import numpy as np
 import pyade
-from pyade import *
 from deap import base
 from deap import creator
 from deap import tools

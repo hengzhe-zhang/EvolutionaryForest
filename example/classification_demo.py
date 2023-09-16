@@ -1,3 +1,4 @@
+from lightgbm import LGBMClassifier
 from sklearn.datasets import load_iris
 from sklearn.model_selection import cross_val_score
 
@@ -18,7 +19,7 @@ est = EvolutionaryForestClassifier(max_height=10,
                                    basic_primitives='optimal',
                                    mutation_scheme='uniform-plus',
                                    score_func='CrossEntropy',
-                                   verbose=False,
+                                   verbose=True,
                                    base_learner='LogisticRegression',
                                    class_weight='Balanced')
 
@@ -32,6 +33,5 @@ model = None
 if __name__ == '__main__':
     # Test the complexity of function
     X, y = load_iris(return_X_y=True)
+    print(cross_val_score(LGBMClassifier(), X, y, n_jobs=-1))
     print(cross_val_score(est, X, y, n_jobs=-1))
-    est.fit(X, y)
-    print(complexity(est))
