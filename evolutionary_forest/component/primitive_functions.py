@@ -12,6 +12,19 @@ from scipy.stats import mode
 threshold = 1e-6
 
 
+def radian_sin(x):
+    return np.sin(np.pi * x)
+
+
+def radian_cos(x):
+    return np.cos(np.pi * x)
+
+
+def gaussian(x):
+    # Gaussian with mean 0 and sigma 1
+    return np.exp(-np.multiply(x, x) / 2.0)
+
+
 def protected_division(x1, *x2):
     with np.errstate(divide='ignore', invalid='ignore'):
         x2 = reduce(operator.mul, x2)
