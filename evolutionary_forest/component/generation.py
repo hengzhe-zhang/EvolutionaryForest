@@ -96,15 +96,14 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                             parent_fitness = offspring[i].fitness.wvalues[0]
                             offspring[i].parent_fitness = (parent_fitness,)
 
-                for c in range(invokes):
-                    if random.random() < mutation_configuration.gene_addition_rate:
-                        offspring[i].gene_addition()
+                if random.random() < mutation_configuration.gene_addition_rate:
+                    offspring[i].gene_addition()
 
-                    if random.random() < mutation_configuration.gene_deletion_rate:
-                        if mutation_configuration.weighted_deletion:
-                            offspring[i].gene_deletion(weighted=True)
-                        else:
-                            offspring[i].gene_deletion()
+                if random.random() < mutation_configuration.gene_deletion_rate:
+                    if mutation_configuration.weighted_deletion:
+                        offspring[i].gene_deletion(weighted=True)
+                    else:
+                        offspring[i].gene_deletion()
             del offspring[i].fitness.values
 
             if semantic_check_tool is not None:

@@ -81,7 +81,8 @@ class MultipleGeneGP():
         if len(self.gene) < self.max_gene_num:
             # not add the same gene
             existing_genes = set([str(g) for g in self.gene])
-            tree = PrimitiveTree(self.content())
+            mode = 'Random'
+            tree = self.tree_generation(mode)
             iteration = 0
             while str(tree) in existing_genes:
                 if iteration >= 100:
@@ -90,6 +91,14 @@ class MultipleGeneGP():
                 tree = PrimitiveTree(self.content())
                 iteration += 1
             self.gene.append(tree)
+
+    def tree_generation(self, mode) -> PrimitiveTree:
+        if mode == 'Crossover':
+            gene_a, gene_b = self.random_select(), self.random_select()
+            tree, _ = cxOnePoint(copy.deepcopy(gene_a), copy.deepcopy(gene_b))
+        else:
+            tree = PrimitiveTree(self.content())
+        return tree
 
     def gene_deletion(self, weighted=False):
         if len(self.gene) > 1:
