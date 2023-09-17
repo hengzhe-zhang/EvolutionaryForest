@@ -109,7 +109,8 @@ class CrossoverConfiguration():
                  adaptive_power=1,
                  inverse_point=0.5,
                  sc_tournament_size=3,
-                 sc_temperature=1 / 20, **params):
+                 sc_temperature=1 / 20,
+                 dimension_crossover_rate=0, **params):
         # max height after crossover
         self.max_height = max_height
         self.intron_parameters: dict = intron_parameters
@@ -120,6 +121,7 @@ class CrossoverConfiguration():
         # crossover on genes instead of trees
         self.macro_crossover_rate = macro_crossover_rate
         self.independent_macro_crossover = independent_macro_crossover
+        self.dimension_crossover_rate = dimension_crossover_rate
         # 90% weights to primitives, 10% to terminals
         self.leaf_biased = leaf_biased
         self.same_index = same_index
