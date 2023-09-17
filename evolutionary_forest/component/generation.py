@@ -2,8 +2,8 @@ import random
 from typing import List
 
 import numpy as np
-from deap.gp import mutUniform, cxOnePoint
-from deap.tools import cxTwoPoint, crossover
+from deap.gp import mutUniform
+from deap.tools import cxTwoPoint
 from scipy.stats import pearsonr, spearmanr
 
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration
@@ -35,18 +35,6 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                 random.random() < crossover_configuration.macro_crossover_rate and \
                 min(len(offspring[i].gene), len(offspring[i + 1].gene)) > 1:
                 offspring[i].gene, offspring[i + 1].gene = cxTwoPoint(offspring[i].gene, offspring[i + 1].gene)
-                del offspring[i].fitness.values
-                del offspring[i + 1].fitness.values
-                if crossover_configuration.independent_macro_crossover:
-                    # skip micro-crossover after macro-crossover
-                    i += 2
-                    continue
-
-            if i % 2 == 0 and crossover_configuration.dimension_crossover_rate > 0 and \
-                random.random() < crossover_configuration.dimension_crossover_rate and \
-                min(len(offspring[i].gene), len(offspring[i + 1].gene)) > 1:
-                offspring[i].gene, offspring[i + 1].gene = crossover.cxOnePoint(offspring[i].gene,
-                                                                                offspring[i + 1].gene)
                 del offspring[i].fitness.values
                 del offspring[i + 1].fitness.values
                 if crossover_configuration.independent_macro_crossover:
