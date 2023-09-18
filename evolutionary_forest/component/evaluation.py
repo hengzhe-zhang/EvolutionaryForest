@@ -629,7 +629,10 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                         and noise_configuration.noise_to_terminal:
                         result = inject_noise_to_data(result, random_noise, noise_configuration)
                 else:
-                    result = float(prim.value)
+                    if isinstance(prim.value, str):
+                        result = float(prim.value)
+                    else:
+                        result = prim.value
             else:
                 raise Exception
             if target is not None:

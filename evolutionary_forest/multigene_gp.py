@@ -318,7 +318,8 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
             else:
                 raise Exception
 
-        if random.random() < crossover_configuration.dimension_crossover_rate:
+        if crossover_configuration.dimension_crossover_rate is not None and \
+            random.random() < crossover_configuration.dimension_crossover_rate:
             ind1.gene[id1], ind2.gene[id2] = gene2, gene1
         else:
             ind1.gene[id1], ind2.gene[id2] = gene_crossover(gene1, gene2, configuration=crossover_configuration)
