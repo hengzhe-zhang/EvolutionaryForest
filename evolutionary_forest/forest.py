@@ -1007,7 +1007,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 gene[s].equal_subtree = coef[1]
                                 coef = coef[0]
                         elif isinstance(gene[s], Terminal):
-                            gene[s] = IntronTerminal(gene[s].name, getattr(gene[s], 'conv_fct') == str, gene[s].ret)
+                            gene[s] = IntronTerminal(gene[s].value, getattr(gene[s], 'conv_fct') == str, gene[s].ret)
 
                         # Set correlation and level for the new gene node
                         if isinstance(coef, tuple):
@@ -1044,7 +1044,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         if isinstance(gene[s], Primitive):
                             gene[s] = IntronPrimitive(gene[s].name, gene[s].args, gene[s].ret)
                         elif isinstance(gene[s], Terminal):
-                            gene[s] = IntronTerminal(gene[s].name, getattr(gene[s], 'conv_fct') == str, gene[s].ret)
+                            gene[s] = IntronTerminal(gene[s].value, getattr(gene[s], 'conv_fct') == str, gene[s].ret)
                         gene[s].corr = v
 
         # final score
@@ -2113,6 +2113,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.cx_threshold = threshold
 
     def fit(self, X, y, test_X=None):
+        self.counter_initialization()
+        self.history_initialization()
+
         self.y_shape = y.shape
         if isinstance(X, pd.DataFrame):
             self.columns = X.columns.tolist()  # store column names
@@ -2123,10 +2126,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             y = self.y_scaler.fit_transform(np.array(y).reshape(-1, 1))
             X = self.add_noise_to_data(X)
 
-        self.counter_initialization()
-        self.history_initialization()
-
-        # transductive learning
+        # Transductive Learning
         if test_X is not None:
             if self.normalize:
                 test_X = self.x_scaler.transform(test_X)
@@ -2544,13 +2544,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             isinstance(self.mutation_scheme, MutationOperator)
 
     def safe_initialization_check(self):
-        attributes = self.__dict__.values()
-        lists_and_sets = [attr for attr in attributes if isinstance(attr, (list, set))]
+        attributes = self.__dict__.items()
+        lists_and_sets = [(key, attr) for (key, attr) in attributes if isinstance(attr, (list, set))]
         # Iterate through all lists and sets to check for numbers.
-        for lst_or_set in lists_and_sets:
+        for key, lst_or_set in lists_and_sets:
             for item in lst_or_set:
                 if isinstance(item, (int, float)):
-                    raise Exception
+                    raise Exception(f"Safe initialization is not possible with numbers in lists or sets "
+                                    f"{key, lst_or_set}.")
 
         # Return True if no numbers are found.
         return True
