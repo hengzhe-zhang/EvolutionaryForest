@@ -1,4 +1,3 @@
-import time
 from collections import OrderedDict
 from functools import wraps
 
@@ -14,7 +13,6 @@ def custom_lru_cache(maxsize=128, key_func=None, condition_func=None):
 
             key = key_func(*args, **kwargs) if key_func else (args, frozenset(kwargs.items()))
             if key in cache:
-                print('hit!')
                 cache.move_to_end(key)
                 return cache[key]
 

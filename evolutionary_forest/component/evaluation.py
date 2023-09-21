@@ -573,7 +573,7 @@ def add_hash_value(quick_result, hash_result):
 cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
-@custom_lru_cache(maxsize=10000, key_func=gp_key_func)
+# @custom_lru_cache(maxsize=10000, key_func=gp_key_func)
 def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                    return_subtree_information=False, random_noise=0,
                    random_seed=0,
