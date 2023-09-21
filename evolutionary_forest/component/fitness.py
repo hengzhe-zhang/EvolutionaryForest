@@ -15,6 +15,7 @@ from evolutionary_forest.component.generalization.rademacher_complexity import g
     rademacher_complexity_estimation
 from evolutionary_forest.component.generalization.vc_dimension import vc_dimension_estimation
 from evolutionary_forest.multigene_gp import MultipleGeneGP
+from utils.common_utils import timeit
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -438,8 +439,9 @@ class R2PACBayesian(Fitness):
             )
         else:
             raise Exception
-        feature_generator = lambda data, random_noise=0, noise_configuration=None: \
+        feature_generator = lambda data, random_noise=0, random_seed=0, noise_configuration=None: \
             algorithm.feature_generation(data, individual, random_noise=random_noise,
+                                         random_seed=random_seed,
                                          noise_configuration=noise_configuration)
         y = algorithm.y
 

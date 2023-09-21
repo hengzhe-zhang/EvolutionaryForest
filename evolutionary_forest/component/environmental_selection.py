@@ -16,6 +16,7 @@ from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
+from utils.common_utils import timeit
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor

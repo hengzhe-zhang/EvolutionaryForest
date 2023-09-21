@@ -94,6 +94,7 @@ from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
     gene_to_string, get_activations, reset_random, weighted_avg_and_std, is_float, cross_scale, \
     extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor
+from utils.common_utils import timeit
 
 multi_gene_operators = ['uniform-plus', 'uniform-plus-SC', 'uniform-plus-BSC',
                         'uniform-plus-AdaptiveCrossover',
@@ -2339,7 +2340,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             Yp = self.feature_generation(X, p)
             self.train_final_model(p, Yp, y, force_training=force_training)
 
-    def feature_generation(self, X, individual, random_noise=0, noise_configuration=None):
+    def feature_generation(self, X, individual, random_noise=0, random_seed=0,
+                           noise_configuration=None):
         if individual.active_gene_num > 0:
             genes = individual.gene[:individual.active_gene_num]
         else:
@@ -2350,6 +2352,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                       register_array=individual.parameters['Register']
                                       if self.mgp_mode == 'Register' else None,
                                       random_noise=random_noise,
+                                      random_seed=random_seed,
                                       noise_configuration=noise_configuration)
         if isinstance(Yp, torch.Tensor):
             Yp = Yp.detach().numpy()
@@ -4066,8 +4069,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             individual.fitness.weights = (-1, -1)
             individual.fitness.values = (individual.fitness.values[0], r2_score(self.pseudo_label, predicted))
-
-    # @timeit
+            
+    @timeit
     def population_evaluation(self, toolbox, population):
         """
         :param population: a population of GP individuals

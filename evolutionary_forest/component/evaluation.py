@@ -35,6 +35,7 @@ from evolutionary_forest.component.configuration import EvaluationConfiguration,
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimitiveSet, quick_fill, GPPipeline
 from evolutionary_forest.sklearn_utils import cross_val_predict
+from evolutionary_forest.utility.lru_cache import custom_lru_cache, gp_key_func
 from evolutionary_forest.utils import reset_random, cv_prediction_from_ridge, one_hot_encode
 
 np.seterr(invalid='ignore')
@@ -484,6 +485,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
                              configuration: EvaluationConfiguration = None,
                              similarity_score=False,
                              random_noise=0,
+                             random_seed=0,
                              noise_configuration: NoiseConfiguration = None):
     if configuration is None:
         configuration = EvaluationConfiguration()
@@ -529,6 +531,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
             feature, intron_ids = quick_evaluate(gene, pset, data, target=target if similarity_score else None,
                                                  return_subtree_information=True,
                                                  random_noise=random_noise,
+                                                 random_seed=random_seed,
                                                  evaluation_configuration=configuration,
                                                  noise_configuration=noise_configuration)
             introns_results.append(intron_ids)
@@ -570,8 +573,10 @@ def add_hash_value(quick_result, hash_result):
 cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
+@custom_lru_cache(maxsize=10000, key_func=gp_key_func)
 def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                    return_subtree_information=False, random_noise=0,
+                   random_seed=0,
                    evaluation_configuration: EvaluationConfiguration = None,
                    noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
     if evaluation_configuration is None:
@@ -607,9 +612,11 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                         if noise_configuration.noise_type == 'Normal-S':
                             input_noise = noise_matrix.pop(0)
                             result = inject_noise_to_data(result, random_noise, noise_configuration,
-                                                          noise_vector=input_noise)
+                                                          noise_vector=input_noise,
+                                                          random_seed=random_seed)
                         else:
-                            result = inject_noise_to_data(result, random_noise, noise_configuration)
+                            result = inject_noise_to_data(result, random_noise, noise_configuration,
+                                                          random_seed=random_seed)
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
@@ -627,7 +634,8 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                         raise ValueError("Unsupported data type!")
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 \
                         and noise_configuration.noise_to_terminal:
-                        result = inject_noise_to_data(result, random_noise, noise_configuration)
+                        result = inject_noise_to_data(result, random_noise, noise_configuration,
+                                                      random_seed=random_seed)
                 else:
                     if isinstance(prim.value, str):
                         result = float(prim.value)
@@ -694,18 +702,22 @@ def local_sensitive_hash(random_matrix: np.ndarray, result):
 def inject_noise_to_data(result,
                          random_noise_magnitude,
                          noise_configuration: NoiseConfiguration,
-                         noise_vector=None):
+                         noise_vector=None,
+                         random_seed=0):
+    rng = np.random.RandomState(random_seed)
+
     noise_type = noise_configuration.noise_type
     if noise_vector is not None:
         noise = noise_vector
     elif noise_type == 'Normal':
-        noise = np.random.normal(0, 1, len(result))
+        noise = rng.normal(0, 1, len(result))
     elif noise_type == 'Uniform':
-        noise = np.random.uniform(-1, 1, len(result))
+        noise = rng.uniform(-1, 1, len(result))
     elif noise_type == 'Binomial':
-        noise = np.random.choice([-1, 1], len(result))
+        noise = rng.choice([-1, 1], len(result))
     else:
-        raise Exception
+        raise Exception("Invalid noise type")
+
     if noise_configuration.noise_normalization == 'Instance':
         result = result + noise * random_noise_magnitude * np.abs(result)
     elif noise_configuration.noise_normalization == 'STD':
@@ -713,7 +725,8 @@ def inject_noise_to_data(result,
     elif noise_configuration.noise_normalization in ['None', None]:
         result = result + noise * random_noise_magnitude
     else:
-        raise Exception
+        raise Exception("Invalid noise normalization type")
+
     return result
 
 

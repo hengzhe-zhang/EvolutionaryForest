@@ -127,7 +127,9 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             X_noise = sc.transform(feature_generator(data))
             X_noise_plus = sc.transform(feature_generator(data + 1e-8))
         elif sharpness_type == SharpnessType.Parameter:
-            X_noise = sc.transform(feature_generator(original_X, random_noise=configuration.perturbation_std,
+            X_noise = sc.transform(feature_generator(original_X,
+                                                     random_noise=configuration.perturbation_std,
+                                                     random_seed=i,
                                                      noise_configuration=configuration.noise_configuration))
         else:
             raise Exception("Unknown sharpness type!")
