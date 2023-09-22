@@ -13,14 +13,14 @@ def get_functions(p):
         'Mul': (np.multiply, 2),  # Multiplication
         'Div': (protected_division, 2),  # Protected Division for handling divide-by-zero errors
 
-        'Add3': (partial(simple_reduce, np.add), 3),  # Addition
-        'Add4': (partial(simple_reduce, np.add), 4),  # Addition
-        'Sub3': (partial(simple_reduce, np.subtract), 3),  # Subtraction
-        'Sub4': (partial(simple_reduce, np.subtract), 4),  # Subtraction
-        'Mul3': (partial(simple_reduce, np.multiply), 3),  # Multiplication
-        'Mul4': (partial(simple_reduce, np.multiply), 4),  # Multiplication
-        'Div3': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
-        'Div4': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
+        'Tri-Add': (partial(simple_reduce, np.add), 3),  # Addition
+        'Quad-Add': (partial(simple_reduce, np.add), 4),  # Addition
+        'Tri-Sub': (partial(simple_reduce, np.subtract), 3),  # Subtraction
+        'Quad-Sub': (partial(simple_reduce, np.subtract), 4),  # Subtraction
+        'Tri-Mul': (partial(simple_reduce, np.multiply), 3),  # Multiplication
+        'Quad-Mul': (partial(simple_reduce, np.multiply), 4),  # Multiplication
+        'Tri-Div': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
+        'Quad-Div': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
 
         # Mathematical functions
         'AQ': (analytical_quotient, 2),  # Analytical Quotient for symbolic differentiation

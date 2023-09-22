@@ -8,7 +8,7 @@ def doubleLexicase(pop, k, lexicase_round=10, size_selection='Roulette'):
     for _ in range(k):
         candidates = selAutomaticEpsilonLexicaseFast(pop, lexicase_round)
         if hasattr(candidates[0], 'fitness') and len(candidates[0].fitness.wvalues) > 1:
-            # For multi-object optimization, this might be a good way
+            # For bi-object optimization
             size_arr = [x.fitness.wvalues[1] for x in candidates]
             # change maximize to minimize
             size_arr = np.array([-x for x in size_arr])
