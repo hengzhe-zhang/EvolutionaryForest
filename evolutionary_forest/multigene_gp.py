@@ -72,6 +72,7 @@ class MultipleGeneGP():
     mgp_mode: bool
     semantics: np.ndarray
     pipe: GPPipeline
+    fitness_list: List
 
     @property
     def gene_num(self):

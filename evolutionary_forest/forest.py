@@ -733,6 +733,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
             test_normalization_factor = np.mean((test_y - np.mean(test_y)) ** 2)
             for ind, prediction in zip(first_pareto_front, predictions):
+                # the mean 1-sharpness across all samples
                 sharpness_value = ind.fitness_list[1][0]
                 errors = (test_y - prediction) ** 2
                 assert len(errors) == len(test_y)
