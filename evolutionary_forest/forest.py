@@ -4069,8 +4069,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             individual.fitness.weights = (-1, -1)
             individual.fitness.values = (individual.fitness.values[0], r2_score(self.pseudo_label, predicted))
-            
-    @timeit
+
     def population_evaluation(self, toolbox, population):
         """
         :param population: a population of GP individuals
