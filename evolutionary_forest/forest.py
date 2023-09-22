@@ -41,6 +41,7 @@ from xgboost import XGBRegressor
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import DSA
+from evolutionary_forest.component.bloat_control.double_lexicase import doubleLexicase
 from evolutionary_forest.component.bloat_control.prune_and_plant import PAP
 from evolutionary_forest.component.bloat_control.semantic_hoist import SHM
 from evolutionary_forest.component.bloat_control.simplification import Simplification, hash_based_simplification
@@ -1690,32 +1691,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.select == 'DoubleLexicase':
             lexicase_round = self.bloat_control.get("lexicase_round", 2)
             size_selection = self.bloat_control.get("size_selection", 'Roulette')
-
-            def doubleLexicase(pop, k):
-                chosen = []
-                for _ in range(k):
-                    candidates = selAutomaticEpsilonLexicaseFast(pop, lexicase_round)
-                    if isinstance(self.environmental_selection, (NSGA2, SPEA2)):
-                        # For multi-object optimization, this might be a good way
-                        size_arr = [x.fitness.wvalues[1] for x in candidates]
-                        # change maximize to minimize
-                        size_arr = np.array([-x for x in size_arr])
-                    else:
-                        size_arr = np.array([len(x) for x in candidates])
-                    if size_selection == 'Roulette':
-                        size_arr = np.max(size_arr) + np.min(size_arr) - size_arr
-                        if size_arr.sum() <= 0:
-                            index = np.random.choice([i for i in range(0, len(size_arr))])
-                        else:
-                            index = np.random.choice([i for i in range(0, len(size_arr))], p=size_arr / size_arr.sum())
-                    elif size_selection == 'Min':
-                        index = np.argmin(size_arr)
-                    else:
-                        raise Exception('Unknown Size Selection Operator!')
-                    chosen.append(candidates[index])
-                return chosen
-
-            toolbox.register("select", doubleLexicase)
+            toolbox.register("select", partial(doubleLexicase, lexicase_round=lexicase_round,
+                                               size_selection=size_selection))
         elif self.select == 'DoubleTournament':
             # select with double tournament
             toolbox.register("select", selDoubleTournament,
