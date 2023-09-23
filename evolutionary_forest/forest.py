@@ -645,6 +645,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         )
         self.elites_archive = None
         self.stacking_strategy = StackingStrategy(self)
+        self.reference_lgbm = None
 
     def history_initialization(self):
         self.train_data_history = []
@@ -2272,8 +2273,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     }
                 )
             self.reference_lgbm.fit(X, y)
-        else:
-            self.reference_lgbm = None
 
     def add_noise_to_data(self, X):
         param = self.param
