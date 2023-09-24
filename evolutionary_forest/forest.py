@@ -2298,7 +2298,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             Yp = quick_result_calculation(individual.gene, self.pset, X, self.original_features,
                                           sklearn_format=self.basic_primitives == 'ML',
                                           register_array=individual.parameters['Register']
-                                          if self.mgp_mode == 'Register' else None)
+                                          if self.mgp_mode == 'Register' else None,
+                                          configuration=self.evaluation_configuration,
+                                          noise_configuration=self.pac_bayesian.noise_configuration)
             predicted = individual.pipe.predict(Yp)
             predictions.append(predicted)
         predictions = np.array(predictions)
