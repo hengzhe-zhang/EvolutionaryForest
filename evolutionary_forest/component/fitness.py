@@ -522,8 +522,11 @@ class R2PACBayesian(Fitness):
                     for v in torch_variables:
                         v.grad /= gradient_norm
 
-                    optimizer = optim.SGD(torch_variables, lr=self.algorithm.pac_bayesian.perturbation_std,
-                                          weight_decay=1e-5)
+                    if self.algorithm.pac_bayesian.perturbation_std == 'Adaptive':
+                        lr = len(torch_variables)
+                    else:
+                        lr = self.algorithm.pac_bayesian.perturbation_std
+                    optimizer = optim.SGD(torch_variables, lr=lr)
                     # Update model parameters using an optimizer
                     optimizer.step()
                     optimizer.zero_grad()
