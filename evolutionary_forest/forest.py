@@ -4,6 +4,7 @@ from multiprocessing import Pool
 from typing import Union
 
 import dill
+import torch
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -2301,6 +2302,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                           if self.mgp_mode == 'Register' else None,
                                           configuration=self.evaluation_configuration,
                                           noise_configuration=self.pac_bayesian.noise_configuration)
+            if isinstance(Yp, torch.Tensor):
+                Yp = Yp.detach().numpy()
             predicted = individual.pipe.predict(Yp)
             predictions.append(predicted)
         predictions = np.array(predictions)
