@@ -29,8 +29,8 @@ def get_functions(p):
         'ALog10': (analytical_log10, 1),  # Analytical Logarithm base 10 for symbolic differentiation
         'Sin': (np.sin, 1),  # Sine function
         'Cos': (np.cos, 1),  # Cosine function
-        'RSin': (np.sin, 1),  # Sine function
-        'RCos': (np.cos, 1),  # Cosine function
+        'RSin': (radian_sin, 1),  # Sine function
+        'RCos': (radian_cos, 1),  # Cosine function
         'Arcsin': (np.arcsin, 1),  # Cosine function
         'Arccos': (np.arccos, 1),  # Cosine function
         'Arctan': (np.arctan, 1),  # Arctangent function
@@ -104,5 +104,11 @@ def get_differentiable_functions(p):
         'Max': (torch.maximum, 2),  # Maximum function
         'Min': (torch.minimum, 2),  # Minimum function
         'Neg': (torch.negative, 1),  # Unary negation function (i.e. negate the input value)
+        
+        'RSin': (radian_sin_torch, 1),  # Sine function
+        'RCos': (radian_cos_torch, 1),  # Cosine function
+        'Gaussian': (gaussian_torch, 1),  # Residual function for handling negative values
+        'Relu': (torch.relu, 1),  # Residual function for handling negative values
+        'Abs': (torch.absolute, 1),  # Absolute value function
     }[p]
     return primitive

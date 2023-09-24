@@ -1861,6 +1861,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 for i in range(max(int(self.X.shape[1] * self.constant_ratio), 1)):
                     pset.addEphemeralConstant(f"rand{i}", random_variable)
         else:
+            assert self.constant_type == 'Int'
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
         # Check if MGP mode is enabled and create a new primitive set for each gene
         if isinstance(pset, PrimitiveSet) and self.mgp_mode is True:
@@ -3126,10 +3127,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # clone all variables
             for ind in offspring:
                 for tree in ind.gene:
-                    for f in tree:
+                    for id, f in enumerate(tree):
                         if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor):
-                            f.value = torch.tensor([f.value.item()],
-                                                   dtype=torch.float32).requires_grad_(True)
+                            node = torch.tensor([f.value.item()],
+                                                dtype=torch.float32).requires_grad_(True)
+                            tree[id] = Terminal(node, False, f.ret)
 
     def post_processing_after_evaluation(self, parent, population):
         # re-assign fitness for all individuals if using PAC-Bayesian

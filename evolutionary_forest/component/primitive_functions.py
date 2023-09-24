@@ -20,9 +20,22 @@ def radian_cos(x):
     return np.cos(np.pi * x)
 
 
+def radian_sin_torch(x):
+    return torch.sin(torch.pi * x)
+
+
+def radian_cos_torch(x):
+    return torch.cos(torch.pi * x)
+
+
 def gaussian(x):
     # Gaussian with mean 0 and sigma 1
     return np.exp(-np.multiply(x, x) / 2.0)
+
+
+def gaussian_torch(x):
+    # Gaussian with mean 0 and sigma 1
+    return torch.exp(-torch.multiply(x, x) / 2.0)
 
 
 def protected_division(x1, *x2):

@@ -1,4 +1,5 @@
 import enum
+import enum
 import logging
 import random
 import time
@@ -35,7 +36,6 @@ from evolutionary_forest.component.configuration import EvaluationConfiguration,
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimitiveSet, quick_fill, GPPipeline
 from evolutionary_forest.sklearn_utils import cross_val_predict
-from evolutionary_forest.utility.lru_cache import custom_lru_cache, gp_key_func
 from evolutionary_forest.utils import reset_random, cv_prediction_from_ridge, one_hot_encode
 
 np.seterr(invalid='ignore')
@@ -178,29 +178,45 @@ def calculate_score(args):
         estimators = result['estimator']
     elif not configuration.cross_validation:
         if configuration.gradient_descent:
-            # print('evaluation')
             pipe.fit(Yp.detach().numpy(), Y)
             ridge: LinearModel = pipe['Ridge']
             assert isinstance(ridge, LinearModel), "Only linear models support gradient descent"
+
+            # Use the pipeline for prediction
+            Y_pred_pipe = pipe.predict(Yp.detach().numpy())
 
             # extract coefficients from linear model
             weights = ridge.coef_
             bias = ridge.intercept_
             weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=True)
             bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
+
+            mean = Yp.mean(dim=0)
+            std = Yp.std(dim=0)
+            epsilon = 1e-5
+            Yp = (Yp - mean) / (std + epsilon)
             Y_pred = torch.mm(Yp, weights_torch.view(-1, 1)) + bias_torch
 
             # gradient descent
             criterion = torch.nn.MSELoss()
             variables = [f.value for tree in func for f in tree
                          if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)]
+
+            # Use PyTorch for prediction
+            Y_pred_torch = Y_pred.detach().numpy()
+
+            # Add an assertion to ensure that the two MSE scores are very close, for validation
+            # check = pearsonr(Y_pred_torch.flatten(), Y_pred_pipe)
+            # assert np.all(np.isnan(check)) or check[0] > 0.99, \
+            #     f"Predictions do not match, {check}"
+
             for v in [weights_torch, bias_torch] + variables:
                 assert v.requires_grad is True
             if len(variables) >= 1:
                 if configuration.gradient_optimizer == 'GD':
-                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=0.1)
+                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=0.1, weight_decay=1e-5)
                 elif configuration.gradient_optimizer == 'GD-1':
-                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=1)
+                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=1, weight_decay=1e-5)
                 else:
                     raise Exception()
                 loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())

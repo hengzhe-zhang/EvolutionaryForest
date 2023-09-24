@@ -1,21 +1,25 @@
 from abc import abstractmethod
+from abc import abstractmethod
 from functools import partial
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
+from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
 from sklearn.metrics import r2_score
+from torch import optim
 
+from evolutionary_forest.component.evaluation import quick_result_calculation
 from evolutionary_forest.component.generalization.iodc import create_z, create_w, calculate_iodc
-from evolutionary_forest.component.generalization.wcrv import calculate_WCRV, calculate_mic
 from evolutionary_forest.component.generalization.pac_bayesian import assign_rank, pac_bayesian_estimation, \
     SharpnessType, \
     combine_individuals
 from evolutionary_forest.component.generalization.rademacher_complexity import generate_rademacher_vector, \
     rademacher_complexity_estimation
 from evolutionary_forest.component.generalization.vc_dimension import vc_dimension_estimation
+from evolutionary_forest.component.generalization.wcrv import calculate_WCRV, calculate_mic
 from evolutionary_forest.multigene_gp import MultipleGeneGP
-from utils.common_utils import timeit
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -448,15 +452,110 @@ class R2PACBayesian(Fitness):
         sharpness_vector = []
         # PAC-Bayesian estimation
         # return a tuple
-        estimation = pac_bayesian_estimation(X_features, algorithm.X, y,
-                                             estimator, individual,
-                                             self.algorithm.evaluation_configuration.cross_validation,
-                                             self.algorithm.pac_bayesian,
-                                             self.sharpness_type,
-                                             feature_generator=feature_generator,
-                                             data_generator=data_generator,
-                                             reference_model=self.algorithm.reference_lgbm,
-                                             sharpness_vector=sharpness_vector)
+        if self.algorithm.constant_type == 'GD':
+            torch.set_grad_enabled(True)
+            # Gradient Ascent is supported
+            trees = []
+            torch_variables = []
+            for gene in individual.gene:
+                new_gene: PrimitiveTree = PrimitiveTree([])
+                for i in range(len(gene)):
+                    if isinstance(gene[i], Primitive):
+                        new_gene.append(self.algorithm.pset.mapping['Add'])
+                        v = torch.zeros(1, requires_grad=True, dtype=torch.float32)
+                        gp_v = Terminal(v, False, object)
+                        new_gene.append(gp_v)
+                        torch_variables.append(v)
+                        new_gene.append(gene[i])
+                    elif isinstance(gene[i], Terminal) and isinstance(gene[i].value, torch.Tensor):
+                        # avoid gradient interference
+                        node = torch.tensor([gene[i].value.item()],
+                                            dtype=torch.float32).requires_grad_(False)
+                        new_gene.append(Terminal(node, False, object))
+                    else:
+                        new_gene.append(gene[i])
+                trees.append(new_gene)
+
+            if all((all(isinstance(x, Terminal) for x in gene) or
+                    # no primitives
+                    all(isinstance(x.value, torch.Tensor)
+                        for x in filter(lambda x: isinstance(x, Terminal), gene)))
+                   # or only constant primitives
+                   for gene in individual.gene):
+                sharpness = np.inf
+            else:
+                features = quick_result_calculation(trees, self.algorithm.pset,
+                                                    self.algorithm.X,
+                                                    self.algorithm.original_features,
+                                                    configuration=self.algorithm.evaluation_configuration)
+                if torch.any(torch.isnan(features)):
+                    sharpness = np.inf
+                else:
+                    ridge = estimator['Ridge']
+                    # extract coefficients from linear model
+                    weights = ridge.coef_
+                    bias = ridge.intercept_
+                    weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=False)
+                    bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=False)
+
+                    mean = features.mean(dim=0)
+                    std = features.std(dim=0)
+                    epsilon = 1e-5
+                    features = (features - mean) / (std + epsilon)
+                    Y_pred = torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
+
+                    criterion = torch.nn.MSELoss()
+                    mse_old = (Y_pred.detach().numpy().flatten() - y) ** 2
+                    loss = criterion(Y_pred, torch.from_numpy(y).detach().float())
+                    loss.backward()
+                    # print('R2', r2_score(y, Y_pred.detach().numpy()))
+
+                    # Reverse the direction of the gradients for gradient ascent
+                    torch_variables = list(filter(lambda v: v.grad is not None, torch_variables))
+                    for v in torch_variables:
+                        v.grad = -v.grad
+
+                    # Compute the norm of the gradient
+                    gradient_norm = torch.norm(torch.stack([v.grad.norm() for v in torch_variables]))
+
+                    # Scale the gradients to have a norm of 1
+                    for v in torch_variables:
+                        v.grad /= gradient_norm
+
+                    optimizer = optim.SGD(torch_variables, lr=self.algorithm.pac_bayesian.perturbation_std,
+                                          weight_decay=1e-5)
+                    # Update model parameters using an optimizer
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+                    features = quick_result_calculation(trees, self.algorithm.pset, self.algorithm.X,
+                                                        self.algorithm.original_features,
+                                                        configuration=self.algorithm.evaluation_configuration)
+                    mean = features.mean(dim=0)
+                    std = features.std(dim=0)
+                    features = (features - mean) / (std + epsilon)
+                    Y_pred = torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
+                    # mse_new = criterion(Y_pred, torch.from_numpy(y).detach().float()).item()
+                    mse_new = (Y_pred.detach().numpy().flatten() - y) ** 2
+                    sharpness = np.maximum(mse_new - mse_old, 0).mean()
+                    # print('R2 After', r2_score(y, Y_pred.detach().numpy()))
+            sharpness = np.nan_to_num(sharpness, nan=np.inf)
+            assert sharpness >= 0
+            # print('Sharpness', sharpness, individual.case_values.mean())
+            estimation = [
+                (individual.fitness.wvalues[0], 1),
+                (sharpness, -1)
+            ]
+        else:
+            estimation = pac_bayesian_estimation(X_features, algorithm.X, y,
+                                                 estimator, individual,
+                                                 self.algorithm.evaluation_configuration.cross_validation,
+                                                 self.algorithm.pac_bayesian,
+                                                 self.sharpness_type,
+                                                 feature_generator=feature_generator,
+                                                 data_generator=data_generator,
+                                                 reference_model=self.algorithm.reference_lgbm,
+                                                 sharpness_vector=sharpness_vector)
         individual.fitness_list = estimation
         assert len(individual.case_values) > 0
         # [(training R2, 1), (sharpness, -1)]
@@ -465,6 +564,7 @@ class R2PACBayesian(Fitness):
         naive_mse = np.mean(individual.case_values)
         # sharpness value is a numerical value
         individual.sam_loss = naive_mse + sharpness_value
+        # print('SAM loss: ', individual.sam_loss, naive_mse, sharpness_value)
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available,
             # smaller is better

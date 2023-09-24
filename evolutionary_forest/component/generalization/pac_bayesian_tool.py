@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 from sklearn.metrics import *
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import KFold
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
