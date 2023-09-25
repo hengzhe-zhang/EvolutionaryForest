@@ -41,6 +41,7 @@ from xgboost import XGBRegressor
 
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
+from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import DSA
 from evolutionary_forest.component.bloat_control.double_lexicase import doubleLexicase
 from evolutionary_forest.component.bloat_control.prune_and_plant import PAP
@@ -701,8 +702,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.all_nodes_counter = 0
         self.successful_repair = 0
         self.failed_repair = 0
-        self.historical_largest = 0
-        self.historical_smallest = math.inf
         self.current_height = 1
         self.redundant_features = 0
         self.irrelevant_features = 0
@@ -1438,6 +1437,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.gene_num, str):
             self.gene_num = min(int(self.gene_num.replace('X', '')) * self.X.shape[1], 30)
         pset = self.primitive_initialization(x)
+
+        if self.check_alpha_dominance_nsga2():
+            self.alpha_dominance = AlphaDominance(self)
 
         # hall of fame initialization
         self.archive_initialization()
@@ -3436,8 +3438,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 self.micro_crossover_successful_rate.append(0)
 
-        self.historical_smallest = min(self.historical_smallest, min([len(p) for p in population]))
-        self.historical_largest = max(self.historical_largest, max([len(p) for p in population]))
+        if self.check_alpha_dominance_nsga2():
+            self.alpha_dominance.update_best(population)
+
         if self.test_fun != None:
             self.training_with_validation_set()
             self.stacking_strategy.stacking_layer_generation(self.X, self.y)
@@ -3860,31 +3863,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.environmental_selection in ['NSGA2'] and self.base_learner == 'RDT~LightGBM-Stump':
             population[:] = selNSGA2(offspring + population, len(population))
             self.hof = population
-        elif self.environmental_selection == 'Alpha-Dominance-NSGA2' or \
-            (self.bloat_control is not None and self.bloat_control.get('alpha_dominance_NSGA2', False)):
+        elif self.check_alpha_dominance_nsga2():
             alpha = self.bloat_control['alpha_value']
-            max_size = max([len(x) for x in offspring + population])
-            for ind in offspring + population:
-                assert alpha >= 0, f'Alpha Value {alpha}'
-                setattr(ind, 'original_fitness', ind.fitness.values)
-                ind.fitness.weights = (-1, -1)
-                ind.fitness.values = (ind.fitness.values[0], len(ind) / max_size + alpha * ind.fitness.values[0])
-            first_pareto_front = sortNondominated(offspring + population, len(population))[0]
-            population[:] = selNSGA2(offspring + population, len(population))
-            self.hof = [max(population, key=lambda x: x.fitness.wvalues[0])]
-            for ind in population:
-                ind.fitness.weights = (-1,)
-                ind.fitness.values = getattr(ind, 'original_fitness')
-
-            theta = np.rad2deg(np.arctan(alpha))
-            historical_largest = self.historical_largest
-            historical_smallest = self.historical_smallest
-            avg_size = np.mean([len(p) for p in first_pareto_front])
-            theta = theta + (historical_largest + historical_smallest - 2 * avg_size) * self.bloat_control['step_size'] \
-                    / (historical_largest - historical_smallest)
-            theta = np.clip(theta, 0, 90)
-            alpha = np.tan(np.deg2rad(theta))
-            # print('Alpha', alpha)
+            alpha = self.alpha_dominance.selection(population, offspring, alpha)
             self.bloat_control['alpha_value'] = alpha
         elif nsga2 or spea2:
             max_size = max([len(x) for x in offspring + population])
@@ -3946,6 +3927,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             population[:] = selBest(offspring + population, len(population))
         else:
             population[:] = offspring
+
+    def check_alpha_dominance_nsga2(self):
+        return self.environmental_selection == 'Alpha-Dominance-NSGA2' or \
+            (self.bloat_control is not None and self.bloat_control.get('alpha_dominance_NSGA2', False))
 
     # @timeit
     def population_reduction(self, population):
