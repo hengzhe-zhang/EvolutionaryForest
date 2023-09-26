@@ -38,6 +38,7 @@ from sympy import parse_expr
 from tpot import TPOTRegressor
 from xgboost import XGBRegressor
 
+from evolutionary_forest.analysis.posthoc_pareto_front import ParetoFrontTool
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
@@ -658,43 +659,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.current_height = 1
         self.redundant_features = 0
         self.irrelevant_features = 0
-
-    def calculate_pareto_front(self):
-        self.pareto_front = []
-        if self.experimental_configuration.pac_bayesian_comparison and \
-            isinstance(self.environmental_selection, EnvironmentalSelection):
-            pac = R2PACBayesian(self, **self.param)
-            self.pac_bayesian.objective = 'R2,MaxSharpness-1-Base'
-            first_pareto_front = sortNondominated(self.pop, len(self.pop))[0]
-            normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
-            for ind in first_pareto_front:
-                if not isinstance(self.score_func, R2PACBayesian):
-                    if isinstance(self.score_func, RademacherComplexityR2):
-                        ind.rademacher_fitness_list = ind.fitness_list
-                    pac.assign_complexity(ind, ind.pipe)
-                sharpness_value = ind.fitness_list[1][0]
-                self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor),
-                                          float(sharpness_value / normalization_factor)))
-
-    def calculate_test_pareto_front(self, test_x, test_y):
-        self.test_pareto_front = []
-        self.size_pareto_front = []
-        if self.experimental_configuration.pac_bayesian_comparison and \
-            isinstance(self.environmental_selection, EnvironmentalSelection):
-            self.test_pareto_front = []
-            first_pareto_front = sortNondominated(self.pop, len(self.pop))[0]
-            predictions = self.individual_prediction(test_x, first_pareto_front)
-            normalization_factor = np.mean((self.y - np.mean(self.y)) ** 2)
-            test_normalization_factor = np.mean((test_y - np.mean(test_y)) ** 2)
-            for ind, prediction in zip(first_pareto_front, predictions):
-                # the mean 1-sharpness across all samples
-                sharpness_value = ind.fitness_list[1][0]
-                errors = (test_y - prediction) ** 2
-                assert len(errors) == len(test_y)
-                normalized_test_error = float(np.mean(errors) / test_normalization_factor)
-                normalized_sharpness = float(sharpness_value / normalization_factor)
-                self.test_pareto_front.append((normalized_test_error, normalized_sharpness))
-                self.size_pareto_front.append((normalized_test_error, sum([len(gene) for gene in ind.gene])))
 
     def score_function_controller(self, params, score_func):
         if isinstance(score_func, str) and score_func == 'R2-Rademacher-Complexity':
@@ -2643,44 +2607,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if count > pop_size * 100:
                     raise Exception("Error!")
                 count += 1
-                # Using the external archive
-                if self.external_archive == 'HallOfFame' and self.hof is not None:
-                    parent = population + list(self.hof)
-                else:
-                    parent = population
-
-                if self.select == 'Auto' or self.select == 'Auto-MCTS':
-                    offspring = self.aos.select(parent)
-                elif (self.select in map_elite_series) and \
-                    ((self.map_elite_parameter['trigger_time'] == 'All') or
-                     (self.map_elite_parameter['trigger_time'] == 'Improvement' and fitness_improvement >= 0)):
-                    if isinstance(elite_map, list):
-                        parent = elite_map
-                    elif isinstance(elite_map, dict):
-                        parent = list(elite_map.values())
-                    else:
-                        raise TypeError
-
-                    offspring = self.custom_selection(parent, self.select, elite_map)
-                else:
-                    if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential and \
-                        random.random() < self.crossover_configuration.semantic_crossover_probability:
-                        # select two parents using macro-crossover operator
-                        # then, apply traditional operators on these selected parents
-                        parents_a, pa = self.semantic_crossover_for_parent(toolbox, parent, elites_archive,
-                                                                           self.crossover_configuration)
-                        parents_b, pb = self.semantic_crossover_for_parent(toolbox, parent, elites_archive,
-                                                                           self.crossover_configuration)
-                        offspring = [pa, pb]
-                        # No matter whether apply macro-crossover or not, always mark it as macro-crossover
-                        self.record_parent_fitness(parents_a, [pa], crossover_type='Macro')
-                        self.record_parent_fitness(parents_b, [pb], crossover_type='Macro')
-                    else:
-                        offspring = self.traditional_parent_selection(toolbox, parent, elites_archive)
-                        if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential:
-                            # If this is sequential model, mark as micro-crossover
-                            for o in offspring:
-                                o.crossover_type = 'Micro'
+                offspring = self.select_pair_of_parents(population, toolbox, elite_map, elites_archive,
+                                                        fitness_improvement)
 
                 offspring: List[MultipleGeneGP] = offspring[:]
                 if not self.bloat_control_configuration.hoist_before_selection:
@@ -2742,15 +2670,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
 
                 self.torch_variable_clone(offspring)
-
-                # try to fix zero tree
-                fix_zero_tree = self.bloat_control is not None and self.bloat_control.get("fix_zero_tree", False)
-                if fix_zero_tree:
-                    for o in offspring:
-                        for gid, g in enumerate(o.gene):
-                            if len(g) == 1 and isinstance(g[0], Terminal) and g[0].value == 0:
-                                # It is a zero tree
-                                o.gene[gid] = self.new_tree_generation()
+                self.fix_very_trivial_trees(offspring)
 
                 check_mutation = self.bloat_control is not None and self.bloat_control.get("check_mutation", False)
                 check_initialization = self.bloat_control is not None and \
@@ -2995,8 +2915,66 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.base_learner, str):
             assert not self.base_learner.startswith('Fast-')
         self.post_prune(self.hof)
-        self.calculate_pareto_front()
+        ParetoFrontTool.calculate_pareto_front()
         return population, logbook
+
+    def fix_very_trivial_trees(self, offspring):
+        """
+          Address and rectify trivial trees (specifically zero trees) in the provided offspring list.
+
+          A 'zero tree' is considered trivial and is defined as a tree that contains only a single node
+          of type Terminal with a value of 0. If the bloat control configuration has the "fix_zero_tree"
+          parameter set to True, this method will regenerate such trees using the `new_tree_generation` method.
+        """
+
+        # try to fix zero tree
+        fix_zero_tree = self.bloat_control is not None and self.bloat_control.get("fix_zero_tree", False)
+        if fix_zero_tree:
+            for o in offspring:
+                for gid, g in enumerate(o.gene):
+                    if len(g) == 1 and isinstance(g[0], Terminal) and g[0].value == 0:
+                        # It is a zero tree
+                        o.gene[gid] = self.new_tree_generation()
+
+    def select_pair_of_parents(self, population, toolbox, elite_map, elites_archive, fitness_improvement):
+        # Using the external archive
+        if self.external_archive == 'HallOfFame' and self.hof is not None:
+            parent = population + list(self.hof)
+        else:
+            parent = population
+        if self.select == 'Auto' or self.select == 'Auto-MCTS':
+            offspring = self.aos.select(parent)
+        elif (self.select in map_elite_series) and \
+            ((self.map_elite_parameter['trigger_time'] == 'All') or
+             (self.map_elite_parameter['trigger_time'] == 'Improvement' and fitness_improvement >= 0)):
+            if isinstance(elite_map, list):
+                parent = elite_map
+            elif isinstance(elite_map, dict):
+                parent = list(elite_map.values())
+            else:
+                raise TypeError
+
+            offspring = self.custom_selection(parent, self.select, elite_map)
+        else:
+            if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential and \
+                random.random() < self.crossover_configuration.semantic_crossover_probability:
+                # select two parents using macro-crossover operator
+                # then, apply traditional operators on these selected parents
+                parents_a, pa = self.semantic_crossover_for_parent(toolbox, parent, elites_archive,
+                                                                   self.crossover_configuration)
+                parents_b, pb = self.semantic_crossover_for_parent(toolbox, parent, elites_archive,
+                                                                   self.crossover_configuration)
+                offspring = [pa, pb]
+                # No matter whether apply macro-crossover or not, always mark it as macro-crossover
+                self.record_parent_fitness(parents_a, [pa], crossover_type='Macro')
+                self.record_parent_fitness(parents_b, [pb], crossover_type='Macro')
+            else:
+                offspring = self.traditional_parent_selection(toolbox, parent, elites_archive)
+                if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential:
+                    # If this is sequential model, mark as micro-crossover
+                    for o in offspring:
+                        o.crossover_type = 'Micro'
+        return offspring
 
     def hoist_mutation(self, population, adaptive_hoist_probability, no_improvement_iteration):
         if self.bloat_control is not None and self.bloat_control.get('hoist_mutation', False):
