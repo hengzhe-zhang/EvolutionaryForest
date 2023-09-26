@@ -18,7 +18,8 @@ from tpot import TPOTClassifier
 from evolutionary_forest.component.archive import EnsembleSelectionHallOfFame
 from evolutionary_forest.component.evaluation import quick_result_calculation
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
-from evolutionary_forest.forest import EvolutionaryForestRegressor, GBDTLRClassifierX
+from evolutionary_forest.forest import EvolutionaryForestRegressor
+from evolutionary_forest.component.ensemble_learning.utils import GBDTLRClassifierX
 from evolutionary_forest.model.PLTree import LRDTClassifier
 from evolutionary_forest.model.SafetyLR import SafetyLogisticRegression
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
