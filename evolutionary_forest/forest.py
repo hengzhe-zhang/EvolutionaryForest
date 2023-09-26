@@ -2915,7 +2915,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.base_learner, str):
             assert not self.base_learner.startswith('Fast-')
         self.post_prune(self.hof)
-        ParetoFrontTool.calculate_pareto_front()
+        ParetoFrontTool.calculate_pareto_front(self)
         return population, logbook
 
     def fix_very_trivial_trees(self, offspring):
