@@ -1,4 +1,8 @@
-from typing import TYPE_CHECKING
+from deap.tools import sortNondominated
+
+from evolutionary_forest.component.environmental_selection import EnvironmentalSelection
+from evolutionary_forest.component.fitness import RademacherComplexityR2, R2PACBayesian
+from evolutionary_forest.multigene_gp import *
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor

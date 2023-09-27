@@ -59,10 +59,7 @@ from evolutionary_forest.component.environmental_selection import NSGA2, Environ
 from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
-from evolutionary_forest.component.fitness import Fitness, RademacherComplexityR2, RademacherComplexitySizeR2, \
-    RademacherComplexityR2Scaler, R2Size, R2SizeScaler, LocalRademacherComplexityR2, TikhonovR2, R2FeatureCount, \
-    LocalRademacherComplexityR2Scaler, RademacherComplexityFeatureCountR2, RademacherComplexityAllR2, R2PACBayesian, \
-    PACBayesianR2Scaler, R2WCRV, R2IODC, R2GrandComplexity
+from evolutionary_forest.component.fitness import *
 from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.initialization import initialize_crossover_operator
@@ -95,9 +92,7 @@ from evolutionary_forest.strategies.adaptive_operator_selection import MultiArmB
 from evolutionary_forest.strategies.estimation_of_distribution import EstimationOfDistribution, eda_operators
 from evolutionary_forest.strategies.multifidelity_evaluation import MultiFidelityEvaluation
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
-from evolutionary_forest.utils import get_feature_importance, feature_append, select_top_features, efficient_deepcopy, \
-    gene_to_string, get_activations, reset_random, weighted_avg_and_std, is_float, cross_scale, \
-    extract_numbers, pickle_deepcopy, MeanRegressor, MedianRegressor
+from evolutionary_forest.utils import *
 
 multi_gene_operators = ['uniform-plus', 'uniform-plus-SC', 'uniform-plus-BSC',
                         'uniform-plus-AdaptiveCrossover',
