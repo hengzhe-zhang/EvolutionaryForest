@@ -563,6 +563,9 @@ class R2PACBayesian(Fitness):
         assert len(individual.case_values) > 0
         # [(training R2, 1), (sharpness, -1)]
         sharpness_value = estimation[1][0]
+        """
+        Here, using cross-validation loss is reasonable
+        """
         # using SAM loss as the final selection criterion
         naive_mse = np.mean(individual.case_values)
         # sharpness value is a numerical value

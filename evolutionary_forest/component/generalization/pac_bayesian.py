@@ -102,6 +102,12 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
                             data_generator=None,
                             reference_model: LGBMRegressor = None,
                             sharpness_vector=None):
+    """
+    Please pay attention, when calculating the sharpness,
+    do not use cross-validation prediction as the predictions.
+    Here, we should strictly follow the process of sharpness estimation.
+    """
+    original_predictions = individual.pipe.predict(X)
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = configuration.sharpness_iterations
@@ -175,7 +181,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif s == 'MeanSharpness-Base':
             # mean-sharpness, which follows PAC-Bayesian
             # subtract baseline MSE
-            baseline_mse = mean_squared_error(y, individual.predicted_values)
+            baseline_mse = mean_squared_error(y, original_predictions)
             # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
             # average over perturbations
@@ -189,8 +195,8 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif s == 'MaxSharpness-Base' or s == 'MaxSharpness-Base+':
             # n-SAM, reduce the maximum sharpness over all samples
             # subtract baseline MSE
-            baseline_mse = mean_squared_error(y, individual.predicted_values)
-            baseline = (y - individual.predicted_values) ** 2
+            baseline_mse = mean_squared_error(y, original_predictions)
+            baseline = (y - original_predictions) ** 2
             mse_scores = np.vstack((mse_scores, baseline))
             max_sharp = mse_scores[np.argmax(np.mean(mse_scores, axis=1))]
             if s == 'MaxSharpness+':
@@ -209,7 +215,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif s == 'MaxSharpness-1-Base' or s == 'MaxSharpness-1-Base+':
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
-            baseline = (y - individual.predicted_values) ** 2
+            baseline = (y - original_predictions) ** 2
             mse_scores = np.vstack((mse_scores, baseline))
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
@@ -221,7 +227,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif check_format(s):
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
-            baseline = (y - individual.predicted_values) ** 2
+            baseline = (y - original_predictions) ** 2
             mse_scores = np.vstack((mse_scores, baseline))
             _, k, _ = s.split('-')
             max_sharp = m_sharpness(mse_scores.T, int(k))
