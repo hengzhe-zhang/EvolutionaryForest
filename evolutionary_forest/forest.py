@@ -263,7 +263,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  rmp_ratio=0.5,  # Multi-task Optimization
                  force_retrain=False,
                  learner=None,
-                 constant_ratio=0, **params):
+                 constant_ratio=0,
+                 bounded_prediction=False,
+                 **params):
         """
         Basic GP Parameters:
         n_pop: The size of the population
@@ -296,6 +298,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.bounded_prediction = bounded_prediction
         self.constant_ratio = constant_ratio
         self.learner = learner
         self.force_retrain = force_retrain
@@ -2313,6 +2316,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     # Apply intron probability mask to Yp if intron_probability is greater than 0
                     Yp = Yp[:, individual.active_gene]
                 predicted = individual.pipe.predict(Yp)
+
+            if self.bounded_prediction:
+                predicted = np.clip(predicted, self.y.min(), self.y.max())
 
             if self.normalize:
                 # Un-scale predicted values if normalize flag is set
