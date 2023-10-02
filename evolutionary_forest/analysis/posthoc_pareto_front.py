@@ -30,6 +30,11 @@ class ParetoFrontTool():
                 assert len(errors) == len(y_train)
                 train_mse = np.mean(errors)
 
+                """
+                1. Normalized fitness values (case values represent cross-validation squared error)
+                2. Normalized sharpness values
+                3. Normalized training MSE
+                """
                 self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor_scaled),
                                           float(sharpness_value / normalization_factor_scaled),
                                           float(train_mse / normalization_factor)))
@@ -47,13 +52,24 @@ class ParetoFrontTool():
             If test data is calculated on unscaled data, whereas training data is calculated on scaled data,
             the result will be wrong.
             """
-            normalization_factor = np.mean((y_train - np.mean(y_train)) ** 2)
+            normalization_factor_train = np.mean((y_train - np.mean(y_train)) ** 2)
+            normalization_factor_test = np.mean((test_y - np.mean(test_y)) ** 2)
             normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
             for ind, prediction in zip(first_pareto_front, predictions):
                 # the mean 1-sharpness across all samples
                 sharpness_value = ind.fitness_list[1][0]
                 errors = (test_y - prediction) ** 2
                 assert len(errors) == len(test_y)
-                test_error = np.mean(errors) / normalization_factor
-                self.test_pareto_front.append((test_error, float(sharpness_value / normalization_factor_scaled)))
-                self.size_pareto_front.append((test_error, sum([len(gene) for gene in ind.gene])))
+                test_error_normalized_by_train = np.mean(errors) / normalization_factor_train
+                test_error_normalized_by_test = np.mean(errors) / normalization_factor_test
+                """
+                1. Normalized test error (1-Test R2)
+                2. Normalized sharpness values / model size
+                3. Normalized test error, but use same normalization factor as training data
+                """
+                self.test_pareto_front.append((test_error_normalized_by_test,
+                                               float(sharpness_value / normalization_factor_scaled),
+                                               test_error_normalized_by_train))
+                self.size_pareto_front.append((test_error_normalized_by_test,
+                                               sum([len(gene) for gene in ind.gene]),
+                                               test_error_normalized_by_train))
