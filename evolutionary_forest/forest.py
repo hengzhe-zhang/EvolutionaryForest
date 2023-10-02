@@ -645,6 +645,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         }
         self.safe_initialization_check()
 
+        # Pareto front for storing fitness values
+        self.pareto_front = []
+        self.test_pareto_front = []
+        self.size_pareto_front = []
+
     def counter_initialization(self):
         self.current_gen = 0
         self.intron_nodes_counter = 0
@@ -2910,7 +2915,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.base_learner, str):
             assert not self.base_learner.startswith('Fast-')
         self.post_prune(self.hof)
-        ParetoFrontTool.calculate_pareto_front(self)
         return population, logbook
 
     def fix_very_trivial_trees(self, offspring):
