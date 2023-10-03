@@ -48,8 +48,9 @@ class PACBayesianConfiguration():
                  sharpness_iterations=10,
                  automatic_std=False,
                  automatic_std_model='KNN',
-                 **params):
+                 only_hard_instance=0, **params):
         # For VCD
+        self.only_hard_instance = only_hard_instance
         self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
         self.optimal_design = optimal_design
@@ -108,6 +109,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     Here, we should strictly follow the process of sharpness estimation.
     """
     original_predictions = individual.pipe.predict(X)
+    baseline = (y - original_predictions) ** 2
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = configuration.sharpness_iterations
@@ -116,7 +118,17 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     sc = estimator['Scaler']
 
     # Create an array to store the R2 scores
-    mse_scores = np.zeros((num_iterations, len(X)))
+    index = None
+    if configuration.only_hard_instance != 0:
+        mse_scores = np.zeros((num_iterations, int(len(X) * abs(configuration.only_hard_instance))))
+        if configuration.only_hard_instance > 0:
+            index = np.argsort(baseline)[-int(len(baseline) * configuration.only_hard_instance):]
+        else:
+            index = np.argsort(baseline)[:int(len(baseline) * -configuration.only_hard_instance)]
+        baseline = baseline[index]
+    else:
+        mse_scores = np.zeros((num_iterations, len(X)))
+
     derivatives = []
     std = configuration.perturbation_std
     # Iterate over the number of iterations
@@ -124,6 +136,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         X_noise_plus = None
         # default using original data
         data = X
+        target_y = y
         if sharpness_type == SharpnessType.Semantics:
             # Add random Gaussian noise to the coefficients and intercept
             X_noise = X + np.random.normal(scale=std, size=X.shape)
@@ -133,7 +146,17 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             X_noise = sc.transform(feature_generator(data))
             X_noise_plus = sc.transform(feature_generator(data + 1e-8))
         elif sharpness_type == SharpnessType.Parameter:
-            X_noise = sc.transform(feature_generator(original_X,
+            if configuration.only_hard_instance > 0:
+                # worst x%
+                input_x = original_X[index]
+                target_y = y[index]
+            elif configuration.only_hard_instance < 0:
+                # best x%
+                input_x = original_X[index]
+                target_y = y[index]
+            else:
+                input_x = original_X
+            X_noise = sc.transform(feature_generator(input_x,
                                                      random_noise=configuration.perturbation_std,
                                                      random_seed=i,
                                                      noise_configuration=configuration.noise_configuration))
@@ -160,7 +183,7 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         if sharpness_type == SharpnessType.DataLGBM:
             mse_scores[i] = (reference_model.predict(data) - y_pred) ** 2
         else:
-            mse_scores[i] = (y - y_pred) ** 2
+            mse_scores[i] = (target_y - y_pred) ** 2
 
     # Compute the mean and standard deviation of the R2 scores
     perturbed_mse = np.mean(mse_scores)
@@ -196,7 +219,6 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # n-SAM, reduce the maximum sharpness over all samples
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, original_predictions)
-            baseline = (y - original_predictions) ** 2
             mse_scores = np.vstack((mse_scores, baseline))
             max_sharp = mse_scores[np.argmax(np.mean(mse_scores, axis=1))]
             if s == 'MaxSharpness+':
@@ -215,7 +237,6 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif s == 'MaxSharpness-1-Base' or s == 'MaxSharpness-1-Base+':
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
-            baseline = (y - original_predictions) ** 2
             mse_scores = np.vstack((mse_scores, baseline))
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
@@ -227,7 +248,6 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         elif check_format(s):
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
-            baseline = (y - original_predictions) ** 2
             mse_scores = np.vstack((mse_scores, baseline))
             _, k, _ = s.split('-')
             max_sharp = m_sharpness(mse_scores.T, int(k))
