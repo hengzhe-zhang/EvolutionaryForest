@@ -206,7 +206,7 @@ class EvaluationConfiguration():
                  gradient_optimizer='GD',
                  transductive_learning=False,
                  classification=False,
-                 **params):
+                 max_height=None, **params):
         # prediction results of the neural network
         self.gradient_optimizer = gradient_optimizer
         self.nn_prediction = nn_prediction
@@ -253,6 +253,9 @@ class EvaluationConfiguration():
 
         # weights
         self.sample_weight = None
+
+        # max height, maybe useful for some evaluation stages
+        self.max_height = max_height
 
 
 class BloatControlConfiguration():

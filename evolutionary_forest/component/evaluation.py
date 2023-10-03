@@ -620,8 +620,10 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and result.size > 1:
-                        if noise_configuration.layer_adaptive and expr.height > 0:
+                        if noise_configuration.layer_adaptive == True and expr.height > 0:
                             layer_random_noise = random_noise / expr.height
+                        elif noise_configuration.layer_adaptive == 'Inverse' and expr.height > 0:
+                            layer_random_noise = random_noise * expr.height / evaluation_configuration.max_height
                         else:
                             layer_random_noise = random_noise
                         result = inject_noise_to_data(result, layer_random_noise, noise_configuration,
