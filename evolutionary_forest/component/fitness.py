@@ -20,6 +20,7 @@ from evolutionary_forest.component.generalization.rademacher_complexity import g
 from evolutionary_forest.component.generalization.vc_dimension import vc_dimension_estimation
 from evolutionary_forest.component.generalization.wcrv import calculate_WCRV, calculate_mic
 from evolutionary_forest.multigene_gp import MultipleGeneGP
+from utils.common_utils import tuple_to_list, list_to_tuple
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -559,6 +560,18 @@ class R2PACBayesian(Fitness):
                                                  data_generator=data_generator,
                                                  reference_model=self.algorithm.reference_lgbm,
                                                  sharpness_vector=sharpness_vector)
+        if hasattr(individual, 'fitness_list') and self.algorithm.pac_bayesian.sharpness_decay > 0:
+            old_sharpness = individual.fitness_list[1][0]
+            estimation = tuple_to_list(estimation)
+            estimation[1][0] = (self.algorithm.pac_bayesian.sharpness_decay * old_sharpness +
+                                (1 - self.algorithm.pac_bayesian.sharpness_decay) * estimation[1][0])
+            estimation = list_to_tuple(estimation)
+        if hasattr(individual, 'structural_sharpness') and self.algorithm.pac_bayesian.structural_sharpness > 0:
+            estimation = tuple_to_list(estimation)
+            estimation[1][0] = (self.algorithm.pac_bayesian.structural_sharpness * individual.structural_sharpness +
+                                (1 - self.algorithm.pac_bayesian.structural_sharpness) * estimation[1][0])
+            estimation = list_to_tuple(estimation)
+
         individual.fitness_list = estimation
         assert len(individual.case_values) > 0
         # [(training R2, 1), (sharpness, -1)]

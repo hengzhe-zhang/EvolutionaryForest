@@ -48,8 +48,12 @@ class PACBayesianConfiguration():
                  sharpness_iterations=10,
                  automatic_std=False,
                  automatic_std_model='KNN',
-                 only_hard_instance=0, **params):
+                 only_hard_instance=0,
+                 sharpness_decay=0,
+                 structural_sharpness=0,
+                 **params):
         # For VCD
+        self.structural_sharpness = structural_sharpness
         self.only_hard_instance = only_hard_instance
         self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
@@ -65,6 +69,7 @@ class PACBayesianConfiguration():
         self.l2_penalty = l2_penalty
         self.sharpness_iterations = sharpness_iterations
         self.automatic_std_model = automatic_std_model
+        self.sharpness_decay = sharpness_decay
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -110,6 +115,12 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     """
     original_predictions = individual.pipe.predict(X)
     baseline = (y - original_predictions) ** 2
+    if configuration.structural_sharpness > 0:
+        if hasattr(individual, 'baseline_mse'):
+            individual.structural_sharpness = np.mean(np.maximum(baseline - individual.baseline_mse, 0))
+        else:
+            individual.structural_sharpness = 0
+        individual.baseline_mse = baseline
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = configuration.sharpness_iterations
