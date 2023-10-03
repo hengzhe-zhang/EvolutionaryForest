@@ -20,10 +20,11 @@ class NoiseConfiguration():
                  noise_type='Normal',
                  noise_to_terminal=False,
                  noise_normalization='Instance',
-                 **params):
+                 layer_adaptive=False, **params):
         self.noise_type = noise_type
         self.noise_to_terminal = noise_to_terminal
         self.noise_normalization = noise_normalization
+        self.layer_adaptive = layer_adaptive
 
 
 class MABConfiguration():

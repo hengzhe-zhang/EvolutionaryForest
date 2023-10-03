@@ -3,6 +3,7 @@ import enum
 import logging
 import random
 import time
+from functools import lru_cache
 from typing import List, Tuple
 
 import dill
@@ -597,7 +598,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                    noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
     if evaluation_configuration is None:
         evaluation_configuration = EvaluationConfiguration()
-    # random noise is very important for sharpness aware minimization
+    # random noise is vital for sharpness aware minimization
     # quickly evaluate a primitive tree
     intron_gp = evaluation_configuration.intron_gp
     lsh = evaluation_configuration.lsh
@@ -610,12 +611,6 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
     best_score = None
     # save the semantics of the best subtree
     best_subtree_semantics = None
-    if noise_configuration is not None and noise_configuration.noise_type == 'Normal-S':
-        number_of_functions = sum([0 if isinstance(node, Terminal) else 1 for node in expr])
-        noise_matrix = np.random.normal(size=(number_of_functions, len(data)))
-        row_norms = np.linalg.norm(noise_matrix, axis=1, ord=2)
-        noise_matrix: np.ndarray = noise_matrix / row_norms[:, np.newaxis]
-        noise_matrix: list = [row for row in noise_matrix]
     for id, node in enumerate(expr):
         stack.append((node, [], id))
         while len(stack[-1][1]) == stack[-1][0].arity:
@@ -625,14 +620,10 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and result.size > 1:
-                        if noise_configuration.noise_type == 'Normal-S':
-                            input_noise = noise_matrix.pop(0)
-                            result = inject_noise_to_data(result, random_noise, noise_configuration,
-                                                          noise_vector=input_noise,
-                                                          random_seed=random_seed)
-                        else:
-                            result = inject_noise_to_data(result, random_noise, noise_configuration,
-                                                          random_seed=random_seed)
+                        if noise_configuration.layer_adaptive and expr.height > 0:
+                            layer_random_noise = random_noise / expr.height
+                        result = inject_noise_to_data(result, layer_random_noise, noise_configuration,
+                                                      random_seed=random_seed)
                 except OverflowError as e:
                     result = args[0]
                     logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
@@ -720,21 +711,17 @@ def inject_noise_to_data(result,
                          noise_configuration: NoiseConfiguration,
                          noise_vector=None,
                          random_seed=0):
-    rng = np.random.RandomState(random_seed)
-
     noise_type = noise_configuration.noise_type
+
+    size_of_noise = len(result)
     if noise_vector is not None:
         noise = noise_vector
-    elif noise_type == 'Normal':
-        noise = rng.normal(0, 1, len(result))
-    elif noise_type == 'Uniform':
-        noise = rng.uniform(-1, 1, len(result))
-    elif noise_type == 'Binomial':
-        noise = rng.choice([-1, 1], len(result))
     else:
-        raise Exception("Invalid noise type")
+        noise = noise_generation(noise_type, size_of_noise, random_seed)
 
-    if noise_configuration.noise_normalization == 'Instance':
+    if noise_configuration.noise_normalization == 'Instance+':
+        result = result + noise * random_noise_magnitude * result
+    elif noise_configuration.noise_normalization == 'Instance':
         result = result + noise * random_noise_magnitude * np.abs(result)
     elif noise_configuration.noise_normalization == 'STD':
         result = result + noise * random_noise_magnitude * np.std(result)
@@ -744,6 +731,23 @@ def inject_noise_to_data(result,
         raise Exception("Invalid noise normalization type")
 
     return result
+
+
+@lru_cache
+def noise_generation(noise_type, size_of_noise, random_seed):
+    """
+    Obviously, it's possible to use cache technique to avoid the expensive sampling process
+    """
+    rng = np.random.RandomState(random_seed)
+    if noise_type == 'Normal':
+        noise = rng.normal(0, 1, size_of_noise)
+    elif noise_type == 'Uniform':
+        noise = rng.uniform(-1, 1, size_of_noise)
+    elif noise_type == 'Binomial':
+        noise = rng.choice([-1, 1], size_of_noise)
+    else:
+        raise Exception("Invalid noise type")
+    return noise
 
 
 def minimal_task():
