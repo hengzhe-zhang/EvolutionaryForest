@@ -745,6 +745,15 @@ def noise_generation(noise_type, size_of_noise, random_seed):
         noise = rng.normal(0, 1, size_of_noise)
     elif noise_type == 'Uniform':
         noise = rng.uniform(-1, 1, size_of_noise)
+    elif noise_type == 'Laplace':
+        noise = rng.laplace(0, 1, size_of_noise)
+    elif noise_type == 'Ensemble':
+        choices = [
+            rng.normal(0, 1, size_of_noise),
+            rng.uniform(-1, 1, size_of_noise),
+            rng.laplace(0, 1, size_of_noise),
+        ]
+        noise = choices[random_seed % len(choices)]
     elif noise_type == 'Binomial':
         noise = rng.choice([-1, 1], size_of_noise)
     else:
