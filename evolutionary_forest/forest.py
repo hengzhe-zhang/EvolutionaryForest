@@ -1464,56 +1464,30 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             raise Exception
 
-        def dynamic_height():
-            if len(self.generated_features) >= \
-                np.log(len(self.pset.primitives) * (2 ** self.current_height - 1) * \
-                       len(self.pset.terminals) * (2 ** self.current_height)) / \
-                np.log(1.01):
-                self.current_height += 1
-            return self.current_height
-
         if self.verbose:
             history = History()
             self.history = history
-            # Decorate the variation operators
-            # toolbox.decorate("mate", history.decorator)
-            # toolbox.decorate("mutate", history.decorator)
 
         self.size_failure_counter = FailureCounter()
-        if isinstance(self.max_height, str) and self.max_height.startswith("fix"):
+        random_replace = (self.mutation_configuration.gene_addition_rate > 0
+                          or self.mutation_configuration.gene_deletion_rate > 0)
+        if isinstance(self.max_height, str):
             self.max_height = int(self.max_height.split('-')[1])
-            self.static_limit_function = staticLimit_multiple_gene(
-                key=operator.attrgetter("height"),
-                max_value=self.max_height,
-                min_value=self.min_height,
-                random_fix=False,
-                failure_counter=self.size_failure_counter
-            )
-        else:
-            self.static_limit_function = staticLimit_multiple_gene(
-                key=operator.attrgetter("height"),
-                max_value=self.max_height,
-                min_value=self.min_height,
-                random_fix=self.random_fix,
-                failure_counter=self.size_failure_counter
-            )
-        if self.multi_gene_mutation():
-            # For multi-tree variation operators, height constraint is only checked once to save computational resources
-            pass
-        elif self.max_height == 'dynamic':
-            toolbox.decorate("mate", staticLimit_multiple_gene(key=operator.attrgetter("height"),
-                                                               max_value=dynamic_height))
-            toolbox.decorate("mutate", staticLimit_multiple_gene(key=operator.attrgetter("height"),
-                                                                 max_value=dynamic_height))
-        elif isinstance(self.max_height, str) and 'size-' in self.max_height:
-            size = int(self.max_height.split('-')[1])
-            toolbox.decorate("mate", staticLimit_multiple_gene(key=lambda x: len(x),
-                                                               max_value=size))
-            toolbox.decorate("mutate", staticLimit_multiple_gene(key=lambda x: len(x),
-                                                                 max_value=size))
-        else:
+        self.static_limit_function = staticLimit_multiple_gene(
+            key=operator.attrgetter("height"),
+            max_value=self.max_height,
+            min_value=self.min_height,
+            random_fix=self.random_fix,
+            failure_counter=self.size_failure_counter,
+            random_replace=random_replace
+        )
+        
+        if not self.multi_gene_mutation():
             toolbox.decorate("mate", self.static_limit_function)
             toolbox.decorate("mutate", self.static_limit_function)
+        else:
+            # For multi-tree variation operators, height constraint is only checked once to save computational resources
+            pass
         if self.intron_threshold > 0 and self.min_height > 0:
             raise Exception('Not supported in static limit')
         if self.intron_threshold > 0:

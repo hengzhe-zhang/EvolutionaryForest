@@ -21,6 +21,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from tpot.base import TPOTBase
 
+from evolutionary_forest.component.bloat_control.depth_limit import get_replacement_tree, remove_none_values
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration, \
     MAPElitesConfiguration
 from evolutionary_forest.component.crossover.intron_based_crossover import crossover_based_on_intron
@@ -1081,7 +1082,10 @@ def staticLimit(key, max_value, min_value):
     return decorator
 
 
-def staticLimit_multiple_gene(key, max_value, min_value=0, random_fix=True, failure_counter: FailureCounter = None):
+def staticLimit_multiple_gene(key, max_value, min_value=0,
+                              random_fix=True,
+                              failure_counter: FailureCounter = None,
+                              random_replace=False):
     """
     :param random_fix: Random fix is a parameter to determine whether we to randomly select a gene from two parents
     if there is an unsatisfied gene was generated.
@@ -1095,7 +1099,7 @@ def staticLimit_multiple_gene(key, max_value, min_value=0, random_fix=True, fail
 
     def decorator(func):
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: List[MultipleGeneGP], **kwargs):
             keep_inds = [copy.deepcopy(ind.gene) for ind in args]
             new_inds = list(func(*args, **kwargs))
             for i, ind in enumerate(new_inds):
@@ -1110,21 +1114,23 @@ def staticLimit_multiple_gene(key, max_value, min_value=0, random_fix=True, fail
                         failure_counter.value += 1
                         # replace an unreasonable gene with a parent gene
                         if random_fix:
-                            parent = random.choice(keep_inds)
+                            parent: List[PrimitiveTree] = random.choice(keep_inds)
                         else:
-                            parent = keep_inds[i]
+                            parent: List[PrimitiveTree] = keep_inds[i]
 
-                        if len(parent) <= j:
-                            # not enough gene
-                            gene = copy.deepcopy(random.choice(parent))
+                        if random_replace:
+                            gene = get_replacement_tree(ind, parent)
                         else:
-                            # When having deletion or addition operators,
+                            # Note: When having deletion or addition operators,
                             # the same index may not be the original one.
-                            # However, this is a reasonable temporary solution.
+                            # In this case, random replacement is a better choice.
                             gene = copy.deepcopy(parent[j])
                         ind.gene[j] = gene
+                        if gene is None:
+                            continue
                     assert key(ind.gene[j]) <= height_limitation
                     assert key(ind.gene[j]) >= min_value
+                ind.gene = remove_none_values(ind.gene)
             return new_inds
 
         return wrapper
