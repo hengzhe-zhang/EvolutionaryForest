@@ -455,27 +455,7 @@ class R2PACBayesian(Fitness):
         # return a tuple
         if self.algorithm.constant_type == 'GD':
             torch.set_grad_enabled(True)
-            # Gradient Ascent is supported
-            trees = []
-            torch_variables = []
-            for gene in individual.gene:
-                new_gene: PrimitiveTree = PrimitiveTree([])
-                for i in range(len(gene)):
-                    if isinstance(gene[i], Primitive):
-                        new_gene.append(self.algorithm.pset.mapping['Add'])
-                        v = torch.zeros(1, requires_grad=True, dtype=torch.float32)
-                        gp_v = Terminal(v, False, object)
-                        new_gene.append(gp_v)
-                        torch_variables.append(v)
-                        new_gene.append(gene[i])
-                    elif isinstance(gene[i], Terminal) and isinstance(gene[i].value, torch.Tensor):
-                        # avoid gradient interference
-                        node = torch.tensor([gene[i].value.item()],
-                                            dtype=torch.float32).requires_grad_(False)
-                        new_gene.append(Terminal(node, False, object))
-                    else:
-                        new_gene.append(gene[i])
-                trees.append(new_gene)
+            torch_variables, trees = self.transform_gene(individual)
 
             if all((all(isinstance(x, Terminal) for x in gene) or
                     # no primitives
@@ -509,28 +489,8 @@ class R2PACBayesian(Fitness):
                     mse_old = (Y_pred.detach().numpy().flatten() - y) ** 2
                     loss = criterion(Y_pred, torch.from_numpy(y).detach().float())
                     loss.backward()
-                    # print('R2', r2_score(y, Y_pred.detach().numpy()))
 
-                    # Reverse the direction of the gradients for gradient ascent
-                    torch_variables = list(filter(lambda v: v.grad is not None, torch_variables))
-                    for v in torch_variables:
-                        v.grad = -v.grad
-
-                    # Compute the norm of the gradient
-                    gradient_norm = torch.norm(torch.stack([v.grad.norm() for v in torch_variables]))
-
-                    # Scale the gradients to have a norm of 1
-                    for v in torch_variables:
-                        v.grad /= gradient_norm
-
-                    if self.algorithm.pac_bayesian.perturbation_std == 'Adaptive':
-                        lr = len(torch_variables)
-                    else:
-                        lr = self.algorithm.pac_bayesian.perturbation_std
-                    optimizer = optim.SGD(torch_variables, lr=lr)
-                    # Update model parameters using an optimizer
-                    optimizer.step()
-                    optimizer.zero_grad()
+                    self.sharpness_gradient_ascent(torch_variables)
 
                     features = quick_result_calculation(trees, self.algorithm.pset, self.algorithm.X,
                                                         self.algorithm.original_features,
@@ -589,6 +549,53 @@ class R2PACBayesian(Fitness):
             # smaller is better
             individual.case_values = individual.case_values + sharpness_vector
         return -1 * individual.fitness_list[0][0],
+
+    def sharpness_gradient_ascent(self, torch_variables):
+        # Reverse the direction of the gradients for gradient ascent
+        torch_variables = list(filter(lambda v: v.grad is not None, torch_variables))
+        for v in torch_variables:
+            v.grad = -v.grad
+        if self.algorithm.pac_bayesian.noise_configuration.noise_normalization not in [None, False]:
+            # Compute the norm of the gradient
+            gradient_norm = torch.norm(torch.stack([v.grad.norm() for v in torch_variables]))
+            # Scale the gradients to have a norm of 1
+            for v in torch_variables:
+                v.grad /= gradient_norm
+        if self.algorithm.pac_bayesian.perturbation_std == 'Adaptive':
+            lr = len(torch_variables)
+        else:
+            lr = self.algorithm.pac_bayesian.perturbation_std
+        optimizer = optim.SGD(torch_variables, lr=lr)
+        # Update model parameters using an optimizer
+        optimizer.step()
+        optimizer.zero_grad()
+
+    def transform_gene(self, individual):
+        """
+        Convert genes into a format with gradient-enabled tensors.
+        """
+        # Gradient Ascent is supported
+        trees = []
+        torch_variables = []
+        for gene in individual.gene:
+            new_gene: PrimitiveTree = PrimitiveTree([])
+            for i in range(len(gene)):
+                if isinstance(gene[i], Primitive):
+                    new_gene.append(self.algorithm.pset.mapping['Add'])
+                    v = torch.zeros(1, requires_grad=True, dtype=torch.float32)
+                    gp_v = Terminal(v, False, object)
+                    new_gene.append(gp_v)
+                    torch_variables.append(v)
+                    new_gene.append(gene[i])
+                elif isinstance(gene[i], Terminal) and isinstance(gene[i].value, torch.Tensor):
+                    # avoid gradient interference
+                    node = torch.tensor([gene[i].value.item()],
+                                        dtype=torch.float32).requires_grad_(False)
+                    new_gene.append(Terminal(node, False, object))
+                else:
+                    new_gene.append(gene[i])
+            trees.append(new_gene)
+        return torch_variables, trees
 
     def assign_complexity_pop(self, pop):
         for p in pop:
