@@ -60,7 +60,8 @@ from evolutionary_forest.component.evaluation import calculate_score, get_cv_spl
     pipe_combine, quick_evaluate, EvaluationResults, \
     select_from_array, get_sample_weight
 from evolutionary_forest.component.fitness import *
-from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std
+from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std, \
+    sharpness_based_dynamic_depth_limit
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.initialization import initialize_crossover_operator
 from evolutionary_forest.component.mutation.common import MutationOperator
@@ -3064,6 +3065,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # re-assign fitness for all individuals if using PAC-Bayesian
         if isinstance(self.score_func, Fitness):
             self.score_func.post_processing(parent, population, self.hof, self.elites_archive)
+
+        if self.pac_bayesian.adaptive_depth:
+            self.depth_limit_configuration.max_height = sharpness_based_dynamic_depth_limit(population,
+                                                                                            self.depth_limit_configuration.max_height)
 
     def semantic_crossover_for_parent(self, toolbox, parent, external_archive,
                                       crossover_configuration: CrossoverConfiguration):

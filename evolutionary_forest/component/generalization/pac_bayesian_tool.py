@@ -167,7 +167,7 @@ def tune_perturbation_std(model_function: Callable, X, y):
 
 def get_individual_depth(individual):
     # Compute average depth across all trees in the individual
-    return np.mean([len(tree) for tree in individual])
+    return np.mean([tree.height for tree in individual.gene])
 
 
 def sharpness_based_dynamic_depth_limit(individuals, initial_max_depth, alpha=0.05):
@@ -184,6 +184,8 @@ def sharpness_based_dynamic_depth_limit(individuals, initial_max_depth, alpha=0.
     avg_depths = [get_individual_depth(ind) for ind in individuals]
 
     correlation, p_value = pearsonr(sharpnesses, avg_depths)
+
+    # print('correlation', correlation, 'p_value', p_value)
 
     # Check if the correlation is statistically significant
     if p_value < alpha:

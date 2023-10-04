@@ -51,8 +51,10 @@ class PACBayesianConfiguration():
                  only_hard_instance=0,
                  sharpness_decay=0,
                  structural_sharpness=0,
+                 adaptive_depth=False,
                  **params):
         # For VCD
+        self.adaptive_depth = adaptive_depth
         self.optimal_design = optimal_design
         # Using definition of Rademacher complexity to reduce estimated time
         self.bound_reduction = bound_reduction
