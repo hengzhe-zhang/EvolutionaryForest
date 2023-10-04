@@ -289,5 +289,13 @@ class ExperimentalConfiguration():
 
 
 class DepthLimitConfiguration():
-    def __init__(self):
-        pass
+    def __init__(self,
+                 max_height: Union[str, int] = 10,  # Maximum height of a GP tree
+                 min_height: int = 0,  # Minimum height of a GP tree
+                 **params):
+        if isinstance(max_height, str):
+            max_height = int(max_height.split('-')[1])
+        self.max_height = max_height
+        self.min_height = min_height
+        assert self.max_height is not None
+        assert self.min_height is not None

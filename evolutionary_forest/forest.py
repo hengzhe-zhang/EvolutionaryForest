@@ -50,7 +50,7 @@ from evolutionary_forest.component.bloat_control.simplification import Simplific
 from evolutionary_forest.component.bloat_control.tarpeian import Tarpeian
 from evolutionary_forest.component.configuration import CrossoverMode, ArchiveConfiguration, ImbalancedConfiguration, \
     EvaluationConfiguration, check_semantic_based_bc, BloatControlConfiguration, SelectionMode, \
-    BaseLearnerConfiguration, ExperimentalConfiguration
+    BaseLearnerConfiguration, ExperimentalConfiguration, DepthLimitConfiguration
 from evolutionary_forest.component.crossover.intron_based_crossover import IntronPrimitive, IntronTerminal
 from evolutionary_forest.component.crossover_mutation import hoistMutation, individual_combination
 from evolutionary_forest.component.ensemble_learning.stacking_strategy import StackingStrategy
@@ -145,8 +145,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  n_gen=50,  # Number of generations
                  cross_pb=0.9,  # Probability of crossover
                  mutation_pb=0.1,  # Probability of mutation
-                 max_height=10,  # Maximum height of a GP tree
-                 min_height=0,  # Minimum height of a GP tree
                  gene_num=10,  # Number of genes in each GP individual
                  mutation_scheme='uniform',  # Mutation scheme used in GP
                  verbose=False,  # Whether to print verbose information
@@ -384,8 +382,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.n_pop = n_pop
         self.n_gen = n_gen
         self.verbose = verbose
-        self.max_height: Union[str, int] = max_height
-        self.min_height = min_height
         self.initialized = False
         self.pop: List[MultipleGeneGP] = []
         self.basic_primitives = basic_primitives
@@ -595,6 +591,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **vars(self)
         )
         self.experimental_configuration = ExperimentalConfiguration(
+            **params,
+            **vars(self)
+        )
+        self.depth_limit_configuration = DepthLimitConfiguration(
             **params,
             **vars(self)
         )
@@ -1472,12 +1472,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.size_failure_counter = FailureCounter()
         random_replace = (self.mutation_configuration.gene_addition_rate > 0
                           or self.mutation_configuration.gene_deletion_rate > 0)
-        if isinstance(self.max_height, str):
-            self.max_height = int(self.max_height.split('-')[1])
         self.static_limit_function = staticLimit_multiple_gene(
             key=operator.attrgetter("height"),
-            max_value=self.max_height,
-            min_value=self.min_height,
+            max_value=self.depth_limit_configuration.max_height,
+            min_value=self.depth_limit_configuration.min_height,
             random_fix=self.random_fix,
             failure_counter=self.size_failure_counter,
             random_replace=random_replace
@@ -1489,14 +1487,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             # For multi-tree variation operators, height constraint is only checked once to save computational resources
             pass
-        if self.intron_threshold > 0 and self.min_height > 0:
+        if self.intron_threshold > 0 and self.depth_limit_configuration.min_height > 0:
             raise Exception('Not supported in static limit')
         if self.intron_threshold > 0:
-            self.neutral_mutation = staticLimit(key=operator.attrgetter("height"),
-                                                max_value=self.max_height,
-                                                min_value=self.min_height)(partial(mutUniform,
-                                                                                   expr=toolbox.expr_mut,
-                                                                                   pset=self.pset))
+            simple_depth_limit = staticLimit(key=operator.attrgetter("height"),
+                                             max_value=self.depth_limit_configuration.max_height,
+                                             min_value=self.depth_limit_configuration.min_height)
+            self.neutral_mutation = simple_depth_limit(partial(mutUniform, expr=toolbox.expr_mut, pset=self.pset))
 
         self.pop = toolbox.population(n=self.n_pop)
 
@@ -2999,8 +2996,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.bloat_control is not None and self.bloat_control.get('subtree_approximation', False):
             static_limit_function = staticLimit_multiple_gene(
                 key=operator.attrgetter("height"),
-                max_value=self.max_height,
-                min_value=self.min_height,
+                max_value=self.depth_limit_configuration.max_height,
+                min_value=self.depth_limit_configuration.min_height,
                 random_fix=False
             )
             dsa = DSA(self)
@@ -3282,8 +3279,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         new_genes_a = sorted(selRandom(external_archive[id], 7), key=lambda x: x[0])[-1]
                         new_genes_b = sorted(selRandom(external_archive[id], 7), key=lambda x: x[0])[-1]
                         decorator = staticLimit(key=operator.attrgetter("height"),
-                                                max_value=self.max_height,
-                                                min_value=self.min_height)(cxOnePoint)
+                                                max_value=self.depth_limit_configuration.max_height,
+                                                min_value=self.depth_limit_configuration.min_height)(cxOnePoint)
                         test_genes = decorator(copy.deepcopy(new_genes_a[1]), copy.deepcopy(new_genes_b[1]))
 
                         best_gene_score = 0
