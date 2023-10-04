@@ -53,10 +53,6 @@ class PACBayesianConfiguration():
                  structural_sharpness=0,
                  **params):
         # For VCD
-        self.structural_sharpness = structural_sharpness
-        self.only_hard_instance = only_hard_instance
-        self.noise_configuration = NoiseConfiguration(**params)
-        self.reference_model = reference_model
         self.optimal_design = optimal_design
         # Using definition of Rademacher complexity to reduce estimated time
         self.bound_reduction = bound_reduction
@@ -69,7 +65,11 @@ class PACBayesianConfiguration():
         self.l2_penalty = l2_penalty
         self.sharpness_iterations = sharpness_iterations
         self.automatic_std_model = automatic_std_model
+        self.structural_sharpness = structural_sharpness
+        self.only_hard_instance = only_hard_instance
         self.sharpness_decay = sharpness_decay
+        self.noise_configuration = NoiseConfiguration(**params)
+        self.reference_model = reference_model
 
 
 def kl_term_function(m, w, sigma, delta=0.1):

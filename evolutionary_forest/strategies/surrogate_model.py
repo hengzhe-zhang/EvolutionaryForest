@@ -6,7 +6,6 @@ import numpy as np
 from deap.gp import Terminal
 from scipy.spatial import KDTree
 from scipy.spatial.distance import correlation
-from scipy.stats import spearmanr
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.ensemble import ExtraTreesRegressor

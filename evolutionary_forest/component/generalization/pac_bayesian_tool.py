@@ -2,6 +2,7 @@ import copy
 from typing import TYPE_CHECKING, Callable
 
 import numpy as np
+from scipy.stats import pearsonr
 from sklearn.metrics import *
 from sklearn.model_selection import KFold
 from sklearn.neighbors import KNeighborsRegressor
@@ -162,3 +163,37 @@ def tune_perturbation_std(model_function: Callable, X, y):
     best_perturbation_std = perturbation_std_values[np.argmax(r2_scores)]
     best_score = r2_scores[np.argmax(r2_scores)]
     return best_perturbation_std
+
+
+def get_individual_depth(individual):
+    # Compute average depth across all trees in the individual
+    return np.mean([len(tree) for tree in individual])
+
+
+def sharpness_based_dynamic_depth_limit(individuals, initial_max_depth, alpha=0.05):
+    """
+    Adjust the depth limit based on the correlation between sharpness and average tree depth.
+
+    individuals: List of individuals, where each individual contains multiple GP trees.
+    initial_max_depth: Initial maximum depth set for GP trees.
+    alpha: Significance level for correlation. Default is 0.05.
+
+    Returns: adjusted maximum depth.
+    """
+    sharpnesses = [-1 * ind.fitness.wvalues[1] for ind in individuals]
+    avg_depths = [get_individual_depth(ind) for ind in individuals]
+
+    correlation, p_value = pearsonr(sharpnesses, avg_depths)
+
+    # Check if the correlation is statistically significant
+    if p_value < alpha:
+        adjustment_factor = 1 - abs(correlation)
+        adjusted_depth = int(initial_max_depth * adjustment_factor)
+
+        # Apply safety limits
+        adjusted_depth = max(int(0.5 * initial_max_depth), adjusted_depth)
+        adjusted_depth = min(initial_max_depth, adjusted_depth)
+
+        return adjusted_depth
+    else:
+        return initial_max_depth

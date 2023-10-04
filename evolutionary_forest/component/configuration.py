@@ -20,7 +20,15 @@ class NoiseConfiguration():
                  noise_type='Normal',
                  noise_to_terminal=False,
                  noise_normalization='Instance',
-                 layer_adaptive=False, **params):
+                 layer_adaptive=False,
+                 **params):
+        """
+        Args:
+            noise_type (str, optional): The type of noise to use. Default is 'Normal'.
+            noise_to_terminal (bool, optional): Whether to apply noise to the terminal layer. Default is False.
+            noise_normalization (str, optional): The type of noise normalization to use. Default is 'Instance'.
+            layer_adaptive (bool, optional): Whether to apply different noise to different layers. Default is False.
+        """
         self.noise_type = noise_type
         self.noise_to_terminal = noise_to_terminal
         self.noise_normalization = noise_normalization
@@ -278,3 +286,8 @@ class ExperimentalConfiguration():
         # Here are some configurations only used for experiments
         # This flag is only used for experimental comparison
         self.pac_bayesian_comparison = pac_bayesian_comparison
+
+
+class DepthLimitConfiguration():
+    def __init__(self):
+        pass
