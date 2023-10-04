@@ -3,7 +3,7 @@ import random
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
 
-def niche_base_selection(individuals, k, key_objective=1):
+def niche_base_selection(individuals, k, key_objective=0):
     # Sort individuals based on sharpness (worst to best)
     sorted_individuals = sorted(individuals, key=lambda ind: ind.fitness.wvalues[key_objective])
 
