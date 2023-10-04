@@ -74,6 +74,7 @@ from evolutionary_forest.component.selection import batch_tournament_selection, 
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \
     selAngleDrivenSelection, selStatisticsTournament, selLexicographicParsimonyPressure, \
     SelectionConfiguration, Selection, TournamentLexicase
+from evolutionary_forest.component.selection_operators.niche_base_selection import niche_base_selection
 from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderNumpy
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
@@ -1481,7 +1482,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             failure_counter=self.size_failure_counter,
             random_replace=random_replace
         )
-        
+
         if not self.multi_gene_mutation():
             toolbox.decorate("mate", self.static_limit_function)
             toolbox.decorate("mutate", self.static_limit_function)
@@ -1585,6 +1586,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selAutomaticEpsilonLexicaseFast)
         elif self.select == 'AutomaticLexicaseFast':
             toolbox.register("select", selAutomaticEpsilonLexicaseFast)
+        elif self.select == 'Niching':
+            toolbox.register("select", niche_base_selection)
+        elif self.select == 'Niching+':
+            toolbox.register("select", partial(niche_base_selection, key_objective=1))
         elif self.select == 'DoubleLexicase':
             lexicase_round = self.bloat_control.get("lexicase_round", 2)
             size_selection = self.bloat_control.get("size_selection", 'Roulette')
