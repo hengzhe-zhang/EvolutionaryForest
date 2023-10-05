@@ -23,7 +23,7 @@ class ParetoFrontTool():
         - test_x (array-like): Test input data. Each row represents an instance and each column represents a feature.
         - test_y (array-like): True target values for the test input data.
         """
-        
+
         first_pareto_front = sortNondominated(self.pop, len(self.pop))[0]
         normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
         predictions = self.individual_prediction(test_x, first_pareto_front)
@@ -35,7 +35,7 @@ class ParetoFrontTool():
                                       float(test_error_normalized_by_test)))
 
     @staticmethod
-    def calculate_pareto_front(self: "EvolutionaryForestRegressor", x_train, y_train):
+    def calculate_sharpness_pareto_front(self: "EvolutionaryForestRegressor", x_train, y_train):
         if self.experimental_configuration.pac_bayesian_comparison and \
             isinstance(self.environmental_selection, EnvironmentalSelection):
             pac = R2PACBayesian(self, **self.param)
@@ -65,7 +65,7 @@ class ParetoFrontTool():
                                           float(train_mse / normalization_factor)))
 
     @staticmethod
-    def calculate_test_pareto_front(self: "EvolutionaryForestRegressor", test_x, test_y, y_train):
+    def calculate_sharpness_pareto_front_on_test(self: "EvolutionaryForestRegressor", test_x, test_y, y_train):
         if self.experimental_configuration.pac_bayesian_comparison and \
             isinstance(self.environmental_selection, EnvironmentalSelection):
             self.test_pareto_front = []
