@@ -70,6 +70,7 @@ from evolutionary_forest.component.normalizer import TargetEncoder
 from evolutionary_forest.component.generalization.pac_bayesian import PACBayesianConfiguration, SharpnessType
 from evolutionary_forest.component.primitive_controller import get_functions, get_differentiable_functions
 from evolutionary_forest.component.primitive_functions import *
+from evolutionary_forest.component.random_constant import scaled_random_constant
 from evolutionary_forest.component.selection import batch_tournament_selection, selAutomaticEpsilonLexicaseK, \
     selTournamentPlus, selAutomaticEpsilonLexicaseFast, selDoubleRound, selRandomPlus, selBagging, selTournamentNovelty, \
     selHybrid, selGPED, selMAPElites, selMAPEliteClustering, selKnockout, selRoulette, selMaxAngleSelection, \
@@ -1759,6 +1760,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 for i in range(max(int(self.X.shape[1] * self.constant_ratio), 1)):
                     pset.addEphemeralConstant(f"rand{i}", random_variable)
+        elif self.constant_type == 'SRC':
+            biggest_val = np.max(np.abs(self.X))
+            generator = scaled_random_constant(biggest_val)
+            pset.addEphemeralConstant("rand101", generator)
         else:
             assert self.constant_type == 'Int'
             pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
