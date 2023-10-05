@@ -480,3 +480,17 @@ def one_hot_encode(categories):
     one_hot[np.arange(categories.shape[0]), inverse] = 1
 
     return one_hot
+
+
+def tuple_to_list(nested_tuple):
+    if isinstance(nested_tuple, tuple):
+        return [tuple_to_list(item) for item in nested_tuple]
+    else:
+        return nested_tuple
+
+
+def list_to_tuple(nested_list):
+    if isinstance(nested_list, list):
+        return tuple(list_to_tuple(item) for item in nested_list)
+    else:
+        return nested_list

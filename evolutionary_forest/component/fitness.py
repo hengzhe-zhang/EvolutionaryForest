@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from abc import abstractmethod
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -20,7 +19,7 @@ from evolutionary_forest.component.generalization.rademacher_complexity import g
 from evolutionary_forest.component.generalization.vc_dimension import vc_dimension_estimation
 from evolutionary_forest.component.generalization.wcrv import calculate_WCRV, calculate_mic
 from evolutionary_forest.multigene_gp import MultipleGeneGP
-from utils.common_utils import tuple_to_list, list_to_tuple
+from evolutionary_forest.utils import tuple_to_list, list_to_tuple
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
