@@ -49,10 +49,6 @@ def extract_numbers(dimension, s):
     A tuple containing two integers. The first integer is the number
     before the letter 'N' in the input string, and the second integer
     is the number after the dash.
-
-    Example:
-    >>> extract_numbers('3N-200')
-    (3, 200)
     """
 
     # Split the string into two parts around the dash
@@ -439,12 +435,31 @@ def cv_prediction_from_ridge(Y, base_model: RidgeCV):
     return real_prediction
 
 
-def pareto_front_2d(points):
-    # warning: only can be used for 2D
-    # minimization problem
+def pareto_front_2d(points, mode='min'):
+    """
+    Calculate the Pareto front for a 2D problem.
+
+    Parameters:
+    - points: List of points, where each point is a tuple (x, y).
+    - mode: A string indicating if the problem is 'max' or 'min'. Default is 'min'.
+
+    Returns:
+    - pareto_front: List of Pareto-optimal points.
+    - pareto_indices: Indices of the Pareto-optimal points.
+    """
+
     pareto_front = []
     pareto_indices = []
-    sorted_points = sorted(enumerate(points), key=lambda x: x[1][0])
+
+    if mode == 'min':
+        sorted_points = sorted(enumerate(points), key=lambda x: x[1][0])
+        comparison = lambda point, pareto: point[1] < pareto[-1][1]
+    elif mode == 'max':
+        sorted_points = sorted(enumerate(points), key=lambda x: x[1][0], reverse=True)
+        comparison = lambda point, pareto: point[1] > pareto[-1][1]
+    else:
+        raise ValueError("Invalid mode. Choose 'min' or 'max'.")
+
     best_point = sorted_points[0]
     best_point_id = best_point[0]
     best_point_objectives = best_point[1]
@@ -452,7 +467,7 @@ def pareto_front_2d(points):
     pareto_indices.append(best_point_id)
 
     for idx, point in sorted_points[1:]:
-        if point[1] < pareto_front[-1][1]:
+        if comparison(point, pareto_front):
             pareto_front.append(point)
             pareto_indices.append(idx)
 

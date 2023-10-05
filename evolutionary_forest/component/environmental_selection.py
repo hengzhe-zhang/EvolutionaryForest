@@ -286,8 +286,12 @@ class SPEA2(NSGA2):
 
 class Best(EnvironmentalSelection):
 
+    def __init__(self, fit_attr='fitness'):
+        super().__init__()
+        self.fit_attr = fit_attr
+
     def select(self, population, offspring):
-        return selBest(population + offspring, len(population))
+        return selBest(population + offspring, len(population), self.fit_attr)
 
 
 class NSGA3(NSGA2):

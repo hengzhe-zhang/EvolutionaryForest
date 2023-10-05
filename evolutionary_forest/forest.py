@@ -403,6 +403,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.environmental_selection = SPEA2(self, None, **self.param)
         elif environmental_selection == 'Best':
             self.environmental_selection = Best()
+        elif environmental_selection == 'BestSAM':
+            self.environmental_selection = Best('sam_loss')
         else:
             self.environmental_selection = environmental_selection
         self.eager_training = eager_training
