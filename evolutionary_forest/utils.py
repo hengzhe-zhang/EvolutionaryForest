@@ -13,6 +13,7 @@ import torch
 from deap.gp import Primitive
 from matplotlib import pyplot as plt
 from numba import njit
+from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import RidgeCV
 from sympy import latex, parse_expr
@@ -437,10 +438,10 @@ def cv_prediction_from_ridge(Y, base_model: RidgeCV):
 
 def pareto_front_2d(points, mode='min'):
     """
-    Calculate the Pareto front for a 2D problem.
+    Calculate the Pareto front for a 2D problem using pymoo.
 
     Parameters:
-    - points: List of points, where each point is a tuple (x, y).
+    - points: List of objectives, where each element is a tuple (objective1, objective2).
     - mode: A string indicating if the problem is 'max' or 'min'. Default is 'min'.
 
     Returns:
@@ -448,30 +449,25 @@ def pareto_front_2d(points, mode='min'):
     - pareto_indices: Indices of the Pareto-optimal points.
     """
 
-    pareto_front = []
-    pareto_indices = []
-
+    # Convert the mode into the correct objective directions for non-dominated sorting
     if mode == 'min':
-        sorted_points = sorted(enumerate(points), key=lambda x: x[1][0])
-        comparison = lambda point, pareto: point[1] < pareto[-1][1]
+        mask = np.array([1, 1])
     elif mode == 'max':
-        sorted_points = sorted(enumerate(points), key=lambda x: x[1][0], reverse=True)
-        comparison = lambda point, pareto: point[1] > pareto[-1][1]
+        mask = np.array([-1, -1])
     else:
         raise ValueError("Invalid mode. Choose 'min' or 'max'.")
 
-    best_point = sorted_points[0]
-    best_point_id = best_point[0]
-    best_point_objectives = best_point[1]
-    pareto_front.append(best_point_objectives)
-    pareto_indices.append(best_point_id)
+    # Adjust points according to the mode (minimization or maximization)
+    adjusted_points = np.array(points) * mask
 
-    for idx, point in sorted_points[1:]:
-        if comparison(point, pareto_front):
-            pareto_front.append(point)
-            pareto_indices.append(idx)
+    # Perform non-dominated sorting
+    nds = NonDominatedSorting().do(adjusted_points)
 
-    return pareto_front, pareto_indices
+    # Extract the Pareto front
+    pareto_front = np.array(points)[nds[0]]
+    pareto_indices = nds[0]
+
+    return pareto_front, pareto_indices.tolist()
 
 
 def one_hot_encode(categories):
