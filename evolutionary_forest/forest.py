@@ -63,7 +63,7 @@ from evolutionary_forest.component.fitness import *
 from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std, \
     sharpness_based_dynamic_depth_limit
 from evolutionary_forest.component.generation import varAndPlus
-from evolutionary_forest.component.initialization import initialize_crossover_operator
+from evolutionary_forest.component.initialization import initialize_crossover_operator, unique_initialization
 from evolutionary_forest.component.mutation.common import MutationOperator
 from evolutionary_forest.component.mutation.learning_based_mutation import BuildingBlockLearning
 from evolutionary_forest.component.normalizer import TargetEncoder
@@ -1390,15 +1390,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         toolbox.individual = partial(multiple_gene_initialization,
                                      MultipleGeneGP,
                                      toolbox.expr,
-                                     gene_num=self.gene_num,
-                                     tpot_model=self.tpot_model,
-                                     base_model_list=self.base_model_list,
-                                     number_of_register=self.number_of_register,
-                                     active_gene_num=self.active_gene_num,
-                                     intron_probability=self.intron_probability,
-                                     intron_threshold=self.intron_threshold,
-                                     algorithm=self)
-        toolbox.population = partial(tools.initRepeat, list, toolbox.individual)
+                                     algorithm=self,
+                                     **self.param,
+                                     **vars(self))
+        if (self.mutation_configuration.gene_addition_rate > 0 or
+            self.mutation_configuration.gene_deletion_rate > 0):
+            toolbox.population = partial(unique_initialization, list, toolbox.individual)
+        else:
+            toolbox.population = partial(tools.initRepeat, list, toolbox.individual)
         toolbox.compile = partial(multiple_gene_compile, pset=pset)
 
         toolbox.register('clone', efficient_deepcopy)

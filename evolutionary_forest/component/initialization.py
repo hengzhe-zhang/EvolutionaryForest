@@ -37,11 +37,19 @@ def initialize_crossover_operator(self: "EvolutionaryForestRegressor", toolbox: 
 def unique_initialization(container, func, n):
     generated = set()
     result = container()
+    successive_failures = 0
 
     while len(result) < n:
         s = func()
-        if str(s) not in generated:
-            generated.add(str(s))
+        if successive_failures < 10:
+            if str(s) not in generated:
+                generated.add(str(s))
+                result.append(s)
+                successive_failures = 0  # Reset the counter if we successfully added a new value
+            else:
+                successive_failures += 1  # Increment the counter for each failure
+        else:
+            # If we've failed 10 times in a row, just add the value without checking
             result.append(s)
 
     return result
