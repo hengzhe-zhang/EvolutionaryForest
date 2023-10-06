@@ -436,7 +436,7 @@ def cv_prediction_from_ridge(Y, base_model: RidgeCV):
     return real_prediction
 
 
-def pareto_front_2d(points, mode='min'):
+def pareto_front_2d(points, mode='min') -> [np.ndarray, float]:
     """
     Calculate the Pareto front for a 2D problem using pymoo.
 

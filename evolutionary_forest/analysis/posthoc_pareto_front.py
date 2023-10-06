@@ -36,6 +36,7 @@ class ParetoFrontTool():
             self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor_scaled),
                                       float(test_error_normalized_by_test)))
         self.pareto_front, _ = pareto_front_2d(self.pareto_front)
+        self.pareto_front.tolist()
 
     @staticmethod
     def calculate_sharpness_pareto_front(self: "EvolutionaryForestRegressor", x_train):
@@ -106,3 +107,5 @@ class ParetoFrontTool():
 
             self.test_pareto_front, _ = pareto_front_2d(self.test_pareto_front)
             self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
+            self.test_pareto_front = self.test_pareto_front.tolist()
+            self.size_pareto_front = self.size_pareto_front.tolist()
