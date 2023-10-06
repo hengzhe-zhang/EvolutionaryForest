@@ -24,10 +24,8 @@ from tpot.base import TPOTBase
 from evolutionary_forest.component.bloat_control.depth_limit import get_replacement_tree, remove_none_values
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration, \
     MAPElitesConfiguration
-from evolutionary_forest.component.crossover.intron_based_crossover import crossover_based_on_intron
 from evolutionary_forest.component.crossover_mutation import cxOnePointWithRoot, \
     cxOnePointSizeSafe, mutUniformSizeSafe
-from evolutionary_forest.component.mutation.intron_based_mutation import mutation_based_on_intron
 from evolutionary_forest.component.syntax_tools import TransformerTool
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
 
@@ -285,48 +283,44 @@ def cxOnePoint_multiple_gene(ind1: MultipleGeneGP, ind2: MultipleGeneGP,
     """
     if crossover_configuration is None:
         crossover_configuration = CrossoverConfiguration()
-    intron_parameters = crossover_configuration.intron_parameters
     same_index = crossover_configuration.same_index
 
-    if intron_parameters is not None and random.random() < intron_parameters.get("intron_crossover_pb", 0):
-        crossover_based_on_intron(ind1, ind2, intron_parameters, pset)
+    if ind1.mgp_mode == True:
+        gene1, gene2, id1, id2 = modular_gp_crossover(ind1, ind2)
     else:
-        if ind1.mgp_mode == True:
-            gene1, gene2, id1, id2 = modular_gp_crossover(ind1, ind2)
-        else:
-            if crossover_configuration.tree_selection == 'Random':
-                gene1, id1 = ind1.random_select(with_id=True)
-                if same_index:
-                    gene2 = ind2.gene[id1]
-                    id2 = id1
-                else:
-                    gene2, id2 = ind2.random_select(with_id=True)
-            elif crossover_configuration.tree_selection == 'Self-Competitive':
-                gene1_a, id1_a = ind1.best_gene(with_id=True)
-                gene2_a, id2_a = ind2.best_gene(with_id=True)
-                gene1_b, id1_b = ind1.worst_gene(with_id=True)
-                gene2_b, id2_b = ind2.worst_gene(with_id=True)
-                gene1_a = copy.deepcopy(gene1_a)
-                gene2_a = copy.deepcopy(gene2_a)
-                gene1_b = copy.deepcopy(gene1_b)
-                gene2_b = copy.deepcopy(gene2_b)
-                # mutate worst, preserve best
-                ind1.gene[id1_b], _ = gene_crossover(gene1_b, gene2_a,
-                                                     configuration=crossover_configuration)
-                _, ind2.gene[id2_b] = gene_crossover(gene1_a, gene2_b,
-                                                     configuration=crossover_configuration)
-                return ind1, ind2
-            elif crossover_configuration.tree_selection == 'Probability':
-                gene1, id1 = ind1.weighted_selection(with_id=True)
-                gene2, id2 = ind2.weighted_selection(with_id=True)
+        if crossover_configuration.tree_selection == 'Random':
+            gene1, id1 = ind1.random_select(with_id=True)
+            if same_index:
+                gene2 = ind2.gene[id1]
+                id2 = id1
             else:
-                raise Exception
-
-        if crossover_configuration.dimension_crossover_rate is not None and \
-            random.random() < crossover_configuration.dimension_crossover_rate:
-            ind1.gene[id1], ind2.gene[id2] = gene2, gene1
+                gene2, id2 = ind2.random_select(with_id=True)
+        elif crossover_configuration.tree_selection == 'Self-Competitive':
+            gene1_a, id1_a = ind1.best_gene(with_id=True)
+            gene2_a, id2_a = ind2.best_gene(with_id=True)
+            gene1_b, id1_b = ind1.worst_gene(with_id=True)
+            gene2_b, id2_b = ind2.worst_gene(with_id=True)
+            gene1_a = copy.deepcopy(gene1_a)
+            gene2_a = copy.deepcopy(gene2_a)
+            gene1_b = copy.deepcopy(gene1_b)
+            gene2_b = copy.deepcopy(gene2_b)
+            # mutate worst, preserve best
+            ind1.gene[id1_b], _ = gene_crossover(gene1_b, gene2_a,
+                                                 configuration=crossover_configuration)
+            _, ind2.gene[id2_b] = gene_crossover(gene1_a, gene2_b,
+                                                 configuration=crossover_configuration)
+            return ind1, ind2
+        elif crossover_configuration.tree_selection == 'Probability':
+            gene1, id1 = ind1.weighted_selection(with_id=True)
+            gene2, id2 = ind2.weighted_selection(with_id=True)
         else:
-            ind1.gene[id1], ind2.gene[id2] = gene_crossover(gene1, gene2, configuration=crossover_configuration)
+            raise Exception
+
+    if crossover_configuration.dimension_crossover_rate is not None and \
+        random.random() < crossover_configuration.dimension_crossover_rate:
+        ind1.gene[id1], ind2.gene[id2] = gene2, gene1
+    else:
+        ind1.gene[id1], ind2.gene[id2] = gene_crossover(gene1, gene2, configuration=crossover_configuration)
     return ind1, ind2
 
 
@@ -393,17 +387,14 @@ def mutUniform_multiple_gene(individual: MultipleGeneGP, expr: Callable, pset,
                              tree_generation=None, configuration=None):
     if configuration is None:
         configuration = MutationConfiguration()
-    intron_parameters = configuration.intron_parameters
 
-    if intron_parameters is not None and random.random() < intron_parameters.get("intron_mutation_pb", 0):
-        id = mutation_based_on_intron(individual, expr, intron_parameters, pset)
+    if isinstance(pset, MultiplePrimitiveSet):
+        gene, id = individual.random_select(with_id=True)
+        gene_mutation(gene, pset.pset_list[id], expr, tree_generation, configuration)
     else:
-        if isinstance(pset, MultiplePrimitiveSet):
-            gene, id = individual.random_select(with_id=True)
-            gene_mutation(gene, pset.pset_list[id], expr, tree_generation, configuration)
-        else:
-            gene, id = individual.random_select(with_id=True)
-            gene_mutation(gene, pset, expr, tree_generation, configuration)
+        gene, id = individual.random_select(with_id=True)
+        gene_mutation(gene, pset, expr, tree_generation, configuration)
+
     if hasattr(individual, 'introns_results'):
         individual.introns_results[id].clear()
     return individual,

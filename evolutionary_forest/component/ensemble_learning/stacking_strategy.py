@@ -7,6 +7,7 @@ from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.model_selection import cross_val_score
 from sklearn.tree import DecisionTreeRegressor
 
+from evolutionary_forest.component.ensemble_learning.DREP import DREPEnsemble
 from evolutionary_forest.multigene_gp import result_calculation
 from evolutionary_forest.pruning import oob_pruning
 
@@ -34,46 +35,9 @@ class StackingStrategy():
         predictions = np.array(predictions)
 
         if algorithm.second_layer == 'DREP':
-            # DREP (Diversity Regularized Ensemble Pruning) algorithm for generating ensemble weights
-            y_sample = y_data.flatten()
-            current_prediction = np.zeros_like(y_sample)
-            remain_ind = set([i for i in range(len(algorithm.hof))])
-            min_index = 0
-            # Find the base model with the smallest error
-            for i in remain_ind:
-                error = np.mean((predictions[i] - y_sample) ** 2)
-                if error < np.mean((current_prediction - y_sample) ** 2):
-                    current_prediction = predictions[i]
-                    min_index = i
-            remain_ind.remove(min_index)
-
-            ensemble_list = np.zeros(len(algorithm.hof))
-            ensemble_list[min_index] = 1
-            # Repeat until no more improvement is possible
-            while True:
-                div_list = []
-                # Calculate diversity and loss for each remaining base model
-                for i in remain_ind:
-                    diversity = np.mean(((current_prediction - predictions[i]) ** 2))
-                    loss = np.mean(((y_sample - predictions[i]) ** 2))
-                    div_list.append((diversity, loss, i))
-                # Select diverse models
-                div_list = list(sorted(div_list, key=lambda x: -x[0]))[:int(round(len(div_list) * 0.5))]
-                # Sort them by loss
-                div_list = list(sorted(div_list, key=lambda x: x[1]))
-                index = div_list[0][2]
-                ensemble_size = np.sum(ensemble_list)
-                trial_prediction = ensemble_size / (ensemble_size + 1) * current_prediction + \
-                                   1 / (ensemble_size + 1) * predictions[index]
-                # Check if adding the selected model improves performance
-                if np.mean(((trial_prediction - y_sample) ** 2)) > np.mean(((current_prediction - y_sample) ** 2)):
-                    break
-                current_prediction = trial_prediction
-                ensemble_list[index] = 1
-                remain_ind.remove(index)
-            # Normalize the ensemble weights
-            ensemble_list /= np.sum(ensemble_list)
-            algorithm.tree_weight = ensemble_list
+            ensemble = DREPEnsemble(y_data, predictions, algorithm)
+            ensemble.generate_ensemble_weights()
+            algorithm.tree_weight = ensemble.get_ensemble_weights()
         elif algorithm.second_layer == 'Ridge':
             # Ridge regression for generating ensemble weights
             algorithm.ridge = Ridge(alpha=1e-3, normalize=True, fit_intercept=False)

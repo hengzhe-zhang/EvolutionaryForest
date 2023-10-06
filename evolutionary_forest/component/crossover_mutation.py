@@ -5,34 +5,9 @@ from functools import partial
 from operator import eq, lt
 from typing import List
 
-from deap.gp import __type__, mutUniform, cxOnePoint, PrimitiveTree, Primitive
+from deap.gp import __type__, PrimitiveTree, Primitive
 
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration
-
-
-def random_combination(ind1, ind2, pset):
-    type_ = pset.ret
-    primitives = list(filter(lambda x: x.arity == 2, pset.primitives[type_]))
-    # Sample two subtrees
-    index1 = random.choice(range(0, len(ind1)))
-    subtree_1 = ind1.searchSubtree(index1)
-    index2 = random.choice(range(0, len(ind2)))
-    subtree_2 = ind2.searchSubtree(index2)
-
-    new_head1 = random.choice(primitives)
-    new_head2 = random.choice(primitives)
-
-    new_ind1 = ind1[subtree_1]
-    new_ind1.insert(0, new_head1)
-    new_ind1.extend(ind2[subtree_2])
-
-    new_ind2 = ind2[subtree_2]
-    new_ind2.insert(0, new_head2)
-    new_ind2.extend(ind1[subtree_1])
-
-    ind1[0:len(ind1)] = new_ind1[0:len(new_ind1)]
-    ind2[0:len(ind2)] = new_ind2[0:len(new_ind2)]
-    return new_ind1, new_ind2
 
 
 def individual_combination(offspring, toolbox, pset, limitation_check):
@@ -57,92 +32,6 @@ def tree_combination(ind1, ind2, pset):
     new_ind.insert(0, new_head1)
     new_ind.extend(ind2)
     return new_ind
-
-
-def intron_mutation(individual, expr, pset, introns_results, avoid_fallback=False):
-    """
-    Only mutate introns
-    """
-    if len(introns_results) == 0:
-        # fallback to traditional mutation
-        if avoid_fallback:
-            raise Exception("Not allow to fallback!")
-        else:
-            return mutUniform(individual, expr, pset)
-    index = random.choice(introns_results)
-    slice_ = individual.searchSubtree(index)
-    type_ = individual[index].ret
-    individual[slice_] = expr(pset=pset, type_=type_)
-    introns_results.clear()
-    return individual,
-
-
-def intron_crossover(ind1, ind2, ind1_introns, ind2_introns, cross_intron=False, avoid_fallback=False):
-    """
-    Only cross introns
-    """
-    if len(ind1_introns) == 0 or len(ind2_introns) == 0 or \
-        (cross_intron and len(ind1) == len(ind1_introns) and len(ind2) == len(ind2_introns)):
-        # fallback to traditional crossover
-        if avoid_fallback:
-            raise Exception("Not allow to fallback!")
-        else:
-            return cxOnePoint(ind1, ind2)
-
-    # List all available primitive types in each individual
-    types1 = defaultdict(list)
-    types2 = defaultdict(list)
-    if ind1.root.ret == __type__:
-        # Not STGP optimization
-        types1[__type__] = list(range(0, len(ind1)))
-        types2[__type__] = list(range(0, len(ind2)))
-        common_types = [__type__]
-    else:
-        for idx, node in enumerate(ind1[0:], 1):
-            types1[node.ret].append(idx)
-        for idx, node in enumerate(ind2[0:], 1):
-            types2[node.ret].append(idx)
-        common_types = set(types1.keys()).intersection(set(types2.keys()))
-
-    if len(common_types) > 0:
-        type_ = random.choice(list(common_types))
-
-        if cross_intron:
-            # Using exons to replace intron
-            slice1_c1 = None
-            slice2_c1 = None
-            slice1_c2 = None
-            slice2_c2 = None
-
-            if len(ind1_introns) > 0 and len(ind2_introns) != len(types2[type_]):
-                index1_acceptor = random.choice(list(filter(lambda x: x in ind1_introns, types1[type_])))
-                index2_donor = random.choice(list(filter(lambda x: x not in ind2_introns, types2[type_])))
-                slice1_c1 = ind1.searchSubtree(index1_acceptor)
-                slice2_c1 = ind2.searchSubtree(index2_donor)
-
-            if len(ind2_introns) > 0 and len(ind1_introns) != len(types1[type_]):
-                index2_acceptor = random.choice(list(filter(lambda x: x in ind2_introns, types2[type_])))
-                index1_donor = random.choice(list(filter(lambda x: x not in ind1_introns, types1[type_])))
-                slice1_c2 = ind1.searchSubtree(index1_donor)
-                slice2_c2 = ind2.searchSubtree(index2_acceptor)
-
-            if slice1_c1 != None and slice2_c2 != None:
-                ind1[slice1_c1], ind2[slice2_c2] = ind2[slice2_c1], ind1[slice1_c2]
-            elif slice1_c1 != None:
-                ind1[slice1_c1] = ind2[slice2_c1]
-            elif slice2_c2 != None:
-                ind2[slice2_c2] = ind1[slice1_c2]
-            else:
-                raise Exception('Abnormal Case')
-        else:
-            # Warning case: in some cases, we don't non-intron codes
-            index1 = random.choice(list(filter(lambda x: x in ind1_introns, types1[type_])))
-            index2 = random.choice(list(filter(lambda x: x in ind2_introns, types2[type_])))
-
-            slice1 = ind1.searchSubtree(index1)
-            slice2 = ind2.searchSubtree(index2)
-            ind1[slice1], ind2[slice2] = ind2[slice2], ind1[slice1]
-    return ind1, ind2
 
 
 def mutUniformSizeSafe(individual: PrimitiveTree, expr, pset, configuration: MutationConfiguration):

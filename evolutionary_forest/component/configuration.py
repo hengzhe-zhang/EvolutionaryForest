@@ -97,7 +97,6 @@ class CrossoverConfiguration():
     """
 
     def __init__(self,
-                 intron_parameters=None,
                  # single-tree crossover
                  root_crossover=False,
                  safe_crossover=False,
@@ -122,7 +121,6 @@ class CrossoverConfiguration():
                  dimension_crossover_rate=0, **params):
         # max height after crossover
         self.max_height = max_height
-        self.intron_parameters: dict = intron_parameters
         self.root_crossover = root_crossover
         # ensure crossover on smaller trees
         self.safe_crossover = safe_crossover
@@ -164,7 +162,6 @@ class MAPElitesConfiguration():
 
 class MutationConfiguration():
     def __init__(self,
-                 intron_parameters=None,
                  safe_mutation=False,
                  mutation_expr_height=None,
                  max_height=10,
@@ -172,7 +169,6 @@ class MutationConfiguration():
                  gene_deletion_rate=0,
                  weighted_deletion=False,
                  **params):
-        self.intron_parameters: dict = intron_parameters
         self.gene_addition_rate = gene_addition_rate
         self.gene_deletion_rate = gene_deletion_rate
         self.weighted_deletion = weighted_deletion

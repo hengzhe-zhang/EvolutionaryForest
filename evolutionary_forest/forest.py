@@ -1,15 +1,13 @@
 import gc
 import inspect
 from multiprocessing import Pool
-from typing import Union
 
 import dill
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
-from deap.gp import Primitive
-from deap.tools import selNSGA2, History, selBest, cxTwoPoint, mutFlipBit, selDoubleTournament, sortNondominated, \
-    selSPEA2, selTournamentDCD
+from deap.tools import selNSGA2, History, selBest, cxTwoPoint, mutFlipBit, selDoubleTournament, selSPEA2, \
+    selTournamentDCD
 from gplearn.functions import _protected_sqrt
 from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
@@ -17,7 +15,7 @@ from numpy.linalg import norm
 from scipy import stats
 from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, ranksums
-from sklearn.base import RegressorMixin, BaseEstimator, ClassifierMixin, TransformerMixin
+from sklearn.base import ClassifierMixin, TransformerMixin
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor, RandomForestClassifier, \
     RandomForestRegressor
 from sklearn.exceptions import NotFittedError
@@ -34,11 +32,9 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
 from sklearn2pmml.ensemble import GBDTLRClassifier
-from sympy import parse_expr
 from tpot import TPOTRegressor
 from xgboost import XGBRegressor
 
-from evolutionary_forest.analysis.posthoc_pareto_front import ParetoFrontTool
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import DREPHallOfFame, NoveltyHallOfFame, OOBHallOfFame, BootstrapHallOfFame
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
@@ -56,10 +52,11 @@ from evolutionary_forest.component.crossover_mutation import hoistMutation, indi
 from evolutionary_forest.component.ensemble_learning.stacking_strategy import StackingStrategy
 from evolutionary_forest.component.ensemble_learning.utils import EnsembleRegressor, EnsembleClassifier
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
-from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, quick_result_calculation, \
-    pipe_combine, quick_evaluate, EvaluationResults, \
+from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, pipe_combine, quick_evaluate, \
+    EvaluationResults, \
     select_from_array, get_sample_weight
 from evolutionary_forest.component.fitness import *
+from evolutionary_forest.component.generalization.pac_bayesian import PACBayesianConfiguration, SharpnessType
 from evolutionary_forest.component.generalization.pac_bayesian_tool import automatic_perturbation_std, \
     sharpness_based_dynamic_depth_limit
 from evolutionary_forest.component.generation import varAndPlus
@@ -67,7 +64,6 @@ from evolutionary_forest.component.initialization import initialize_crossover_op
 from evolutionary_forest.component.mutation.common import MutationOperator
 from evolutionary_forest.component.mutation.learning_based_mutation import BuildingBlockLearning
 from evolutionary_forest.component.normalizer import TargetEncoder
-from evolutionary_forest.component.generalization.pac_bayesian import PACBayesianConfiguration, SharpnessType
 from evolutionary_forest.component.primitive_controller import get_functions, get_differentiable_functions
 from evolutionary_forest.component.primitive_functions import *
 from evolutionary_forest.component.random_constant import scaled_random_constant
@@ -916,12 +912,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if check_semantic_based_bc(self.bloat_control) or self.intron_gp:
             # only do this in intron mode
             intron_ids = information.introns_results
-            if (self.intron_gp and
-                (self.bloat_control.get('exon_tournament', False) or
-                 self.bloat_control.get('exon_tournament_V2', False) or
-                 self.bloat_control.get('mutation_worst', False) or
-                 self.bloat_control.get('hoist_one_layer', False))
-            ) or check_semantic_based_bc(self.bloat_control):
+            if self.intron_gp or check_semantic_based_bc(self.bloat_control):
                 assert len(intron_ids) == len(individual.gene)
                 # mark level to all genes
                 for gene_introns, gene in zip(intron_ids, individual.gene):
@@ -955,25 +946,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             while len(q) > 0 and q[-1] == 0:
                                 q.pop(-1)
                     assert len(q) == 0
-            elif self.bloat_control.get('intron_mutation', False) or \
-                self.bloat_control.get('intron_crossover', False) or \
-                self.bloat_control.get('exon_crossover', False) or \
-                self.bloat_control.get('exon_mutation', False):
-                # Iterate through introns for the current gene
-                for gene_introns, gene in zip(intron_ids, individual.gene):
-                    self.all_nodes_counter += len(gene_introns)
-                    # Filter out introns with low correlation coefficient
-                    gene_introns = list(filter(lambda it: it[1] < 0.01, gene_introns.items()))
-                    self.intron_nodes_counter += len(gene_introns)
-                    for x, v in gene_introns:
-                        # sub_trees = gene.searchSubtree(x)
-                        # for s in range(sub_trees.start, sub_trees.stop):
-                        s = x
-                        if isinstance(gene[s], Primitive):
-                            gene[s] = IntronPrimitive(gene[s].name, gene[s].args, gene[s].ret)
-                        elif isinstance(gene[s], Terminal):
-                            gene[s] = IntronTerminal(gene[s].value, getattr(gene[s], 'conv_fct') == str, gene[s].ret)
-                        gene[s].corr = v
 
         # final score
         if self.evaluation_configuration.mini_batch:
@@ -989,15 +961,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return mini_batch_y
 
     def importance_post_process(self, individual: MultipleGeneGP, estimators):
-        def merge_coef(coef, hash_value):
-            hash_dict = defaultdict(int)
-            for i, h in enumerate(hash_value):
-                hash_dict[h] += coef[i]
-            result = [0] * len(coef)
-            for i, h in enumerate(hash_value):
-                result[i] = hash_dict[h]
-            return np.array(result)
-
         # max is not an appropriate indicator, because it will highlight not robust features
         importance_values = [self.get_model_coefficient(x) for x in estimators]
         individual.coef = np.mean(importance_values, axis=0)
@@ -1012,10 +975,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual.coef = coef
             assert i == int(sum(individual.active_gene))
 
-        # if self.delete_irrelevant or self.delete_redundant:
-        #     # temporarily only applicable for MGP
-        #     individual.coef = merge_coef(list(individual.coef), individual.hash_result)
-
         def coefficient_process(coefficient):
             if sum(coefficient) == 0:
                 coefficient = np.ones_like(coefficient)
@@ -1027,9 +986,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def calculate_fitness_value(self, individual, estimators, Y, y_pred):
         """
-    Calculates the fitness value of an individual based on the score function.
+        Calculates the fitness value of an individual based on the score function.
 
-    Smaller values are better because the weight is -1.
+        Smaller values are better because the weight is -1.
         """
         if isinstance(self.score_func, Fitness):
             return self.score_func.fitness_value(individual, estimators, Y, y_pred)
@@ -1056,10 +1015,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             feature_norm = np.linalg.norm(StandardScaler().fit_transform(X_features).flatten()) ** 2
             individual.fitness_list = ((score, 1), (coef_norm, -1 * weights[0]), (feature_norm, -1 * weights[1]))
             return 0,
-        elif self.score_func == 'MSE-Variance':
-            # Calculate mean squared error and standard deviation of error
-            error = mean_squared_error(Y, y_pred)
-            return np.mean(error) + 0.01 * np.std(error),
         elif self.score_func == 'Lower-Bound':
             # Return maximum mean squared error
             return np.max(mean_squared_error(Y, y_pred)),
@@ -2037,32 +1992,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.y: np.ndarray
         self.X, self.y = X, y.flatten()
 
-        # Set up environmental selection based on specified method
-        if self.environmental_selection == 'NSGA2-Mixup':
-            # Fit a model to the data and use it to generate pseudo labels
-            regularization_model = self.param['regularization_model']
-            if regularization_model == 'LGBM':
-                model = LGBMRegressor()
-            elif regularization_model == 'SVR':
-                model = SVR()
-            else:
-                raise Exception
-            model.fit(self.X, self.y)
-            self.pseudo_label = model.predict(self.test_X)
-        if self.environmental_selection == 'NSGA2-100':
-            # Generate random objectives
-            self.random_objectives = np.random.uniform(0, 1, size=(len(y), 100))
-        if self.environmental_selection == 'NSGA2-100-Normal':
-            # Generate random objectives with truncated normal distribution
-            self.random_objectives = truncated_normal(sample=(len(y), 100))
-        if self.environmental_selection == 'NSGA2-100-LHS':
-            # Generate random objectives with Latin hypercube sampling
-            from smt.sampling_methods import LHS
-            xlimits = np.repeat(np.array([[0.0, 1.0]]), len(y), axis=0)
-            sampling = LHS(xlimits=xlimits)
-            num = 100
-            self.random_objectives = sampling(num).T
-
         # Initialize population with lazy initialization
         self.lazy_init(X)
 
@@ -2482,9 +2411,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.post_processing_after_evaluation(None, population)
 
-        if self.environmental_selection == 'NSGA2-Mixup':
-            self.mixup_evaluation(self.toolbox, population)
-
         self.append_evaluated_features(population)
         for o in population:
             self.evaluated_pop.add(individual_to_tuple(o))
@@ -2748,9 +2674,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 print('P value of different population', p_value)
 
             self.gp_simplification(offspring)
-
-            if self.environmental_selection == 'NSGA2-Mixup':
-                self.mixup_evaluation(self.toolbox, offspring)
 
             # Record the fitness improvement
             fitness_improvement = np.max([ind.fitness.wvalues[0] for ind in offspring]) - \
@@ -3622,14 +3545,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for o in offspring:
                 o.correlation_results, o.coef = o.coef, o.correlation_results
         assert abs(np.sum(offspring[0].coef) - 1) < 1e-5
-        # calculate building block relative importance
-        # if self.shared_eda:
-        #     building_block_importance = []
-        #     for g in range(self.gene_num):
-        #         building_block_importance.append(self.terminal_prob_count[f'ARG{g + self.X.shape[1] - 1}'])
-        #     building_block_importance = np.array(building_block_importance)
-        #     building_block_importance = building_block_importance / np.sum(building_block_importance)
-
+        
         all_hash = set()
         for g in range(self.gene_num):
             need_to_change = False
@@ -3800,19 +3716,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for ind in population:
                 ind.fitness.weights = (-1,)
                 ind.fitness.values = getattr(ind, 'original_fitness')
-        elif self.environmental_selection == 'NSGA2-Mixup':
-            population[:] = selNSGA2(offspring + population, len(population))
-        elif self.environmental_selection != None and 'NSGA2-100' in self.environmental_selection:
-            for ind in offspring + population:
-                setattr(ind, 'original_fitness', ind.fitness.values)
-                fitness = ind.case_values @ self.random_objectives
-                ind.fitness.weights = (-1,) * len(self.random_objectives)
-                ind.fitness.values = list(fitness)
-            population[:] = selNSGA2(offspring + population, len(population))
-            for ind in population:
-                ind.fitness.weights = (-1,)
-                ind.fitness.values = getattr(ind, 'original_fitness')
-            self.hof = population
         elif self.environmental_selection in ['NSGA2-CV', 'NSGA2-CV2']:
             for ind in offspring + population:
                 setattr(ind, 'original_fitness', ind.fitness.values)
@@ -3853,15 +3756,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     # @timeit
     def population_reduction(self, population):
-        # reduce the population size through feature selection
-        ratio = self.reduction_ratio
-        new_population = []
-        # while len(new_population) < (len(population) // ratio):
         for p in population:
-            # inds = random.sample(population, ratio)
-            inds = [p]
-            genes = list(chain.from_iterable([ind.gene for ind in inds]))
-
+            genes = p.gene
             # syntactic feature selection
             gene_str = set()
             final_genes = []
@@ -3926,18 +3822,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ob.fitness.weights = (-1, -1)
             ob.fitness.values = (oa.fitness.values[0], ob.fitness.values[0])
         return population
-
-    def mixup_evaluation(self, toolbox, population):
-        self.final_model_lazy_training(population)
-        X = self.test_X
-        if self.normalize:
-            X = self.x_scaler.transform(X)
-        for individual in population:
-            Yp = self.feature_generation(X, individual)
-            predicted = individual.pipe.predict(Yp)
-
-            individual.fitness.weights = (-1, -1)
-            individual.fitness.values = (individual.fitness.values[0], r2_score(self.pseudo_label, predicted))
 
     def population_evaluation(self, toolbox, population):
         """
