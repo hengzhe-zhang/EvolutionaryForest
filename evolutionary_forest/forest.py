@@ -12,7 +12,6 @@ from gplearn.functions import _protected_sqrt
 from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
-from scipy import stats
 from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, ranksums
 from sklearn.base import ClassifierMixin, TransformerMixin
@@ -27,7 +26,6 @@ from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
-from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
@@ -52,7 +50,7 @@ from evolutionary_forest.component.crossover_mutation import hoistMutation, indi
 from evolutionary_forest.component.ensemble_learning.stacking_strategy import StackingStrategy
 from evolutionary_forest.component.ensemble_learning.utils import EnsembleRegressor, EnsembleClassifier
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
-from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, pipe_combine, \
+from evolutionary_forest.component.evaluation import calculate_score, pipe_combine, \
     single_tree_evaluation, \
     EvaluationResults, \
     select_from_array, get_sample_weight
@@ -93,6 +91,7 @@ from evolutionary_forest.strategies.estimation_of_distribution import Estimation
 from evolutionary_forest.strategies.multifidelity_evaluation import MultiFidelityEvaluation
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utils import *
+from evolutionary_forest.utils import model_to_string
 
 multi_gene_operators = ['uniform-plus', 'uniform-plus-SC', 'uniform-plus-BSC',
                         'uniform-plus-AdaptiveCrossover',
@@ -3891,30 +3890,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 data.append(model.predict(X).flatten())
             X = np.concatenate([X, np.array(data).T], axis=1)
         return X
-
-
-def model_to_string(genes, learner, scaler):
-    coefs = learner.coef_
-    model_str = ''
-    for id, g, c in zip(range(0, len(genes)), genes, coefs):
-        gene_string = gene_to_string(g)
-        if scaler != None:
-            mean, std = scaler.mean_[id], scaler.scale_[id]
-            gene_string = f'(({gene_string}-{mean})/{std})'
-        if id == 0:
-            model_str += str(c) + '*' + gene_string
-        else:
-            model_str += '+' + str(c) + '*' + gene_string
-    model_str += '+' + str(learner.intercept_)
-    return model_str.replace('ARG', 'x')
-
-
-def truncated_normal(lower=0, upper=1, mu=0.5, sigma=0.1, sample=(100, 100)):
-    # instantiate an object X using the above four parameters,
-    X = stats.truncnorm((lower - mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
-    # generate 1000 sample data
-    samples = X.rvs(sample)
-    return samples
 
 
 def init_worker(function, data):

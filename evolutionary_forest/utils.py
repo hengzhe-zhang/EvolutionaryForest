@@ -509,3 +509,19 @@ def list_to_tuple(nested_list):
         return tuple(list_to_tuple(item) for item in nested_list)
     else:
         return nested_list
+
+
+def model_to_string(genes, learner, scaler):
+    coefs = learner.coef_
+    model_str = ''
+    for id, g, c in zip(range(0, len(genes)), genes, coefs):
+        gene_string = gene_to_string(g)
+        if scaler != None:
+            mean, std = scaler.mean_[id], scaler.scale_[id]
+            gene_string = f'(({gene_string}-{mean})/{std})'
+        if id == 0:
+            model_str += str(c) + '*' + gene_string
+        else:
+            model_str += '+' + str(c) + '*' + gene_string
+    model_str += '+' + str(learner.intercept_)
+    return model_str.replace('ARG', 'x')
