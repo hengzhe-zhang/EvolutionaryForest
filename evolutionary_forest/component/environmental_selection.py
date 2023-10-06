@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from functools import partial
+from operator import attrgetter
 from typing import TYPE_CHECKING, Union
 
 import numpy as np
@@ -291,7 +292,12 @@ class Best(EnvironmentalSelection):
         self.fit_attr = fit_attr
 
     def select(self, population, offspring):
-        return selBest(population + offspring, len(population), self.fit_attr)
+        if self.fit_attr == 'sam_loss':
+            individuals = population + offspring
+            k = len(population)
+            return sorted(individuals, key=attrgetter(self.fit_attr))[:k]
+        else:
+            return selBest(population + offspring, len(population), self.fit_attr)
 
 
 class NSGA3(NSGA2):
