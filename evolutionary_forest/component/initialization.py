@@ -1,3 +1,5 @@
+import string
+
 from evolutionary_forest.component.adaptive_crossover import cxOnePointAdaptive
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.multigene_gp import *
@@ -30,3 +32,24 @@ def initialize_crossover_operator(self: "EvolutionaryForestRegressor", toolbox: 
         toolbox.mate = partial(cxOnePoint_multiple_gene,
                                pset=self.pset,
                                crossover_configuration=self.get_crossover_configuration())
+
+
+def unique_initialization(container, func, n):
+    generated = set()
+    result = container()
+
+    while len(result) < n:
+        s = func()
+        if str(s) not in generated:
+            generated.add(str(s))
+            result.append(s)
+
+    return result
+
+
+if __name__ == '__main__':
+    def random_string():
+        return ''.join(random.choices(string.ascii_letters, k=5))
+
+
+    print(unique_initialization(list, random_string, 10))

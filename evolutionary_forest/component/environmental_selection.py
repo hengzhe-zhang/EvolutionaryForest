@@ -116,6 +116,18 @@ class TreeSizeObjective(Objective):
             ind.fitness.values = (ind.fitness.values[0], np.sum([len(y) for y in ind.gene]))
 
 
+def unique(individuals):
+    generated = set()
+    result = []
+
+    for ind in individuals:
+        s = ind
+        if str(s) not in generated:
+            generated.add(str(s))
+            result.append(s)
+    return result
+
+
 class NSGA2(EnvironmentalSelection):
 
     def __init__(self,
@@ -140,6 +152,7 @@ class NSGA2(EnvironmentalSelection):
 
     def select(self, population, offspring):
         individuals = population + offspring
+        individuals = unique(individuals)
         if self.objective_function != None:
             self.objective_function.set(individuals)
 
