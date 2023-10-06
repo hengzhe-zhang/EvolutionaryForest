@@ -50,10 +50,7 @@ class ParetoFrontTool():
 
             # Compute sharpness and other metrics for each individual
             for ind, prediction in zip(self.pop, predictions):
-                if not isinstance(self.score_func, R2PACBayesian):
-                    if isinstance(self.score_func, RademacherComplexityR2):
-                        ind.rademacher_fitness_list = ind.fitness_list
-                    pac.assign_complexity(ind, ind.pipe)
+                ParetoFrontTool.sharpness_estimation(self, ind, pac)
                 sharpness_value = ind.fitness_list[1][0]
                 """
                 1. Normalized fitness values (case values represent cross-validation squared error)
@@ -65,9 +62,17 @@ class ParetoFrontTool():
             self.pareto_front, _ = pareto_front_2d(self.pareto_front)
 
     @staticmethod
+    def sharpness_estimation(self, ind, pac):
+        if not isinstance(self.score_func, R2PACBayesian):
+            if isinstance(self.score_func, RademacherComplexityR2):
+                ind.rademacher_fitness_list = ind.fitness_list
+            pac.assign_complexity(ind, ind.pipe)
+
+    @staticmethod
     def calculate_sharpness_pareto_front_on_test(self: "EvolutionaryForestRegressor", test_x, test_y):
         if self.experimental_configuration.pac_bayesian_comparison and \
             isinstance(self.environmental_selection, EnvironmentalSelection):
+            pac = R2PACBayesian(self, **self.param)
             self.test_pareto_front = []
             predictions = self.individual_prediction(test_x, self.pop)
             """
@@ -82,6 +87,8 @@ class ParetoFrontTool():
 
             # Compute sharpness and other metrics for each individual
             for ind, prediction in zip(self.pop, predictions):
+                ParetoFrontTool.sharpness_estimation(self, ind, pac)
+
                 # the mean 1-sharpness across all samples
                 sharpness_value = ind.fitness_list[1][0]
                 errors = (test_y - prediction) ** 2
