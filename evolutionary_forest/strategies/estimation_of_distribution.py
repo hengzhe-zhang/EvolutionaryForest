@@ -9,7 +9,7 @@ from deap.gp import Primitive, Terminal
 from deap.tools import HallOfFame
 from mlxtend.evaluate import feature_importance_permutation
 
-from evolutionary_forest.component.evaluation import quick_result_calculation, get_cv_splitter
+from evolutionary_forest.component.evaluation import multi_tree_evaluation, get_cv_splitter
 from evolutionary_forest.component.tree_utils import construct_tree, TreeNode, get_parent_of_leaves, \
     StringDecisionTreeClassifier
 from evolutionary_forest.strategies.multiarm_bandit import MultiArmBandit
@@ -212,7 +212,7 @@ class EstimationOfDistribution():
         for id, index in enumerate(kcv.split(X, Y)):
             def prediction_function(X):
                 # quickly calculate permutation importance
-                Yp = quick_result_calculation(individual.gene, self.algorithm.pset, X, self.algorithm.original_features)
+                Yp = multi_tree_evaluation(individual.gene, self.algorithm.pset, X, self.algorithm.original_features)
                 return estimators[id].predict(Yp)
 
             train_index, test_index = index

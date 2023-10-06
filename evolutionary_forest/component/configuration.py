@@ -194,7 +194,6 @@ class ImbalancedConfiguration():
 
 class EvaluationConfiguration():
     def __init__(self,
-                 nn_prediction=None,
                  dynamic_target=False,
                  original_features=False,
                  pset=None,
@@ -213,7 +212,6 @@ class EvaluationConfiguration():
                  max_height=None, **params):
         # prediction results of the neural network
         self.gradient_optimizer = gradient_optimizer
-        self.nn_prediction = nn_prediction
         # random generate cross-validation scheme
         self.dynamic_target = dynamic_target
         # using original features

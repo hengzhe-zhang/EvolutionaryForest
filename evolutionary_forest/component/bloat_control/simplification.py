@@ -4,7 +4,7 @@ import numpy as np
 from deap.gp import PrimitiveTree
 
 from evolutionary_forest.component.crossover.intron_based_crossover import IntronTerminal
-from evolutionary_forest.component.evaluation import quick_evaluate
+from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 if TYPE_CHECKING:
@@ -59,7 +59,7 @@ class Simplification():
             while gid < len(gene):
                 if getattr(gene[gid], 'corr', None) == -1:
                     tree = gene.searchSubtree(gid)
-                    value = quick_evaluate(gene[tree], self.algorithm.pset, self.algorithm.X[:1])
+                    value = single_tree_evaluation(gene[tree], self.algorithm.pset, self.algorithm.X[:1])
                     if isinstance(value, np.ndarray):
                         value = float(value.flatten()[0])
                     c = IntronTerminal(value, False, object)

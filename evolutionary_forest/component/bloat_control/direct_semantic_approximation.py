@@ -3,7 +3,7 @@ import random
 import numpy as np
 from deap.gp import Terminal
 
-from evolutionary_forest.component.evaluation import quick_evaluate
+from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.multigene_gp import quick_fill, MultipleGeneGP
 
 
@@ -24,7 +24,7 @@ class DSA():
                     if slice_.stop - slice_.start <= 3:
                         continue
                     type_ = g[index].ret
-                    old_y = quick_evaluate(g[slice_], self.algorithm.pset, self.algorithm.X)
+                    old_y = single_tree_evaluation(g[slice_], self.algorithm.pset, self.algorithm.X)
                     old_y = quick_fill([old_y], self.algorithm.y)[0]
                     new_ind = None
                     # 1000 trails
@@ -33,7 +33,7 @@ class DSA():
                         if len(new_ind) < slice_.stop - slice_.start - 2:
                             break
                     if new_ind is not None:
-                        new_y = quick_evaluate(new_ind, self.algorithm.pset, self.algorithm.X)
+                        new_y = single_tree_evaluation(new_ind, self.algorithm.pset, self.algorithm.X)
                         new_y = quick_fill([new_y], self.algorithm.y)[0]
                         theta = np.dot(new_y, old_y) / np.dot(new_y, new_y)
                         new_ind.insert(0, self.algorithm.pset.mapping["Mul"])

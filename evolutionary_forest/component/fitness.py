@@ -9,7 +9,7 @@ from deap.tools import sortNondominated
 from sklearn.metrics import r2_score
 from torch import optim
 
-from evolutionary_forest.component.evaluation import quick_result_calculation
+from evolutionary_forest.component.evaluation import multi_tree_evaluation
 from evolutionary_forest.component.generalization.iodc import create_z, create_w, calculate_iodc
 from evolutionary_forest.component.generalization.pac_bayesian import assign_rank, pac_bayesian_estimation, \
     SharpnessType, \
@@ -464,10 +464,10 @@ class R2PACBayesian(Fitness):
                    for gene in individual.gene):
                 sharpness = np.inf
             else:
-                features = quick_result_calculation(trees, self.algorithm.pset,
-                                                    self.algorithm.X,
-                                                    self.algorithm.original_features,
-                                                    configuration=self.algorithm.evaluation_configuration)
+                features = multi_tree_evaluation(trees, self.algorithm.pset,
+                                                 self.algorithm.X,
+                                                 self.algorithm.original_features,
+                                                 configuration=self.algorithm.evaluation_configuration)
                 if torch.any(torch.isnan(features)):
                     sharpness = np.inf
                 else:
@@ -491,9 +491,9 @@ class R2PACBayesian(Fitness):
 
                     self.sharpness_gradient_ascent(torch_variables)
 
-                    features = quick_result_calculation(trees, self.algorithm.pset, self.algorithm.X,
-                                                        self.algorithm.original_features,
-                                                        configuration=self.algorithm.evaluation_configuration)
+                    features = multi_tree_evaluation(trees, self.algorithm.pset, self.algorithm.X,
+                                                     self.algorithm.original_features,
+                                                     configuration=self.algorithm.evaluation_configuration)
                     mean = features.mean(dim=0)
                     std = features.std(dim=0)
                     features = (features - mean) / (std + epsilon)

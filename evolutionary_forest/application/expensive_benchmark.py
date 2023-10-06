@@ -9,7 +9,7 @@ from sklearn.metrics import make_scorer
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import StandardScaler
 
-from evolutionary_forest.component.evaluation import quick_evaluate
+from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.component.primitive_functions import analytical_quotient
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.forest import spearman
@@ -83,7 +83,7 @@ class ExpensiveBenchmarkGenerator(BaseEstimator):
             for g in ind.gene[:self.number_of_variables]:
                 y_array = []
                 for x in group_X.T:
-                    y = quick_evaluate(g, self.pset.pset_list[c_id], np.reshape(x, (-1, 1)))
+                    y = single_tree_evaluation(g, self.pset.pset_list[c_id], np.reshape(x, (-1, 1)))
                     y_array.append(y)
                 final_array.append(np.mean(y_array, axis=0))
                 c_id += 1
@@ -91,7 +91,7 @@ class ExpensiveBenchmarkGenerator(BaseEstimator):
 
             objectives = []
             for g in ind.gene[self.number_of_variables:]:
-                y = quick_evaluate(g, self.pset.pset_list[c_id], final_array.T)
+                y = single_tree_evaluation(g, self.pset.pset_list[c_id], final_array.T)
                 objectives.append(y)
                 c_id += 1
             pipe = Pipeline([

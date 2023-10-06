@@ -16,7 +16,7 @@ from sklearn.utils import compute_sample_weight
 from tpot import TPOTClassifier
 
 from evolutionary_forest.component.archive import EnsembleSelectionHallOfFame
-from evolutionary_forest.component.evaluation import quick_result_calculation
+from evolutionary_forest.component.evaluation import multi_tree_evaluation
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 from evolutionary_forest.component.ensemble_learning.utils import GBDTLRClassifierX
@@ -95,7 +95,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         predictions = []
         weight_list = []
         for i, individual in enumerate(self.hof):
-            Yp = quick_result_calculation(individual.gene, self.pset, X)
+            Yp = multi_tree_evaluation(individual.gene, self.pset, X)
             if self.test_data is not None:
                 Yp = Yp[-prediction_data_size:]
             predicted = individual.pipe.predict_proba(Yp)

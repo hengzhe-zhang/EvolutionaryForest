@@ -10,7 +10,7 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.tensorboard import SummaryWriter
 
-from evolutionary_forest.component.evaluation import quick_evaluate
+from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.component.primitive_functions import analytical_quotient
 from evolutionary_forest.utils import reset_random
 
@@ -160,7 +160,7 @@ def calculate_accuracy(number_of_primitives,
                 # do replacement
                 ind[node_id] = pset.mapping[f'ARG{current_terminal_id}']
                 current_terminal_id += 1
-        old_pearson = pearsonr(quick_evaluate(ind, pset, context_x[id].T), context_y[id])[0]
+        old_pearson = pearsonr(single_tree_evaluation(ind, pset, context_x[id].T), context_y[id])[0]
 
         # Try to perform Transformer-based Mutation
         current_pos = 0
@@ -178,7 +178,7 @@ def calculate_accuracy(number_of_primitives,
         ind = gp.PrimitiveTree(new_nodes)
 
         # Evaluate the performance of new features
-        new_pearson = pearsonr(quick_evaluate(ind, pset, context_x[id].T), context_y[id])[0]
+        new_pearson = pearsonr(single_tree_evaluation(ind, pset, context_x[id].T), context_y[id])[0]
         if np.abs(new_pearson) > 10 * np.abs(old_pearson):
             valid_mutation += 1
 
@@ -196,7 +196,7 @@ def calculate_accuracy(number_of_primitives,
         ind = gp.PrimitiveTree(new_nodes)
 
         # Evaluate the performance of new features
-        new_pearson = pearsonr(quick_evaluate(ind, pset, context_x[id].T), context_y[id])[0]
+        new_pearson = pearsonr(single_tree_evaluation(ind, pset, context_x[id].T), context_y[id])[0]
         if np.abs(new_pearson) > 10 * np.abs(old_pearson):
             valid_random_mutation += 1
         all_mutation += 1
@@ -281,7 +281,7 @@ def training_data_generation(X, y):
         y_sample = y[id]
         tree = toolbox.expr()
 
-        result_a = quick_evaluate(tree, pset, X[id])
+        result_a = single_tree_evaluation(tree, pset, X[id])
         tree_a = tuple(a.name for a in tree)
 
         # ensure the training data is useful
@@ -300,7 +300,7 @@ def training_data_generation(X, y):
             if isinstance(node, gp.Terminal):
                 used_variable.append(int(node.name.replace('ARG', '')))
         assert len(used_variable) <= number_of_terminals
-        result_b = quick_evaluate(tree, pset, X[id])
+        result_b = single_tree_evaluation(tree, pset, X[id])
         used_data = X[id][:, list(used_variable)]
         assert used_data.shape[1] <= number_of_terminals
         used_data = np.concatenate((np.reshape(y[id], (-1, 1)), used_data), axis=1)

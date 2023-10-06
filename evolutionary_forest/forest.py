@@ -52,7 +52,8 @@ from evolutionary_forest.component.crossover_mutation import hoistMutation, indi
 from evolutionary_forest.component.ensemble_learning.stacking_strategy import StackingStrategy
 from evolutionary_forest.component.ensemble_learning.utils import EnsembleRegressor, EnsembleClassifier
 from evolutionary_forest.component.environmental_selection import NSGA2, EnvironmentalSelection, SPEA2, Best, NSGA3
-from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, pipe_combine, quick_evaluate, \
+from evolutionary_forest.component.evaluation import calculate_score, get_cv_splitter, pipe_combine, \
+    single_tree_evaluation, \
     EvaluationResults, \
     select_from_array, get_sample_weight
 from evolutionary_forest.component.fitness import *
@@ -210,11 +211,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                  delete_irrelevant=False,  # Whether to delete irrelevant genes in MGP
                  delete_redundant=False,  # Whether to delete redundant genes in MGP
 
-                 # Semantic Variation (Trail-and-error to generate new trees)
-                 semantic_variation=False,  # Whether to use semantic variation in GP
-                 correlation_threshold=None,  # Correlation threshold for pre-selection
-                 correlation_mode=None,  # Correlation mode for pre-selection
-
                  # MGP hyperparameters
                  irrelevant_feature_ratio=0.01,  # Ratio of irrelevant features in MGP
                  strict_layer_mgp=True,  # Whether to use strict layering in MGP
@@ -346,7 +342,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Each layer can get inputs from previous layers
             self.layer_mgp = True
         self.mgp_scope = mgp_scope
-        self.semantic_variation = semantic_variation
         self.mab_parameter = mab_parameter
         self.validation_size = validation_size
         if random_state is not None:
@@ -411,8 +406,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.stage_flag = False
         self.map_elite_parameter = {} if map_elite_parameter is None else map_elite_parameter
         self.number_of_register = number_of_register
-        self.correlation_threshold = correlation_threshold
-        self.correlation_mode = correlation_mode
         self.outlier_detection = outlier_detection
         self.counter_initialization()
 
@@ -474,12 +467,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
 
         self.n_process = n_process
-
-        if self.base_learner == 'NN':
-            # Wide&Deep
-            self.hidden_layers = [16, 4]
-            self.neural_network = MLPRegressor(self.hidden_layers, activation='logistic',
-                                               max_iter=1000, early_stopping=True)
 
         if self.mutation_scheme == 'Transformer':
             self.transformer_switch = True
@@ -838,10 +825,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 individual.pipe = pipe
 
         if self.bootstrap_training or self.eager_training:
-            Yp = quick_result_calculation(genes, self.pset, X, self.original_features,
-                                          sklearn_format=self.basic_primitives == 'ML',
-                                          register_array=individual.parameters['Register']
-                                          if self.mgp_mode == 'Register' else None)
+            Yp = multi_tree_evaluation(genes, self.pset, X, self.original_features,
+                                       sklearn_format=self.basic_primitives == 'ML',
+                                       register_array=individual.parameters['Register']
+                                       if self.mgp_mode == 'Register' else None)
             self.train_final_model(individual, Yp, Y)
 
         if self.bootstrap_training:
@@ -1083,8 +1070,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     input_size = individual.active_gene_num
                 else:
                     input_size = len(individual.gene)
-                if self.base_learner == 'NN':
-                    input_size += self.hidden_layers[-1]
                 if hasattr(model, 'partition_scheme'):
                     input_size += 1
                 if self.original_features:
@@ -1102,10 +1087,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         # ensure ensemble base leaner will not be retrained
         assert self.base_learner != 'Random-DT-Plus'
-
-        if self.base_learner == 'NN':
-            nn_prediction = get_activations(self.neural_network, self.X)[-2]
-            Yp = np.concatenate([Yp, nn_prediction], axis=1)
 
         if hasattr(model, 'partition_scheme'):
             partition_scheme = model.partition_scheme
@@ -1206,8 +1187,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == 'RandomWeightRidge':
             ridge_model = RandomWeightRidge()
         elif self.base_learner == 'Ridge' or base_model == 'Ridge' \
-            or (isinstance(self.base_learner, str) and self.base_learner.startswith('Fast-')) \
-            or self.base_learner == 'NN':
+            or (isinstance(self.base_learner, str) and self.base_learner.startswith('Fast-')):
             ridge_model = Ridge(self.base_learner_configuration.ridge_alpha)
         elif self.base_learner == 'RidgeDT':
             ridge_model = RidgeDT(decision_tree_count=self.decision_tree_count,
@@ -1463,26 +1443,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.prediction_x = shuffle_along_axis(np.copy(self.X), axis=0)
 
-        if self.base_learner == 'NN':
-            cv = get_cv_splitter(self.neural_network, self.cv)
-            self.nn_prediction = np.zeros((len(self.y), self.hidden_layers[-1]))
-
-            X, y = self.X, self.y
-            cv_loss = []
-            for train_index, test_index in cv.split(X):
-                X_train, X_test = X[train_index], X[test_index]
-                y_train, y_test = y[train_index], y[test_index]
-                self.neural_network.fit(X_train, y_train)
-                cv_loss.append(r2_score(y_test, self.neural_network.predict(X_test)))
-                self.nn_prediction[test_index] = get_activations(self.neural_network, X_test)[-2]
-
-            self.neural_network.fit(self.X, self.y)
-        else:
-            self.nn_prediction = None
         self.thread_pool_initialization()
         self.toolbox.root_crossover = self.crossover_configuration.root_crossover
         self.evaluation_configuration.pset = pset
-        self.evaluation_configuration.nn_prediction = self.nn_prediction
         self.toolbox.pset = pset
 
         if self.imbalanced_configuration.balanced_evaluation:
@@ -2129,12 +2092,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         for individual in individuals:
             if len(individual.gene) == 0:
                 continue
-            Yp = quick_result_calculation(individual.gene, self.pset, X, self.original_features,
-                                          sklearn_format=self.basic_primitives == 'ML',
-                                          register_array=individual.parameters['Register']
-                                          if self.mgp_mode == 'Register' else None,
-                                          configuration=self.evaluation_configuration,
-                                          noise_configuration=self.pac_bayesian.noise_configuration)
+            Yp = multi_tree_evaluation(individual.gene, self.pset, X, self.original_features,
+                                       sklearn_format=self.basic_primitives == 'ML',
+                                       register_array=individual.parameters['Register']
+                                       if self.mgp_mode == 'Register' else None,
+                                       configuration=self.evaluation_configuration,
+                                       noise_configuration=self.pac_bayesian.noise_configuration)
             if isinstance(Yp, torch.Tensor):
                 Yp = Yp.detach().numpy()
             predicted = individual.pipe.predict(Yp)
@@ -2162,14 +2125,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             genes = individual.gene[:individual.active_gene_num]
         else:
             genes = individual.gene
-        Yp = quick_result_calculation(genes, self.pset, X, self.original_features,
-                                      configuration=self.evaluation_configuration,
-                                      sklearn_format=self.basic_primitives == 'ML',
-                                      register_array=individual.parameters['Register']
-                                      if self.mgp_mode == 'Register' else None,
-                                      random_noise=random_noise,
-                                      random_seed=random_seed,
-                                      noise_configuration=noise_configuration)
+        Yp = multi_tree_evaluation(genes, self.pset, X, self.original_features,
+                                   configuration=self.evaluation_configuration,
+                                   sklearn_format=self.basic_primitives == 'ML',
+                                   register_array=individual.parameters['Register']
+                                   if self.mgp_mode == 'Register' else None,
+                                   random_noise=random_noise,
+                                   random_seed=random_seed,
+                                   noise_configuration=noise_configuration)
         if isinstance(Yp, torch.Tensor):
             Yp = Yp.detach().numpy()
         return Yp
@@ -2217,10 +2180,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if self.test_data is not None:
                     # In transductive learning setting
                     Yp = Yp[-prediction_data_size:]
-                if self.base_learner == 'NN':
-                    # Add neural network activations to Yp if base learner is NN
-                    nn_prediction = get_activations(self.neural_network, X)[-2]
-                    Yp = np.concatenate([Yp, nn_prediction], axis=1)
                 if isinstance(individual.pipe['Ridge'], SoftPLTreeRegressor) and \
                     not isinstance(individual.pipe['Ridge'], SoftPLTreeRegressorEM):
                     Yp = np.concatenate([Yp, np.zeros((len(Yp), 1))], axis=1)
@@ -2431,8 +2390,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         record = stats.compile(population) if stats else {}
         logbook.record(gen=0, nevals=len(invalid_ind), **record)
         if verbose:
-            # self.pearson_correlation_analysis(population)
-            # self.pearson_correlation_analysis_pairs(population)
             print(logbook.stream)
 
         if isinstance(self.environmental_selection, EnvironmentalSelection):
@@ -2537,17 +2494,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # Vary the pool of individuals
                 if self.multi_gene_mutation():
                     limitation_check = self.static_limit_function
-                    if self.semantic_variation:
-                        # continuous variation until meet a certain semantics
-                        semantic_check_tool = {
-                            'x': self.X,
-                            'y': self.y,
-                            'pset': self.pset,
-                            'correlation_threshold': self.correlation_threshold,
-                            'correlation_mode': self.correlation_mode,
-                        }
-                    else:
-                        semantic_check_tool = None
                     if self.bloat_control is not None \
                         and random.random() < self.bloat_control.get("tree_combination", 0):
                         offspring = individual_combination(offspring, toolbox, self.pset, limitation_check)
@@ -2576,9 +2522,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                     o.crossover_type = 'Micro'
                             # these original individuals will not change,
                             # because var function will copy these individuals internally
-                            offspring = varAndPlus(offspring, toolbox, cxpb, mutpb, self.gene_num,
-                                                   limitation_check,
-                                                   semantic_check_tool,
+                            offspring = varAndPlus(offspring, toolbox, cxpb, mutpb, limitation_check,
                                                    crossover_configuration=self.crossover_configuration,
                                                    mutation_configuration=self.mutation_configuration)
                 else:
@@ -2679,9 +2623,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             fitness_improvement = np.max([ind.fitness.wvalues[0] for ind in offspring]) - \
                                   np.max([ind.fitness.wvalues[0] for ind in population])
 
-            # print('Fitness Improvement', fitness_improvement,
-            #       np.mean([ind.fitness.wvalues[0] for ind in offspring]),
-            #       np.mean([ind.fitness.wvalues[0] for ind in population]))
             if self.stage_flag:
                 print('Stop Evaluation')
 
@@ -2771,14 +2712,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             record = stats.compile(population) if stats else {}
             logbook.record(gen=gen, nevals=len(invalid_ind), **record)
             if verbose:
-                # self.pearson_correlation_analysis(population)
-                # self.pearson_correlation_analysis_pairs(population)
                 features = set(chain.from_iterable(list(map(lambda x: [str(y) for y in x.gene], population))))
-                # features = set(chain.from_iterable(list(map(lambda x: [str(y) for y in x.gene], self.hof))))
                 print('number of features', len(features))
                 print('archive size', len(self.hof))
-                # print('Average Number of Active Genes', np.mean([ind.active_gene for ind in population]))
-                # print('\n'.join(map(lambda x: str(x), population)))
                 print(logbook.stream)
                 if self.base_model_list != None:
                     model_dict = defaultdict(int)
@@ -2810,7 +2746,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert number_of_evaluations == total_evaluations
 
         if self.early_stop > 0:
-            print('final generation', self.current_gen)
+            print('Final Generation', self.current_gen)
         if verbose:
             print('Final Ensemble Size', len(self.hof))
         if self.n_process > 1:
@@ -2882,7 +2818,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 offspring = self.traditional_parent_selection(toolbox, parent, elites_archive)
                 if self.crossover_configuration.semantic_crossover_mode == CrossoverMode.Sequential:
-                    # If this is sequential model, mark as micro-crossover
+                    # If this is a sequential model, mark as micro-crossover
                     for o in offspring:
                         o.crossover_type = 'Micro'
         return offspring
@@ -3117,7 +3053,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             best_score = 0
             for ind in self.lasso_hof:
                 all_genes = []
-                Yp = quick_result_calculation(ind.gene, self.pset, self.X)
+                Yp = multi_tree_evaluation(ind.gene, self.pset, self.X)
                 lasso.fit(Yp, self.y)
                 min_score = np.min(np.mean(lasso.mse_path_, axis=1))
                 for g, ok in zip(ind.gene, np.abs(lasso.coef_) > 0):
@@ -3144,7 +3080,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 all_genes = []
                 previous_results = []
                 for gene in list(sorted(ind.gene, key=len)):
-                    quick_result = quick_evaluate(gene, self.pset, self.X)[0]
+                    quick_result = single_tree_evaluation(gene, self.pset, self.X)[0]
                     y = quick_fill([quick_result], self.X)[0]
                     if trivial_feature_deletion and np.abs(pearsonr(y, self.y)[0]) < post_prune_threshold:
                         continue
@@ -3205,7 +3141,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 data = self.semantic_repair_input
                 for id, gene in enumerate(o.gene):
                     # evaluate the current gene
-                    final_result = quick_evaluate(gene, self.pset.pset_list[id], data)
+                    final_result = single_tree_evaluation(gene, self.pset.pset_list[id], data)
                     final_result = quick_fill([final_result], data)[0]
                     current_sim = np.abs(cos_sim(final_result, self.semantic_repair_target))
                     if current_sim < self.semantic_repair:
@@ -3219,7 +3155,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                         best_gene_score = 0
                         for new_gene in test_genes:
-                            trial_result = quick_evaluate(new_gene, self.pset.pset_list[id], data)
+                            trial_result = single_tree_evaluation(new_gene, self.pset.pset_list[id], data)
                             trial_result = quick_fill([trial_result], data)[0]
                             trail_sim = np.abs(cos_sim(trial_result, self.semantic_repair_target))
                             replace_threshold = trail_sim / current_sim
@@ -3545,7 +3481,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for o in offspring:
                 o.correlation_results, o.coef = o.coef, o.correlation_results
         assert abs(np.sum(offspring[0].coef) - 1) < 1e-5
-        
+
         all_hash = set()
         for g in range(self.gene_num):
             need_to_change = False
@@ -3778,31 +3714,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             genes = [final_genes[r] for r in selected_index]
             assert len(genes) == features.shape[1]
             p.gene = genes
-
-    def pearson_correlation_analysis_pairs(self, population):
-        # Population Analysis
-        def pearson_calculation(ind: MultipleGeneGP):
-            features = self.feature_generation(self.X, ind)
-            corr = np.nan_to_num(np.abs(np.array(pd.DataFrame(features).corr())), nan=1)
-            return np.mean(corr)
-
-        good_pearson_list = np.abs([pearson_calculation(p) for p in population])
-        print('Pearson Correlation', np.mean(good_pearson_list))
-
-    def pearson_correlation_analysis(self, population):
-        # Population Analysis
-        poor_individuals = list(sorted(population, key=lambda x: x.fitness.wvalues))[:len(population) // 5]
-        good_individuals = list(sorted(population, key=lambda x: x.fitness.wvalues))[-len(population) // 5:]
-
-        def pearson_calculation(ind: MultipleGeneGP):
-            features = self.feature_generation(self.X, ind)
-            all_values = np.abs(np.nan_to_num([pearsonr(features[:, p], self.y)[0] for p in range(features.shape[1])]))
-            return np.mean(all_values), np.min(all_values), np.max(all_values)
-
-        good_pearson_list = np.abs([pearson_calculation(p) for p in good_individuals])
-        bad_pearson_list = np.abs([pearson_calculation(p) for p in poor_individuals])
-        for i in range(3):
-            print(np.mean(good_pearson_list[:, i]), np.mean(bad_pearson_list[:, i]))
 
     def multiobjective_evaluation(self, toolbox, population):
         if self.base_learner == 'RDT~LightGBM-Stump':

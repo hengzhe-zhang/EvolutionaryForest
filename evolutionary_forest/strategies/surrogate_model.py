@@ -14,7 +14,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
-from evolutionary_forest.component.evaluation import quick_evaluate
+from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.multigene_gp import result_calculation
 from evolutionary_forest.sklearn_utils import cross_val_predict
 
@@ -112,7 +112,7 @@ class SurrogateModel():
                     Yp = []
                     for gene in individual.gene:
                         input_data = algorithm.X[sample]
-                        temp_result = quick_evaluate(gene, pset, input_data)
+                        temp_result = single_tree_evaluation(gene, pset, input_data)
                         if np.size(temp_result) < len(input_data):
                             temp_result = np.full(len(input_data), temp_result)
                         Yp.append(temp_result)

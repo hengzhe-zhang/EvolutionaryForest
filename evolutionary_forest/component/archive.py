@@ -15,7 +15,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.tree import DecisionTreeRegressor
 
 from evolutionary_forest.component.configuration import ArchiveConfiguration
-from evolutionary_forest.component.evaluation import quick_result_calculation
+from evolutionary_forest.component.evaluation import multi_tree_evaluation
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.component.subset_selection import EnsembleSelectionADE
 
@@ -73,7 +73,7 @@ class GeneralizationHOF(HallOfFame):
 
     def update(self, population):
         best_ind = sorted(population, key=lambda x: x.fitness.wvalues)[-1]
-        X_hat = quick_result_calculation(best_ind.gene, self.pset, self.X)
+        X_hat = multi_tree_evaluation(best_ind.gene, self.pset, self.X)
         lr_r2_scores = []
         for _ in range(5):
             id = np.random.permutation(np.arange(0, len(self.X)))

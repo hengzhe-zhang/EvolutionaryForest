@@ -76,7 +76,6 @@ class EvaluationResults():
 def calculate_score(args):
     (X, Y, score_func, cv, configuration) = calculate_score.data
     configuration: EvaluationConfiguration
-    nn_prediction = configuration.nn_prediction
     dynamic_target = configuration.dynamic_target
     original_features = configuration.original_features
     pset = configuration.pset
@@ -102,7 +101,7 @@ def calculate_score(args):
     start_time = time.time()
     semantic_results = None
     if sklearn_format:
-        Yp = quick_result_calculation(func, pset, X, original_features, sklearn_format)
+        Yp = multi_tree_evaluation(func, pset, X, original_features, sklearn_format)
         pipe = pipe_combine(Yp, pipe)
         Yp = X
         hash_result = None
@@ -111,21 +110,19 @@ def calculate_score(args):
     else:
         results: EvaluationResults
         if hasattr(pipe, 'register'):
-            Yp, results = quick_result_calculation(func, pset, X, original_features,
-                                                   need_hash=True, target=Y,
-                                                   register_array=pipe.register,
-                                                   configuration=configuration)
+            Yp, results = multi_tree_evaluation(func, pset, X, original_features,
+                                                need_hash=True, target=Y,
+                                                register_array=pipe.register,
+                                                configuration=configuration)
         else:
-            Yp, results = quick_result_calculation(func, pset, X, original_features,
-                                                   need_hash=True, target=Y,
-                                                   configuration=configuration,
-                                                   similarity_score=intron_calculation)
+            Yp, results = multi_tree_evaluation(func, pset, X, original_features,
+                                                need_hash=True, target=Y,
+                                                configuration=configuration,
+                                                similarity_score=intron_calculation)
         hash_result, correlation_results, introns_results = results.hash_result, \
             results.correlation_results, results.introns_results
         if configuration.save_semantics:
             semantic_results = Yp
-        if nn_prediction is not None:
-            Yp = np.concatenate([Yp, nn_prediction], axis=1)
         if transductive_learning:
             Yp = Yp[:len(Y)]
         assert isinstance(Yp, (np.ndarray, torch.Tensor))
@@ -146,38 +143,7 @@ def calculate_score(args):
 
     # ML evaluation
     start_time = time.time()
-    if isinstance(score_func, str) and 'CV' in score_func:
-        # custom cross validation scheme
-        if '-Random' in score_func:
-            cv = StratifiedKFold(shuffle=True)
-        else:
-            cv = None
-
-        if score_func == 'CV-Accuracy-Recall':
-            custom_scorer = {'accuracy': make_scorer(accuracy_score),
-                             'balanced_accuracy': make_scorer(balanced_accuracy_score),
-                             'precision': make_scorer(precision_score, average='macro'),
-                             'recall': make_scorer(recall_score, average='macro'),
-                             'f1': make_scorer(f1_score, average='macro')}
-            result = cross_validate(pipe, Yp, Y, cv=cv, return_estimator=True, scoring=custom_scorer)
-        elif score_func == 'CV-F1-Score':
-            result = cross_validate(pipe, Yp, Y, cv=cv, return_estimator=True,
-                                    scoring=make_scorer(f1_score, average='macro'))
-        elif score_func == 'CV-SingleFold':
-            result = single_fold_validation(pipe, Yp, Y, index=random.randint(0, 4))
-        else:
-            result = cross_validate(pipe, Yp, Y, cv=cv, return_estimator=True)
-
-        if score_func == 'CV-Accuracy-Recall':
-            y_pred = np.array([np.mean(result['test_accuracy']),
-                               np.mean(result['test_balanced_accuracy']),
-                               np.mean(result['test_precision']),
-                               np.mean(result['test_recall']),
-                               np.mean(result['test_f1'])])
-        else:
-            y_pred = result['test_score']
-        estimators = result['estimator']
-    elif not configuration.cross_validation:
+    if not configuration.cross_validation:
         if configuration.gradient_descent:
             pipe.fit(Yp.detach().numpy(), Y)
             ridge: LinearModel = pipe['Ridge']
@@ -226,8 +192,8 @@ def calculate_score(args):
                 optimizer.zero_grad()
 
                 # get results based on new parameters
-                Yp = quick_result_calculation(func, pset, X, original_features,
-                                              configuration=configuration)
+                Yp = multi_tree_evaluation(func, pset, X, original_features,
+                                           configuration=configuration)
 
                 # re-fit a linear model
                 pipe.fit(Yp.detach().numpy(), Y)
@@ -341,8 +307,6 @@ def calculate_score(args):
                     train_id, test_id = split_fold[id][0], split_fold[id][1]
                     r = permutation_importance(estimator['Ridge'], Yp[test_id], Y[test_id], n_jobs=1, n_repeats=1)
                     estimator['Ridge'].pi_values = np.abs(r.importances_mean)
-
-            # calculate_permutation_importance(estimators, Yp, Y)
 
             if np.any(np.isnan(y_pred)):
                 np.save('error_data_x.npy', Yp)
@@ -494,16 +458,16 @@ def get_cv_splitter(base_model, cv, random_state=0):
     return cv
 
 
-def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_features=False,
-                             sklearn_format=False,
-                             need_hash=False,
-                             register_array=None,
-                             target=None,
-                             configuration: EvaluationConfiguration = None,
-                             similarity_score=False,
-                             random_noise=0,
-                             random_seed=0,
-                             noise_configuration: NoiseConfiguration = None):
+def multi_tree_evaluation(func: List[PrimitiveTree], pset, data, original_features=False,
+                          sklearn_format=False,
+                          need_hash=False,
+                          register_array=None,
+                          target=None,
+                          configuration: EvaluationConfiguration = None,
+                          similarity_score=False,
+                          random_noise=0,
+                          random_seed=0,
+                          noise_configuration: NoiseConfiguration = None):
     if configuration is None:
         configuration = EvaluationConfiguration()
 
@@ -524,7 +488,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
         register = np.ones((data.shape[0], pset.number_of_register))
         for id, gene in enumerate(func):
             input_data = np.concatenate([data, register], axis=1)
-            quick_result = quick_evaluate(gene, pset, input_data)
+            quick_result = single_tree_evaluation(gene, pset, input_data)
             quick_result = quick_fill([quick_result], data)[0]
             if isinstance(quick_result, np.ndarray):
                 hash_result.append(hash(quick_result.tostring()))
@@ -535,7 +499,7 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
     elif isinstance(pset, MultiplePrimitiveSet):
         # Modular GP
         for id, gene in enumerate(func):
-            quick_result = quick_evaluate(gene, pset.pset_list[id], data)
+            quick_result = single_tree_evaluation(gene, pset.pset_list[id], data)
             quick_result = quick_fill([quick_result], data)[0]
             add_hash_value(quick_result, hash_result)
             if target is not None:
@@ -545,12 +509,12 @@ def quick_result_calculation(func: List[PrimitiveTree], pset, data, original_fea
     else:
         # ordinary GP evaluation
         for gene in func:
-            feature, intron_ids = quick_evaluate(gene, pset, data, target=target if similarity_score else None,
-                                                 return_subtree_information=True,
-                                                 random_noise=random_noise,
-                                                 random_seed=random_seed,
-                                                 evaluation_configuration=configuration,
-                                                 noise_configuration=noise_configuration)
+            feature, intron_ids = single_tree_evaluation(gene, pset, data, target=target if similarity_score else None,
+                                                         return_subtree_information=True,
+                                                         random_noise=random_noise,
+                                                         random_seed=random_seed,
+                                                         evaluation_configuration=configuration,
+                                                         noise_configuration=noise_configuration)
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
@@ -591,11 +555,11 @@ cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
 # @custom_lru_cache(maxsize=10000, key_func=gp_key_func)
-def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
-                   return_subtree_information=False, random_noise=0,
-                   random_seed=0,
-                   evaluation_configuration: EvaluationConfiguration = None,
-                   noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
+def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
+                           return_subtree_information=False, random_noise=0,
+                           random_seed=0,
+                           evaluation_configuration: EvaluationConfiguration = None,
+                           noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
     if evaluation_configuration is None:
         evaluation_configuration = EvaluationConfiguration()
     # random noise is vital for sharpness aware minimization
@@ -785,7 +749,7 @@ def minimal_task():
     st = time.time()
     avg_a = np.zeros(x.shape[0])
     for ind in pop:
-        avg_a += quick_evaluate(ind, pset, x)
+        avg_a += single_tree_evaluation(ind, pset, x)
     print('time', time.time() - st)
     st = time.time()
     avg_b = np.zeros(x.shape[0])

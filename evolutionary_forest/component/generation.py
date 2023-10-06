@@ -2,18 +2,14 @@ import random
 from typing import List
 
 import numpy as np
-from deap.gp import mutUniform
 from deap.tools import cxTwoPoint
-from scipy.stats import pearsonr, spearmanr
 
 from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration
-from evolutionary_forest.component.evaluation import quick_evaluate
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.multigene_gp import gene_crossover, MultipleGeneGP, gene_mutation
 
 
-def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitation_check,
-               semantic_check_tool=None,
+def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, limitation_check,
                crossover_configuration: CrossoverConfiguration = None,
                mutation_configuration: MutationConfiguration = None):
     if crossover_configuration is None:
@@ -106,31 +102,6 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, gene_num, limitat
                     else:
                         offspring[i].gene_deletion()
             del offspring[i].fitness.values
-
-            if semantic_check_tool is not None:
-                # check by semantics
-                x = semantic_check_tool['x']
-                y = semantic_check_tool['y']
-                pset = semantic_check_tool['pset']
-                correlation_threshold = semantic_check_tool.get('correlation_threshold', 0.2)
-                correlation_mode = semantic_check_tool.get('correlation_mode', 'Pearson')
-                index = np.random.randint(0, len(x), 20)
-                for k, g in enumerate(offspring[i].gene):
-                    y_hat = quick_evaluate(g, pset, x[index])
-                    c = 0
-                    function = {
-                        'Pearson': pearsonr,
-                        'Spearman': spearmanr,
-                    }[correlation_mode]
-                    while (not isinstance(y_hat, np.ndarray)) or (y_hat.size != y[index].size) or \
-                        (np.abs(function(y_hat, y[index])[0]) < correlation_threshold):
-                        c += 1
-                        offspring[i].gene[k] = mutUniform(g, toolbox.expr_mut, pset)[0]
-                        del offspring[i].fitness.values
-                        y_hat = quick_evaluate(g, pset, x[index])
-                        if c > 100:
-                            print('Warning!')
-                            break
             i += 1
         return offspring
 
