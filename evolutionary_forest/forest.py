@@ -26,7 +26,7 @@ from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, RobustScaler, MaxAbsScaler
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
 from sklearn2pmml.ensemble import GBDTLRClassifier
@@ -439,6 +439,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif normalize == 'MinMax':
             self.x_scaler = MinMaxScaler()
             self.y_scaler = MinMaxScaler()
+        elif normalize == 'Robust':
+            self.x_scaler = RobustScaler()
+            self.y_scaler = RobustScaler()
+        elif normalize == 'MaxAbs':
+            self.x_scaler = MaxAbsScaler()
+            self.y_scaler = MaxAbsScaler()
         elif normalize in [
             'BackwardDifferenceEncoder',
             'BinaryEncoder',
