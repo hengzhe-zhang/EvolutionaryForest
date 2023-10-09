@@ -27,14 +27,16 @@ class ParetoFrontTool():
         # Calculate normalization factors for scaling and test dataset
         normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
         normalization_factor_test = np.mean((test_y - np.mean(test_y)) ** 2)
-        predictions = self.individual_prediction(test_x, self.pop)
 
         # Compute normalized prediction error for each individual
-        for ind, prediction in zip(self.pop, predictions):
+        for ind in self.pop:
+            prediction = self.individual_prediction(test_x, [ind])[0]
             errors = (test_y - prediction) ** 2
             test_error_normalized_by_test = np.mean(errors) / normalization_factor_test
             self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor_scaled),
                                       float(test_error_normalized_by_test)))
+            del prediction
+            del errors
         self.pareto_front, _ = pareto_front_2d(self.pareto_front)
         self.pareto_front = self.pareto_front.tolist()
 
@@ -44,13 +46,12 @@ class ParetoFrontTool():
             isinstance(self.environmental_selection, EnvironmentalSelection):
             pac = R2PACBayesian(self, **self.param)
             self.pac_bayesian.objective = 'R2,MaxSharpness-1-Base'
-            predictions = self.individual_prediction(x_train, self.pop)
 
             # Calculate normalization factors
             normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
 
             # Compute sharpness and other metrics for each individual
-            for ind, prediction in zip(self.pop, predictions):
+            for ind in self.pop:
                 ParetoFrontTool.sharpness_estimation(self, ind, pac)
                 sharpness_value = ind.fitness_list[1][0]
                 """
@@ -75,7 +76,6 @@ class ParetoFrontTool():
             isinstance(self.environmental_selection, EnvironmentalSelection):
             pac = R2PACBayesian(self, **self.param)
             self.test_pareto_front = []
-            predictions = self.individual_prediction(test_x, self.pop)
             """
             very important:
             Please ensure training data and test data are scaled in the same way.
@@ -87,8 +87,9 @@ class ParetoFrontTool():
             normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
 
             # Compute sharpness and other metrics for each individual
-            for ind, prediction in zip(self.pop, predictions):
+            for ind in self.pop:
                 ParetoFrontTool.sharpness_estimation(self, ind, pac)
+                prediction = self.individual_prediction(test_x, [ind])[0]
 
                 # the mean 1-sharpness across all samples
                 sharpness_value = ind.fitness_list[1][0]
