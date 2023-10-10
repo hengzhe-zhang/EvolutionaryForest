@@ -15,6 +15,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
+from evolutionary_forest.component.decision_making.bend_angle_knee import find_knee_based_on_bend_angle
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
@@ -28,7 +29,10 @@ def point_to_line_distance(p1, p2, point):
 
 def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     front = np.array(front)
-    if knee_point_strategy == 'Knee' or knee_point_strategy == True:
+    if knee_point_strategy == 'BendAngleKnee':
+        _, index = find_knee_based_on_bend_angle(front)
+        return index
+    elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
         pf = front
         pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
 
