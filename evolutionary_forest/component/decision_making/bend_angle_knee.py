@@ -25,8 +25,8 @@ def find_knee_based_on_bend_angle(pareto_points):
         return sorted_points[0], sorted_indices[0]
 
     max_bend_angle = float('-inf')
-    knee_point = None
-    knee_index = None
+    knee_point = sorted_points[0]
+    knee_index = sorted_indices[0]
 
     # Loop over the points, compute the bend angle for each, and identify the point with the largest positive bend angle.
     for i in range(1, len(sorted_points) - 1):
