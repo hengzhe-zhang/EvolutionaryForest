@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 from deap.tools import selNSGA2, sortNondominated, selSPEA2, selBest, selNSGA3, uniform_reference_points
-from numpy.linalg import norm
 from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from pymoo.mcdm.pseudo_weights import PseudoWeights
@@ -16,6 +15,8 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.decision_making.bend_angle_knee import find_knee_based_on_bend_angle
+from evolutionary_forest.component.decision_making.euclidian_knee_selection import point_to_line_distance, \
+    euclidian_knee
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
@@ -23,17 +24,15 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-def point_to_line_distance(p1, p2, point):
-    return norm(np.cross(p2 - p1, p1 - point)) / norm(p2 - p1)
-
-
 def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     front = np.array(front)
     if knee_point_strategy == 'BendAngleKnee':
-        _, index = find_knee_based_on_bend_angle(front)
+        # turn to a minimization problem
+        _, index = find_knee_based_on_bend_angle(-1 * front)
         return index
     elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
-        return euclidian_knee(front)
+        # turn to a minimization problem
+        return euclidian_knee(-1 * front)
     elif knee_point_strategy == 'BestAdditionalObjetive':
         return np.argmax(front[:, 1])
     elif knee_point_strategy == 'BestMainObjetive':
@@ -82,17 +81,6 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         return I
     else:
         raise Exception('Unknown Knee Point Strategy')
-
-
-def euclidian_knee(front):
-    pf = front
-    pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-    p1 = pf[pf[:, 0].argmax()]
-    p2 = pf[pf[:, 1].argmax()]
-    # 自动选择拐点
-    ans = max([i for i in range(len(pf))],
-              key=lambda i: point_to_line_distance(p1, p2, pf[i]))
-    return ans
 
 
 class EnvironmentalSelection():

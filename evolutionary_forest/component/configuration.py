@@ -18,7 +18,7 @@ def check_semantic_based_bc(bloat_control):
 class NoiseConfiguration():
     def __init__(self,
                  noise_type='Normal',
-                 noise_to_terminal=False,
+                 noise_to_terminal: Union[float, bool] = False,
                  noise_normalization='Instance+',
                  layer_adaptive=False,
                  **params):

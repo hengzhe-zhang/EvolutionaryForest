@@ -608,9 +608,14 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
                     else:
                         raise ValueError("Unsupported data type!")
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 \
-                        and noise_configuration.noise_to_terminal:
-                        result = inject_noise_to_data(result, random_noise, noise_configuration,
-                                                      random_seed=random_seed)
+                        and noise_configuration.noise_to_terminal is not False:
+                        if isinstance(noise_configuration.noise_to_terminal, (float, int)):
+                            result = inject_noise_to_data(result, noise_configuration.noise_to_terminal,
+                                                          noise_configuration,
+                                                          random_seed=random_seed)
+                        else:
+                            result = inject_noise_to_data(result, random_noise, noise_configuration,
+                                                          random_seed=random_seed)
                 else:
                     if isinstance(prim.value, str):
                         result = float(prim.value)

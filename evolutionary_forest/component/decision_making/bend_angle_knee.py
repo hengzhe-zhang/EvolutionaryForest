@@ -7,7 +7,6 @@ def bend_angle(x, xL, xR):
     """
     thetaL = np.arctan((xL[1] - x[1]) / (x[0] - xL[0]))
     thetaR = np.arctan((x[1] - xR[1]) / (xR[0] - x[0]))
-
     return thetaL - thetaR
 
 
@@ -17,6 +16,9 @@ def find_knee_based_on_bend_angle(pareto_points):
     Returns both the knee point and its index.
     """
     # Sort pareto_points by the first objective in descending order while keeping track of original indices
+    pareto_points = ((pareto_points - np.min(pareto_points, axis=0)) /
+                     (np.max(pareto_points, axis=0) - np.min(pareto_points, axis=0)))
+    assert np.all(pareto_points >= 0)
     sorted_points_with_indices = sorted(enumerate(pareto_points), key=lambda x: x[1][0], reverse=False)
     sorted_indices = [x[0] for x in sorted_points_with_indices]
     sorted_points = [x[1] for x in sorted_points_with_indices]
