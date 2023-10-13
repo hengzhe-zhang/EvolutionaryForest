@@ -17,7 +17,7 @@ def find_knee_based_on_bend_angle(pareto_points):
     Returns both the knee point and its index.
     """
     # Sort pareto_points by the first objective in descending order while keeping track of original indices
-    sorted_points_with_indices = sorted(enumerate(pareto_points), key=lambda x: x[1][0], reverse=True)
+    sorted_points_with_indices = sorted(enumerate(pareto_points), key=lambda x: x[1][0], reverse=False)
     sorted_indices = [x[0] for x in sorted_points_with_indices]
     sorted_points = [x[1] for x in sorted_points_with_indices]
 
@@ -28,13 +28,13 @@ def find_knee_based_on_bend_angle(pareto_points):
     knee_point = sorted_points[0]
     knee_index = sorted_indices[0]
 
+    xL = sorted_points[0]
+    xR = sorted_points[-1]
     # Loop over the points, compute the bend angle for each, and identify the point with the largest positive bend angle.
     for i in range(1, len(sorted_points) - 1):
         x = sorted_points[i]
-        xL = sorted_points[i - 1]
-        xR = sorted_points[i + 1]
-
         theta = bend_angle(x, xL, xR)
+        # print(x, theta)
 
         if theta > max_bend_angle:
             max_bend_angle = theta

@@ -33,15 +33,7 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         _, index = find_knee_based_on_bend_angle(front)
         return index
     elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
-        pf = front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-
-        p1 = pf[pf[:, 0].argmax()]
-        p2 = pf[pf[:, 1].argmax()]
-        # 自动选择拐点
-        ans = max([i for i in range(len(pf))],
-                  key=lambda i: point_to_line_distance(p1, p2, pf[i]))
-        return ans
+        return euclidian_knee(front)
     elif knee_point_strategy == 'BestAdditionalObjetive':
         return np.argmax(front[:, 1])
     elif knee_point_strategy == 'BestMainObjetive':
@@ -90,6 +82,17 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         return I
     else:
         raise Exception('Unknown Knee Point Strategy')
+
+
+def euclidian_knee(front):
+    pf = front
+    pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+    p1 = pf[pf[:, 0].argmax()]
+    p2 = pf[pf[:, 1].argmax()]
+    # 自动选择拐点
+    ans = max([i for i in range(len(pf))],
+              key=lambda i: point_to_line_distance(p1, p2, pf[i]))
+    return ans
 
 
 class EnvironmentalSelection():
