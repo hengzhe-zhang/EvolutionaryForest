@@ -18,7 +18,9 @@ def find_knee_based_on_bend_angle(pareto_points):
     # Sort pareto_points by the first objective in descending order while keeping track of original indices
     pareto_points = ((pareto_points - np.min(pareto_points, axis=0)) /
                      (np.max(pareto_points, axis=0) - np.min(pareto_points, axis=0)))
-    assert np.all(pareto_points >= 0)
+    if np.all(np.isnan(pareto_points)):
+        return pareto_points[0], 0
+    assert np.all(pareto_points >= 0), pareto_points
     sorted_points_with_indices = sorted(enumerate(pareto_points), key=lambda x: x[1][0], reverse=False)
     sorted_indices = [x[0] for x in sorted_points_with_indices]
     sorted_points = [x[1] for x in sorted_points_with_indices]
