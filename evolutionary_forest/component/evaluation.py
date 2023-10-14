@@ -34,6 +34,7 @@ from torch import optim
 
 from evolutionary_forest.component.configuration import EvaluationConfiguration, ImbalancedConfiguration, \
     NoiseConfiguration
+from evolutionary_forest.component.tree_utils import node_depths
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimitiveSet, quick_fill, GPPipeline
 from evolutionary_forest.sklearn_utils import cross_val_predict
@@ -572,6 +573,7 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
     result = None
     stack = []
     subtree_information = {}
+    depth_information, _ = node_depths(expr)
     best_score = None
     # save the semantics of the best subtree
     best_subtree_semantics = None
@@ -584,12 +586,9 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
                 try:
                     result = pset.context[prim.name](*args)
                     if random_noise > 0 and isinstance(result, np.ndarray) and result.size > 1:
-                        if noise_configuration.layer_adaptive == True and expr.height > 0:
-                            layer_random_noise = random_noise / expr.height
-                        elif noise_configuration.layer_adaptive == 'Inverse' and expr.height > 0:
-                            layer_random_noise = random_noise * expr.height / evaluation_configuration.max_height
-                        else:
-                            layer_random_noise = random_noise
+                        layer_random_noise = get_adaptive_noise(noise_configuration.layer_adaptive,
+                                                                depth_information[id],
+                                                                random_noise)
                         result = inject_noise_to_data(result, layer_random_noise, noise_configuration,
                                                       random_seed=random_seed)
                 except OverflowError as e:
@@ -609,13 +608,11 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
                         raise ValueError("Unsupported data type!")
                     if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 \
                         and noise_configuration.noise_to_terminal is not False:
-                        if isinstance(noise_configuration.noise_to_terminal, (float, int)):
-                            result = inject_noise_to_data(result, noise_configuration.noise_to_terminal,
-                                                          noise_configuration,
-                                                          random_seed=random_seed)
-                        else:
-                            result = inject_noise_to_data(result, random_noise, noise_configuration,
-                                                          random_seed=random_seed)
+                        layer_random_noise = get_adaptive_noise(noise_configuration.layer_adaptive,
+                                                                depth_information[id],
+                                                                random_noise)
+                        result = inject_noise_to_data(result, layer_random_noise, noise_configuration,
+                                                      random_seed=random_seed)
                 else:
                     if isinstance(prim.value, str):
                         result = float(prim.value)
@@ -656,6 +653,20 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
             return result, subtree_information
         else:
             return result
+
+
+def get_adaptive_noise(layer_adaptive, node_depth, random_noise):
+    if layer_adaptive == True:
+        layer_random_noise = 1 / node_depth * random_noise
+    elif layer_adaptive == 'Log':
+        layer_random_noise = 1 / np.log(1 + node_depth) * random_noise
+    elif layer_adaptive == 'Sqrt':
+        layer_random_noise = 1 / np.sqrt(node_depth) * random_noise
+    elif layer_adaptive == 'Cbrt':
+        layer_random_noise = 1 / np.cbrt(node_depth) * random_noise
+    else:
+        layer_random_noise = random_noise
+    return layer_random_noise
 
 
 def lsh_matrix_initialization(lsh, data):

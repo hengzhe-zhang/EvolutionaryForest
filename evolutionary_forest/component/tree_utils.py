@@ -1,4 +1,7 @@
+from typing import List
+
 import numpy as np
+from deap import gp
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -79,3 +82,46 @@ class StringDecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         X_encoded = self.column_transformer.transform(X)
         y_encoded = self.tree.predict_proba(X_encoded)
         return y_encoded
+
+
+def node_depths(tree, current_index=0, current_depth=1) -> (List[int], int):
+    """
+    Computes the depth of each node in a DEAP GP tree.
+
+    Parameters:
+    - tree: The DEAP GP tree.
+    - current_index: The current node's index. Default is 0 for the tree root.
+    - current_depth: The depth of the current node. Default is 1 for the tree root.
+
+    Returns:
+    - A list of depths for each node in the tree.
+    """
+    if current_index >= len(tree):
+        return []
+
+    depths = [current_depth]
+    node = tree[current_index]
+
+    # If the current node is a function (i.e., not a leaf), recurse into its children.
+    if isinstance(node, gp.Primitive):
+        offset = 1
+        for _ in range(node.arity):
+            child_depths, child_length = node_depths(tree, current_index + offset, current_depth + 1)
+            depths.extend(child_depths)
+            offset += child_length
+        return depths, offset
+    else:
+        return depths, 1
+
+
+# Example usage:
+if __name__ == '__main__':
+    pset = gp.PrimitiveSet("MAIN", 1)
+    pset.addPrimitive(max, 2)
+    pset.addTerminal(1)
+
+    tree = gp.genFull(pset, min_=1, max_=3)
+    print([str(n.name) for n in tree])
+    depths, _ = node_depths(tree)
+    print(depths)
+    assert len(depths) == len(tree)
