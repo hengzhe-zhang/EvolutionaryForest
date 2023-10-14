@@ -80,6 +80,24 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         pf[:, 1] = np.sqrt(pf[:, 1])
         id = pf.sum(axis=1).argmax()
         return id
+    elif knee_point_strategy == 'BestSumCbrt':
+        pf = front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = np.cbrt(pf[:, 1])
+        id = pf.sum(axis=1).argmax()
+        return id
+    elif knee_point_strategy == 'BestSumSquare':
+        pf = front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = pf[:, 1] ** 2
+        id = pf.sum(axis=1).argmax()
+        return id
+    elif knee_point_strategy == 'BestSumCube':
+        pf = front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = pf[:, 1] ** 3
+        id = pf.sum(axis=1).argmax()
+        return id
     elif knee_point_strategy.startswith('CP'):
         cp_ratio = float(knee_point_strategy.split('-')[1])
         decomp = ASF()
