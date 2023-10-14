@@ -664,6 +664,12 @@ def get_adaptive_noise(layer_adaptive, node_depth, random_noise):
         layer_random_noise = 1 / np.sqrt(node_depth) * random_noise
     elif layer_adaptive == 'Cbrt':
         layer_random_noise = 1 / np.cbrt(node_depth) * random_noise
+    elif layer_adaptive == 'Log+':
+        layer_random_noise = np.log(1 + node_depth) * random_noise
+    elif layer_adaptive == 'Sqrt+':
+        layer_random_noise = np.sqrt(node_depth) * random_noise
+    elif layer_adaptive == 'Cbrt+':
+        layer_random_noise = np.cbrt(node_depth) * random_noise
     else:
         layer_random_noise = random_noise
     return layer_random_noise
