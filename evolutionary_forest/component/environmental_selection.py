@@ -17,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from evolutionary_forest.component.decision_making.bend_angle_knee import find_knee_based_on_bend_angle
 from evolutionary_forest.component.decision_making.euclidian_knee_selection import point_to_line_distance, \
     euclidian_knee
+from evolutionary_forest.component.decision_making.manhattan_knee import find_manhattan_knee
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
@@ -36,6 +37,18 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
         pf[:, 1] = np.cbrt(pf[:, 1])
         _, index = find_knee_based_on_bend_angle(pf)
+        return index
+    elif knee_point_strategy == 'ManhattanKnee':
+        # turn to a minimization problem
+        pf = -1 * front
+        _, index = find_manhattan_knee(pf)
+        return index
+    elif knee_point_strategy == 'ManhattanKneeCbrt':
+        # turn to a minimization problem
+        pf = -1 * front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = np.cbrt(pf[:, 1])
+        _, index = find_manhattan_knee(pf)
         return index
     elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
         # turn to a minimization problem
