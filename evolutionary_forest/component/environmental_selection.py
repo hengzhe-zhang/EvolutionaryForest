@@ -30,9 +30,22 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front)
         return index
+    elif knee_point_strategy == 'BendAngleKneeCbrt':
+        # turn to a minimization problem
+        pf = -1 * front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = np.cbrt(pf[:, 1])
+        _, index = find_knee_based_on_bend_angle(pf)
+        return index
     elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
         # turn to a minimization problem
         return euclidian_knee(-1 * front)
+    elif knee_point_strategy == 'KneeCbrt':
+        # turn to a minimization problem
+        pf = -1 * front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = np.cbrt(pf[:, 1])
+        return euclidian_knee(pf)
     elif knee_point_strategy == 'BestAdditionalObjetive':
         return np.argmax(front[:, 1])
     elif knee_point_strategy == 'BestMainObjetive':
