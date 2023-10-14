@@ -74,6 +74,20 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         pf[:, 1] = np.log1p(pf[:, 1])
         id = pf.sum(axis=1).argmax()
         return id
+    elif knee_point_strategy == 'BestSumLog+':
+        pf = front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = np.log(1 + pf[:, 1])
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        id = pf.sum(axis=1).argmax()
+        return id
+    elif knee_point_strategy == 'BestSumLog10+':
+        pf = front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = np.log10(1 + pf[:, 1])
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        id = pf.sum(axis=1).argmax()
+        return id
     elif knee_point_strategy == 'BestSumSqrt':
         pf = front
         pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
