@@ -6,16 +6,13 @@ def bend_angle(x, xL, xR):
     Compute the bend angle for a given point x with its two neighboring points xL and xR.
     """
     # valid in minimization Pareto front
-    # assert (xL[1] - x[1]) >= 0, f"{xL[1]} - {x[1]} >= 0"
-    # assert (x[0] - xL[0]) >= 0
-    # assert (x[1] - xR[1]) >= 0
-    # assert (xR[0] - x[0]) >= 0
     thetaL = np.arctan((xL[1] - x[1]) / (x[0] - xL[0]))
     thetaR = np.arctan((x[1] - xR[1]) / (xR[0] - x[0]))
+    # print((xL[1] - x[1]), (x[0] - xL[0]), (x[1] - xR[1]), (xR[0] - x[0]))
     return thetaL - thetaR
 
 
-def find_knee_based_on_bend_angle(pareto_points):
+def find_knee_based_on_bend_angle(pareto_points, local=False):
     """
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
@@ -42,6 +39,9 @@ def find_knee_based_on_bend_angle(pareto_points):
     # Loop over the points, compute the bend angle for each, and identify the point with the largest positive bend angle.
     for i in range(1, len(sorted_points) - 1):
         x = sorted_points[i]
+        if local:
+            xL = sorted_points[i - 1]
+            xR = sorted_points[i + 1]
         theta = bend_angle(x, xL, xR)
 
         if theta > max_bend_angle:

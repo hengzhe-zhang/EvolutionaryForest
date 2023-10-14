@@ -38,6 +38,17 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         pf[:, 1] = np.cbrt(pf[:, 1])
         _, index = find_knee_based_on_bend_angle(pf)
         return index
+    elif knee_point_strategy == 'LocalBendAngleKnee':
+        # turn to a minimization problem
+        _, index = find_knee_based_on_bend_angle(-1 * front, local=True)
+        return index
+    elif knee_point_strategy == 'LocalBendAngleKneeCbrt':
+        # turn to a minimization problem
+        pf = -1 * front
+        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
+        pf[:, 1] = np.cbrt(pf[:, 1])
+        _, index = find_knee_based_on_bend_angle(pf, local=True)
+        return index
     elif knee_point_strategy == 'ManhattanKnee':
         # turn to a minimization problem
         pf = -1 * front

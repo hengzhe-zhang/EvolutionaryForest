@@ -7,7 +7,7 @@ def find_manhattan_knee(pareto_points):
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
     """
-    manhattan_distance = lambda p1, p2: np.sum(np.abs(p1 - p2))
+    distance_function = lambda p1, p2: np.max(p1 - p2)
 
     # Sort pareto_points by the first objective in descending order while keeping track of original indices
     sorted_points_with_indices = sorted(enumerate(pareto_points), key=lambda x: x[1][0], reverse=False)
@@ -31,8 +31,7 @@ def find_manhattan_knee(pareto_points):
         x = sorted_points[i]
         xL = sorted_points[i - 1]
         xR = sorted_points[i + 1]
-        distance = manhattan_distance(x, xL) + manhattan_distance(x, xR)
-
+        distance = distance_function(xL, x) + distance_function(xR, x)
         if distance >= max_distance:
             max_distance = distance
             knee_point = x
