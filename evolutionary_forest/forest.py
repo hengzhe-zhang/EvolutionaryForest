@@ -641,10 +641,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         }
         self.safe_initialization_check()
 
-        # Pareto front for storing fitness values
+        # Pareto front of training error and sharpness
         self.pareto_front = []
+        # Pareto front of test error and sharpness
         self.test_pareto_front = []
+        # Pareto front of test error and model size
         self.size_pareto_front = []
+        # Pareto front of training error, model size and test error
         self.training_test_pareto_front = []
 
     def counter_initialization(self):

@@ -122,14 +122,13 @@ class ParetoFrontTool():
             _, indices = pareto_front_2d(self.training_test_pareto_front[:, :2])
             self.training_test_pareto_front = self.training_test_pareto_front[indices]
 
-            self.training_test_pareto_front[:, :2] = ((self.training_test_pareto_front[:, :2]
-                                                       - self.training_test_pareto_front[:, :2].min(axis=0)) /
-                                                      (self.training_test_pareto_front[:, :2].max(axis=0)
-                                                       - self.training_test_pareto_front[:, :2].min(axis=0)))
-            create_scatter_plot(self.training_test_pareto_front)
+            # create_scatter_plot(self.training_test_pareto_front)
 
 
 def create_scatter_plot(data, color_map="viridis"):
+    data[:, :2] = ((data[:, :2] - data[:, :2].min(axis=0)) /
+                   (data[:, :2].max(axis=0) - data[:, :2].min(axis=0)))
+
     # Extract x, y, and color values
     x = [point[0] for point in data]
     y = [point[1] for point in data]
