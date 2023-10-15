@@ -6,13 +6,22 @@ def bend_angle(x, xL, xR):
     Compute the bend angle for a given point x with its two neighboring points xL and xR.
     """
     # valid in minimization Pareto front
-    thetaL = np.arctan((xL[1] - x[1]) / (x[0] - xL[0]))
-    thetaR = np.arctan((x[1] - xR[1]) / (xR[0] - x[0]))
+    thetaL = theta_left(x, xL)
+    thetaR = theta_right(x, xR)
     # print((xL[1] - x[1]), (x[0] - xL[0]), (x[1] - xR[1]), (xR[0] - x[0]))
     return thetaL - thetaR
 
 
-def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=False):
+def theta_right(x, xR):
+    return np.arctan((x[1] - xR[1]) / (xR[0] - x[0]))
+
+
+def theta_left(x, xL):
+    return np.arctan((xL[1] - x[1]) / (x[0] - xL[0]))
+
+
+def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=False,
+                                  only_left=False, only_right=False):
     """
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
@@ -42,7 +51,12 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
         if local:
             xL = sorted_points[i - 1]
             xR = sorted_points[i + 1]
-        theta = bend_angle(x, xL, xR)
+        if only_left:
+            theta = theta_left(x, xL)
+        elif only_right:
+            theta = -theta_right(x, xR)
+        else:
+            theta = bend_angle(x, xL, xR)
 
         if four_neighbour:
             # Protection to avoid index errors

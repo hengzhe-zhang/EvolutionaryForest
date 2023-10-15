@@ -35,6 +35,14 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True)
         return index
+    elif knee_point_strategy == 'LocalBendAngleKneeLeft':
+        # turn to a minimization problem
+        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, only_left=True)
+        return index
+    elif knee_point_strategy == 'LocalBendAngleKneeRight':
+        # turn to a minimization problem
+        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, only_right=True)
+        return index
     elif knee_point_strategy == 'LocalBendAngleKnee+':
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True, four_neighbour=True)
