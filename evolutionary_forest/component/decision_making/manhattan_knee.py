@@ -29,9 +29,8 @@ def find_manhattan_knee(pareto_points):
     # Loop over the points, compute the bend angle for each, and identify the point with the largest positive bend angle.
     for i in range(1, len(sorted_points) - 1):
         x = sorted_points[i]
-        xL = sorted_points[i - 1]
         xR = sorted_points[i + 1]
-        distance = distance_function(xL, x) + distance_function(xR, x)
+        distance = distance_function(xR, x)
         if distance >= max_distance:
             max_distance = distance
             knee_point = x
