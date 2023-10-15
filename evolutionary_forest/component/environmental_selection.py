@@ -36,7 +36,7 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True)
         return index
     elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('LocalBendAngleKneeW'):
-        weight = float(knee_point_strategy.split('-')[1])
+        weight = float(knee_point_strategy.split('~')[1])
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True, bend_weight=weight)
         return index
