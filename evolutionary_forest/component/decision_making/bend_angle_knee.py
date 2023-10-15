@@ -12,7 +12,7 @@ def bend_angle(x, xL, xR):
     return thetaL - thetaR
 
 
-def find_knee_based_on_bend_angle(pareto_points, local=False):
+def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=False):
     """
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
@@ -43,6 +43,22 @@ def find_knee_based_on_bend_angle(pareto_points, local=False):
             xL = sorted_points[i - 1]
             xR = sorted_points[i + 1]
         theta = bend_angle(x, xL, xR)
+
+        if four_neighbour:
+            # Protection to avoid index errors
+            angles_to_check = []
+
+            if i - 1 >= 0 and i + 1 < len(sorted_points):
+                angles_to_check.append(bend_angle(x, sorted_points[i - 1], sorted_points[i + 1]))
+            if i - 1 >= 0 and i + 2 < len(sorted_points):
+                angles_to_check.append(bend_angle(x, sorted_points[i - 1], sorted_points[i + 2]))
+            if i - 2 >= 0 and i + 1 < len(sorted_points):
+                angles_to_check.append(bend_angle(x, sorted_points[i - 2], sorted_points[i + 1]))
+            if i - 2 >= 0 and i + 2 < len(sorted_points):
+                angles_to_check.append(bend_angle(x, sorted_points[i - 2], sorted_points[i + 2]))
+
+            if angles_to_check:
+                theta = max(angles_to_check)
 
         if theta > max_bend_angle:
             max_bend_angle = theta
