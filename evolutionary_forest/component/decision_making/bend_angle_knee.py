@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def bend_angle(x, xL, xR):
+def bend_angle(x, xL, xR, weight=1):
     """
     Compute the bend angle for a given point x with its two neighboring points xL and xR.
     """
@@ -9,7 +9,7 @@ def bend_angle(x, xL, xR):
     thetaL = theta_left(x, xL)
     thetaR = theta_right(x, xR)
     # print((xL[1] - x[1]), (x[0] - xL[0]), (x[1] - xR[1]), (xR[0] - x[0]))
-    return thetaL - thetaR
+    return thetaL - weight * thetaR
 
 
 def theta_right(x, xR):
@@ -21,7 +21,7 @@ def theta_left(x, xL):
 
 
 def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=False,
-                                  only_left=False, only_right=False):
+                                  only_left=False, only_right=False, bend_weight=1):
     """
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
@@ -56,7 +56,7 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
         elif only_right:
             theta = -theta_right(x, xR)
         else:
-            theta = bend_angle(x, xL, xR)
+            theta = bend_angle(x, xL, xR, weight=bend_weight)
 
         if four_neighbour:
             # Protection to avoid index errors
