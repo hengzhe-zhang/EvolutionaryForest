@@ -645,6 +645,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.pareto_front = []
         self.test_pareto_front = []
         self.size_pareto_front = []
+        self.training_test_pareto_front = []
 
     def counter_initialization(self):
         self.current_gen = 0

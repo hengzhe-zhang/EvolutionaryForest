@@ -1,4 +1,5 @@
-from deap.tools import sortNondominated
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from evolutionary_forest.component.environmental_selection import EnvironmentalSelection
 from evolutionary_forest.component.fitness import RademacherComplexityR2, R2PACBayesian
@@ -75,6 +76,7 @@ class ParetoFrontTool():
         if self.experimental_configuration.pac_bayesian_comparison and \
             isinstance(self.environmental_selection, EnvironmentalSelection):
             pac = R2PACBayesian(self, **self.param)
+            self.training_test_pareto_front = []
             self.test_pareto_front = []
             """
             very important:
@@ -105,8 +107,36 @@ class ParetoFrontTool():
                                                float(sharpness_value / normalization_factor_scaled)))
                 self.size_pareto_front.append((test_error_normalized_by_test,
                                                sum([len(gene) for gene in ind.gene])))
+                training_fitness_normalized = float(np.mean(ind.case_values) / normalization_factor_scaled)
+                self.training_test_pareto_front.append((training_fitness_normalized,
+                                                        sum([len(gene) for gene in ind.gene]),
+                                                        test_error_normalized_by_test))
 
             self.test_pareto_front, _ = pareto_front_2d(self.test_pareto_front)
             self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
             self.test_pareto_front = self.test_pareto_front.tolist()
             self.size_pareto_front = self.size_pareto_front.tolist()
+
+            # the information of Pareto front
+            self.training_test_pareto_front = np.array(self.training_test_pareto_front)
+            _, indices = pareto_front_2d(self.training_test_pareto_front[:, :2])
+            self.training_test_pareto_front = self.training_test_pareto_front[indices]
+
+            self.training_test_pareto_front[:, :2] = ((self.training_test_pareto_front[:, :2]
+                                                       - self.training_test_pareto_front[:, :2].min(axis=0)) /
+                                                      (self.training_test_pareto_front[:, :2].max(axis=0)
+                                                       - self.training_test_pareto_front[:, :2].min(axis=0)))
+            create_scatter_plot(self.training_test_pareto_front)
+
+
+def create_scatter_plot(data, color_map="viridis"):
+    # Extract x, y, and color values
+    x = [point[0] for point in data]
+    y = [point[1] for point in data]
+    colors = [point[2] for point in data]
+
+    plt.figure(figsize=(10, 6))  # Adjust figure size as needed
+    sns.scatterplot(x=x, y=y, hue=colors, palette=color_map)  # Use the specified color map
+
+    # Show the plot
+    plt.show()

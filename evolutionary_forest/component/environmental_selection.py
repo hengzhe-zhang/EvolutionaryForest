@@ -35,41 +35,10 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True)
         return index
-    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('LocalBendAngleKneeW'):
+    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('LocalBendAngleKS'):
         weight = float(knee_point_strategy.split('~')[1])
         # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, bend_weight=weight)
-        return index
-    elif knee_point_strategy == 'LocalBendAngleKneeLeft':
-        # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, only_left=True)
-        return index
-    elif knee_point_strategy == 'LocalBendAngleKneeRight':
-        # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, only_right=True)
-        return index
-    elif knee_point_strategy == 'LocalBendAngleKnee+':
-        # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, four_neighbour=True)
-        return index
-    elif knee_point_strategy == 'LocalBendAngleKneeCube':
-        # turn to a minimization problem
-        pf = -1 * front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = pf[:, 1] ** 3
-        _, index = find_knee_based_on_bend_angle(pf, local=True)
-        return index
-    elif knee_point_strategy == 'ManhattanKnee':
-        # turn to a minimization problem
-        pf = -1 * front
-        _, index = find_manhattan_knee(pf)
-        return index
-    elif knee_point_strategy == 'ManhattanKneeCbrt':
-        # turn to a minimization problem
-        pf = -1 * front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = np.cbrt(pf[:, 1])
-        _, index = find_manhattan_knee(pf)
+        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, knee_selection=weight)
         return index
     elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
         # turn to a minimization problem
@@ -84,16 +53,6 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         return np.argmax(front[:, 1])
     elif knee_point_strategy == 'BestMainObjetive':
         return np.argmax(front[:, 0])
-    elif knee_point_strategy == 'SecondAdditionalObjetive':
-        if len(front) > 1:
-            return np.argsort(front[:, 1])[-2]
-        else:
-            return 0
-    elif knee_point_strategy == 'SecondMainObjetive':
-        if len(front) > 1:
-            return np.argsort(front[:, 0])[-2]
-        else:
-            return 0
     elif knee_point_strategy == 'HighTradeoff':
         front = (front - np.min(front, axis=0)) / (np.max(front, axis=0) - np.min(front, axis=0))
         ht = HighTradeoffPoints()
