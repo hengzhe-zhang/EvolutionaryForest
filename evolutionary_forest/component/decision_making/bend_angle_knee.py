@@ -2,15 +2,14 @@ import numpy as np
 from sklearn.cluster import KMeans
 
 
-def bend_angle(x, xL, xR, weight=1):
+def bend_angle(x, xL, xR):
     """
     Compute the bend angle for a given point x with its two neighboring points xL and xR.
     """
     # valid in minimization Pareto front
     thetaL = theta_left(x, xL)
     thetaR = theta_right(x, xR)
-    # print((xL[1] - x[1]), (x[0] - xL[0]), (x[1] - xR[1]), (xR[0] - x[0]))
-    return thetaL - weight * thetaR
+    return thetaL - thetaR
 
 
 def theta_right(x, xR):
@@ -21,8 +20,43 @@ def theta_left(x, xL):
     return np.arctan((xL[1] - x[1]) / (x[0] - xL[0]))
 
 
+def deduplicate_sorted_points(pareto_points):
+    """
+    Deduplicate sorted points and their corresponding indices.
+
+    Args:
+    - pareto_points: List of points.
+
+    Returns:
+    - Tuple containing two lists:
+        - deduplicated points sorted by their first coordinate.
+        - corresponding indices of the deduplicated points.
+    """
+
+    # Sort the points and get their original indices.
+    sorted_points_with_indices = sorted(enumerate(pareto_points), key=lambda x: x[1][0])
+
+    # Initialize empty lists for the deduplicated points and indices.
+    deduplicated_points = []
+    deduplicated_indices = []
+
+    # Track seen points using a set for constant-time lookup.
+    seen_points = set()
+
+    for idx, point in sorted_points_with_indices:
+        # Convert the point to a tuple to make it hashable for the set.
+        point_as_tuple = tuple(point)
+
+        if point_as_tuple not in seen_points:
+            seen_points.add(point_as_tuple)
+            deduplicated_points.append(point)
+            deduplicated_indices.append(idx)
+
+    return deduplicated_points, deduplicated_indices
+
+
 def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=False,
-                                  bend_weight=1, knee_selection=False):
+                                  knee_selection=False):
     """
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
@@ -30,9 +64,7 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
     # Sort pareto_points by the first objective in ascending order while keeping track of original indices
     # Model Error: Best->Worst
     # Model Complexity: Worst->Best
-    sorted_points_with_indices = sorted(enumerate(pareto_points), key=lambda x: x[1][0])
-    sorted_indices = [x[0] for x in sorted_points_with_indices]
-    sorted_points = [x[1] for x in sorted_points_with_indices]
+    sorted_points, sorted_indices = deduplicate_sorted_points(pareto_points)
 
     if len(pareto_points) < 3:
         return sorted_points[0], sorted_indices[0]
@@ -55,10 +87,12 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
         if local:
             xL = sorted_points[i - 1]
             xR = sorted_points[i + 1]
-        theta = bend_angle(x, xL, xR, weight=bend_weight)
+        theta = bend_angle(x, xL, xR)
 
         if four_neighbour:
             theta = calculate_four_neighbour_max_angle(i, x, sorted_points)
+
+        assert not np.isnan(theta), f"{theta} {x} {xL} {xR}"
 
         thetas.append(theta)
         if theta > max_bend_angle:
