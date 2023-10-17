@@ -31,16 +31,16 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front)
         return index
-    elif knee_point_strategy == 'LocalBendAngleKnee':
+    elif knee_point_strategy == 'AngleKnee':
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True)
         return index
-    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('LocalBendAngleKS'):
+    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('AngleKS'):
         weight = float(knee_point_strategy.split('~')[1])
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True, knee_selection=weight)
         return index
-    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('LocalBendAngleFKS'):
+    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('AngleFKS'):
         weight = float(knee_point_strategy.split('~')[1])
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True, knee_selection=weight,
@@ -49,12 +49,6 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
         # turn to a minimization problem
         return euclidian_knee(-1 * front)
-    elif knee_point_strategy == 'KneeCbrt':
-        # turn to a minimization problem
-        pf = -1 * front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = np.cbrt(pf[:, 1])
-        return euclidian_knee(pf)
     elif knee_point_strategy == 'BestAdditionalObjetive':
         return np.argmax(front[:, 1])
     elif knee_point_strategy == 'BestMainObjetive':
@@ -80,61 +74,12 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
         id = pf.sum(axis=1).argmax()
         return id
-    elif knee_point_strategy == 'BestSumLog':
-        pf = front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = np.log1p(pf[:, 1])
-        id = pf.sum(axis=1).argmax()
-        return id
-    elif knee_point_strategy == 'BestSumLog+':
-        pf = front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = np.log(1 + pf[:, 1])
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        id = pf.sum(axis=1).argmax()
-        return id
-    elif knee_point_strategy == 'BestSumLog10+':
-        pf = front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = np.log10(1 + pf[:, 1])
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        id = pf.sum(axis=1).argmax()
-        return id
-    elif knee_point_strategy == 'BestSumSqrt':
-        pf = front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = np.sqrt(pf[:, 1])
-        id = pf.sum(axis=1).argmax()
-        return id
     elif knee_point_strategy == 'BestSumCbrt':
         pf = front
         pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
         pf[:, 1] = np.cbrt(pf[:, 1])
         id = pf.sum(axis=1).argmax()
         return id
-    elif knee_point_strategy == 'BestSumSquare':
-        pf = front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = pf[:, 1] ** 2
-        id = pf.sum(axis=1).argmax()
-        return id
-    elif knee_point_strategy == 'BestSumCube':
-        pf = front
-        pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
-        pf[:, 1] = pf[:, 1] ** 3
-        id = pf.sum(axis=1).argmax()
-        return id
-    elif knee_point_strategy.startswith('CP'):
-        cp_ratio = float(knee_point_strategy.split('-')[1])
-        decomp = ASF()
-        # convert to a minimization problem
-        I = decomp(-1 * front, np.array([cp_ratio, 1 - cp_ratio])).argmin()
-        return I
-    elif knee_point_strategy.startswith('PW'):
-        pw_ratio = float(knee_point_strategy.split('-')[1])
-        # convert to a minimization problem
-        I = PseudoWeights(np.array([pw_ratio, 1 - pw_ratio])).do(-1 * front)
-        return I
     else:
         raise Exception('Unknown Knee Point Strategy')
 
