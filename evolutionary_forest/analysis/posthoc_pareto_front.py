@@ -121,6 +121,7 @@ class ParetoFrontTool():
             self.training_test_pareto_front = np.array(self.training_test_pareto_front)
             _, indices = pareto_front_2d(self.training_test_pareto_front[:, :2])
             self.training_test_pareto_front = self.training_test_pareto_front[indices]
+            self.training_test_pareto_front = self.training_test_pareto_front.tolist()
 
             # create_scatter_plot(self.training_test_pareto_front)
 
@@ -134,8 +135,4 @@ def create_scatter_plot(data, color_map="viridis"):
     y = [point[1] for point in data]
     colors = [point[2] for point in data]
 
-    plt.figure(figsize=(10, 6))  # Adjust figure size as needed
     sns.scatterplot(x=x, y=y, hue=colors, palette=color_map)  # Use the specified color map
-
-    # Show the plot
-    plt.show()
