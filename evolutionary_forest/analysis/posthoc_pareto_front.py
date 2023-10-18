@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib import cm
+from matplotlib.colors import Normalize
 
+from evolutionary_forest.component.decision_making.bend_angle_knee import find_knee_based_on_bend_angle
 from evolutionary_forest.component.environmental_selection import EnvironmentalSelection
 from evolutionary_forest.component.fitness import RademacherComplexityR2, R2PACBayesian
 from evolutionary_forest.multigene_gp import *
@@ -129,10 +132,47 @@ class ParetoFrontTool():
 def create_scatter_plot(data, color_map="viridis"):
     data[:, :2] = ((data[:, :2] - data[:, :2].min(axis=0)) /
                    (data[:, :2].max(axis=0) - data[:, :2].min(axis=0)))
+    _, traditional_knee = find_knee_based_on_bend_angle(data[:, :2], local=True)
+    _, complexity_knee, knee_index = find_knee_based_on_bend_angle(data[:, :2], local=True, number_of_cluster=3,
+                                                                   return_all_knees=True)
 
     # Extract x, y, and color values
     x = [point[0] for point in data]
     y = [point[1] for point in data]
     colors = [point[2] for point in data]
 
-    sns.scatterplot(x=x, y=y, hue=colors, palette=color_map)  # Use the specified color map
+    # Create colormap object and normalize colors
+    colormap = cm.get_cmap(color_map)
+    normalize = Normalize(vmin=min(colors), vmax=max(colors))
+
+    # Get a 'red' in the style of viridis (e.g., a bright yellow from the high end)
+    viridis_style_red = colormap(0.9)
+
+    # Highlight points on the scatter plot
+    sns.scatterplot(x=x, y=y, hue=colors, palette=color_map)
+
+    # Convert knee_index to integers for indexing
+    knee_index_int = [int(k) for k in knee_index]
+
+    # Annotate knee points with letters
+    for i, index in enumerate(knee_index_int):
+        plt.annotate(chr(ord("A") + i),
+                     (x[index], y[index]),
+                     fontsize=12,
+                     color=viridis_style_red,
+                     weight='bold')
+
+    # Get the color for traditional_knee and complexity_knee from the color map
+    traditional_knee_color = colormap(normalize(colors[traditional_knee]))
+    complexity_knee_color = colormap(normalize(colors[complexity_knee]))
+
+    # Highlight traditional_knee with a special marker (e.g., a star)
+    plt.scatter(x[traditional_knee], y[traditional_knee], marker='*', s=100, c=traditional_knee_color,
+                label='Traditional Knee')
+
+    # Highlight complexity_knee with a different special marker (e.g., a diamond)
+    plt.scatter(x[complexity_knee], y[complexity_knee], marker='D', s=50, c=complexity_knee_color,
+                label='Complexity Knee')
+
+    plt.xlabel("Complexity")
+    plt.xlabel("Mean Squared Error")
