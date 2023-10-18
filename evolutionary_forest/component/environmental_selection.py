@@ -53,6 +53,8 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
         return np.argmax(front[:, 1])
     elif knee_point_strategy == 'BestMainObjetive':
         return np.argmax(front[:, 0])
+    elif knee_point_strategy == 'BestHarmonicRank':
+        return np.argmax(front[:, 0])
     elif knee_point_strategy == 'HighTradeoff':
         front = (front - np.min(front, axis=0)) / (np.max(front, axis=0) - np.min(front, axis=0))
         ht = HighTradeoffPoints()

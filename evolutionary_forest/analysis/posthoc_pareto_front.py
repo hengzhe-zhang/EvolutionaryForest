@@ -145,9 +145,6 @@ def create_scatter_plot(data, color_map="viridis"):
     colormap = cm.get_cmap(color_map)
     normalize = Normalize(vmin=min(colors), vmax=max(colors))
 
-    # Get a 'red' in the style of viridis (e.g., a bright yellow from the high end)
-    viridis_style_red = colormap(0.9)
-
     # Highlight points on the scatter plot
     sns.scatterplot(x=x, y=y, hue=colors, palette=color_map)
 
@@ -159,7 +156,7 @@ def create_scatter_plot(data, color_map="viridis"):
         plt.annotate(chr(ord("A") + i),
                      (x[index], y[index]),
                      fontsize=12,
-                     color=viridis_style_red,
+                     color='red',
                      weight='bold')
 
     # Get the color for traditional_knee and complexity_knee from the color map
@@ -174,5 +171,5 @@ def create_scatter_plot(data, color_map="viridis"):
     plt.scatter(x[complexity_knee], y[complexity_knee], marker='D', s=50, c=complexity_knee_color,
                 label='Complexity Knee')
 
-    plt.xlabel("Complexity")
+    plt.ylabel("Complexity")
     plt.xlabel("Mean Squared Error")
