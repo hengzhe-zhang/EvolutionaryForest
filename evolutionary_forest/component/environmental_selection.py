@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
 def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     front = np.array(front)
+    denominator = (np.max(front, axis=0) - np.min(front, axis=0))
+    denominator = np.where(denominator > 0, denominator, 1)
+    front = (front - np.min(front, axis=0)) / denominator
     if knee_point_strategy == 'BendAngleKnee':
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front)
@@ -57,7 +60,6 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     elif knee_point_strategy == 'BestHarmonicRank':
         return best_harmonic_rank(front)
     elif knee_point_strategy == 'HighTradeoff':
-        front = (front - np.min(front, axis=0)) / (np.max(front, axis=0) - np.min(front, axis=0))
         ht = HighTradeoffPoints()
         try:
             # convert to minimization
