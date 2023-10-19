@@ -113,6 +113,7 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
             largest_x_cluster = np.argmax(cluster_centers)
             labels = kmeans.predict(thetas.reshape(-1, 1))
             first_knee = np.where(labels == largest_x_cluster)[0][-1] + 1
+            # first_knee = np.where(labels == largest_x_cluster)[0][0] + 1
             knee_index = sorted_indices[first_knee]
             knee_point = sorted_points[first_knee]
 

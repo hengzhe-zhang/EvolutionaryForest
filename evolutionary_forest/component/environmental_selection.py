@@ -98,22 +98,6 @@ class Objective():
     def set(self, individuals):
         pass
 
-    def restore(self, individuals):
-        for ind in individuals:
-            ind.fitness.weights = (-1,)
-            ind.fitness.values = getattr(ind, 'original_fitness')
-
-
-class TreeSizeObjective(Objective):
-    def __init__(self):
-        pass
-
-    def set(self, individuals):
-        for ind in individuals:
-            setattr(ind, 'original_fitness', ind.fitness.values)
-            ind.fitness.weights = (-1, -1)
-            ind.fitness.values = (ind.fitness.values[0], np.sum([len(y) for y in ind.gene]))
-
 
 def unique(individuals):
     generated = set()
@@ -152,10 +136,10 @@ class NSGA2(EnvironmentalSelection):
     def select(self, population, offspring):
         individuals = population + offspring
         individuals = unique(individuals)
-        if self.objective_function != None:
-            self.objective_function.set(individuals)
 
         if self.objective_normalization:
+            for ind in individuals:
+                ind.unnormalized_fitness = ind.fitness.values
             dims = len(individuals[0].fitness.values)
             min_max = []
             for d in range(dims):
@@ -172,8 +156,6 @@ class NSGA2(EnvironmentalSelection):
                         normalized_fitness = normalized_fitness / (max_val - min_val)
                     values.append(normalized_fitness)
                 ind.fitness.values = values
-                if hasattr(ind, 'temp_fitness'):
-                    ind.temp_fitness = ind.fitness.values
 
         population[:] = self.selection_operator(individuals, len(population))
 
@@ -283,8 +265,10 @@ class NSGA2(EnvironmentalSelection):
             # Select the minimal cross-validation error as the final model
             self.algorithm.hof = [max(first_pareto_front, key=quick_evaluation)]
 
-        if self.objective_function != None:
-            self.objective_function.restore(individuals)
+        if self.objective_normalization:
+            # must change back to original fitness to avoid any potential error
+            for ind in individuals:
+                ind.fitness.values = ind.unnormalized_fitness
         return population
 
 
