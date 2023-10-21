@@ -84,6 +84,7 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, limitation_check,
                 # mutation, using the number of genes for each individual
                 gene_num = get_number_of_invokes(offspring[i].gene_num)
                 for c in range(invokes):
+                    # If in var_or mode, once crossed, not allowed to be mutated
                     if random.random() < mutpb and (not crossover_configuration.var_or
                                                     or (i not in crossed_individual)):
                         offspring[i], = toolbox.mutate(offspring[i])
