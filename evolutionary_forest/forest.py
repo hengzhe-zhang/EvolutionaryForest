@@ -1828,10 +1828,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.ensemble_selection == 'GreedySelection-Resampling-MSE':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                  unique=False, bagging_iteration=20, loss_function='MSE')
-        elif self.ensemble_selection == 'GreedySelection-Resampling-Diverse':
-            self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y, diversity_ratio=0.5,
-                                                 unique=False, bagging_iteration=20, loss_function='MSE',
-                                                 inner_sampling=0.5, outer_sampling=0.25)
         elif self.ensemble_selection == 'GreedySelection-Resampling-CrossEntropy':
             self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                  unique=False, bagging_iteration=20, loss_function='CrossEntropy')
@@ -1848,7 +1844,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             inner_sampling = float(inner_sampling)
             outer_sampling = float(outer_sampling)
             bagging_iteration = int(bagging_iteration)
-            self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y, diversity_ratio=0,
+            self.hof = GreedySelectionHallOfFame(self.ensemble_size, self.y,
                                                  unique=False, bagging_iteration=bagging_iteration, loss_function='MSE',
                                                  inner_sampling=inner_sampling, outer_sampling=outer_sampling)
         elif isinstance(self.ensemble_selection, str) and 'GreedySelection-Resampling~' in self.ensemble_selection:
