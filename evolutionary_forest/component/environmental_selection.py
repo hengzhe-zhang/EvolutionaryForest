@@ -14,6 +14,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
+from analysis.knee_point_eurogp.utility_function import knee_point_by_utility
 from evolutionary_forest.component.decision_making.bend_angle_knee import find_knee_based_on_bend_angle
 from evolutionary_forest.component.decision_making.euclidian_knee_selection import point_to_line_distance, \
     euclidian_knee
@@ -38,6 +39,10 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
     elif knee_point_strategy == 'AngleKnee':
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True)
+        return index
+    elif knee_point_strategy == 'UtilityFunction':
+        # turn to a minimization problem
+        index, _, _ = knee_point_by_utility(-1 * front)
         return index
     elif knee_point_strategy == 'AngleKneeF':
         # turn to a minimization problem
