@@ -2094,6 +2094,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         predictions = []
         if individuals is None:
             individuals = self.hof
+        # try to fit all models
+        self.final_model_lazy_training(individuals)
         for individual in individuals:
             if len(individual.gene) == 0:
                 continue
