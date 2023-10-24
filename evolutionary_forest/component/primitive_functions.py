@@ -41,6 +41,7 @@ def gaussian_torch(x):
 def protected_division(x1, *x2):
     with np.errstate(divide='ignore', invalid='ignore'):
         x2 = reduce(operator.mul, x2)
+        # threshold from GEPPY
         return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
 
 
@@ -50,13 +51,13 @@ def protected_division_torch(x1, *x2):
         return torch.where(torch.abs(x2) > threshold, torch.divide(x1, x2), 1.)
 
 
-def protected_log(x1, x2):
+def protected_log_xy(x1, x2):
     """Closure of log for zero and negative arguments."""
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(np.abs(x1) > threshold, np.emath.logn(np.abs(x2), np.abs(x1)), 0.)
 
 
-def protected_loge(x1):
+def protected_log(x1):
     """Closure of log for zero and negative arguments."""
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.)
@@ -66,6 +67,12 @@ def protected_log2(x1):
     """Closure of log for zero and negative arguments."""
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(np.abs(x1) > threshold, np.log2(np.abs(x1)), 0.)
+
+
+def protected_log10(x1):
+    """Closure of log for zero and negative arguments."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.where(np.abs(x1) > threshold, np.log10(np.abs(x1)), 0.)
 
 
 def protected_inverse(x1):
@@ -105,7 +112,15 @@ def analytical_log10(x):
 
 
 def cube(x):
-    return np.power(x, 3)
+    return x ** 3
+
+
+def fourth_power(x):
+    return x ** 4
+
+
+def fifth_power(x):
+    return x ** 5
 
 
 def protect_sqrt(a):

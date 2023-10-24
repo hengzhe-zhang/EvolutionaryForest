@@ -13,14 +13,24 @@ def get_functions(p):
         'Mul': (np.multiply, 2),  # Multiplication
         'Div': (protected_division, 2),  # Protected Division for handling divide-by-zero errors
 
-        'Tri-Add': (partial(simple_reduce, np.add), 3),  # Addition
-        'Quad-Add': (partial(simple_reduce, np.add), 4),  # Addition
-        'Tri-Sub': (partial(simple_reduce, np.subtract), 3),  # Subtraction
-        'Quad-Sub': (partial(simple_reduce, np.subtract), 4),  # Subtraction
-        'Tri-Mul': (partial(simple_reduce, np.multiply), 3),  # Multiplication
-        'Quad-Mul': (partial(simple_reduce, np.multiply), 4),  # Multiplication
-        'Tri-Div': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
-        'Quad-Div': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
+        'Add^3': (partial(simple_reduce, np.add), 3),  # Addition
+        'Add^4': (partial(simple_reduce, np.add), 4),  # Addition
+        'Add^5': (partial(simple_reduce, np.add), 5),  # Addition
+        'Sub^3': (partial(simple_reduce, np.subtract), 3),  # Subtraction
+        'Sub^4': (partial(simple_reduce, np.subtract), 4),  # Subtraction
+        'Sub^5': (partial(simple_reduce, np.subtract), 5),  # Subtraction
+        'Mul^3': (partial(simple_reduce, np.multiply), 3),  # Multiplication
+        'Mul^4': (partial(simple_reduce, np.multiply), 4),  # Multiplication
+        'Mul^5': (partial(simple_reduce, np.multiply), 5),  # Multiplication
+        'Max^3': (partial(simple_reduce, np.maximum), 3),  # Maximum
+        'Max^4': (partial(simple_reduce, np.maximum), 4),  # Maximum
+        'Max^5': (partial(simple_reduce, np.maximum), 5),  # Maximum
+        'Min^3': (partial(simple_reduce, np.minimum), 3),  # Minimum
+        'Min^4': (partial(simple_reduce, np.minimum), 4),  # Minimum
+        'Min^5': (partial(simple_reduce, np.minimum), 5),  # Minimum
+        'Div^3': (protected_division, 3),  # Protected Division for handling divide-by-zero errors
+        'Div^4': (protected_division, 4),  # Protected Division for handling divide-by-zero errors
+        'Div^5': (protected_division, 5),  # Protected Division for handling divide-by-zero errors
 
         # Mathematical functions
         'AQ': (analytical_quotient, 2),  # Analytical Quotient for symbolic differentiation
@@ -38,9 +48,10 @@ def get_functions(p):
         'Cbrt': (np.cbrt, 1),  # Cube root function
         'Square': (np.square, 1),  # Square function
         'Cube': (cube, 1),  # Cube function
-        'Log': (protected_log, 2),
-        'LogE': (protected_loge, 1),
+        'LogXY': (protected_log_xy, 2),
+        'Log': (protected_log, 1),
         'Log2': (protected_log2, 1),
+        'Log10': (protected_log10, 1),
         'Inv': (protected_inverse, 1),
 
         # Comparison operations
@@ -104,7 +115,7 @@ def get_differentiable_functions(p):
         'Max': (torch.maximum, 2),  # Maximum function
         'Min': (torch.minimum, 2),  # Minimum function
         'Neg': (torch.negative, 1),  # Unary negation function (i.e. negate the input value)
-        
+
         'RSin': (radian_sin_torch, 1),  # Sine function
         'RCos': (radian_cos_torch, 1),  # Cosine function
         'Gaussian': (gaussian_torch, 1),  # Residual function for handling negative values
