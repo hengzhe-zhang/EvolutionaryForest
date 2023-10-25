@@ -167,7 +167,11 @@ def create_scatter_plot(data, color_map="viridis"):
     )
     _, traditional_knee = find_knee_based_on_bend_angle(data[:, :2], local=True)
     _, complexity_knee, knee_index = find_knee_based_on_bend_angle(
-        data[:, :2], local=True, number_of_cluster=3, return_all_knees=True
+        data[:, :2],
+        local=True,
+        number_of_cluster=3,
+        return_all_knees=True,
+        minimal_complexity=True,
     )
 
     # Extract x, y, and color values
