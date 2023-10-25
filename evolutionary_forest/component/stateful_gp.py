@@ -16,14 +16,14 @@ class DimensionTransformer(TransformerMixin, BaseEstimator):
     def transform(self, X):
         return X.reshape((-1, 1))
 
-class TargetEncoderNumpy(TargetEncoder):
 
+class TargetEncoderNumpy(TargetEncoder):
     def fit(self, X, y=None, **kwargs):
-        X=pd.DataFrame(X).astype(str).sum(axis=1).to_frame()
+        X = pd.DataFrame(X).astype(str).sum(axis=1).to_frame()
         return super().fit(X, y, **kwargs)
 
     def transform(self, X, y=None, override_return_df=False):
-        X=pd.DataFrame(X).astype(str).sum(axis=1).to_frame()
+        X = pd.DataFrame(X).astype(str).sum(axis=1).to_frame()
         return super().transform(X, y, override_return_df)
 
 
@@ -59,7 +59,7 @@ def make_class(function, arity=None, parameters=None):
                 return np.full(X.shape[0], x)
             elif isinstance(x, enum.Enum):
                 return X[:, x.value]
-            elif hasattr(x, 'predict'):
+            elif hasattr(x, "predict"):
                 # inner regressors
                 return x.predict(X)
             else:
@@ -72,12 +72,14 @@ def make_class(function, arity=None, parameters=None):
                     output = np.array(output).reshape(-1, 1)
                 else:
                     output = np.array(output).T
-                if hasattr(self.function, 'predict'):
+                if hasattr(self.function, "predict"):
                     output = self.function.predict(output)
                 else:
                     output = self.function.transform(output).flatten()
             else:
-                output = self.function(*[self.decision_function(X, x) for x in self.args])
+                output = self.function(
+                    *[self.decision_function(X, x) for x in self.args]
+                )
             return np.reshape(output, (-1, 1))
 
     if isinstance(function, ABCMeta):
@@ -85,7 +87,7 @@ def make_class(function, arity=None, parameters=None):
     else:
         FeatureTransformer.__name__ = function.__name__
     if arity != None:
-        FeatureTransformer.__name__ = FeatureTransformer.__name__ + f'_{arity}'
+        FeatureTransformer.__name__ = FeatureTransformer.__name__ + f"_{arity}"
     return FeatureTransformer
 
 

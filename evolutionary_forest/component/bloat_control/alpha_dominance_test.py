@@ -22,12 +22,16 @@ class Individual:
         def __init__(self, value):
             self.values = (value,)
             self.weights = (-1,)
-            self.wvalues = tuple(val * weight for val, weight in zip(self.values, self.weights))
+            self.wvalues = tuple(
+                val * weight for val, weight in zip(self.values, self.weights)
+            )
 
         def dominates(self, other, obj=None):
             if obj is None:
                 obj = self.values
-            return all(a <= b for a, b in zip(obj, other.values)) and any(a < b for a, b in zip(obj, other.values))
+            return all(a <= b for a, b in zip(obj, other.values)) and any(
+                a < b for a, b in zip(obj, other.values)
+            )
 
     def __len__(self):
         return self._size

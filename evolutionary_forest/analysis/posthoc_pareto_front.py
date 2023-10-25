@@ -3,7 +3,9 @@ import seaborn as sns
 from matplotlib import cm
 from matplotlib.colors import Normalize
 
-from evolutionary_forest.component.decision_making.bend_angle_knee import find_knee_based_on_bend_angle
+from evolutionary_forest.component.decision_making.bend_angle_knee import (
+    find_knee_based_on_bend_angle,
+)
 from evolutionary_forest.component.environmental_selection import EnvironmentalSelection
 from evolutionary_forest.component.fitness import RademacherComplexityR2, R2PACBayesian
 from evolutionary_forest.multigene_gp import *
@@ -13,9 +15,11 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-class ParetoFrontTool():
+class ParetoFrontTool:
     @staticmethod
-    def calculate_test_pareto_front(self: "EvolutionaryForestRegressor", test_x, test_y):
+    def calculate_test_pareto_front(
+        self: "EvolutionaryForestRegressor", test_x, test_y
+    ):
         """
         Calculate the Pareto front for test data based on the evolutionary forest regressor.
 
@@ -37,8 +41,12 @@ class ParetoFrontTool():
             prediction = self.individual_prediction(test_x, [ind])[0]
             errors = (test_y - prediction) ** 2
             test_error_normalized_by_test = np.mean(errors) / normalization_factor_test
-            self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor_scaled),
-                                      float(test_error_normalized_by_test)))
+            self.pareto_front.append(
+                (
+                    float(np.mean(ind.case_values) / normalization_factor_scaled),
+                    float(test_error_normalized_by_test),
+                )
+            )
             del prediction
             del errors
         self.pareto_front, _ = pareto_front_2d(self.pareto_front)
@@ -46,10 +54,11 @@ class ParetoFrontTool():
 
     @staticmethod
     def calculate_sharpness_pareto_front(self: "EvolutionaryForestRegressor", x_train):
-        if self.experimental_configuration.pac_bayesian_comparison and \
-            isinstance(self.environmental_selection, EnvironmentalSelection):
+        if self.experimental_configuration.pac_bayesian_comparison and isinstance(
+            self.environmental_selection, EnvironmentalSelection
+        ):
             pac = R2PACBayesian(self, **self.param)
-            self.pac_bayesian.objective = 'R2,MaxSharpness-1-Base'
+            self.pac_bayesian.objective = "R2,MaxSharpness-1-Base"
 
             # Calculate normalization factors
             normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
@@ -62,8 +71,12 @@ class ParetoFrontTool():
                 1. Normalized fitness values (case values represent cross-validation squared error)
                 2. Normalized sharpness values
                 """
-                self.pareto_front.append((float(np.mean(ind.case_values) / normalization_factor_scaled),
-                                          float(sharpness_value / normalization_factor_scaled)))
+                self.pareto_front.append(
+                    (
+                        float(np.mean(ind.case_values) / normalization_factor_scaled),
+                        float(sharpness_value / normalization_factor_scaled),
+                    )
+                )
 
             self.pareto_front, _ = pareto_front_2d(self.pareto_front)
 
@@ -75,9 +88,12 @@ class ParetoFrontTool():
             pac.assign_complexity(ind, ind.pipe)
 
     @staticmethod
-    def calculate_sharpness_pareto_front_on_test(self: "EvolutionaryForestRegressor", test_x, test_y):
-        if self.experimental_configuration.pac_bayesian_comparison and \
-            isinstance(self.environmental_selection, EnvironmentalSelection):
+    def calculate_sharpness_pareto_front_on_test(
+        self: "EvolutionaryForestRegressor", test_x, test_y
+    ):
+        if self.experimental_configuration.pac_bayesian_comparison and isinstance(
+            self.environmental_selection, EnvironmentalSelection
+        ):
             pac = R2PACBayesian(self, **self.param)
             self.training_test_pareto_front = []
             self.test_pareto_front = []
@@ -100,20 +116,36 @@ class ParetoFrontTool():
                 sharpness_value = ind.fitness_list[1][0]
                 errors = (test_y - prediction) ** 2
                 assert len(errors) == len(test_y)
-                test_error_normalized_by_test = np.mean(errors) / normalization_factor_test
+                test_error_normalized_by_test = (
+                    np.mean(errors) / normalization_factor_test
+                )
                 """
                 1. Normalized test error (1-Test R2)
                 2. Normalized sharpness values / model size
                 3. Normalized test error, but use same normalization factor as training data
                 """
-                self.test_pareto_front.append((test_error_normalized_by_test,
-                                               float(sharpness_value / normalization_factor_scaled)))
-                self.size_pareto_front.append((test_error_normalized_by_test,
-                                               sum([len(gene) for gene in ind.gene])))
-                training_fitness_normalized = float(np.mean(ind.case_values) / normalization_factor_scaled)
-                self.training_test_pareto_front.append((training_fitness_normalized,
-                                                        sum([len(gene) for gene in ind.gene]),
-                                                        test_error_normalized_by_test))
+                self.test_pareto_front.append(
+                    (
+                        test_error_normalized_by_test,
+                        float(sharpness_value / normalization_factor_scaled),
+                    )
+                )
+                self.size_pareto_front.append(
+                    (
+                        test_error_normalized_by_test,
+                        sum([len(gene) for gene in ind.gene]),
+                    )
+                )
+                training_fitness_normalized = float(
+                    np.mean(ind.case_values) / normalization_factor_scaled
+                )
+                self.training_test_pareto_front.append(
+                    (
+                        training_fitness_normalized,
+                        sum([len(gene) for gene in ind.gene]),
+                        test_error_normalized_by_test,
+                    )
+                )
 
             self.test_pareto_front, _ = pareto_front_2d(self.test_pareto_front)
             self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
@@ -130,11 +162,13 @@ class ParetoFrontTool():
 
 
 def create_scatter_plot(data, color_map="viridis"):
-    data[:, :2] = ((data[:, :2] - data[:, :2].min(axis=0)) /
-                   (data[:, :2].max(axis=0) - data[:, :2].min(axis=0)))
+    data[:, :2] = (data[:, :2] - data[:, :2].min(axis=0)) / (
+        data[:, :2].max(axis=0) - data[:, :2].min(axis=0)
+    )
     _, traditional_knee = find_knee_based_on_bend_angle(data[:, :2], local=True)
-    _, complexity_knee, knee_index = find_knee_based_on_bend_angle(data[:, :2], local=True, number_of_cluster=3,
-                                                                   return_all_knees=True)
+    _, complexity_knee, knee_index = find_knee_based_on_bend_angle(
+        data[:, :2], local=True, number_of_cluster=3, return_all_knees=True
+    )
 
     # Extract x, y, and color values
     x = [point[0] for point in data]
@@ -153,23 +187,37 @@ def create_scatter_plot(data, color_map="viridis"):
 
     # Annotate knee points with letters
     for i, index in enumerate(knee_index_int):
-        plt.annotate(chr(ord("A") + i),
-                     (x[index], y[index]),
-                     fontsize=12,
-                     color='red',
-                     weight='bold')
+        plt.annotate(
+            chr(ord("A") + i),
+            (x[index], y[index]),
+            fontsize=12,
+            color="red",
+            weight="bold",
+        )
 
     # Get the color for traditional_knee and complexity_knee from the color map
     traditional_knee_color = colormap(normalize(colors[traditional_knee]))
     complexity_knee_color = colormap(normalize(colors[complexity_knee]))
 
     # Highlight traditional_knee with a special marker (e.g., a star)
-    plt.scatter(x[traditional_knee], y[traditional_knee], marker='*', s=100, c=traditional_knee_color,
-                label='Traditional Knee')
+    plt.scatter(
+        x[traditional_knee],
+        y[traditional_knee],
+        marker="*",
+        s=100,
+        c=traditional_knee_color,
+        label="Traditional Knee",
+    )
 
     # Highlight complexity_knee with a different special marker (e.g., a diamond)
-    plt.scatter(x[complexity_knee], y[complexity_knee], marker='D', s=50, c=complexity_knee_color,
-                label='Complexity Knee')
+    plt.scatter(
+        x[complexity_knee],
+        y[complexity_knee],
+        marker="D",
+        s=50,
+        c=complexity_knee_color,
+        label="Complexity Knee",
+    )
 
     plt.ylabel("Complexity")
     plt.xlabel("Mean Squared Error")

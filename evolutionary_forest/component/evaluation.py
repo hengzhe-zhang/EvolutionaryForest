@@ -25,22 +25,46 @@ from sklearn.feature_selection import VarianceThreshold
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import RidgeCV, LogisticRegression
 from sklearn.linear_model._base import LinearModel
-from sklearn.metrics import make_scorer, accuracy_score, balanced_accuracy_score, precision_score, recall_score, \
-    f1_score, r2_score
-from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split, KFold
+from sklearn.metrics import (
+    make_scorer,
+    accuracy_score,
+    balanced_accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    r2_score,
+)
+from sklearn.model_selection import (
+    StratifiedKFold,
+    cross_validate,
+    train_test_split,
+    KFold,
+)
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.tree import BaseDecisionTree
 from torch import optim
 
-from evolutionary_forest.component.configuration import EvaluationConfiguration, ImbalancedConfiguration, \
-    NoiseConfiguration
+from evolutionary_forest.component.configuration import (
+    EvaluationConfiguration,
+    ImbalancedConfiguration,
+    NoiseConfiguration,
+)
 from evolutionary_forest.component.tree_utils import node_depths
 from evolutionary_forest.model.MTL import MTLRidgeCV
-from evolutionary_forest.multigene_gp import result_post_process, MultiplePrimitiveSet, quick_fill, GPPipeline
+from evolutionary_forest.multigene_gp import (
+    result_post_process,
+    MultiplePrimitiveSet,
+    quick_fill,
+    GPPipeline,
+)
 from evolutionary_forest.sklearn_utils import cross_val_predict
-from evolutionary_forest.utils import reset_random, cv_prediction_from_ridge, one_hot_encode
+from evolutionary_forest.utils import (
+    reset_random,
+    cv_prediction_from_ridge,
+    one_hot_encode,
+)
 
-np.seterr(invalid='ignore')
+np.seterr(invalid="ignore")
 reset_random(0)
 time_flag = False
 
@@ -48,20 +72,21 @@ time_flag = False
 def select_from_array(arr, s, x):
     s = s % len(arr)
     if s + x <= len(arr):
-        return arr[s:s + x]
+        return arr[s : s + x]
     else:
-        return np.concatenate((arr[s:s + x], arr[:(s + x) % len(arr)]))
+        return np.concatenate((arr[s : s + x], arr[: (s + x) % len(arr)]))
 
 
-class EvaluationResults():
-    def __init__(self,
-                 gp_evaluation_time=None,
-                 ml_evaluation_time=None,
-                 hash_result=None,
-                 correlation_results=None,
-                 introns_results=None,
-                 semantic_results=None,
-                 ):
+class EvaluationResults:
+    def __init__(
+        self,
+        gp_evaluation_time=None,
+        ml_evaluation_time=None,
+        hash_result=None,
+        correlation_results=None,
+        introns_results=None,
+        semantic_results=None,
+    ):
         self.gp_evaluation_time: int = gp_evaluation_time
         self.ml_evaluation_time: int = ml_evaluation_time
         # hash value of all features
@@ -88,10 +113,16 @@ def calculate_score(args):
     transductive_learning = configuration.transductive_learning
 
     if configuration.mini_batch:
-        X = select_from_array(X, configuration.current_generation * configuration.batch_size // 4,
-                              configuration.batch_size)
-        Y = select_from_array(Y, configuration.current_generation * configuration.batch_size // 4,
-                              configuration.batch_size)
+        X = select_from_array(
+            X,
+            configuration.current_generation * configuration.batch_size // 4,
+            configuration.batch_size,
+        )
+        Y = select_from_array(
+            Y,
+            configuration.current_generation * configuration.batch_size // 4,
+            configuration.batch_size,
+        )
 
     pipe: GPPipeline
     pipe, func = args
@@ -110,34 +141,49 @@ def calculate_score(args):
         introns_results = None
     else:
         results: EvaluationResults
-        if hasattr(pipe, 'register'):
-            Yp, results = multi_tree_evaluation(func, pset, X, original_features,
-                                                need_hash=True, target=Y,
-                                                register_array=pipe.register,
-                                                configuration=configuration)
+        if hasattr(pipe, "register"):
+            Yp, results = multi_tree_evaluation(
+                func,
+                pset,
+                X,
+                original_features,
+                need_hash=True,
+                target=Y,
+                register_array=pipe.register,
+                configuration=configuration,
+            )
         else:
-            Yp, results = multi_tree_evaluation(func, pset, X, original_features,
-                                                need_hash=True, target=Y,
-                                                configuration=configuration,
-                                                similarity_score=intron_calculation)
-        hash_result, correlation_results, introns_results = results.hash_result, \
-            results.correlation_results, results.introns_results
+            Yp, results = multi_tree_evaluation(
+                func,
+                pset,
+                X,
+                original_features,
+                need_hash=True,
+                target=Y,
+                configuration=configuration,
+                similarity_score=intron_calculation,
+            )
+        hash_result, correlation_results, introns_results = (
+            results.hash_result,
+            results.correlation_results,
+            results.introns_results,
+        )
         if configuration.save_semantics:
             semantic_results = Yp
         if transductive_learning:
-            Yp = Yp[:len(Y)]
+            Yp = Yp[: len(Y)]
         assert isinstance(Yp, (np.ndarray, torch.Tensor))
         if isinstance(Yp, np.ndarray):
             assert not np.any(np.isnan(Yp))
             assert not np.any(np.isinf(Yp))
 
         # only use for PS-Tree
-        if hasattr(pipe, 'partition_scheme'):
+        if hasattr(pipe, "partition_scheme"):
             partition_scheme = pipe.partition_scheme
             assert not np.any(np.isnan(partition_scheme))
             assert not np.any(np.isinf(partition_scheme))
             Yp = np.concatenate([Yp, np.reshape(partition_scheme, (-1, 1))], axis=1)
-    if hasattr(pipe, 'active_gene') and pipe.active_gene is not None:
+    if hasattr(pipe, "active_gene") and pipe.active_gene is not None:
         Yp = Yp[:, pipe.active_gene]
 
     gp_evaluation_time = time.time() - start_time
@@ -147,8 +193,10 @@ def calculate_score(args):
     if not configuration.cross_validation:
         if configuration.gradient_descent:
             pipe.fit(Yp.detach().numpy(), Y)
-            ridge: LinearModel = pipe['Ridge']
-            assert isinstance(ridge, LinearModel), "Only linear models support gradient descent"
+            ridge: LinearModel = pipe["Ridge"]
+            assert isinstance(
+                ridge, LinearModel
+            ), "Only linear models support gradient descent"
 
             # Use the pipeline for prediction
             Y_pred_pipe = pipe.predict(Yp.detach().numpy())
@@ -156,7 +204,9 @@ def calculate_score(args):
             # extract coefficients from linear model
             weights = ridge.coef_
             bias = ridge.intercept_
-            weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=True)
+            weights_torch = torch.tensor(
+                weights, dtype=torch.float32, requires_grad=True
+            )
             bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
 
             mean = Yp.mean(dim=0)
@@ -167,8 +217,12 @@ def calculate_score(args):
 
             # gradient descent
             criterion = torch.nn.MSELoss()
-            variables = [f.value for tree in func for f in tree
-                         if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)]
+            variables = [
+                f.value
+                for tree in func
+                for f in tree
+                if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)
+            ]
 
             # Use PyTorch for prediction
             Y_pred_torch = Y_pred.detach().numpy()
@@ -181,10 +235,16 @@ def calculate_score(args):
             for v in [weights_torch, bias_torch] + variables:
                 assert v.requires_grad is True
             if len(variables) >= 1:
-                if configuration.gradient_optimizer == 'GD':
-                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=0.1, weight_decay=1e-5)
-                elif configuration.gradient_optimizer == 'GD-1':
-                    optimizer = optim.SGD([weights_torch, bias_torch] + variables, lr=1, weight_decay=1e-5)
+                if configuration.gradient_optimizer == "GD":
+                    optimizer = optim.SGD(
+                        [weights_torch, bias_torch] + variables,
+                        lr=0.1,
+                        weight_decay=1e-5,
+                    )
+                elif configuration.gradient_optimizer == "GD-1":
+                    optimizer = optim.SGD(
+                        [weights_torch, bias_torch] + variables, lr=1, weight_decay=1e-5
+                    )
                 else:
                     raise Exception()
                 loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())
@@ -193,8 +253,9 @@ def calculate_score(args):
                 optimizer.zero_grad()
 
                 # get results based on new parameters
-                Yp = multi_tree_evaluation(func, pset, X, original_features,
-                                           configuration=configuration)
+                Yp = multi_tree_evaluation(
+                    func, pset, X, original_features, configuration=configuration
+                )
 
                 # re-fit a linear model
                 pipe.fit(Yp.detach().numpy(), Y)
@@ -205,9 +266,9 @@ def calculate_score(args):
         estimators = [pipe]
     else:
         if sklearn_format:
-            base_model = pipe['model']['Ridge']
+            base_model = pipe["model"]["Ridge"]
         else:
-            base_model = pipe['Ridge']
+            base_model = pipe["Ridge"]
         regression_task = isinstance(base_model, RegressorMixin)
         if isinstance(base_model, RidgeCV):
             if time_flag:
@@ -222,7 +283,7 @@ def calculate_score(args):
                 pipe.fit(Yp, Y)
 
             if time_flag:
-                print('Cross Validation Time', time.time() - cv_st)
+                print("Cross Validation Time", time.time() - cv_st)
 
             """
             Potential Impacts:
@@ -238,7 +299,8 @@ def calculate_score(args):
             # single fold training (not recommend)
             indices = np.arange(len(Y))
             x_train, x_test, y_train, y_test, idx_train, idx_test = train_test_split(
-                Yp, Y, indices, test_size=0.2)
+                Yp, Y, indices, test_size=0.2
+            )
             estimators = [pipe]
             pipe.fit(x_train, y_train)
             y_pred = np.ones_like(Y)
@@ -251,15 +313,15 @@ def calculate_score(args):
                 cv = get_cv_splitter(base_model, cv)
 
             if filter_elimination is not None and filter_elimination is not False:
-                strategies = set(filter_elimination.split(','))
+                strategies = set(filter_elimination.split(","))
                 mask = np.ones(X.shape[1], dtype=bool)
-                if 'Variance' in strategies:
+                if "Variance" in strategies:
                     # eliminate features based on variance
                     threshold = VarianceThreshold(threshold=0.01)
                     threshold.fit(Yp)
                     indices = threshold.get_support(indices=True)
                     mask[indices] = False
-                if 'Correlation' in strategies:
+                if "Correlation" in strategies:
                     # eliminate features based on correlation
                     col_corr = []
                     corr_matrix = np.corrcoef(Yp)
@@ -280,52 +342,77 @@ def calculate_score(args):
             if regression_task:
                 y_pred, estimators = cross_val_predict(pipe, Yp, Y, cv=cv)
             else:
-                y_pred, estimators = cross_val_predict(pipe, Yp, Y, cv=cv, method='predict_proba')
+                y_pred, estimators = cross_val_predict(
+                    pipe, Yp, Y, cv=cv, method="predict_proba"
+                )
 
             if time_flag:
-                print('Cross Validation Time', time.time() - cv_st)
+                print("Cross Validation Time", time.time() - cv_st)
 
-            if feature_importance_method == 'SHAP' and len(estimators) == cv.n_splits:
+            if feature_importance_method == "SHAP" and len(estimators) == cv.n_splits:
                 for id, estimator in enumerate(estimators):
                     split_fold = list(cv.split(Yp, Y))
                     train_id, test_id = split_fold[id][0], split_fold[id][1]
-                    if isinstance(estimator['Ridge'], (LinearModel, LogisticRegression)):
-                        explainer = shap.LinearExplainer(estimator['Ridge'], Yp[train_id])
-                    elif isinstance(estimator['Ridge'], BaseDecisionTree):
-                        explainer = shap.TreeExplainer(estimator['Ridge'], Yp[train_id])
+                    if isinstance(
+                        estimator["Ridge"], (LinearModel, LogisticRegression)
+                    ):
+                        explainer = shap.LinearExplainer(
+                            estimator["Ridge"], Yp[train_id]
+                        )
+                    elif isinstance(estimator["Ridge"], BaseDecisionTree):
+                        explainer = shap.TreeExplainer(estimator["Ridge"], Yp[train_id])
                     else:
                         raise Exception
-                    if isinstance(estimator['Ridge'], BaseDecisionTree):
+                    if isinstance(estimator["Ridge"], BaseDecisionTree):
                         feature_importance = explainer.shap_values(Yp[test_id])[0]
                     else:
                         feature_importance = explainer.shap_values(Yp[test_id])
-                    estimator['Ridge'].shap_values = np.abs(feature_importance).mean(axis=0)
+                    estimator["Ridge"].shap_values = np.abs(feature_importance).mean(
+                        axis=0
+                    )
 
-            if feature_importance_method == 'PermutationImportance' and len(estimators) == cv.n_splits:
+            if (
+                feature_importance_method == "PermutationImportance"
+                and len(estimators) == cv.n_splits
+            ):
                 # Don't need to calculate the mean value here
                 for id, estimator in enumerate(estimators):
                     split_fold = list(cv.split(Yp, Y))
                     train_id, test_id = split_fold[id][0], split_fold[id][1]
-                    r = permutation_importance(estimator['Ridge'], Yp[test_id], Y[test_id], n_jobs=1, n_repeats=1)
-                    estimator['Ridge'].pi_values = np.abs(r.importances_mean)
+                    r = permutation_importance(
+                        estimator["Ridge"],
+                        Yp[test_id],
+                        Y[test_id],
+                        n_jobs=1,
+                        n_repeats=1,
+                    )
+                    estimator["Ridge"].pi_values = np.abs(r.importances_mean)
 
             if np.any(np.isnan(y_pred)):
-                np.save('error_data_x.npy', Yp)
-                np.save('error_data_y.npy', Y)
+                np.save("error_data_x.npy", Yp)
+                np.save("error_data_y.npy", Y)
                 raise Exception
     ml_evaluation_time = time.time() - start_time
-    return y_pred, estimators, EvaluationResults(gp_evaluation_time=gp_evaluation_time,
-                                                 ml_evaluation_time=ml_evaluation_time,
-                                                 hash_result=hash_result,
-                                                 correlation_results=correlation_results,
-                                                 introns_results=introns_results,
-                                                 semantic_results=semantic_results)
+    return (
+        y_pred,
+        estimators,
+        EvaluationResults(
+            gp_evaluation_time=gp_evaluation_time,
+            ml_evaluation_time=ml_evaluation_time,
+            hash_result=hash_result,
+            correlation_results=correlation_results,
+            introns_results=introns_results,
+            semantic_results=semantic_results,
+        ),
+    )
 
 
 def calculate_permutation_importance(estimators, Yp, Y):
-    if not hasattr(estimators[0]['Ridge'], 'coef_') \
-        and not hasattr(estimators[0]['Ridge'], 'feature_importances_') \
-        and not hasattr(estimators[0]['Ridge'], 'feature_importance'):
+    if (
+        not hasattr(estimators[0]["Ridge"], "coef_")
+        and not hasattr(estimators[0]["Ridge"], "feature_importances_")
+        and not hasattr(estimators[0]["Ridge"], "feature_importance")
+    ):
         if time_flag:
             permutation_st = time.time()
         else:
@@ -347,15 +434,17 @@ def calculate_permutation_importance(estimators, Yp, Y):
             # feature_importances_ = importance_values.importances_mean
             if np.any(feature_importances_ < 0):
                 feature_importances_ = feature_importances_ - feature_importances_.min()
-            estimator['Ridge'].feature_importances_ = feature_importances_ / feature_importances_.sum()
+            estimator["Ridge"].feature_importances_ = (
+                feature_importances_ / feature_importances_.sum()
+            )
 
         if time_flag:
-            print('Permutation Cost', time.time() - permutation_st)
+            print("Permutation Cost", time.time() - permutation_st)
 
 
 def statistical_best_alpha(base_model, Y, new_best_index):
     # new_best_index = statistical_best_alpha(base_model, Y, new_best_index)
-    all_y_pred = (base_model.cv_values_ + Y.mean())
+    all_y_pred = base_model.cv_values_ + Y.mean()
     # get all error values
     errors = (Y.reshape(-1, 1) - all_y_pred) ** 2
     b_idx = None
@@ -370,7 +459,7 @@ def statistical_best_alpha(base_model, Y, new_best_index):
 
 def rbf_kernel_on_label(X, gamma):
     # Compute pairwise squared Euclidean distances
-    distances_sq = cdist(X.reshape(-1, 1), X.reshape(-1, 1), 'sqeuclidean')
+    distances_sq = cdist(X.reshape(-1, 1), X.reshape(-1, 1), "sqeuclidean")
     # Compute RBF kernel
     K = np.exp(-gamma * distances_sq)
     return K
@@ -388,14 +477,18 @@ def get_sample_weight(X, testX, Y, imbalanced_configuration: ImbalancedConfigura
     based_on_test = imbalanced_configuration.based_on_test
     if X_space:
         if based_on_test:
-            D = np.sqrt(np.sum((X[:, np.newaxis, :] - testX[np.newaxis, :, :]) ** 2, axis=-1))
+            D = np.sqrt(
+                np.sum((X[:, np.newaxis, :] - testX[np.newaxis, :, :]) ** 2, axis=-1)
+            )
         else:
             X = np.concatenate([X, Y.reshape(-1, 1)], axis=1)
-            D = np.sqrt(np.sum((X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2, axis=-1))
+            D = np.sqrt(
+                np.sum((X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2, axis=-1)
+            )
         # Set the gamma hyperparameter
         gamma = 1 / X.shape[1]
         # Calculate the RBF kernel matrix
-        K = np.exp(-gamma * D ** 2)
+        K = np.exp(-gamma * D**2)
     else:
         K = rbf_kernel_on_label(Y, 0.1)
 
@@ -408,19 +501,23 @@ def get_sample_weight(X, testX, Y, imbalanced_configuration: ImbalancedConfigura
 
 
 def pipe_combine(Yp, pipe):
-    Yp = list(filter(lambda x: not isinstance(x, (int, float, np.ndarray, enum.Enum)), Yp))
+    Yp = list(
+        filter(lambda x: not isinstance(x, (int, float, np.ndarray, enum.Enum)), Yp)
+    )
     if len(Yp) == 0:
-        pipe = Pipeline([
-            ("feature", "passthrough"),
-            ('model', pipe)
-        ])
+        pipe = Pipeline([("feature", "passthrough"), ("model", pipe)])
     else:
-        pipe = Pipeline([
-            ("feature", FeatureUnion(
-                [(f'preprocessing_{id}', p) for id, p in enumerate(Yp)]
-            )),
-            ('model', pipe)
-        ])
+        pipe = Pipeline(
+            [
+                (
+                    "feature",
+                    FeatureUnion(
+                        [(f"preprocessing_{id}", p) for id, p in enumerate(Yp)]
+                    ),
+                ),
+                ("model", pipe),
+            ]
+        )
     return pipe
 
 
@@ -435,9 +532,9 @@ def single_fold_validation(model, x_data, y_data, index):
             X_train, X_test = x_data[train_index], x_data[test_index]
             y_train, y_test = y_data[train_index], y_data[test_index]
             model.fit(X_train, y_train)
-            if isinstance(model['Ridge'], ClassifierMixin):
+            if isinstance(model["Ridge"], ClassifierMixin):
                 scores.append(accuracy_score(y_test, model.predict(X_test)))
-            elif isinstance(model['Ridge'], RegressorMixin):
+            elif isinstance(model["Ridge"], RegressorMixin):
                 scores.append(r2_score(y_test, model.predict(X_test)))
             else:
                 raise Exception
@@ -446,8 +543,8 @@ def single_fold_validation(model, x_data, y_data, index):
         current_index += 1
     assert np.any(scores != 0)
     return {
-        'test_score': scores,
-        'estimator': [model for _ in range(5)],
+        "test_score": scores,
+        "estimator": [model for _ in range(5)],
     }
 
 
@@ -459,16 +556,21 @@ def get_cv_splitter(base_model, cv, random_state=0):
     return cv
 
 
-def multi_tree_evaluation(func: List[PrimitiveTree], pset, data, original_features=False,
-                          sklearn_format=False,
-                          need_hash=False,
-                          register_array=None,
-                          target=None,
-                          configuration: EvaluationConfiguration = None,
-                          similarity_score=False,
-                          random_noise=0,
-                          random_seed=0,
-                          noise_configuration: NoiseConfiguration = None):
+def multi_tree_evaluation(
+    func: List[PrimitiveTree],
+    pset,
+    data,
+    original_features=False,
+    sklearn_format=False,
+    need_hash=False,
+    register_array=None,
+    target=None,
+    configuration: EvaluationConfiguration = None,
+    similarity_score=False,
+    random_noise=0,
+    random_seed=0,
+    noise_configuration: NoiseConfiguration = None,
+):
     if configuration is None:
         configuration = EvaluationConfiguration()
 
@@ -478,13 +580,13 @@ def multi_tree_evaluation(func: List[PrimitiveTree], pset, data, original_featur
 
     # evaluate an individual rather than a gene
     if sklearn_format:
-        data = enum.Enum('Enum', {f"ARG{i}": i for i in range(data.shape[1])})
+        data = enum.Enum("Enum", {f"ARG{i}": i for i in range(data.shape[1])})
     # quick evaluate the result of features
     result = []
     hash_result = []
     correlation_results = []
     introns_results = []
-    if hasattr(pset, 'number_of_register'):
+    if hasattr(pset, "number_of_register"):
         # This part is useful for modular GP with registers
         register = np.ones((data.shape[0], pset.number_of_register))
         for id, gene in enumerate(func):
@@ -504,24 +606,41 @@ def multi_tree_evaluation(func: List[PrimitiveTree], pset, data, original_featur
             quick_result = quick_fill([quick_result], data)[0]
             add_hash_value(quick_result, hash_result)
             if target is not None:
-                correlation_results.append(np.abs(cos_sim(target - target.mean(), quick_result - quick_result.mean())))
+                correlation_results.append(
+                    np.abs(
+                        cos_sim(
+                            target - target.mean(), quick_result - quick_result.mean()
+                        )
+                    )
+                )
             result.append(quick_result)
             data = np.concatenate([data, np.reshape(quick_result, (-1, 1))], axis=1)
     else:
         # ordinary GP evaluation
         for gene in func:
-            feature, intron_ids = single_tree_evaluation(gene, pset, data, target=target if similarity_score else None,
-                                                         return_subtree_information=True,
-                                                         random_noise=random_noise,
-                                                         random_seed=random_seed,
-                                                         evaluation_configuration=configuration,
-                                                         noise_configuration=noise_configuration)
+            feature, intron_ids = single_tree_evaluation(
+                gene,
+                pset,
+                data,
+                target=target if similarity_score else None,
+                return_subtree_information=True,
+                random_noise=random_noise,
+                random_seed=random_seed,
+                evaluation_configuration=configuration,
+                noise_configuration=noise_configuration,
+            )
             introns_results.append(intron_ids)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
             if target is not None and configuration.intron_calculation:
-                correlation_results.append(np.abs(cos_sim(target - target.mean(),
-                                                          simple_feature - simple_feature.mean())))
+                correlation_results.append(
+                    np.abs(
+                        cos_sim(
+                            target - target.mean(),
+                            simple_feature - simple_feature.mean(),
+                        )
+                    )
+                )
             result.append(feature)
     if not sklearn_format and not gradient_descent:
         result = result_post_process(result, data, original_features)
@@ -536,9 +655,11 @@ def multi_tree_evaluation(func: List[PrimitiveTree], pset, data, original_featur
     if not need_hash:
         return result
     else:
-        return result, EvaluationResults(hash_result=hash_result,
-                                         correlation_results=correlation_results,
-                                         introns_results=introns_results)
+        return result, EvaluationResults(
+            hash_result=hash_result,
+            correlation_results=correlation_results,
+            introns_results=introns_results,
+        )
 
 
 def add_hash_value(quick_result, hash_result):
@@ -556,11 +677,18 @@ cos_sim = lambda a, b: np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
 # @custom_lru_cache(maxsize=10000, key_func=gp_key_func)
-def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
-                           return_subtree_information=False, random_noise=0,
-                           random_seed=0,
-                           evaluation_configuration: EvaluationConfiguration = None,
-                           noise_configuration: NoiseConfiguration = None) -> Tuple[np.ndarray, dict]:
+def single_tree_evaluation(
+    expr: PrimitiveTree,
+    pset,
+    data,
+    prefix="ARG",
+    target=None,
+    return_subtree_information=False,
+    random_noise=0,
+    random_seed=0,
+    evaluation_configuration: EvaluationConfiguration = None,
+    noise_configuration: NoiseConfiguration = None,
+) -> Tuple[np.ndarray, dict]:
     if evaluation_configuration is None:
         evaluation_configuration = EvaluationConfiguration()
     # random noise is vital for sharpness aware minimization
@@ -585,15 +713,27 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
             if isinstance(prim, Primitive):
                 try:
                     result = pset.context[prim.name](*args)
-                    if random_noise > 0 and isinstance(result, np.ndarray) and result.size > 1:
-                        layer_random_noise = get_adaptive_noise(noise_configuration.layer_adaptive,
-                                                                depth_information[id],
-                                                                random_noise)
-                        result = inject_noise_to_data(result, layer_random_noise, noise_configuration,
-                                                      random_seed=random_seed)
+                    if (
+                        random_noise > 0
+                        and isinstance(result, np.ndarray)
+                        and result.size > 1
+                    ):
+                        layer_random_noise = get_adaptive_noise(
+                            noise_configuration.layer_adaptive,
+                            depth_information[id],
+                            random_noise,
+                        )
+                        result = inject_noise_to_data(
+                            result,
+                            layer_random_noise,
+                            noise_configuration,
+                            random_seed=random_seed,
+                        )
                 except OverflowError as e:
                     result = args[0]
-                    logging.error("Overflow error occurred: %s, args: %s", str(e), str(args))
+                    logging.error(
+                        "Overflow error occurred: %s, args: %s", str(e), str(args)
+                    )
                 if target is not None:
                     for arg_id, a in enumerate(args):
                         if np.array_equal(result, a):
@@ -601,18 +741,28 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
             elif isinstance(prim, Terminal):
                 if prefix in prim.name:
                     if isinstance(data, np.ndarray) or isinstance(data, torch.Tensor):
-                        result = data[:, int(prim.name.replace(prefix, ''))]
+                        result = data[:, int(prim.name.replace(prefix, ""))]
                     elif isinstance(data, (dict, enum.EnumMeta)):
                         result = data[prim.name]
                     else:
                         raise ValueError("Unsupported data type!")
-                    if random_noise > 0 and isinstance(result, np.ndarray) and len(result) > 1 \
-                        and noise_configuration.noise_to_terminal is not False:
-                        layer_random_noise = get_adaptive_noise(noise_configuration.layer_adaptive,
-                                                                depth_information[id],
-                                                                random_noise)
-                        result = inject_noise_to_data(result, layer_random_noise, noise_configuration,
-                                                      random_seed=random_seed)
+                    if (
+                        random_noise > 0
+                        and isinstance(result, np.ndarray)
+                        and len(result) > 1
+                        and noise_configuration.noise_to_terminal is not False
+                    ):
+                        layer_random_noise = get_adaptive_noise(
+                            noise_configuration.layer_adaptive,
+                            depth_information[id],
+                            random_noise,
+                        )
+                        result = inject_noise_to_data(
+                            result,
+                            layer_random_noise,
+                            noise_configuration,
+                            random_seed=random_seed,
+                        )
                 else:
                     if isinstance(prim.value, str):
                         result = float(prim.value)
@@ -627,19 +777,33 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
                 else:
                     if classification:
                         one_hot = one_hot_encode(target)
-                        similarity = max(map(lambda t: np.abs(cos_sim(result - result.mean(), t)), one_hot.T))
+                        similarity = max(
+                            map(
+                                lambda t: np.abs(cos_sim(result - result.mean(), t)),
+                                one_hot.T,
+                            )
+                        )
                         subtree_information[id] = similarity
                     else:
-                        subtree_information[id] = np.abs(cos_sim(result - result.mean(), target - target.mean()))
+                        subtree_information[id] = np.abs(
+                            cos_sim(result - result.mean(), target - target.mean())
+                        )
                     if lsh:
                         hash_id = local_sensitive_hash(random_matrix, result)
                         subtree_information[id] = (subtree_information[id], hash_id)
-                    if best_subtree_semantics is None or best_score < subtree_information[id]:
+                    if (
+                        best_subtree_semantics is None
+                        or best_score < subtree_information[id]
+                    ):
                         best_score = subtree_information[id]
                         best_subtree_semantics = result
                     if equivalent_subtree >= 0:
                         # check whether a subtree is equal to its parent
-                        subtree_information[id] = (subtree_information[id], equivalent_subtree, '')
+                        subtree_information[id] = (
+                            subtree_information[id],
+                            equivalent_subtree,
+                            "",
+                        )
             if len(stack) == 0:
                 break  # If stack is empty, all nodes should have been seen
             stack[-1][1].append(result)
@@ -658,17 +822,17 @@ def single_tree_evaluation(expr: PrimitiveTree, pset, data, prefix='ARG', target
 def get_adaptive_noise(layer_adaptive, node_depth, random_noise):
     if layer_adaptive == True:
         layer_random_noise = 1 / node_depth * random_noise
-    elif layer_adaptive == 'Log':
+    elif layer_adaptive == "Log":
         layer_random_noise = 1 / np.log(1 + node_depth) * random_noise
-    elif layer_adaptive == 'Sqrt':
+    elif layer_adaptive == "Sqrt":
         layer_random_noise = 1 / np.sqrt(node_depth) * random_noise
-    elif layer_adaptive == 'Cbrt':
+    elif layer_adaptive == "Cbrt":
         layer_random_noise = 1 / np.cbrt(node_depth) * random_noise
-    elif layer_adaptive == 'Log+':
+    elif layer_adaptive == "Log+":
         layer_random_noise = np.log(1 + node_depth) * random_noise
-    elif layer_adaptive == 'Sqrt+':
+    elif layer_adaptive == "Sqrt+":
         layer_random_noise = np.sqrt(node_depth) * random_noise
-    elif layer_adaptive == 'Cbrt+':
+    elif layer_adaptive == "Cbrt+":
         layer_random_noise = np.cbrt(node_depth) * random_noise
     else:
         layer_random_noise = random_noise
@@ -677,7 +841,7 @@ def get_adaptive_noise(layer_adaptive, node_depth, random_noise):
 
 def lsh_matrix_initialization(lsh, data):
     rng = np.random.RandomState(0)
-    if lsh == 'Log':
+    if lsh == "Log":
         random_matrix = rng.randn(len(data), int(np.ceil(np.log2(len(data)))))
     elif not isinstance(lsh, bool) and isinstance(lsh, int):
         random_matrix = rng.randn(len(data), int(lsh))
@@ -696,11 +860,13 @@ def local_sensitive_hash(random_matrix: np.ndarray, result):
     return hash_id
 
 
-def inject_noise_to_data(result,
-                         random_noise_magnitude,
-                         noise_configuration: NoiseConfiguration,
-                         noise_vector=None,
-                         random_seed=0):
+def inject_noise_to_data(
+    result,
+    random_noise_magnitude,
+    noise_configuration: NoiseConfiguration,
+    noise_vector=None,
+    random_seed=0,
+):
     noise_type = noise_configuration.noise_type
 
     size_of_noise = len(result)
@@ -709,13 +875,13 @@ def inject_noise_to_data(result,
     else:
         noise = noise_generation(noise_type, size_of_noise, random_seed)
 
-    if noise_configuration.noise_normalization == 'Instance+':
+    if noise_configuration.noise_normalization == "Instance+":
         result = result + noise * random_noise_magnitude * result
-    elif noise_configuration.noise_normalization == 'Instance':
+    elif noise_configuration.noise_normalization == "Instance":
         result = result + noise * random_noise_magnitude * np.abs(result)
-    elif noise_configuration.noise_normalization == 'STD':
+    elif noise_configuration.noise_normalization == "STD":
         result = result + noise * random_noise_magnitude * np.std(result)
-    elif noise_configuration.noise_normalization in ['None', None]:
+    elif noise_configuration.noise_normalization in ["None", None]:
         result = result + noise * random_noise_magnitude
     else:
         raise Exception("Invalid noise normalization type")
@@ -729,20 +895,20 @@ def noise_generation(noise_type, size_of_noise, random_seed):
     Obviously, it's possible to use cache technique to avoid the expensive sampling process
     """
     rng = np.random.RandomState(random_seed)
-    if noise_type == 'Normal':
+    if noise_type == "Normal":
         noise = rng.normal(0, 1, size_of_noise)
-    elif noise_type == 'Uniform':
+    elif noise_type == "Uniform":
         noise = rng.uniform(-1, 1, size_of_noise)
-    elif noise_type == 'Laplace':
+    elif noise_type == "Laplace":
         noise = rng.laplace(0, 1, size_of_noise)
-    elif noise_type == 'Ensemble':
+    elif noise_type == "Ensemble":
         choices = [
             rng.normal(0, 1, size_of_noise),
             rng.uniform(-1, 1, size_of_noise),
             rng.laplace(0, 1, size_of_noise),
         ]
         noise = choices[random_seed % len(choices)]
-    elif noise_type == 'Binomial':
+    elif noise_type == "Binomial":
         noise = rng.choice([-1, 1], size_of_noise)
     else:
         raise Exception("Invalid noise type")
@@ -772,13 +938,13 @@ def minimal_task():
     avg_a = np.zeros(x.shape[0])
     for ind in pop:
         avg_a += single_tree_evaluation(ind, pset, x)
-    print('time', time.time() - st)
+    print("time", time.time() - st)
     st = time.time()
     avg_b = np.zeros(x.shape[0])
     for ind in pop:
         func = gp.compile(ind, pset)
         avg_b += func(*x.T)
-    print('time', time.time() - st)
+    print("time", time.time() - st)
     assert_almost_equal(avg_a, avg_b)
 
 
@@ -788,20 +954,21 @@ def minimal_feature_importance():
 
     diabetes = load_diabetes()
     X_train, X_val, y_train, y_val = train_test_split(
-        diabetes.data, diabetes.target, random_state=0)
+        diabetes.data, diabetes.target, random_state=0
+    )
     model = Ridge(alpha=1e-2).fit(X_train, y_train)
     model.score(X_val, y_val)
-    r = permutation_importance(model, X_val, y_val,
-                               n_repeats=30,
-                               random_state=0)
+    r = permutation_importance(model, X_val, y_val, n_repeats=30, random_state=0)
     print(r.importances_mean)
     for i in r.importances_mean.argsort()[::-1]:
         if r.importances_mean[i] - 2 * r.importances_std[i] > 0:
-            print(f"{diabetes.feature_names[i]:<8}"
-                  f"{r.importances_mean[i]:.3f}"
-                  f" +/- {r.importances_std[i]:.3f}")
+            print(
+                f"{diabetes.feature_names[i]:<8}"
+                f"{r.importances_mean[i]:.3f}"
+                f" +/- {r.importances_std[i]:.3f}"
+            )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # minimal_task()
     minimal_feature_importance()

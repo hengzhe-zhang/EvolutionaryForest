@@ -4,7 +4,6 @@ from euclidian_knee_selection import *
 
 
 class TestPointToLineDistance(unittest.TestCase):
-
     def test_point_on_line(self):
         p1 = np.array([0, 0])
         p2 = np.array([1, 1])
@@ -25,24 +24,15 @@ class TestPointToLineDistance(unittest.TestCase):
 
 
 class TestEuclidianKnee(unittest.TestCase):
-
     def test_basic_case(self):
-        front = np.array([
-            [1, 0],
-            [0, 1],
-            [0.3, 0.3],
-            [0.2, 0.8],
-            [0.8, 0.2]
-        ])
+        front = np.array([[1, 0], [0, 1], [0.3, 0.3], [0.2, 0.8], [0.8, 0.2]])
         self.assertEqual(2, euclidian_knee(front))
 
     def test_single_point(self):
-        front = np.array([
-            [0.5, 0.5]
-        ])
+        front = np.array([[0.5, 0.5]])
         # If only one point is given, it's considered the knee
         self.assertEqual(0, euclidian_knee(front))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

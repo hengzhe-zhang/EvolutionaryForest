@@ -9,8 +9,9 @@ from evolutionary_forest.utils import cv_prediction_from_ridge
 class MTLRidgeCV(RidgeCV):
     def __init__(self):
         super().__init__()
-        self.mtl_ridge = MultiOutputRegressor(RidgeCV(store_cv_values=True,
-                                                      scoring=make_scorer(r2_score)))
+        self.mtl_ridge = MultiOutputRegressor(
+            RidgeCV(store_cv_values=True, scoring=make_scorer(r2_score))
+        )
         self.coef_ = None
 
     def fit(self, X, y=None):
@@ -18,7 +19,9 @@ class MTLRidgeCV(RidgeCV):
             y = np.reshape(y, (len(X), -1))
         self.mtl_ridge.fit(X, y)
         self.coef_ = np.mean([e.coef_ for e in self.mtl_ridge.estimators_], axis=0)
-        self.cv_values_ = np.concatenate([e.cv_values_ for e in self.mtl_ridge.estimators_], axis=0)
+        self.cv_values_ = np.concatenate(
+            [e.cv_values_ for e in self.mtl_ridge.estimators_], axis=0
+        )
         return self
 
     def predict(self, X, y=None):
@@ -27,7 +30,7 @@ class MTLRidgeCV(RidgeCV):
     def cv_prediction(self, y):
         tasks = len(self.mtl_ridge.estimators_)
         predictions = []
-        for y_true, model in zip(y.reshape((-1,tasks)).T, self.mtl_ridge.estimators_):
+        for y_true, model in zip(y.reshape((-1, tasks)).T, self.mtl_ridge.estimators_):
             real_p = cv_prediction_from_ridge(y_true, model)
             predictions.append(real_p)
-        return np.concatenate(np.array(predictions).T,axis=0)
+        return np.concatenate(np.array(predictions).T, axis=0)

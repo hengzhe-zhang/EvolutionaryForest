@@ -7,7 +7,10 @@ from typing import List
 
 from deap.gp import __type__, PrimitiveTree, Primitive
 
-from evolutionary_forest.component.configuration import CrossoverConfiguration, MutationConfiguration
+from evolutionary_forest.component.configuration import (
+    CrossoverConfiguration,
+    MutationConfiguration,
+)
 
 
 def individual_combination(offspring, toolbox, pset, limitation_check):
@@ -16,8 +19,8 @@ def individual_combination(offspring, toolbox, pset, limitation_check):
         assert len(population) == 2
         offspring = [toolbox.clone(ind) for ind in population]
         for gene1, gene2 in zip(offspring[0].gene, offspring[1].gene):
-            gene1[0:len(gene1)] = tree_combination(gene1, gene2, pset)
-        return offspring[0],
+            gene1[0 : len(gene1)] = tree_combination(gene1, gene2, pset)
+        return (offspring[0],)
 
     return combination(*offspring)
 
@@ -34,14 +37,16 @@ def tree_combination(ind1, ind2, pset):
     return new_ind
 
 
-def mutUniformSizeSafe(individual: PrimitiveTree, expr, pset, configuration: MutationConfiguration):
+def mutUniformSizeSafe(
+    individual: PrimitiveTree, expr, pset, configuration: MutationConfiguration
+):
     index = random.randrange(len(individual))
     slice_ = individual.searchSubtree(index)
     type_ = individual[index].ret
     tree_height = configuration.max_height - get_height_list(individual)[index]
     # generate a smaller tree
     individual[slice_] = expr(pset=pset, type_=type_, min_=0, max_=tree_height)
-    return individual,
+    return (individual,)
 
 
 def get_children_list(prefix_list):
@@ -129,7 +134,11 @@ def cxOnePointSizeSafe(ind1, ind2, configuration: CrossoverConfiguration):
         # If max height is 2 and the current height is 0, then only allow the tree height no more than 2
         index1_height = configuration.max_height - get_height_list(ind1)[c1_index1]
         # This operator ensures the success of crossover
-        indices = [i for i, height in enumerate(get_inverse_height_list(ind2)) if height <= index1_height]
+        indices = [
+            i
+            for i, height in enumerate(get_inverse_height_list(ind2))
+            if height <= index1_height
+        ]
         if configuration.leaf_biased:
             # get index from tree 2
             c1_index2 = random.choice(list(set(indices) & set(types2[__type__])))
@@ -140,7 +149,11 @@ def cxOnePointSizeSafe(ind1, ind2, configuration: CrossoverConfiguration):
         c2_index2 = random.choice(types2[type_])
         index2_height = configuration.max_height - get_height_list(ind2)[c2_index2]
         # This operator ensures the success of crossover
-        indices = [i for i, height in enumerate(get_inverse_height_list(ind1)) if height <= index2_height]
+        indices = [
+            i
+            for i, height in enumerate(get_inverse_height_list(ind1))
+            if height <= index2_height
+        ]
         if configuration.leaf_biased:
             # get index from tree 1
             c2_index1 = random.choice(list(set(indices) & set(types1[__type__])))
@@ -216,5 +229,5 @@ def cxOnePointWithRoot(ind1, ind2, configuration: CrossoverConfiguration):
 
 def hoistMutation(ind, best_index):
     sub_slice = ind.searchSubtree(best_index)
-    ind[0:len(ind)] = ind[sub_slice]
+    ind[0 : len(ind)] = ind[sub_slice]
     return ind

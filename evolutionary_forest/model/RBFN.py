@@ -12,9 +12,8 @@ from sklearn.gaussian_process.kernels import RBF
 
 
 class RBFN(BaseEstimator, RegressorMixin):
-
     def __init__(self, hidden_shape, sigma=1.0):
-        """ radial basis function network
+        """radial basis function network
         # Arguments
             input_shape: dimension of the input data
             e.g. scalar functions have should have input_dimension = 1
@@ -31,7 +30,7 @@ class RBFN(BaseEstimator, RegressorMixin):
         return np.exp(-self.sigma * np.linalg.norm(center - data_point) ** 2)
 
     def _calculate_interpolation_matrix(self, X):
-        """ Calculates interpolation matrix using a kernel_function
+        """Calculates interpolation matrix using a kernel_function
         # Arguments
             X: Training data
         # Input shape
@@ -53,7 +52,7 @@ class RBFN(BaseEstimator, RegressorMixin):
         return centers
 
     def fit(self, X, Y):
-        """ Fits weights using linear regression
+        """Fits weights using linear regression
         # Arguments
             X: training samples
             Y: targets

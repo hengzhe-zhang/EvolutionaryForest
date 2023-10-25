@@ -21,17 +21,19 @@ from evolutionary_forest.component.subset_selection import EnsembleSelectionADE
 
 
 class StrictlyImprovementHOF(HallOfFame):
-
     def update(self, population):
-        population = list(filter(lambda x: (not hasattr(x, 'parent_fitness')) or
-                                           np.all(x.fitness.wvalues[0] > np.array(x.parent_fitness)),
-                                 population))
+        population = list(
+            filter(
+                lambda x: (not hasattr(x, "parent_fitness"))
+                or np.all(x.fitness.wvalues[0] > np.array(x.parent_fitness)),
+                population,
+            )
+        )
         super().update(population)
 
 
 class CustomHOF(HallOfFame):
-    def __init__(self, maxsize, comparison_function, key_metric,
-                 similar=eq):
+    def __init__(self, maxsize, comparison_function, key_metric, similar=eq):
         self.comparison_function = comparison_function
         self.key_metric = key_metric
         super().__init__(maxsize, similar)
@@ -85,12 +87,18 @@ class GeneralizationHOF(HallOfFame):
         if len(self) == 0:
             super().update(population)
         else:
-            if best_ind.fitness.wvalues[0] - best_ind.complexity_score > \
-                self[0].fitness.wvalues[0] - self[0].complexity_score:
+            if (
+                best_ind.fitness.wvalues[0] - best_ind.complexity_score
+                > self[0].fitness.wvalues[0] - self[0].complexity_score
+            ):
                 super().update(population)
             else:
                 if self.verbose:
-                    print('Complexity Score', best_ind.complexity_score, self[0].complexity_score)
+                    print(
+                        "Complexity Score",
+                        best_ind.complexity_score,
+                        self[0].complexity_score,
+                    )
 
 
 class LexicaseHOF(HallOfFame):
@@ -110,14 +118,18 @@ class LexicaseHOF(HallOfFame):
             if hofer_arr is None:
                 hofer_arr = np.array(-1 * hofer.case_values).reshape(1, -1)
             else:
-                hofer_arr = np.concatenate([hofer_arr, np.array(-1 * hofer.case_values).reshape(1, -1)])
+                hofer_arr = np.concatenate(
+                    [hofer_arr, np.array(-1 * hofer.case_values).reshape(1, -1)]
+                )
         max_hof = np.max(hofer_arr, axis=0)
 
         del_ind = []
         max_value = np.full_like(max_hof, -np.inf)
         for index, x in enumerate(self):
             fitness_wvalues = np.array(-1 * x.case_values)
-            if np.any(fitness_wvalues >= max_hof) and np.any(fitness_wvalues > max_value):
+            if np.any(fitness_wvalues >= max_hof) and np.any(
+                fitness_wvalues > max_value
+            ):
                 loc = np.where(fitness_wvalues > max_value)
                 max_value[loc] = fitness_wvalues[loc]
                 continue
@@ -140,7 +152,10 @@ class RandomObjectiveHOF(HallOfFame):
                 # "for else"
                 self.insert(population[0])
                 continue
-            if np.any(ind.case_values < self[-1].case_values) or len(self) < self.maxsize:
+            if (
+                np.any(ind.case_values < self[-1].case_values)
+                or len(self) < self.maxsize
+            ):
                 for hofer in self:
                     # Loop through the hall of fame to check for any
                     # similar individual
@@ -160,9 +175,20 @@ There are two places need to consider data imbalance
 
 
 class EnsembleSelectionHallOfFame(HallOfFame):
-    def __init__(self, maxsize, label, similar=eq, multitask=False,
-                 unique=True, bagging_iteration=1, loss_function=None, inner_sampling=0,
-                 outer_sampling=0.5, limited_sample=False, initial_size=5):
+    def __init__(
+        self,
+        maxsize,
+        label,
+        similar=eq,
+        multitask=False,
+        unique=True,
+        bagging_iteration=1,
+        loss_function=None,
+        inner_sampling=0,
+        outer_sampling=0.5,
+        limited_sample=False,
+        initial_size=5,
+    ):
         """
         Three strategies:
         1. Selection with Replacement
@@ -182,7 +208,7 @@ class EnsembleSelectionHallOfFame(HallOfFame):
         self.instances_num = 0
         self.verbose = False
         self.class_weight = None
-        self.task_type = 'Regression'
+        self.task_type = "Regression"
         self.loss_function = loss_function
         self.multitask = multitask
         self.inner_sampling = inner_sampling
@@ -205,16 +231,16 @@ class EnsembleSelectionHallOfFame(HallOfFame):
     def loss(self, prediction):
         # Both classification and regression use MSE as the ensemble selection metric
         # The reason is due to an additive model need to use MSE as the loss function
-        if self.task_type == 'Regression':
+        if self.task_type == "Regression":
             return self.mse(prediction)
         else:
-            if self.loss_function == 'Hinge':
+            if self.loss_function == "Hinge":
                 return self.hinge_loss(prediction)
-            elif self.loss_function == 'CrossEntropy':
+            elif self.loss_function == "CrossEntropy":
                 return self.cross_entropy(prediction)
-            elif self.loss_function == 'ZeroOne':
+            elif self.loss_function == "ZeroOne":
                 return self.zero_one(prediction)
-            elif self.loss_function == 'MSE':
+            elif self.loss_function == "MSE":
                 return self.mse(prediction)
             else:
                 raise Exception
@@ -237,16 +263,18 @@ class EnsembleSelectionHallOfFame(HallOfFame):
         # we need to define a variable to record
         selection_count = 0
 
-        if self.loss_function == 'ZeroOne':
+        if self.loss_function == "ZeroOne":
             # ZeroOne loss is beneficial for a decision tree
             for ind in population:
                 # ind.predicted_values = (ind.predicted_values == np.max(ind.predicted_values, axis=0)).astype(int)
                 argmax = np.argmax(ind.predicted_values, axis=1)
                 ind.predicted_values[:] = 0
-                ind.predicted_values[np.arange(0, len(ind.predicted_values)), argmax] = 1
+                ind.predicted_values[
+                    np.arange(0, len(ind.predicted_values)), argmax
+                ] = 1
 
         def error_calculation(x):
-            prediction = ((x.predicted_values + sum_prediction) / (selection_count + 1))
+            prediction = (x.predicted_values + sum_prediction) / (selection_count + 1)
             if self.class_weight is not None:
                 loss = self.loss(prediction)
                 if len(loss.shape) == 1:
@@ -263,10 +291,12 @@ class EnsembleSelectionHallOfFame(HallOfFame):
             if selection_count == 0:
                 if isinstance(self, GreedySelectionHallOfFame):
                     # calculate loss summation
-                    if self.loss_function in ['ZeroOne', 'CrossEntropy', 'MSE']:
+                    if self.loss_function in ["ZeroOne", "CrossEntropy", "MSE"]:
                         errors = [error_calculation(x) for x in all_inds]
                     else:
-                        errors = [np.sum(x.case_values[:instances_num]) for x in all_inds]
+                        errors = [
+                            np.sum(x.case_values[:instances_num]) for x in all_inds
+                        ]
                     # For multitask optimization, consider tasks separately
                     if self.multitask and all_inds[0].base_model is not None:
                         initial_individuals = self.initial_size * 2
@@ -275,8 +305,13 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                         inds = []
                         for m in all_base_models:
                             # Select top individuals for each base model
-                            inds.extend(list(filter(lambda id: all_inds[id].base_model == m, args))
-                                        [:self.initial_size])
+                            inds.extend(
+                                list(
+                                    filter(
+                                        lambda id: all_inds[id].base_model == m, args
+                                    )
+                                )[: self.initial_size]
+                            )
                     else:
                         initial_individuals = self.initial_size
 
@@ -307,39 +342,54 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                                 self.ensemble_weight[ind_tuple] += 1
 
                     if self.unique:
-                        assert len(all_inds) < population_size, f'{len(all_inds)} {population_size}'
+                        assert (
+                            len(all_inds) < population_size
+                        ), f"{len(all_inds)} {population_size}"
 
                     # Ensure the correct number of individuals were selected
                     assert selection_count == initial_individuals, selection_count
 
                     # Update current error (first iteration)
-                    prediction = (sum_prediction / initial_individuals)
+                    prediction = sum_prediction / initial_individuals
                     if self.class_weight is not None:
-                        current_error = np.sum(self.class_weight * self.loss(prediction))
+                        current_error = np.sum(
+                            self.class_weight * self.loss(prediction)
+                        )
                     else:
                         current_error = np.sum(self.loss(prediction))
                     continue
                 else:
                     # Select the individual with the minimum sum of case values
-                    ind = min(all_inds, key=lambda x: np.sum(x.case_values[:instances_num]))
+                    ind = min(
+                        all_inds, key=lambda x: np.sum(x.case_values[:instances_num])
+                    )
             else:
                 if isinstance(self, DREPHallOfFame):
-                    if self.class_weight is not None or self.task_type == 'Classification':
+                    if (
+                        self.class_weight is not None
+                        or self.task_type == "Classification"
+                    ):
                         raise Exception
 
                     # First select individuals based on diversity (r proportion of the population)
                     avg_prediction = sum_prediction / selection_count
-                    diversity_function = lambda x: -1 * np.sum((x.predicted_values - avg_prediction) ** 2)
+                    diversity_function = lambda x: -1 * np.sum(
+                        (x.predicted_values - avg_prediction) ** 2
+                    )
                     ranked_individuals = sorted(all_inds, key=diversity_function)
-                    elitist = ranked_individuals[:math.ceil(self.r * len(all_inds))]
+                    elitist = ranked_individuals[: math.ceil(self.r * len(all_inds))]
 
                     # Then select individuals based on accuracy from the diversity-selected individuals
-                    ind = min(elitist, key=lambda x: np.sum(x.case_values[:instances_num]))
+                    ind = min(
+                        elitist, key=lambda x: np.sum(x.case_values[:instances_num])
+                    )
                 elif isinstance(self, GreedySelectionHallOfFame):
                     # Select individuals based on loss reduction
                     if self.inner_sampling > 0:
                         # Randomly select individuals with probability based on inner_sampling
-                        selected_index = np.random.random(len(all_inds)) < self.inner_sampling
+                        selected_index = (
+                            np.random.random(len(all_inds)) < self.inner_sampling
+                        )
 
                         # Ensure at least one individual is selected if all values are False
                         if np.sum(selected_index) == 0:
@@ -374,10 +424,12 @@ class EnsembleSelectionHallOfFame(HallOfFame):
 
                 if skip_selection:
                     # Skip further selection and continue to the next iteration
-                    assert remove_bad_one, ("Skipping selection can only be used with removing bad ones."
-                                            "The way to stop:"
-                                            "1. Gradually eliminate all bad ones"
-                                            "2. Reach selection count limit")
+                    assert remove_bad_one, (
+                        "Skipping selection can only be used with removing bad ones."
+                        "The way to stop:"
+                        "1. Gradually eliminate all bad ones"
+                        "2. Reach selection count limit"
+                    )
                     continue
 
                 if early_stop:
@@ -410,7 +462,9 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                         all_inds.remove(ind)
         # assert_almost_equal(np.sum(sum_prediction / selection_count, axis=1), 1)
         if self.class_weight is not None:
-            loss = np.mean(self.class_weight * self.loss(sum_prediction / selection_count))
+            loss = np.mean(
+                self.class_weight * self.loss(sum_prediction / selection_count)
+            )
         else:
             loss = np.mean(self.loss(sum_prediction / selection_count))
         return new_inds, loss
@@ -432,7 +486,9 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                 selected_index = np.random.random(len(all_inds)) < probability
 
                 # Perform ensemble selection on the selected individuals
-                temp_inds, _ = self.ensemble_selection(list(compress(all_inds, selected_index)))
+                temp_inds, _ = self.ensemble_selection(
+                    list(compress(all_inds, selected_index))
+                )
 
                 # Add unique individuals to the new ensemble
                 for ind in temp_inds:
@@ -447,7 +503,7 @@ class EnsembleSelectionHallOfFame(HallOfFame):
             new_inds, _ = self.ensemble_selection(list(population))
 
         if self.verbose:
-            print('Ensemble Size', len(new_inds))
+            print("Ensemble Size", len(new_inds))
 
         # Clear the current ensemble
         self.clear()
@@ -470,16 +526,17 @@ class DREPHallOfFame(EnsembleSelectionHallOfFame):
 
 
 class MultiTaskHallOfFame(HallOfFame):
-
     def __init__(self, maxsize, model_list, similar=eq):
         self.model_list = model_list
         super().__init__(maxsize, similar)
-        number_of_models = len(self.model_list.split(','))
-        self.real_hof = [HallOfFame(maxsize // number_of_models) for _ in range(number_of_models)]
+        number_of_models = len(self.model_list.split(","))
+        self.real_hof = [
+            HallOfFame(maxsize // number_of_models) for _ in range(number_of_models)
+        ]
 
     def update(self, population):
         all_models = []
-        for id, model in enumerate(self.model_list.split(',')):
+        for id, model in enumerate(self.model_list.split(",")):
             new_ind = list(filter(lambda x: x.base_model == model, population))
             self.real_hof[id].update(new_ind)
             all_models.extend(list(self.real_hof[id].items))
@@ -487,8 +544,13 @@ class MultiTaskHallOfFame(HallOfFame):
 
 
 class ValidationHallOfFame(HallOfFame):
-    def __init__(self, maxsize, validation_function, archive_configuration: ArchiveConfiguration,
-                 similar=eq):
+    def __init__(
+        self,
+        maxsize,
+        validation_function,
+        archive_configuration: ArchiveConfiguration,
+        similar=eq,
+    ):
         # Currently, only supports size of one
         self.validation_function = validation_function
         self.archive_configuration = archive_configuration
@@ -498,10 +560,14 @@ class ValidationHallOfFame(HallOfFame):
     def update(self, population):
         if self.archive_configuration.dynamic_validation and len(self) > 0:
             # update the fitness of individuals in the hall of fame
-            self[0].fitness.values = (-1 * self.validation_function(self[0], force_training=True),)
+            self[0].fitness.values = (
+                -1 * self.validation_function(self[0], force_training=True),
+            )
         best_individual = max(population, key=lambda x: x.fitness.wvalues)
         best_individual = copy.deepcopy(best_individual)
-        best_individual.fitness.values = (-1 * self.validation_function(best_individual),)
+        best_individual.fitness.values = (
+            -1 * self.validation_function(best_individual),
+        )
         super().update([best_individual])
 
 
@@ -526,7 +592,9 @@ class HybridHallOfFame(HallOfFame):
 
     def update(self, population):
         for cls, hof in zip([RidgeCV, DecisionTreeRegressor], self.hofs):
-            hof.update(list(filter(lambda x: isinstance(x.pipe['Ridge'], cls), population)))
+            hof.update(
+                list(filter(lambda x: isinstance(x.pipe["Ridge"], cls), population))
+            )
 
     def __len__(self):
         return len(list(chain.from_iterable(self.hofs)))
@@ -557,11 +625,13 @@ class OOBHallOfFame(HallOfFame):
         if len(self.items) < self.maxsize:
             super().update(population)
         else:
-            classes = population[0].pipe['Ridge'].classes_
-            n_classes = population[0].pipe['Ridge'].n_classes_
+            classes = population[0].pipe["Ridge"].classes_
+            n_classes = population[0].pipe["Ridge"].n_classes_
 
             # generate one-hot label
-            encoded_label = OneHotEncoder(sparse_output=False).fit_transform(self.y.reshape(-1, 1))
+            encoded_label = OneHotEncoder(sparse_output=False).fit_transform(
+                self.y.reshape(-1, 1)
+            )
             assert np.all(classes[np.argmax(encoded_label, axis=1)] == self.y)
             assert encoded_label.shape[1] == n_classes
 
@@ -573,16 +643,28 @@ class OOBHallOfFame(HallOfFame):
 
             def evaluation_func(x):
                 # calculate the OOB error for a given selection scheme
-                x_index = np.argsort(x)[:self.maxsize]
-                return np.sum((np.nanmean(prediction[x_index], axis=0) - encoded_label) ** 2)
+                x_index = np.argsort(x)[: self.maxsize]
+                return np.sum(
+                    (np.nanmean(prediction[x_index], axis=0) - encoded_label) ** 2
+                )
 
             # generate an initial vector based on fitness values
             initial_vector = np.zeros(len(current_pop))
-            initial_vector[np.argsort(-1 * np.array([p.fitness.wvalues[0] for p in current_pop]))[:self.maxsize]] = -1
-            e = EnsembleSelectionADE(len(current_pop), 20, 100, evaluation_function=evaluation_func,
-                                     verbose=False, de_algorithm='JSO')
+            initial_vector[
+                np.argsort(-1 * np.array([p.fitness.wvalues[0] for p in current_pop]))[
+                    : self.maxsize
+                ]
+            ] = -1
+            e = EnsembleSelectionADE(
+                len(current_pop),
+                20,
+                100,
+                evaluation_function=evaluation_func,
+                verbose=False,
+                de_algorithm="JSO",
+            )
             result = e.run(initial_vector=initial_vector)
-            selected_index = np.argsort(result)[:self.maxsize]
+            selected_index = np.argsort(result)[: self.maxsize]
 
             self.clear()
             for s in selected_index:
@@ -599,9 +681,9 @@ class BootstrapHallOfFame(HallOfFame):
         super().__init__(maxsize, similar)
         self.x_train = x_train
         sample_indices = np.arange(self.x_train.shape[0])
-        bootstrap_indices = np.random.choice(sample_indices,
-                                             size=(maxsize, sample_indices.shape[0]),
-                                             replace=True)
+        bootstrap_indices = np.random.choice(
+            sample_indices, size=(maxsize, sample_indices.shape[0]), replace=True
+        )
         self.bootstrap_indices = bootstrap_indices
         self.items = [None for _ in range(maxsize)]
         self.items_score = [np.inf for _ in range(maxsize)]

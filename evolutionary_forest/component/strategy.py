@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-class Strategy():
+class Strategy:
     @staticmethod
     def do(self):
         pass
@@ -28,12 +28,17 @@ class Clearing(Strategy):
             key = np.arange(0, len(population))
 
             # Use K-means clustering to assign labels to each individual based on their case values
-            label = KMeans(len(population) // self.clearing_cluster_size).fit_predict(all_case_values)
-            df = pd.DataFrame(np.array([key, label, sum_fitness]).T, columns=['key', 'label', 'fitness'])
+            label = KMeans(len(population) // self.clearing_cluster_size).fit_predict(
+                all_case_values
+            )
+            df = pd.DataFrame(
+                np.array([key, label, sum_fitness]).T,
+                columns=["key", "label", "fitness"],
+            )
 
             # Sort individuals in descending order based on fitness and keep only the best in each cluster
-            df = df.sort_values('fitness', ascending=False).drop_duplicates(['label'])
+            df = df.sort_values("fitness", ascending=False).drop_duplicates(["label"])
 
             # Update the population by selecting the best individuals
-            population = [population[int(k)] for k in list(df['key'])]
+            population = [population[int(k)] for k in list(df["key"])]
         return population

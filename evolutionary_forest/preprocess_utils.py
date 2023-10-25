@@ -1,8 +1,21 @@
 import numpy as np
 from category_encoders import OrdinalEncoder, OneHotEncoder
-from category_encoders import TargetEncoder, LeaveOneOutEncoder, BinaryEncoder, CatBoostEncoder, PolynomialEncoder, \
-    BackwardDifferenceEncoder, CountEncoder, HashingEncoder, HelmertEncoder, JamesSteinEncoder, \
-    MEstimateEncoder, QuantileEncoder, SumEncoder, SummaryEncoder
+from category_encoders import (
+    TargetEncoder,
+    LeaveOneOutEncoder,
+    BinaryEncoder,
+    CatBoostEncoder,
+    PolynomialEncoder,
+    BackwardDifferenceEncoder,
+    CountEncoder,
+    HashingEncoder,
+    HelmertEncoder,
+    JamesSteinEncoder,
+    MEstimateEncoder,
+    QuantileEncoder,
+    SumEncoder,
+    SummaryEncoder,
+)
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
@@ -68,39 +81,44 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         #         cat_cols.append(i)
 
         encoder = {
-            'TargetEncoder': TargetEncoder(),
-            'LeaveOneOutEncoder': LeaveOneOutEncoder(),
-            'BinaryEncoder': BinaryEncoder(),
-            'CatBoostEncoder': CatBoostEncoder(),
-            'PolynomialEncoder': PolynomialEncoder(),
-            'BackwardDifferenceEncoder': BackwardDifferenceEncoder(),
-            'CountEncoder': CountEncoder(),
-            'HashingEncoder': HashingEncoder(),
-            'HelmertEncoder': HelmertEncoder(),
-            'JamesSteinEncoder': JamesSteinEncoder(),
-            'MEstimateEncoder': MEstimateEncoder(),
-            'OneHotEncoder': OneHotEncoder(),
-            'OrdinalEncoder': OrdinalEncoder(),
-            'QuantileEncoder': QuantileEncoder(),
-            'SumEncoder': SumEncoder(),
-            'SummaryEncoder': SummaryEncoder(),
+            "TargetEncoder": TargetEncoder(),
+            "LeaveOneOutEncoder": LeaveOneOutEncoder(),
+            "BinaryEncoder": BinaryEncoder(),
+            "CatBoostEncoder": CatBoostEncoder(),
+            "PolynomialEncoder": PolynomialEncoder(),
+            "BackwardDifferenceEncoder": BackwardDifferenceEncoder(),
+            "CountEncoder": CountEncoder(),
+            "HashingEncoder": HashingEncoder(),
+            "HelmertEncoder": HelmertEncoder(),
+            "JamesSteinEncoder": JamesSteinEncoder(),
+            "MEstimateEncoder": MEstimateEncoder(),
+            "OneHotEncoder": OneHotEncoder(),
+            "OrdinalEncoder": OrdinalEncoder(),
+            "QuantileEncoder": QuantileEncoder(),
+            "SumEncoder": SumEncoder(),
+            "SummaryEncoder": SummaryEncoder(),
             # 'GLMMEncoder': GLMMEncoder(), # Unavailable
         }[self.encoding_scheme]
-        num_transformer = Pipeline([
-            ('Imputer', SimpleImputer(strategy='mean')),
-            ('Encoder', StandardScaler()),
-        ])
+        num_transformer = Pipeline(
+            [
+                ("Imputer", SimpleImputer(strategy="mean")),
+                ("Encoder", StandardScaler()),
+            ]
+        )
         cat_transformer = Pipeline(
-            [('Imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-             ('Encoder', encoder),
-             ('Scaler', StandardScaler())]
+            [
+                ("Imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+                ("Encoder", encoder),
+                ("Scaler", StandardScaler()),
+            ]
         )
         transformer = ColumnTransformer(
             transformers=[
-                ('num', num_transformer, selector(dtype_include='float64')),
-                ('cat', cat_transformer, selector(dtype_include='category')),
-                ('obj', cat_transformer, selector(dtype_include='object')),
-            ])
+                ("num", num_transformer, selector(dtype_include="float64")),
+                ("cat", cat_transformer, selector(dtype_include="category")),
+                ("obj", cat_transformer, selector(dtype_include="object")),
+            ]
+        )
 
         self.x_scaler = transformer
         self.x_scaler.fit(X, y)
@@ -110,5 +128,5 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         return self.x_scaler.transform(X)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass

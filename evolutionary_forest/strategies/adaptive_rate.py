@@ -14,7 +14,7 @@ class CosineAnnealingLR:
         return lr
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 设置最大轮数和初始学习率
     max_epochs = 50
     base_lr = 0.1
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     # 绘制学习率随epoch变化的曲线
     plt.plot(lr_history)
-    plt.xlabel('Epoch')
-    plt.ylabel('Learning Rate')
-    plt.title('Cosine Annealing Learning Rate Schedule')
+    plt.xlabel("Epoch")
+    plt.ylabel("Learning Rate")
+    plt.title("Cosine Annealing Learning Rate Schedule")
     plt.show()

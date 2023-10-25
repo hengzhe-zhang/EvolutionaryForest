@@ -27,26 +27,50 @@ class ExpensiveBenchmarkGenerator(BaseEstimator):
         self.gene_num = self.number_of_variables + self.number_of_objectives
         self.X = np.random.randn(5, 50, self.number_of_variables)
         self.pset = MultiplePrimitiveSet("MAIN", 1, "ARG")
-        self.pset.pset_list = [self.get_pset(1) for _ in range(self.number_of_variables)] + \
-                              [self.get_pset(self.number_of_variables) for _ in range(self.number_of_objectives)]
+        self.pset.pset_list = [
+            self.get_pset(1) for _ in range(self.number_of_variables)
+        ] + [
+            self.get_pset(self.number_of_variables)
+            for _ in range(self.number_of_objectives)
+        ]
 
         self.toolbox = TypedToolbox()
         toolbox = self.toolbox
         toolbox.expr = partial(gp.genHalfAndHalf, pset=self.pset, min_=0, max_=2)
-        toolbox.individual = partial(multiple_gene_initialization, MultipleGeneGP, toolbox.expr,
-                                     gene_num=self.gene_num)
+        toolbox.individual = partial(
+            multiple_gene_initialization,
+            MultipleGeneGP,
+            toolbox.expr,
+            gene_num=self.gene_num,
+        )
         toolbox.population = partial(tools.initRepeat, list, toolbox.individual)
         toolbox.evaluate = self.fitness_evaluation
         crossover_configuration = CrossoverConfiguration()
         crossover_configuration.same_index = True
-        toolbox.register("mate", cxOnePoint_multiple_gene, crossover_configuration=crossover_configuration)
+        toolbox.register(
+            "mate",
+            cxOnePoint_multiple_gene,
+            crossover_configuration=crossover_configuration,
+        )
         toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-        toolbox.register("mutate", mutUniform_multiple_gene, expr=toolbox.expr_mut, pset=self.pset)
+        toolbox.register(
+            "mutate", mutUniform_multiple_gene, expr=toolbox.expr_mut, pset=self.pset
+        )
         toolbox.select = partial(selTournament, tournsize=7)
 
         max_value = 3
-        toolbox.decorate("mate", staticLimit_multiple_gene(key=operator.attrgetter("height"), max_value=max_value))
-        toolbox.decorate("mutate", staticLimit_multiple_gene(key=operator.attrgetter("height"), max_value=max_value))
+        toolbox.decorate(
+            "mate",
+            staticLimit_multiple_gene(
+                key=operator.attrgetter("height"), max_value=max_value
+            ),
+        )
+        toolbox.decorate(
+            "mutate",
+            staticLimit_multiple_gene(
+                key=operator.attrgetter("height"), max_value=max_value
+            ),
+        )
 
         self.n_gen = n_gen
         self.n_pop = n_pop
@@ -71,39 +95,48 @@ class ExpensiveBenchmarkGenerator(BaseEstimator):
     def print_code(self, ind):
         for id, g in enumerate(ind.gene):
             if id < self.number_of_variables:
-                print(f'VAR{id}=lambda:', gene_to_string(g).replace('ARG', 'X'))
+                print(f"VAR{id}=lambda:", gene_to_string(g).replace("ARG", "X"))
             else:
-                print(f'O{id - self.number_of_variables}=lambda:', gene_to_string(g).replace('ARG', 'VAR'))
+                print(
+                    f"O{id - self.number_of_variables}=lambda:",
+                    gene_to_string(g).replace("ARG", "VAR"),
+                )
 
     def fitness_evaluation(self, ind: MultipleGeneGP):
         all_scores = []
         for group_X in self.X:
             final_array = []
             c_id = 0
-            for g in ind.gene[:self.number_of_variables]:
+            for g in ind.gene[: self.number_of_variables]:
                 y_array = []
                 for x in group_X.T:
-                    y = single_tree_evaluation(g, self.pset.pset_list[c_id], np.reshape(x, (-1, 1)))
+                    y = single_tree_evaluation(
+                        g, self.pset.pset_list[c_id], np.reshape(x, (-1, 1))
+                    )
                     y_array.append(y)
                 final_array.append(np.mean(y_array, axis=0))
                 c_id += 1
             final_array = np.array(final_array)
 
             objectives = []
-            for g in ind.gene[self.number_of_variables:]:
+            for g in ind.gene[self.number_of_variables :]:
                 y = single_tree_evaluation(g, self.pset.pset_list[c_id], final_array.T)
                 objectives.append(y)
                 c_id += 1
-            pipe = Pipeline([
-                ('Scaler', StandardScaler()),
-                ('GP', GaussianProcessRegressor(normalize_y=True)),
-            ])
+            pipe = Pipeline(
+                [
+                    ("Scaler", StandardScaler()),
+                    ("GP", GaussianProcessRegressor(normalize_y=True)),
+                ]
+            )
             scoring = make_scorer(spearman)
-            average_score = max(np.mean(cross_val_score(pipe, group_X, objectives[0], scoring=scoring)),
-                                np.mean(cross_val_score(pipe, group_X, objectives[1], scoring=scoring)))
+            average_score = max(
+                np.mean(cross_val_score(pipe, group_X, objectives[0], scoring=scoring)),
+                np.mean(cross_val_score(pipe, group_X, objectives[1], scoring=scoring)),
+            )
             all_scores.append(average_score)
         all_scores = np.mean(all_scores)
-        return all_scores,
+        return (all_scores,)
 
     def fit(self):
         pop = self.toolbox.population(self.n_pop)
@@ -119,13 +152,19 @@ class ExpensiveBenchmarkGenerator(BaseEstimator):
         mstats.register("min", np.min, axis=0)
         mstats.register("max", np.max, axis=0)
 
-        eaSimple(pop, self.toolbox, self.cross_pb, self.mutation_pb, self.n_gen,
-                 stats=mstats,
-                 halloffame=self.hof,
-                 verbose=True)
+        eaSimple(
+            pop,
+            self.toolbox,
+            self.cross_pb,
+            self.mutation_pb,
+            self.n_gen,
+            stats=mstats,
+            halloffame=self.hof,
+            verbose=True,
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     exp = ExpensiveBenchmarkGenerator()
     exp.fit()
     for g in exp.hof:

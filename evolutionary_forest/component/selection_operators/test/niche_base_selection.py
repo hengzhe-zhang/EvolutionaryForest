@@ -15,9 +15,11 @@ class MockFitness:
 
 
 class TestNicheBaseSelection(unittest.TestCase):
-    @patch.object(evo_selection, 'selAutomaticEpsilonLexicaseFast')
+    @patch.object(evo_selection, "selAutomaticEpsilonLexicaseFast")
     def test_niche_base_selection(self, mock_sel):
-        from evolutionary_forest.component.selection_operators.niche_base_selection import niche_base_selection
+        from evolutionary_forest.component.selection_operators.niche_base_selection import (
+            niche_base_selection,
+        )
 
         # Mock the return value of selAutomaticEpsilonLexicaseFast
         mock_sel.side_effect = lambda x, k: x[:k]
@@ -31,5 +33,5 @@ class TestNicheBaseSelection(unittest.TestCase):
         print(selected_individuals)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

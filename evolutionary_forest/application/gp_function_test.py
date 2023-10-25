@@ -4,7 +4,7 @@ from baes_class import ExpensiveMOEABenchmark
 
 
 def analytical_quotient(x1, x2):
-    return x1 / np.sqrt(1 + (x2 ** 2))
+    return x1 / np.sqrt(1 + (x2**2))
 
 
 class ExpensiveMOEABenchmark1(ExpensiveMOEABenchmark):
@@ -24,7 +24,7 @@ class ExpensiveMOEABenchmark1(ExpensiveMOEABenchmark):
         ]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     bench = ExpensiveMOEABenchmark1()
     bench.evaluation()
     bench.plot()

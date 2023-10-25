@@ -5,15 +5,15 @@ from sklearn.base import BaseEstimator, TransformerMixin
 def get_feature_type(x, include_binary=False):
     # x = x[~np.isnan(x)]
     if not check_if_all_integers(x):
-        return 'continuous'
+        return "continuous"
     else:
         unique_values = np.unique(x)
         if unique_values.size > 5:
-            return 'continuous'
+            return "continuous"
         if include_binary:
             if unique_values.size == 2:
-                return 'binary'
-        return 'categorical'
+                return "binary"
+        return "categorical"
 
 
 def check_if_all_integers(x):
@@ -32,7 +32,9 @@ class TargetEncoder(BaseEstimator, TransformerMixin):
         for column in range(X.shape[1]):
             feature = X[:, column]
             feature_type = get_feature_type(feature, self.include_binary)
-            if feature_type == 'categorical' or (feature_type == 'binary' and self.include_binary):
+            if feature_type == "categorical" or (
+                feature_type == "binary" and self.include_binary
+            ):
                 encoding = {}
                 for unique_value in np.unique(feature):
                     encoding[unique_value] = y[feature == unique_value].mean()

@@ -2,7 +2,17 @@ from deap.gp import Primitive, Terminal
 
 
 class IntronPrimitive(Primitive):
-    __slots__ = ('name', 'arity', 'args', 'ret', 'seq', 'corr', 'level', 'equal_subtree', 'hash_id')
+    __slots__ = (
+        "name",
+        "arity",
+        "args",
+        "ret",
+        "seq",
+        "corr",
+        "level",
+        "equal_subtree",
+        "hash_id",
+    )
 
     @property
     def intron(self):
@@ -17,7 +27,7 @@ class IntronPrimitive(Primitive):
 
 
 class IntronTerminal(Terminal):
-    __slots__ = ('name', 'value', 'ret', 'conv_fct', 'corr', 'level', 'hash_id')
+    __slots__ = ("name", "value", "ret", "conv_fct", "corr", "level", "hash_id")
 
     @property
     def intron(self):

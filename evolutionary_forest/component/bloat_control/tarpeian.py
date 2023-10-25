@@ -9,10 +9,10 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-class Tarpeian():
-    def __init__(self, algorithm: "EvolutionaryForestRegressor",
-                 reduce_fraction=0.3,
-                 **kwargs):
+class Tarpeian:
+    def __init__(
+        self, algorithm: "EvolutionaryForestRegressor", reduce_fraction=0.3, **kwargs
+    ):
         self.algorithm = algorithm
         self.reduce_fraction = reduce_fraction
 

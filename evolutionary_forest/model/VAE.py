@@ -51,7 +51,9 @@ class NeuralNetTransformer(NeuralNet, TransformerMixin):
         recons, mu, log_var = y_pred
         self.beta = 0.1
         recons_loss = F.mse_loss(recons, X)
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
+        kld_loss = torch.mean(
+            -0.5 * torch.sum(1 + log_var - mu**2 - log_var.exp(), dim=1), dim=0
+        )
         loss = recons_loss + self.beta * kld_loss
         return loss
 
@@ -65,16 +67,18 @@ class NeuralNetTransformer(NeuralNet, TransformerMixin):
         return transforms
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     X, y = make_classification(1000, 20, n_informative=10, random_state=0)
     X, y = X.astype(np.float32), y.astype(np.int64)
 
-    vae = NeuralNetTransformer(VAE,
-                               criterion=MSELoss(),
-                               optimizer=optim.Adam,
-                               module__input_unit=X.shape[1],
-                               max_epochs=1000,
-                               callbacks=[EarlyStopping(patience=20)],
-                               verbose=True)
+    vae = NeuralNetTransformer(
+        VAE,
+        criterion=MSELoss(),
+        optimizer=optim.Adam,
+        module__input_unit=X.shape[1],
+        max_epochs=1000,
+        callbacks=[EarlyStopping(patience=20)],
+        verbose=True,
+    )
     vae.fit(X, y)
     print(vae.transform(X))

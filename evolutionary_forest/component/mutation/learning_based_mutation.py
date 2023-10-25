@@ -40,7 +40,9 @@ def parse_tree_to_tuples(root: PrimitiveTree):
 
 
 def random_non_leaf_node(individual: PrimitiveTree):
-    non_leaf_indices = [index for index, node in enumerate(individual) if isinstance(node, Primitive)]
+    non_leaf_indices = [
+        index for index, node in enumerate(individual) if isinstance(node, Primitive)
+    ]
     if len(non_leaf_indices) == 0:
         return None
     random_index = random.choice(non_leaf_indices)
@@ -62,10 +64,12 @@ class BuildingBlockLearning(MutationOperator):
         # generate a primitive mapping dict
         self.pset: PrimitiveSet = pset
 
-        self.decision_tree = Pipeline([
-            ('OneHot', OneHotEncoder(handle_unknown='ignore')),
-            ('DT', DecisionTreeClassifier()),
-        ])
+        self.decision_tree = Pipeline(
+            [
+                ("OneHot", OneHotEncoder(handle_unknown="ignore")),
+                ("DT", DecisionTreeClassifier()),
+            ]
+        )
         self.label_encoder = LabelEncoder()
 
     def fit(self, trees: List[PrimitiveTree]):
@@ -77,8 +81,8 @@ class BuildingBlockLearning(MutationOperator):
             training_label.extend(single_training_label)
         training_data = pd.DataFrame(training_data)
         training_label = pd.Series(training_label)
-        training_data = training_data.astype('str')
-        training_label = training_label.astype('str')
+        training_data = training_data.astype("str")
+        training_label = training_label.astype("str")
         self.decision_tree.fit(training_data, training_label)
         return self
 
@@ -89,13 +93,17 @@ class BuildingBlockLearning(MutationOperator):
         for tp in tuples:
             for i in range(1, len(tp)):
                 # for whole competition
-                training_data.append([get_name(t) for t in tp[:i]] +
-                                     ['?' for _ in tp[i:]])
+                training_data.append(
+                    [get_name(t) for t in tp[:i]] + ["?" for _ in tp[i:]]
+                )
                 training_label.append(get_name(tp[i]))
 
                 # for point completion
-                training_data.append([get_name(t) for t in tp[:i]] + ['?'] +
-                                     [get_name(t) for t in tp[i + 1:]])
+                training_data.append(
+                    [get_name(t) for t in tp[:i]]
+                    + ["?"]
+                    + [get_name(t) for t in tp[i + 1 :]]
+                )
                 training_label.append(get_name(tp[i]))
         return training_data, training_label
 
@@ -111,7 +119,7 @@ class BuildingBlockLearning(MutationOperator):
 
         # randomly mask one element
         idx = random.randint(1, len(current_tree) - 1)
-        current_tree[idx] = '?'
+        current_tree[idx] = "?"
 
         prediction = self.make_prediction_by_incomplete_tree(current_tree)
 
@@ -135,8 +143,12 @@ class BuildingBlockLearning(MutationOperator):
 
                     existing = [get_name(parent)]
                     for _ in range(len(parent.args)):
-                        now = existing + ['?' for _ in range(parent.arity - (len(existing) - 1))]
-                        prediction = self.make_prediction_by_incomplete_tree(now, only_terminal)
+                        now = existing + [
+                            "?" for _ in range(parent.arity - (len(existing) - 1))
+                        ]
+                        prediction = self.make_prediction_by_incomplete_tree(
+                            now, only_terminal
+                        )
 
                         if prediction not in self.pset.mapping:
                             node = Terminal(float(prediction), False, object)
@@ -172,7 +184,10 @@ class BuildingBlockLearning(MutationOperator):
     def make_prediction_by_incomplete_tree(self, current_tree, only_terminal=False):
         # make predictions
         if len(current_tree) < self.decision_tree.n_features_in_:
-            current_tree += [np.nan for _ in range(self.decision_tree.n_features_in_ - len(current_tree))]
+            current_tree += [
+                np.nan
+                for _ in range(self.decision_tree.n_features_in_ - len(current_tree))
+            ]
         current_tree = pd.DataFrame([current_tree]).astype(str)
         prediction = self.decision_tree.predict_proba(current_tree)
         prediction = prediction[0]
@@ -181,7 +196,9 @@ class BuildingBlockLearning(MutationOperator):
             # only consider terminal variables
             for x in range(len(prediction)):
                 cs = self.decision_tree.classes_[x]
-                if (cs not in self.pset.mapping) or (not isinstance(self.pset.mapping[cs], Primitive)):
+                if (cs not in self.pset.mapping) or (
+                    not isinstance(self.pset.mapping[cs], Primitive)
+                ):
                     possible_index.append(x)
             prediction = prediction[np.array(possible_index)]
             if np.sum(prediction) == 0:
@@ -198,15 +215,16 @@ class BuildingBlockLearning(MutationOperator):
 
     def callback(self, population):
         # learning good individuals
-        individuals: List[MultipleGeneGP] = list(sorted(population, key=lambda x: x.fitness.wvalues, reverse=True)) \
-            [:int(0.1 * len(population))]
+        individuals: List[MultipleGeneGP] = list(
+            sorted(population, key=lambda x: x.fitness.wvalues, reverse=True)
+        )[: int(0.1 * len(population))]
         self.fit(chain.from_iterable([ind.gene for ind in individuals]))
 
     def mutate(self, individual: MultipleGeneGP):
         tree, tid = individual.random_select(with_id=True)
         tree = self.sampling(tree)
         individual.gene[tid] = tree
-        return individual,
+        return (individual,)
 
 
 def generate_random_tree(pset: PrimitiveSet):
@@ -228,19 +246,19 @@ def pset_intialization():
     pset.addPrimitive(operator.mul, 2)
     pset.addPrimitive(np.sin, 1)
     pset.addPrimitive(np.cos, 1)
-    pset.addEphemeralConstant('rand', lambda: random.random())
+    pset.addEphemeralConstant("rand", lambda: random.random())
     pset.addTerminal(2)
     return pset
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pset = pset_intialization()
     tree = generate_random_tree(pset)
     bl = BuildingBlockLearning(pset)
     bl.fit([generate_random_tree(pset) for _ in range(100)])
     for _ in range(100):
         tree = generate_random_tree(pset)
-        print('Original Tree', tree)
+        print("Original Tree", tree)
         for _ in range(100):
             tree = bl.sampling(tree)
-        print('Mutated Tree', tree)
+        print("Mutated Tree", tree)

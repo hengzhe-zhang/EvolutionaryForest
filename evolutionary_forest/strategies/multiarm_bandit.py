@@ -44,7 +44,9 @@ class MultiArmBandit:
     @staticmethod
     def update_multiple(bandits, arms_rewards):
         for i, rewards in enumerate(arms_rewards):
-            for arm, reward in rewards.items() if isinstance(rewards, dict) else enumerate(rewards):
+            for arm, reward in (
+                rewards.items() if isinstance(rewards, dict) else enumerate(rewards)
+            ):
                 bandits[i].update(arm, reward)
 
     @staticmethod

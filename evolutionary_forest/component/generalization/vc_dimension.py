@@ -28,7 +28,7 @@ def exp_err(RMSE, h, n):
     p = h / n
     term = 1 - math.sqrt(p - p * math.log(p) + (math.log(n) / (2 * n)))
     if term <= 0:
-        return float('inf')
+        return float("inf")
     else:
         return RMSE / term
 
@@ -80,8 +80,15 @@ def vcd_mse(hs_max, number_of_points, all_epsilons):
     return hs[simple_argmin(results)]
 
 
-def vc_dimension_estimation(X, y, estimator, input_dimension=None,estimated_vcd=None, feature_generator=None,
-                            optimal_design=False):
+def vc_dimension_estimation(
+    X,
+    y,
+    estimator,
+    input_dimension=None,
+    estimated_vcd=None,
+    feature_generator=None,
+    optimal_design=False,
+):
     Yp = estimator.predict(X)
     rse = r2_score(y, Yp)
     if estimated_vcd is None:
@@ -102,7 +109,9 @@ def vc_dimension_estimation(X, y, estimator, input_dimension=None,estimated_vcd=
         # Number of trials
         m = 20
         for _ in range(m):
-            epsilon = maximum_deviation(n_samples, input_dimension, estimator, feature_generator)
+            epsilon = maximum_deviation(
+                n_samples, input_dimension, estimator, feature_generator
+            )
             epsilons.append(epsilon)
 
         # Calculate the average maximum deviation
@@ -113,18 +122,28 @@ def vc_dimension_estimation(X, y, estimator, input_dimension=None,estimated_vcd=
 
     if optimal_design:
         all_epsilons: list = all_epsilons.tolist()
-        optimal_vcd(all_epsilons, number_of_points, max_vcd, input_dimension, estimator, feature_generator)
+        optimal_vcd(
+            all_epsilons,
+            number_of_points,
+            max_vcd,
+            input_dimension,
+            estimator,
+            feature_generator,
+        )
         # print([len(a) for a in all_epsilons])
         mean_values = np.array([np.mean(x) for x in all_epsilons if len(x) > 0])
-        number_of_points_tmp = np.array([number_of_points[id] for id, x in enumerate(all_epsilons)
-                                         if len(x) > 0])
+        number_of_points_tmp = np.array(
+            [number_of_points[id] for id, x in enumerate(all_epsilons) if len(x) > 0]
+        )
         h_est = vcd_mse(max_vcd, number_of_points_tmp, mean_values)
 
     # return exp_err(math.sqrt(mean_squared_error(y, Yp)), h_est, len(X))
     return ((rse, 1), (h_est, -1))
 
 
-def optimal_vcd(all_epsilons, number_of_points, max_vcd, dimension, estimator, feature_generator):
+def optimal_vcd(
+    all_epsilons, number_of_points, max_vcd, dimension, estimator, feature_generator
+):
     mean_values = np.array([np.mean(a) for a in all_epsilons])
     h_est = vcd_mse(max_vcd, number_of_points, mean_values)
     base_mse = mse(h_est, number_of_points, mean_values)
@@ -133,15 +152,25 @@ def optimal_vcd(all_epsilons, number_of_points, max_vcd, dimension, estimator, f
         mse_array = []
         for exp_to_exclude in range(len(all_epsilons)):
             # Delete the specified experiment from the array
-            modified_array = [a for id, a in enumerate(all_epsilons) if id != exp_to_exclude]
+            modified_array = [
+                a for id, a in enumerate(all_epsilons) if id != exp_to_exclude
+            ]
             # Calculate the mean value with excluding one experiment
             mean_values = np.array([np.mean(x) for x in modified_array if len(x) > 0])
-            number_of_points_tmp = [p for id, p in enumerate(number_of_points) if id != exp_to_exclude]
+            number_of_points_tmp = [
+                p for id, p in enumerate(number_of_points) if id != exp_to_exclude
+            ]
             assert len(number_of_points_tmp) == len(all_epsilons) - 1
-            number_of_points_tmp = np.array([number_of_points_tmp[id] for id, x in enumerate(modified_array)
-                                             if len(x) > 0])
-            assert len(number_of_points_tmp) == len(mean_values), \
-                f'{len(number_of_points_tmp)} != {len(mean_values)}'
+            number_of_points_tmp = np.array(
+                [
+                    number_of_points_tmp[id]
+                    for id, x in enumerate(modified_array)
+                    if len(x) > 0
+                ]
+            )
+            assert len(number_of_points_tmp) == len(
+                mean_values
+            ), f"{len(number_of_points_tmp)} != {len(mean_values)}"
 
             # Get estimated VCD
             h_est = vcd_mse(max_vcd, number_of_points_tmp, mean_values)
@@ -156,20 +185,30 @@ def optimal_vcd(all_epsilons, number_of_points, max_vcd, dimension, estimator, f
         okay = False
         for m in argsort_mse[:-1]:
             # First non-zero experiment
-            worst_experiment = [all_epsilons[arr_id] for arr_id in argsort_mse[::-1]
-                                if len(all_epsilons[arr_id]) > 0][0]
+            worst_experiment = [
+                all_epsilons[arr_id]
+                for arr_id in argsort_mse[::-1]
+                if len(all_epsilons[arr_id]) > 0
+            ][0]
             data = random.choice(worst_experiment)
             arr_length = len(worst_experiment)
             worst_experiment.remove(data)
             assert len(worst_experiment) == arr_length - 1
 
-            epsilon = maximum_deviation(number_of_points[m], dimension, estimator, feature_generator)
+            epsilon = maximum_deviation(
+                number_of_points[m], dimension, estimator, feature_generator
+            )
             all_epsilons[m].append(epsilon)
 
             # Recalculate mean values and MSE
             mean_values = np.array([np.mean(x) for x in all_epsilons if len(x) > 0])
-            number_of_points_tmp = np.array([number_of_points[id] for id, x in enumerate(all_epsilons)
-                                             if len(x) > 0])
+            number_of_points_tmp = np.array(
+                [
+                    number_of_points[id]
+                    for id, x in enumerate(all_epsilons)
+                    if len(x) > 0
+                ]
+            )
             assert len(number_of_points_tmp) == len(mean_values)
             h_est = vcd_mse(max_vcd, number_of_points_tmp, mean_values)
             mse_value = mse(h_est, number_of_points_tmp, mean_values)
@@ -204,8 +243,10 @@ def maximum_deviation(n_samples, dimension, estimator, feature_generator):
     Z1_2 = Z1[n1:]
     Z2_2 = Z2[n1:]
     # Fit the model on the merged dataset
-    estimator.fit(np.vstack((Z1_1[:, :-1], Z2_2[:, :-1])),
-                  np.vstack((Z1_1[:, -1].reshape(-1, 1), Z2_2[:, -1].reshape(-1, 1))))
+    estimator.fit(
+        np.vstack((Z1_1[:, :-1], Z2_2[:, :-1])),
+        np.vstack((Z1_1[:, -1].reshape(-1, 1), Z2_2[:, -1].reshape(-1, 1))),
+    )
     # Calculate the error rates on the two parts of the original dataset
     E1 = mean_absolute_error(Z1_1[:, -1], estimator.predict(Z1_1[:, :-1]) > 0.5)
     E2 = mean_absolute_error(Z1_2[:, -1], estimator.predict(Z1_2[:, :-1]) > 0.5)
@@ -214,12 +255,14 @@ def maximum_deviation(n_samples, dimension, estimator, feature_generator):
     return epsilon
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # X, y = load_diabetes(return_X_y=True)
     X, y = make_friedman1()
 
     # Split the data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=0
+    )
 
     # Standardize X
     scaler_X = StandardScaler()
@@ -235,11 +278,16 @@ if __name__ == '__main__':
     estimator = Ridge(alpha=0.01)
     estimator.fit(X_train, y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(X_test)))
+    print("Test R2", r2_score(y_test, estimator.predict(X_test)))
     print(vc_dimension_estimation(X, y, estimator))
 
-    estimator = Pipeline(steps=[('PolynomialFeatures', PolynomialFeatures(degree=3)), ('Ridge', Ridge(alpha=0.01))])
+    estimator = Pipeline(
+        steps=[
+            ("PolynomialFeatures", PolynomialFeatures(degree=3)),
+            ("Ridge", Ridge(alpha=0.01)),
+        ]
+    )
     estimator.fit(X_train, y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(X_test)))
+    print("Test R2", r2_score(y_test, estimator.predict(X_test)))
     print(vc_dimension_estimation(X, y, estimator))

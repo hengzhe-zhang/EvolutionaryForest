@@ -55,9 +55,14 @@ def deduplicate_sorted_points(pareto_points):
     return deduplicated_points, deduplicated_indices
 
 
-def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=False,
-                                  number_of_cluster=0, return_all_knees=False,
-                                  minimal_complexity=False):
+def find_knee_based_on_bend_angle(
+    pareto_points,
+    local=False,
+    four_neighbour=False,
+    number_of_cluster=0,
+    return_all_knees=False,
+    minimal_complexity=False,
+):
     """
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
@@ -72,10 +77,11 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
 
     # min-max normalization
     sorted_points = np.array(sorted_points)
-    sorted_points = ((sorted_points - np.min(sorted_points, axis=0)) /
-                     (np.max(sorted_points, axis=0) - np.min(sorted_points, axis=0)))
+    sorted_points = (sorted_points - np.min(sorted_points, axis=0)) / (
+        np.max(sorted_points, axis=0) - np.min(sorted_points, axis=0)
+    )
 
-    max_bend_angle = float('-inf')
+    max_bend_angle = float("-inf")
     knee_point = sorted_points[0]
     knee_index = sorted_indices[0]
 
@@ -128,37 +134,47 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
 
 def calculate_four_neighbour_max_angle(i, x, sorted_points):
     """
-       Calculate the maximum bend angle among four neighboring points for a given point in a sorted list.
+    Calculate the maximum bend angle among four neighboring points for a given point in a sorted list.
 
-       Args:
-           i (int): Index of the point for which the maximum bend angle is calculated.
-           x (np.ndarray): Current coordinate values.
-           sorted_points (list of tuples): List of points.
+    Args:
+        i (int): Index of the point for which the maximum bend angle is calculated.
+        x (np.ndarray): Current coordinate values.
+        sorted_points (list of tuples): List of points.
 
-       Returns:
-           float: Maximum bend angle among the four neighboring points.
-   """
+    Returns:
+        float: Maximum bend angle among the four neighboring points.
+    """
 
     # Protection to avoid index errors
     angles_to_check = []
     if i - 1 >= 0 and i + 1 < len(sorted_points):
-        angles_to_check.append(bend_angle(x, sorted_points[i - 1], sorted_points[i + 1]))
+        angles_to_check.append(
+            bend_angle(x, sorted_points[i - 1], sorted_points[i + 1])
+        )
     if i - 1 >= 0 and i + 2 < len(sorted_points):
-        angles_to_check.append(bend_angle(x, sorted_points[i - 1], sorted_points[i + 2]))
+        angles_to_check.append(
+            bend_angle(x, sorted_points[i - 1], sorted_points[i + 2])
+        )
     if i - 2 >= 0 and i + 1 < len(sorted_points):
-        angles_to_check.append(bend_angle(x, sorted_points[i - 2], sorted_points[i + 1]))
+        angles_to_check.append(
+            bend_angle(x, sorted_points[i - 2], sorted_points[i + 1])
+        )
     if i - 2 >= 0 and i + 2 < len(sorted_points):
-        angles_to_check.append(bend_angle(x, sorted_points[i - 2], sorted_points[i + 2]))
+        angles_to_check.append(
+            bend_angle(x, sorted_points[i - 2], sorted_points[i + 2])
+        )
     theta = max(angles_to_check)
     return theta
 
 
 def assert_decreasing_first_objective(pareto_points):
     for i in range(1, len(pareto_points)):
-        assert pareto_points[i - 1][0] >= pareto_points[i][0], f"Point {i} is not in decreasing order!"
+        assert (
+            pareto_points[i - 1][0] >= pareto_points[i][0]
+        ), f"Point {i} is not in decreasing order!"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pareto_points = [[1, 5], [2, 4], [3, 2], [4, 1]]
     knee, index = find_knee_based_on_bend_angle(pareto_points)
     print(f"Knee point: {knee}, Index: {index}")

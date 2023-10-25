@@ -35,7 +35,9 @@ def point_to_line_distance(A, B, P):
 
 def euclidian_knee(front):
     # Normalize the front
-    pf = (front - np.min(front, axis=0)) / (np.max(front, axis=0) - np.min(front, axis=0))
+    pf = (front - np.min(front, axis=0)) / (
+        np.max(front, axis=0) - np.min(front, axis=0)
+    )
 
     # Enumerate points for later recovery of original order
     indexed_pf = list(enumerate(pf))
@@ -52,8 +54,10 @@ def euclidian_knee(front):
     p2 = sorted_points[sorted_points[:, 1].argmax()]
 
     # Identify the knee point
-    knee_index = max([i for i in range(len(sorted_points))],
-                     key=lambda i: point_to_line_distance(p1, p2, sorted_points[i]))
+    knee_index = max(
+        [i for i in range(len(sorted_points))],
+        key=lambda i: point_to_line_distance(p1, p2, sorted_points[i]),
+    )
 
     # Return the index of the knee point in the original order
     return indices[knee_index]

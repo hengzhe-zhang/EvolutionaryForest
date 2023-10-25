@@ -3,9 +3,12 @@ import scipy.sparse as sp
 from joblib import Parallel, delayed
 from sklearn.base import is_classifier, clone
 from sklearn.model_selection import check_cv
-from sklearn.model_selection._validation import _check_is_permutation, _enforce_prediction_order
+from sklearn.model_selection._validation import (
+    _check_is_permutation,
+    _enforce_prediction_order,
+)
 from sklearn.preprocessing import LabelEncoder
-from sklearn.utils import (indexable)
+from sklearn.utils import indexable
 from sklearn.utils.metaestimators import _safe_split
 from sklearn.utils.validation import _check_fit_params
 from sklearn.utils.validation import _deprecate_positional_args
@@ -13,9 +16,19 @@ from sklearn.utils.validation import _num_samples
 
 
 @_deprecate_positional_args
-def cross_val_predict(estimator, X, y=None, *, groups=None, cv=None,
-                      n_jobs=None, verbose=0, fit_params=None,
-                      pre_dispatch='2*n_jobs', method='predict'):
+def cross_val_predict(
+    estimator,
+    X,
+    y=None,
+    *,
+    groups=None,
+    cv=None,
+    n_jobs=None,
+    verbose=0,
+    fit_params=None,
+    pre_dispatch="2*n_jobs",
+    method="predict"
+):
     """Generate cross-validated estimates for each input data point
 
     The data is split according to the cv parameter. Each sample belongs
@@ -136,8 +149,10 @@ def cross_val_predict(estimator, X, y=None, *, groups=None, cv=None,
 
     # If classification methods produce multiple columns of output,
     # we need to manually encode classes to ensure consistent column ordering.
-    encode = method in ['decision_function', 'predict_proba',
-                        'predict_log_proba'] and y is not None
+    encode = (
+        method in ["decision_function", "predict_proba", "predict_log_proba"]
+        and y is not None
+    )
     if encode:
         y = np.asarray(y)
         if y.ndim == 1:
@@ -151,20 +166,21 @@ def cross_val_predict(estimator, X, y=None, *, groups=None, cv=None,
 
     # We clone the estimator to make sure that all the folds are
     # independent, and that it is pickle-able.
-    parallel = Parallel(n_jobs=n_jobs, verbose=verbose,
-                        pre_dispatch=pre_dispatch)
-    prediction_blocks = parallel(delayed(_fit_and_predict)(
-        clone(estimator), X, y, train, test, verbose, fit_params, method)
-                                 for train, test in cv.split(X, y, groups))
+    parallel = Parallel(n_jobs=n_jobs, verbose=verbose, pre_dispatch=pre_dispatch)
+    prediction_blocks = parallel(
+        delayed(_fit_and_predict)(
+            clone(estimator), X, y, train, test, verbose, fit_params, method
+        )
+        for train, test in cv.split(X, y, groups)
+    )
 
     # Concatenate the predictions
     predictions = [pred_block_i for pred_block_i, _, _ in prediction_blocks]
-    test_indices = np.concatenate([indices_i
-                                   for _, indices_i, _ in prediction_blocks])
+    test_indices = np.concatenate([indices_i for _, indices_i, _ in prediction_blocks])
     estimators = [e for _, _, e in prediction_blocks]
 
     if not _check_is_permutation(test_indices, _num_samples(X)):
-        raise ValueError('cross_val_predict only works for partitions')
+        raise ValueError("cross_val_predict only works for partitions")
 
     inv_test_indices = np.empty(len(test_indices), dtype=int)
     inv_test_indices[test_indices] = np.arange(len(test_indices))
@@ -191,8 +207,7 @@ def cross_val_predict(estimator, X, y=None, *, groups=None, cv=None,
         return predictions[inv_test_indices], estimators
 
 
-def _fit_and_predict(estimator, X, y, train, test, verbose, fit_params,
-                     method):
+def _fit_and_predict(estimator, X, y, train, test, verbose, fit_params, method):
     """Fit estimator and predict values for a given dataset split.
 
     Read more in the :ref:`User Guide <cross_validation>`.
@@ -251,18 +266,26 @@ def _fit_and_predict(estimator, X, y, train, test, verbose, fit_params,
     assert not np.any(np.isnan(X_test)), X_test
     predictions = func(X_test)
 
-    encode = method in ['decision_function', 'predict_proba',
-                        'predict_log_proba'] and y is not None
+    encode = (
+        method in ["decision_function", "predict_proba", "predict_log_proba"]
+        and y is not None
+    )
 
     if encode:
         if isinstance(predictions, list):
-            predictions = [_enforce_prediction_order(
-                estimator.classes_[i_label], predictions[i_label],
-                n_classes=len(set(y[:, i_label])), method=method)
-                for i_label in range(len(predictions))]
+            predictions = [
+                _enforce_prediction_order(
+                    estimator.classes_[i_label],
+                    predictions[i_label],
+                    n_classes=len(set(y[:, i_label])),
+                    method=method,
+                )
+                for i_label in range(len(predictions))
+            ]
         else:
             # A 2D y array should be a binary label indicator matrix
             n_classes = len(set(y)) if y.ndim == 1 else y.shape[1]
             predictions = _enforce_prediction_order(
-                estimator.classes_, predictions, n_classes, method)
+                estimator.classes_, predictions, n_classes, method
+            )
     return predictions, test, estimator

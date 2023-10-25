@@ -12,7 +12,9 @@ class GPSurrogate:
 
     def _compute_features(self, individual):
         """Compute a feature vector for a given GP individual."""
-        usage_vector = vectorize_usage(individual, self.all_functions, self.all_terminals)
+        usage_vector = vectorize_usage(
+            individual, self.all_functions, self.all_terminals
+        )
         return [
             avg_tree_size(individual),
             max_tree_depth(individual),
@@ -20,7 +22,7 @@ class GPSurrogate:
             total_unique_functions(individual),
             total_unique_terminals(individual),
             avg_function_diversity_index(individual),
-            avg_terminal_diversity_index(individual)
+            avg_terminal_diversity_index(individual),
         ] + usage_vector
 
     def fit(self, individuals, fitness_values):
@@ -48,7 +50,9 @@ class GPSurrogate:
         predictions = self.predict(individuals)
 
         # Pair each individual with its prediction and sort by prediction
-        sorted_individuals = sorted(zip(individuals, predictions), key=lambda x: x[1], reverse=True)
+        sorted_individuals = sorted(
+            zip(individuals, predictions), key=lambda x: x[1], reverse=True
+        )
 
         # Extract the top-k individuals
         top_k_individuals = [ind[0] for ind in sorted_individuals[:k]]

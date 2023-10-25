@@ -9,8 +9,8 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-class MTLTestFunction():
-    def __init__(self, x, y, regr: 'EvolutionaryForestRegressor', number_of_tasks):
+class MTLTestFunction:
+    def __init__(self, x, y, regr: "EvolutionaryForestRegressor", number_of_tasks):
         self.x = x
         self.y = y
         self.regr = regr
@@ -34,8 +34,8 @@ class MTLTestFunction():
         return copy.deepcopy(self)
 
 
-class TestFunction():
-    def __init__(self, x, y, regr: 'EvolutionaryForestRegressor' = None):
+class TestFunction:
+    def __init__(self, x, y, regr: "EvolutionaryForestRegressor" = None):
         self.x = x
         self.y = y
         self.regr = regr

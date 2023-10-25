@@ -34,11 +34,15 @@ class KnEABinaryTournament:
         :return: Weighted distance of the solution p
         """
         distances = [np.linalg.norm(p - neighbor) for neighbor in self.population]
-        sorted_neighbors = sorted([(dist, idx) for idx, dist in enumerate(distances)], key=lambda x: x[0])
+        sorted_neighbors = sorted(
+            [(dist, idx) for idx, dist in enumerate(distances)], key=lambda x: x[0]
+        )
         nearest_neighbors = sorted_neighbors[:k]
         sum_distance = sum([dist for dist, _ in nearest_neighbors])
 
-        r_values = [1 / (abs(dist - (1 / k) * sum_distance)) for dist, _ in nearest_neighbors]
+        r_values = [
+            1 / (abs(dist - (1 / k) * sum_distance)) for dist, _ in nearest_neighbors
+        ]
         w_values = [r / sum(r_values) for r in r_values]
 
         DW = sum([w * dist for w, (dist, _) in zip(w_values, nearest_neighbors)])

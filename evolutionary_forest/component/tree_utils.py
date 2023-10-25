@@ -43,7 +43,9 @@ def get_parent_of_leaves(root: TreeNode):
 
 
 class StringDecisionTreeClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, max_depth=None, criterion='gini', splitter='best', random_state=None):
+    def __init__(
+        self, max_depth=None, criterion="gini", splitter="best", random_state=None
+    ):
         self.max_depth = max_depth
         self.criterion = criterion
         self.splitter = splitter
@@ -57,11 +59,17 @@ class StringDecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         self.label_encoder = LabelEncoder()
         y_encoded = self.label_encoder.fit_transform(y)
 
-        self.column_transformer = ColumnTransformer(transformers=[('cat', OneHotEncoder(), list(range(X.shape[1])))])
+        self.column_transformer = ColumnTransformer(
+            transformers=[("cat", OneHotEncoder(), list(range(X.shape[1])))]
+        )
         X_encoded = self.column_transformer.fit_transform(X)
 
-        self.tree = DecisionTreeClassifier(max_depth=self.max_depth, criterion=self.criterion,
-                                           splitter=self.splitter, random_state=self.random_state)
+        self.tree = DecisionTreeClassifier(
+            max_depth=self.max_depth,
+            criterion=self.criterion,
+            splitter=self.splitter,
+            random_state=self.random_state,
+        )
         self.tree.fit(X_encoded, y_encoded, sample_weight=sample_weight)
 
     def predict(self, X):
@@ -106,7 +114,9 @@ def node_depths(tree, current_index=0, current_depth=1) -> (List[int], int):
     if isinstance(node, gp.Primitive):
         offset = 1
         for _ in range(node.arity):
-            child_depths, child_length = node_depths(tree, current_index + offset, current_depth + 1)
+            child_depths, child_length = node_depths(
+                tree, current_index + offset, current_depth + 1
+            )
             depths.extend(child_depths)
             offset += child_length
         return depths, offset
@@ -115,7 +125,7 @@ def node_depths(tree, current_index=0, current_depth=1) -> (List[int], int):
 
 
 # Example usage:
-if __name__ == '__main__':
+if __name__ == "__main__":
     pset = gp.PrimitiveSet("MAIN", 1)
     pset.addPrimitive(max, 2)
     pset.addTerminal(1)

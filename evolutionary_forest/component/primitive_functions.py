@@ -39,88 +39,90 @@ def gaussian_torch(x):
 
 
 def protected_division(x1, *x2):
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         x2 = reduce(operator.mul, x2)
         # threshold from GEPPY
-        return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.)
+        return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
 
 
 def protected_division_torch(x1, *x2):
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         x2 = reduce(operator.mul, x2)
-        return torch.where(torch.abs(x2) > threshold, torch.divide(x1, x2), 1.)
+        return torch.where(torch.abs(x2) > threshold, torch.divide(x1, x2), 1.0)
 
 
 def protected_log_xy(x1, x2):
     """Closure of log for zero and negative arguments."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > threshold, np.emath.logn(np.abs(x2), np.abs(x1)), 0.)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(
+            np.abs(x1) > threshold, np.emath.logn(np.abs(x2), np.abs(x1)), 0.0
+        )
 
 
 def protected_log(x1):
     """Closure of log for zero and negative arguments."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.0)
 
 
 def protected_log2(x1):
     """Closure of log for zero and negative arguments."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > threshold, np.log2(np.abs(x1)), 0.)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(np.abs(x1) > threshold, np.log2(np.abs(x1)), 0.0)
 
 
 def protected_log10(x1):
     """Closure of log for zero and negative arguments."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > threshold, np.log10(np.abs(x1)), 0.)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(np.abs(x1) > threshold, np.log10(np.abs(x1)), 0.0)
 
 
 def protected_inverse(x1):
     """Closure of inverse for zero arguments."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > threshold, np.divide(1, x1), 0.)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(np.abs(x1) > threshold, np.divide(1, x1), 0.0)
 
 
 def analytical_quotient(x1, x2):
-    return x1 / np.sqrt(1 + (x2 ** 2))
+    return x1 / np.sqrt(1 + (x2**2))
 
 
 def analytical_quotient_torch(x1, x2):
-    return x1 / torch.sqrt(1 + (x2 ** 2))
+    return x1 / torch.sqrt(1 + (x2**2))
 
 
 def individual_to_tuple(ind):
     arr = []
     for x in ind.gene:
         arr.append(tuple(a.name for a in x))
-    if hasattr(ind, 'base_model'):
+    if hasattr(ind, "base_model"):
         arr.append((ind.base_model,))
     return tuple(sorted(arr))
 
 
 def protect_loge(x1):
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.0)
 
 
 def analytical_log(x):
-    return np.log(np.sqrt(1 + x ** 2))
+    return np.log(np.sqrt(1 + x**2))
 
 
 def analytical_log10(x):
-    return np.log10(np.sqrt(1 + x ** 2))
+    return np.log10(np.sqrt(1 + x**2))
 
 
 def cube(x):
-    return x ** 3
+    return x**3
 
 
 def fourth_power(x):
-    return x ** 4
+    return x**4
 
 
 def fifth_power(x):
-    return x ** 5
+    return x**5
 
 
 def protect_sqrt(a):
@@ -154,7 +156,9 @@ def shape_wrapper_plus(*args):
 
 def shape_decorator(func):
     def inner_function(*args, **kwargs):
-        args = [float(x) if isinstance(x, np.ndarray) and x.size == 1 else x for x in args]
+        args = [
+            float(x) if isinstance(x, np.ndarray) and x.size == 1 else x for x in args
+        ]
         if len(args) == 1 and np.isscalar(args[0]):
             return args[0]
         elif len(args) == 2:
@@ -174,12 +178,17 @@ def groupby_generator(function, argument_count=2):
         if all([np.isscalar(x) for x in args]):
             return args[-1]
         args = shape_wrapper_plus(*args)
-        frame = pd.DataFrame(np.array(args).T, columns=[f'C{x}' for x in range(len(args))])
-        calculation = frame.groupby([f'C{x}' for x in range(len(args) - 1)])[f'C{len(args) - 1}']. \
-            transform(function).to_numpy()
+        frame = pd.DataFrame(
+            np.array(args).T, columns=[f"C{x}" for x in range(len(args))]
+        )
+        calculation = (
+            frame.groupby([f"C{x}" for x in range(len(args) - 1)])[f"C{len(args) - 1}"]
+            .transform(function)
+            .to_numpy()
+        )
         return calculation
 
-    groupby_function.__name__ = f'groupby_function_{function}_{argument_count}'
+    groupby_function.__name__ = f"groupby_function_{function}_{argument_count}"
     return groupby_function
 
 
@@ -214,7 +223,9 @@ def groupby_mean(keys, values, debug=False):
 def groupby_max(keys, values, debug=False):
     keys = discretize(keys, debug=debug)
     unique_keys = np.unique(keys)
-    max_values = np.full_like(unique_keys, -np.inf, dtype=np.float64)  # Initialize with negative infinity
+    max_values = np.full_like(
+        unique_keys, -np.inf, dtype=np.float64
+    )  # Initialize with negative infinity
 
     # Find the max value for each group
     for i in range(len(keys)):
@@ -236,7 +247,9 @@ def groupby_max(keys, values, debug=False):
 def groupby_min(keys, values, debug=False):
     keys = discretize(keys, debug=debug)
     unique_keys = np.unique(keys)
-    min_values = np.full_like(unique_keys, np.inf, dtype=np.float64)  # Initialize with positive infinity
+    min_values = np.full_like(
+        unique_keys, np.inf, dtype=np.float64
+    )  # Initialize with positive infinity
 
     # Find the min value for each group
     for i in range(len(keys)):
@@ -298,7 +311,9 @@ def groupby_median(keys, values, debug=False):
         if n % 2 == 1:
             medians[i] = grouped_values[i][n // 2]
         else:
-            medians[i] = (grouped_values[i][n // 2 - 1] + grouped_values[i][n // 2]) / 2.0
+            medians[i] = (
+                grouped_values[i][n // 2 - 1] + grouped_values[i][n // 2]
+            ) / 2.0
 
     # Map the medians back to the original keys
     output_array = np.zeros_like(values, dtype=np.float64)
@@ -329,7 +344,7 @@ def groupby_variance(keys, values, debug=False):
     variances = np.zeros_like(unique_keys, dtype=np.float64)
     for i in range(len(unique_keys)):
         mean = sums[i] / counts[i]
-        variances[i] = sum_squares[i] / counts[i] - mean ** 2
+        variances[i] = sum_squares[i] / counts[i] - mean**2
 
     # Map the variances back to the original keys
     output_array = np.zeros_like(values, dtype=np.float64)
@@ -405,7 +420,7 @@ def cross_product(x1, x2):
     if np.isscalar(x1) or np.isscalar(x2):
         return x1
     x1, x2 = shape_wrapper(x1, x2)
-    return x1 + ',' + x2
+    return x1 + "," + x2
 
 
 def if_function(x1, x2, x3):
@@ -428,7 +443,7 @@ def np_wrapper(func):
         x1, x2 = shape_wrapper(x1, x2)
         return func(x1, x2).astype(int)
 
-    simple_func.__name__ = f'np_{func.__name__}'
+    simple_func.__name__ = f"np_{func.__name__}"
     return simple_func
 
 
@@ -442,7 +457,7 @@ def np_bit_wrapper(func):
         else:
             raise Exception
 
-    simple_func.__name__ = f'np_{func.__name__}'
+    simple_func.__name__ = f"np_{func.__name__}"
     return simple_func
 
 
@@ -554,8 +569,9 @@ def less_than_double_c(a, b):
     return np.where(a < b, a + b, a * b)
 
 
-def add_extend_operators(pset, addtional=False, groupby_operators=True,
-                         triple_groupby_operators=False):
+def add_extend_operators(
+    pset, addtional=False, groupby_operators=True, triple_groupby_operators=False
+):
     ### Must pay attention that allowing more aruguments will increase the model size
     def scipy_mode(x):
         return mode(x).mode[0]
@@ -570,14 +586,14 @@ def add_extend_operators(pset, addtional=False, groupby_operators=True,
 
     # GroupBy features
     if groupby_operators:
-        pset.addPrimitive(groupby_generator('mean'), 2)
-        pset.addPrimitive(groupby_generator('max'), 2)
-        pset.addPrimitive(groupby_generator('min'), 2)
+        pset.addPrimitive(groupby_generator("mean"), 2)
+        pset.addPrimitive(groupby_generator("max"), 2)
+        pset.addPrimitive(groupby_generator("min"), 2)
 
     if triple_groupby_operators:
-        pset.addPrimitive(groupby_generator('mean', 3), 3)
-        pset.addPrimitive(groupby_generator('max', 3), 3)
-        pset.addPrimitive(groupby_generator('min', 3), 3)
+        pset.addPrimitive(groupby_generator("mean", 3), 3)
+        pset.addPrimitive(groupby_generator("max", 3), 3)
+        pset.addPrimitive(groupby_generator("min", 3), 3)
 
     if addtional:
         pset.addPrimitive(np.arctan, 1)
@@ -590,21 +606,27 @@ def add_extend_operators(pset, addtional=False, groupby_operators=True,
 def groupby_operator_speed_test():
     a = np.random.randint(0, 5)
     b = np.random.rand(10000)
-    mean_groupby = groupby_generator('mean')
-    median_groupby = groupby_generator('median')
-    max_groupby = groupby_generator('max')
-    min_groupby = groupby_generator('min')
-    sum_groupby = groupby_generator('sum')
-    unique_groupby = groupby_generator('nunique')
-    for g in [mean_groupby, median_groupby, max_groupby, min_groupby,
-              sum_groupby, unique_groupby]:
+    mean_groupby = groupby_generator("mean")
+    median_groupby = groupby_generator("median")
+    max_groupby = groupby_generator("max")
+    min_groupby = groupby_generator("min")
+    sum_groupby = groupby_generator("sum")
+    unique_groupby = groupby_generator("nunique")
+    for g in [
+        mean_groupby,
+        median_groupby,
+        max_groupby,
+        min_groupby,
+        sum_groupby,
+        unique_groupby,
+    ]:
         st = time.time()
         result = g(a, b)
         print(result)
-        print('time', time.time() - st)
+        print("time", time.time() - st)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # print(protected_division(1, 2, 2))
     keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
     values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
@@ -616,13 +638,33 @@ if __name__ == '__main__':
     values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
     result = groupby_max(keys, values, debug=True)
     print(result)  # Output: [10. 30. 30. 60. 60. 60.]
-    assert np.array_equal(result, [10, 30, 30, 60, 60, 60, ])
+    assert np.array_equal(
+        result,
+        [
+            10,
+            30,
+            30,
+            60,
+            60,
+            60,
+        ],
+    )
 
     keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
     values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
     result = groupby_min(keys, values, debug=True)
     print(result)  # Output: [10. 20. 20. 40. 40. 40.]
-    assert np.array_equal(result, [10, 20, 20, 40, 40, 40, ])
+    assert np.array_equal(
+        result,
+        [
+            10,
+            20,
+            20,
+            40,
+            40,
+            40,
+        ],
+    )
 
     keys = np.array([1, 2, 2, 3, 3, 3], dtype=np.int64)
     result = groupby_count(keys, debug=True)
@@ -633,7 +675,17 @@ if __name__ == '__main__':
     values = np.array([10, 20, 30, 40, 50, 60], dtype=np.float64)
     result = groupby_median(keys, values, debug=True)
     print(result)  # Output: [10. 25. 25. 50. 50. 50.]
-    assert np.array_equal(result, [10, 25, 25, 50, 50, 50, ])
+    assert np.array_equal(
+        result,
+        [
+            10,
+            25,
+            25,
+            50,
+            50,
+            50,
+        ],
+    )
 
     arr = np.random.rand(100)
     discretized_arr = discretize(arr)

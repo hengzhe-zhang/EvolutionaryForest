@@ -23,8 +23,9 @@ def genGrow(pset, min_, max_, type_=None, terminal_prob=None):
         """Expression generation stops when the depth is equal to height
         or when it is randomly determined that a node should be a terminal.
         """
-        return depth == height or \
-               (depth >= min_ and random.random() < pset.terminalRatio)
+        return depth == height or (
+            depth >= min_ and random.random() < pset.terminalRatio
+        )
 
     return generate(pset, min_, max_, condition, type_, terminal_prob=terminal_prob)
 
@@ -63,11 +64,20 @@ def genFull(pset, min_, max_, type_=None, terminal_prob=None, primitive_prob=Non
         """Expression generation stops when the depth is equal to height."""
         return depth == height
 
-    return generate(pset, min_, max_, condition, type_,
-                    terminal_prob=terminal_prob, primitive_prob=primitive_prob)
+    return generate(
+        pset,
+        min_,
+        max_,
+        condition,
+        type_,
+        terminal_prob=terminal_prob,
+        primitive_prob=primitive_prob,
+    )
 
 
-def generate(pset, min_, max_, condition, type_=None, terminal_prob=None, primitive_prob=None):
+def generate(
+    pset, min_, max_, condition, type_=None, terminal_prob=None, primitive_prob=None
+):
     """Generate a Tree as a list of list. The tree is build
     from the root to the leaves, and it stop growing when the
     condition is fulfilled.
@@ -99,9 +109,11 @@ def generate(pset, min_, max_, condition, type_=None, terminal_prob=None, primit
                     term = np.random.choice(pset.terminals[type_], p=terminal_prob)
             except IndexError:
                 _, _, traceback = sys.exc_info()
-                raise IndexError("The gp.generate function tried to add " \
-                                 "a terminal of type '%s', but there is " \
-                                 "none available." % (type_,)).with_traceback(traceback)
+                raise IndexError(
+                    "The gp.generate function tried to add "
+                    "a terminal of type '%s', but there is "
+                    "none available." % (type_,)
+                ).with_traceback(traceback)
             except ValueError:
                 raise
             if isclass(term):
@@ -115,9 +127,11 @@ def generate(pset, min_, max_, condition, type_=None, terminal_prob=None, primit
                     prim = np.random.choice(pset.primitives[type_], p=primitive_prob)
             except IndexError:
                 _, _, traceback = sys.exc_info()
-                raise IndexError("The gp.generate function tried to add " \
-                                 "a primitive of type '%s', but there is " \
-                                 "none available." % (type_,)).with_traceback(traceback)
+                raise IndexError(
+                    "The gp.generate function tried to add "
+                    "a primitive of type '%s', but there is "
+                    "none available." % (type_,)
+                ).with_traceback(traceback)
             expr.append(prim)
             for arg in reversed(prim.args):
                 stack.append((depth + 1, arg))

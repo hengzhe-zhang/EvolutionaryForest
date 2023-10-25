@@ -19,13 +19,15 @@ def hof_to_text(hof: HallOfFame, indices):
         ind = hof[np.argmin(np.sum(case_values[:, ix], axis=1))]
         index = np.argmax(ind.coef)
         x = ind.gene[index]
-        s = ' '.join(tuple(a.name for a in x))
+        s = " ".join(tuple(a.name for a in x))
         text.append(s)
     return text
 
 
 def expr_generate(feature: list, pset, type_=None):
-    feature = list(filter(lambda x: x not in ['<unk>', '<pad>', '<bos>', '<eos>'], feature))
+    feature = list(
+        filter(lambda x: x not in ["<unk>", "<pad>", "<bos>", "<eos>"], feature)
+    )
     expr = []
     stack = [(0, type_)]
     while len(stack) != 0:
@@ -38,7 +40,7 @@ def expr_generate(feature: list, pset, type_=None):
                 if isclass(term):
                     term = term()
                 # primitives
-                if hasattr(term, 'args'):
+                if hasattr(term, "args"):
                     for arg in reversed(term.args):
                         stack.append((depth + 1, arg))
                 expr.append(term)
@@ -53,16 +55,18 @@ def expr_generate(feature: list, pset, type_=None):
                 term = random.choice(pset.terminals[type_])
             except IndexError:
                 _, _, traceback = sys.exc_info()
-                raise IndexError("The gp.generate function tried to add " \
-                                 "a terminal of type '%s', but there is " \
-                                 "none available." % (type_,)).with_traceback(traceback)
+                raise IndexError(
+                    "The gp.generate function tried to add "
+                    "a terminal of type '%s', but there is "
+                    "none available." % (type_,)
+                ).with_traceback(traceback)
             if isclass(term):
                 term = term()
             expr.append(term)
     return expr
 
 
-class TransformerTool():
+class TransformerTool:
     def __init__(self, X, y, hof, pset):
         self.transformer = None
         self.pset = pset
@@ -73,13 +77,16 @@ class TransformerTool():
     def train(self):
         from .translation_transformer import TranslationTransformer
         from torchtext.data.datasets_utils import _RawTextIterableDataset
+
         X, hof = self.X, self.hof
         indices, X = data_to_tensor(X, sample=(len(hof), self.embedding_size))
         X = np.swapaxes(X, 1, 2).astype(np.float32)
         text = hof_to_text(hof, indices)
 
-        def data_iterator(split='train'):
-            iterator = _RawTextIterableDataset('GP', len(hof), zip(list(X).__iter__(), text.__iter__()))
+        def data_iterator(split="train"):
+            iterator = _RawTextIterableDataset(
+                "GP", len(hof), zip(list(X).__iter__(), text.__iter__())
+            )
             return iterator
 
         epochs = 500
@@ -96,6 +103,10 @@ class TransformerTool():
         X = self.X
         _, X_test = data_to_tensor(X, sample=(num, self.embedding_size))
         X_test = np.swapaxes(X_test, 1, 2).astype(np.float32)
-        samples = [expr_generate(self.transformer.generate(np.expand_dims(x, axis=1)), self.pset, object) for x in
-                   X_test]
+        samples = [
+            expr_generate(
+                self.transformer.generate(np.expand_dims(x, axis=1)), self.pset, object
+            )
+            for x in X_test
+        ]
         return samples

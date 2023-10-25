@@ -3,7 +3,7 @@ from typing import Union
 
 from deap.gp import PrimitiveSet
 
-semantic_based_bloat_control = ['hoist_mutation']
+semantic_based_bloat_control = ["hoist_mutation"]
 
 
 def check_semantic_based_bc(bloat_control):
@@ -15,13 +15,15 @@ def check_semantic_based_bc(bloat_control):
     return False
 
 
-class NoiseConfiguration():
-    def __init__(self,
-                 noise_type='Normal',
-                 noise_to_terminal: Union[float, bool] = False,
-                 noise_normalization='Instance+',
-                 layer_adaptive=False,
-                 **params):
+class NoiseConfiguration:
+    def __init__(
+        self,
+        noise_type="Normal",
+        noise_to_terminal: Union[float, bool] = False,
+        noise_normalization="Instance+",
+        layer_adaptive=False,
+        **params
+    ):
         """
         Args:
             noise_type (str, optional): The type of noise to use. Default is 'Normal'.
@@ -35,15 +37,16 @@ class NoiseConfiguration():
         self.layer_adaptive = layer_adaptive
 
 
-class MABConfiguration():
-    def __init__(self,
-                 mode='Decay',
-                 decay_ratio=0.5,
-                 selection_operators='AutomaticLexicase,Tournament-7',
-                 comparison_criterion='Case',
-                 threshold=100,
-                 **kwargs
-                 ) -> None:
+class MABConfiguration:
+    def __init__(
+        self,
+        mode="Decay",
+        decay_ratio=0.5,
+        selection_operators="AutomaticLexicase,Tournament-7",
+        comparison_criterion="Case",
+        threshold=100,
+        **kwargs
+    ) -> None:
         self.mode = mode
         # Decay or Threshold Mode
         self.decay_ratio = decay_ratio
@@ -54,7 +57,7 @@ class MABConfiguration():
         self.threshold = threshold
 
 
-class ArchiveConfiguration():
+class ArchiveConfiguration:
     def __init__(self, dynamic_validation=False, data_combination=True, **params):
         self.dynamic_validation = dynamic_validation
         # Training the final model with training data and validation data
@@ -89,36 +92,39 @@ class SelectionMode(enum.Enum):
         return None
 
 
-class CrossoverConfiguration():
+class CrossoverConfiguration:
     """
     Two possible ways of macro semantic crossover:
     1. Two individuals only apply macro crossover with a certain probability
     2. First apply two rounds of macro crossover to get two parents, then micro crossover
     """
 
-    def __init__(self,
-                 # single-tree crossover
-                 root_crossover=False,
-                 safe_crossover=False,
-                 same_index=False,
-                 leaf_biased=False,
-                 # macro crossover
-                 macro_crossover_rate=0,
-                 independent_macro_crossover=True,
-                 macro_semantic_crossover=False,
-                 var_or=False,
-                 # semantic macro crossover
-                 semantic_crossover_probability=0,
-                 semantic_crossover_mode=None,
-                 semantic_selection_mode=None,
-                 max_height=10,
-                 number_of_invokes=0,
-                 tree_selection='Random',
-                 adaptive_power=1,
-                 inverse_point=0.5,
-                 sc_tournament_size=3,
-                 sc_temperature=1 / 20,
-                 dimension_crossover_rate=0, **params):
+    def __init__(
+        self,
+        # single-tree crossover
+        root_crossover=False,
+        safe_crossover=False,
+        same_index=False,
+        leaf_biased=False,
+        # macro crossover
+        macro_crossover_rate=0,
+        independent_macro_crossover=True,
+        macro_semantic_crossover=False,
+        var_or=False,
+        # semantic macro crossover
+        semantic_crossover_probability=0,
+        semantic_crossover_mode=None,
+        semantic_selection_mode=None,
+        max_height=10,
+        number_of_invokes=0,
+        tree_selection="Random",
+        adaptive_power=1,
+        inverse_point=0.5,
+        sc_tournament_size=3,
+        sc_temperature=1 / 20,
+        dimension_crossover_rate=0,
+        **params
+    ):
         # max height after crossover
         self.max_height = max_height
         self.root_crossover = root_crossover
@@ -136,8 +142,12 @@ class CrossoverConfiguration():
         # semantic feature crossover
         # different from traditional semantic crossover, this semantic crossover is performed on the feature level
         self.semantic_crossover_probability = semantic_crossover_probability
-        self.semantic_crossover_mode = CrossoverMode.from_string(semantic_crossover_mode)
-        self.semantic_selection_mode = SelectionMode.from_string(semantic_selection_mode)
+        self.semantic_crossover_mode = CrossoverMode.from_string(
+            semantic_crossover_mode
+        )
+        self.semantic_selection_mode = SelectionMode.from_string(
+            semantic_selection_mode
+        )
         self.map_elites_configuration = MAPElitesConfiguration(**params)
         self.number_of_invokes = number_of_invokes
         self.tree_selection = tree_selection
@@ -151,24 +161,23 @@ class CrossoverConfiguration():
         self.sc_temperature = sc_temperature
 
 
-class MAPElitesConfiguration():
-    def __init__(self,
-                 map_elites_random_sample=False,
-                 map_elites_bins=10,
-                 **params):
+class MAPElitesConfiguration:
+    def __init__(self, map_elites_random_sample=False, map_elites_bins=10, **params):
         self.map_elites_random_sample = map_elites_random_sample
         self.map_elites_bins = map_elites_bins
 
 
-class MutationConfiguration():
-    def __init__(self,
-                 safe_mutation=False,
-                 mutation_expr_height=None,
-                 max_height=10,
-                 gene_addition_rate=0,
-                 gene_deletion_rate=0,
-                 weighted_deletion=False,
-                 **params):
+class MutationConfiguration:
+    def __init__(
+        self,
+        safe_mutation=False,
+        mutation_expr_height=None,
+        max_height=10,
+        gene_addition_rate=0,
+        gene_deletion_rate=0,
+        weighted_deletion=False,
+        **params
+    ):
         self.gene_addition_rate = gene_addition_rate
         self.gene_deletion_rate = gene_deletion_rate
         self.weighted_deletion = weighted_deletion
@@ -177,14 +186,16 @@ class MutationConfiguration():
         self.max_height = max_height
 
 
-class ImbalancedConfiguration():
-    def __init__(self,
-                 balanced_evaluation=False,
-                 balanced_final_training=False,
-                 balanced_fitness=False,
-                 weight_on_x_space=True,
-                 based_on_test=False,
-                 **params):
+class ImbalancedConfiguration:
+    def __init__(
+        self,
+        balanced_evaluation=False,
+        balanced_final_training=False,
+        balanced_fitness=False,
+        weight_on_x_space=True,
+        based_on_test=False,
+        **params
+    ):
         self.balanced_evaluation = balanced_evaluation
         self.balanced_final_training = balanced_final_training
         self.balanced_fitness = balanced_fitness
@@ -192,24 +203,27 @@ class ImbalancedConfiguration():
         self.based_on_test = based_on_test
 
 
-class EvaluationConfiguration():
-    def __init__(self,
-                 dynamic_target=False,
-                 original_features=False,
-                 pset=None,
-                 basic_primitives=True,
-                 cross_validation=True,
-                 feature_importance_method=False,
-                 filter_elimination=False,
-                 intron_gp=False,
-                 bloat_control=None,
-                 mini_batch=False,
-                 semantic_crossover_probability=0,
-                 gradient_descent=False,
-                 gradient_optimizer='GD',
-                 transductive_learning=False,
-                 classification=False,
-                 max_height=None, **params):
+class EvaluationConfiguration:
+    def __init__(
+        self,
+        dynamic_target=False,
+        original_features=False,
+        pset=None,
+        basic_primitives=True,
+        cross_validation=True,
+        feature_importance_method=False,
+        filter_elimination=False,
+        intron_gp=False,
+        bloat_control=None,
+        mini_batch=False,
+        semantic_crossover_probability=0,
+        gradient_descent=False,
+        gradient_optimizer="GD",
+        transductive_learning=False,
+        classification=False,
+        max_height=None,
+        **params
+    ):
         # prediction results of the neural network
         self.gradient_optimizer = gradient_optimizer
         # random generate cross-validation scheme
@@ -219,7 +233,7 @@ class EvaluationConfiguration():
         self.pset: Union[PrimitiveSet] = pset
         # check model is in sklearn format or not
         self.basic_primitives = basic_primitives
-        self.sklearn_format = self.basic_primitives == 'ML'
+        self.sklearn_format = self.basic_primitives == "ML"
         # using 5-fold CV
         self.cross_validation = cross_validation
         # feature importance method (Internal, SHAP, Permutation Importance)
@@ -243,10 +257,12 @@ class EvaluationConfiguration():
         # some parameters for bloat control
         self.bloat_control = bloat_control
         lsh_key = None
-        self.intron_calculation = check_semantic_based_bc(self.bloat_control) or self.intron_gp
+        self.intron_calculation = (
+            check_semantic_based_bc(self.bloat_control) or self.intron_gp
+        )
         if self.bloat_control is not None:
             if self.bloat_control.get("lsh_size", None) is None:
-                lsh_key = self.bloat_control.get("key_item", 'String') == 'LSH'
+                lsh_key = self.bloat_control.get("key_item", "String") == "LSH"
             else:
                 lsh_key = self.bloat_control["lsh_size"]
         # locality sensitive hashing, a very rare case
@@ -260,35 +276,32 @@ class EvaluationConfiguration():
         self.max_height = max_height
 
 
-class BloatControlConfiguration():
-    def __init__(self,
-                 hoist_before_selection=True,
-                 **params):
+class BloatControlConfiguration:
+    def __init__(self, hoist_before_selection=True, **params):
         self.hoist_before_selection = hoist_before_selection
 
 
-class BaseLearnerConfiguration():
-    def __init__(self, ridge_alpha=1,
-                 **params):
+class BaseLearnerConfiguration:
+    def __init__(self, ridge_alpha=1, **params):
         self.ridge_alpha = ridge_alpha
 
 
-class ExperimentalConfiguration():
-    def __init__(self,
-                 pac_bayesian_comparison=False,
-                 **params) -> None:
+class ExperimentalConfiguration:
+    def __init__(self, pac_bayesian_comparison=False, **params) -> None:
         # Here are some configurations only used for experiments
         # This flag is only used for experimental comparison
         self.pac_bayesian_comparison = pac_bayesian_comparison
 
 
-class DepthLimitConfiguration():
-    def __init__(self,
-                 max_height: Union[str, int] = 10,  # Maximum height of a GP tree
-                 min_height: int = 0,  # Minimum height of a GP tree
-                 **params):
+class DepthLimitConfiguration:
+    def __init__(
+        self,
+        max_height: Union[str, int] = 10,  # Maximum height of a GP tree
+        min_height: int = 0,  # Minimum height of a GP tree
+        **params
+    ):
         if isinstance(max_height, str):
-            max_height = int(max_height.split('-')[1])
+            max_height = int(max_height.split("-")[1])
         self.max_height = max_height
         self.min_height = min_height
         assert self.max_height is not None

@@ -12,7 +12,7 @@ def _handle_zeros_in_scale(scale, copy=True):
     # if we are fitting on 1D arrays, scale might be a scalar
     if np.isscalar(scale):
         if scale <= threshold:
-            scale = 1.
+            scale = 1.0
         return scale
     elif isinstance(scale, np.ndarray):
         if copy:
@@ -40,9 +40,9 @@ class SafetyScaler(StandardScaler):
         return np.nan_to_num(super().transform(X, copy), posinf=0, neginf=0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     data = np.array([[0, 0], [0, 0], [1e-50, 1], [1, 1]])
     # data = np.random.randn(100, 100) * 100
     scaler = SafetyScaler()
-    scaler.fit(data[:3, ])
-    print(scaler.transform(data[3:, ]))
+    scaler.fit(data[:3,])
+    print(scaler.transform(data[3:,]))

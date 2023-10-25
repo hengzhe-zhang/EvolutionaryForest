@@ -8,5 +8,7 @@ def scaled_random_constant(biggest_val):
     """
     min_erc = -5 * biggest_val
     max_erc = 5 * biggest_val
-    generator = lambda: round((np.random.rand() * (max_erc - min_erc) + min_erc) * 1e3) / 1e3
+    generator = (
+        lambda: round((np.random.rand() * (max_erc - min_erc) + min_erc) * 1e3) / 1e3
+    )
     return generator

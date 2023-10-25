@@ -4,7 +4,6 @@ from evolutionary_forest.component.bloat_control.depth_limit import *
 
 
 class TestFunctions(unittest.TestCase):
-
     def test_get_replacement_tree(self):
         class Individual:
             def __init__(self, gene):
@@ -37,5 +36,5 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(filtered_list, [1, 2, 3, 4, 5])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

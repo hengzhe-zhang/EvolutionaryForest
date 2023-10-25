@@ -39,7 +39,9 @@ class DREPEnsemble:
                 div_list.append((diversity, loss, i))
 
             # Filter the models by diversity, retaining the top 50% diverse models
-            div_list = sorted(div_list, key=lambda x: -x[0])[:int(round(len(div_list) * 0.5))]
+            div_list = sorted(div_list, key=lambda x: -x[0])[
+                : int(round(len(div_list) * 0.5))
+            ]
 
             # Sort the shortlisted models by their loss (ascending)
             div_list = sorted(div_list, key=lambda x: x[1])
@@ -53,12 +55,15 @@ class DREPEnsemble:
 
             # Calculate the new ensemble prediction if the model were to be added
             ensemble_size = np.sum(self.ensemble_weights)
-            trial_prediction = ensemble_size / (ensemble_size + 1) * current_prediction + \
-                               1 / (ensemble_size + 1) * self.predictions[index]
+            trial_prediction = (
+                ensemble_size / (ensemble_size + 1) * current_prediction
+                + 1 / (ensemble_size + 1) * self.predictions[index]
+            )
 
             # If the new ensemble prediction doesn't improve performance, exit the loop
             if np.mean(((trial_prediction - self.y_sample) ** 2)) > np.mean(
-                ((current_prediction - self.y_sample) ** 2)):
+                ((current_prediction - self.y_sample) ** 2)
+            ):
                 break
 
             # Update the ensemble prediction and set the weight of the selected model to 1

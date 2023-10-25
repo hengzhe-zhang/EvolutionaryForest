@@ -30,7 +30,9 @@ class RacingFunctionSelector:
 
                     # Ensure the list does not exceed maximum size by removing the worst fitness value
                     if len(self.function_fitness_lists[function]) > self.MAX_SIZE:
-                        self.function_fitness_lists[function].remove(min(self.function_fitness_lists[function]))
+                        self.function_fitness_lists[function].remove(
+                            min(self.function_fitness_lists[function])
+                        )
 
     def update_best_individuals_list(self, individual: MultipleGeneGP):
         """
@@ -52,8 +54,10 @@ class RacingFunctionSelector:
             self.update_function_fitness_list(individual)
 
         # Find the best individuals in the provided population
-        sorted_individuals = sorted(individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True)
-        for individual in sorted_individuals[:self.MAX_SIZE]:
+        sorted_individuals = sorted(
+            individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
+        )
+        for individual in sorted_individuals[: self.MAX_SIZE]:
             self.update_best_individuals_list(individual)
 
         self.eliminate_functions()
@@ -64,7 +68,9 @@ class RacingFunctionSelector:
         """
         functions_to_remove = []
         for function, fitness_list in self.function_fitness_lists.items():
-            _, p_value = stats.mannwhitneyu(self.best_individuals_fitness_list, fitness_list, alternative='greater')
+            _, p_value = stats.mannwhitneyu(
+                self.best_individuals_fitness_list, fitness_list, alternative="greater"
+            )
 
             if p_value < 0.05:
                 functions_to_remove.append(function)

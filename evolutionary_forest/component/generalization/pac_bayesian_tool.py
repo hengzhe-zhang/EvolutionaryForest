@@ -10,8 +10,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
-from evolutionary_forest.component.generalization.pac_bayesian import pac_bayesian_estimation, SharpnessType, \
-    PACBayesianConfiguration
+from evolutionary_forest.component.generalization.pac_bayesian import (
+    pac_bayesian_estimation,
+    SharpnessType,
+    PACBayesianConfiguration,
+)
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -32,9 +35,12 @@ def automatic_perturbation_std(self: "EvolutionaryForestRegressor", population):
 
         # automatically determine parameter
         for individual in population:
-            feature_generator = lambda data, random_noise=0, noise_configuration=None: \
-                self.feature_generation(data, individual, random_noise=random_noise,
-                                        noise_configuration=noise_configuration)
+            feature_generator = lambda data, random_noise=0, noise_configuration=None: self.feature_generation(
+                data,
+                individual,
+                random_noise=random_noise,
+                noise_configuration=noise_configuration,
+            )
             kf_scores = []
             kf_val_scores = []
 
@@ -45,10 +51,10 @@ def automatic_perturbation_std(self: "EvolutionaryForestRegressor", population):
                 features = feature_generator(X_train)
 
                 # please do not touch the original pipeline
-                if automatic_std_model == 'KNN+':
-                    pipe = get_cross_validation_model('KNN', features, None, y_train)
-                elif automatic_std_model == 'DT+':
-                    pipe = get_cross_validation_model('DT', features, None, y_train)
+                if automatic_std_model == "KNN+":
+                    pipe = get_cross_validation_model("KNN", features, None, y_train)
+                elif automatic_std_model == "DT+":
+                    pipe = get_cross_validation_model("DT", features, None, y_train)
                 else:
                     pipe = copy.deepcopy(individual.pipe)
                 pipe.fit(features, y_train)
@@ -56,18 +62,29 @@ def automatic_perturbation_std(self: "EvolutionaryForestRegressor", population):
                 individual.predicted_values = pipe.predict(features)
 
                 # PAC-Bayesian
-                estimation = pac_bayesian_estimation(features, X_train, y_train, pipe, individual,
-                                                     self.evaluation_configuration.cross_validation,
-                                                     pac_bayesian, SharpnessType.Parameter,
-                                                     feature_generator=feature_generator)
+                estimation = pac_bayesian_estimation(
+                    features,
+                    X_train,
+                    y_train,
+                    pipe,
+                    individual,
+                    self.evaluation_configuration.cross_validation,
+                    pac_bayesian,
+                    SharpnessType.Parameter,
+                    feature_generator=feature_generator,
+                )
                 sharpness_value = estimation[1][0]
                 mse_training = mean_squared_error(y_train, individual.predicted_values)
                 final_score = sharpness_value + mse_training
                 kf_scores.append(final_score)
 
-                pipe = get_cross_validation_model(automatic_std_model, features, pipe, y_train)
+                pipe = get_cross_validation_model(
+                    automatic_std_model, features, pipe, y_train
+                )
 
-                mse_validation = predict_on_validation_set(X_val, y_val, feature_generator, pipe)
+                mse_validation = predict_on_validation_set(
+                    X_val, y_val, feature_generator, pipe
+                )
                 kf_val_scores.append(mse_validation)
             scores.append(np.mean(kf_scores))
             val_scores.append(np.mean(kf_val_scores))
@@ -80,7 +97,7 @@ def automatic_perturbation_std(self: "EvolutionaryForestRegressor", population):
             best_score = best_val_score
             best_alpha = alpha
     pac_bayesian.perturbation_std = best_alpha
-    print('Current best alpha', best_alpha)
+    print("Current best alpha", best_alpha)
     for individual in population:
         individual.predicted_values = individual.backup_predictions
         del individual.backup_predictions
@@ -102,19 +119,19 @@ def predict_on_validation_set(X_val, y_val, feature_generator, pipe):
 
 def get_cross_validation_model(automatic_std_model, features, pipe, y_train):
     # real cross-validation
-    if automatic_std_model == 'KNN':
+    if automatic_std_model == "KNN":
         pipe = Pipeline(
             [
-                ('Scaler', StandardScaler()),
-                ('Ridge', KNeighborsRegressor()),
+                ("Scaler", StandardScaler()),
+                ("Ridge", KNeighborsRegressor()),
             ]
         )
         pipe.fit(features, y_train)
-    elif automatic_std_model == 'DT':
+    elif automatic_std_model == "DT":
         pipe = Pipeline(
             [
-                ('Scaler', StandardScaler()),
-                ('Ridge', DecisionTreeRegressor()),
+                ("Scaler", StandardScaler()),
+                ("Ridge", DecisionTreeRegressor()),
             ]
         )
         pipe.fit(features, y_train)

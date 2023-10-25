@@ -9,10 +9,8 @@ def best_harmonic_rank(front):
     return np.argmax(harmonic_means_per_column)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Example usage:
-    front = np.array([[2, 4],
-                      [1, 3],
-                      [4, 5]])
+    front = np.array([[2, 4], [1, 3], [4, 5]])
 
     print(best_harmonic_rank(front))

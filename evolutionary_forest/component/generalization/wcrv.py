@@ -18,16 +18,17 @@ def calculate_WCRV(inputs, residuals, weights, median_weight):
             mic_vk_R = calculate_mic(inputs[:, vk], residuals)
             wcrv += weight_vk * mic_vk_R
         else:
-            wcrv += (1 - weight_vk)  # Apply a penalty for unimportant variables
+            wcrv += 1 - weight_vk  # Apply a penalty for unimportant variables
     return wcrv
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Example data
     inputs = np.random.rand(100, 5)  # Assume 100 samples and 5 features
     residuals = np.random.rand(100)  # Assume 100 residuals
-    weights = [calculate_mic(inputs[:, i], residuals)
-               for i in range(inputs.shape[1])]  # Calculate the weight for each input variable
+    weights = [
+        calculate_mic(inputs[:, i], residuals) for i in range(inputs.shape[1])
+    ]  # Calculate the weight for each input variable
     median_weight = np.median(weights)  # Calculate the median weight
 
     # Calculate WCRV

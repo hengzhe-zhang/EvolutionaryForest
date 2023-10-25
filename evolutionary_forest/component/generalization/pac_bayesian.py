@@ -25,7 +25,7 @@ def m_sharpness(baseline, k=4):
     random_indices = np.random.choice(len(baseline), baseline.shape[0], replace=False)
 
     for i in range(0, len(random_indices), k):
-        g = random_indices[i:i + k]
+        g = random_indices[i : i + k]
         tmp = np.zeros(baseline.shape[1])
         for idx in g:
             tmp += baseline[idx]
@@ -35,24 +35,27 @@ def m_sharpness(baseline, k=4):
     return final_baseline
 
 
-class PACBayesianConfiguration():
-    def __init__(self, kl_term_weight: float = 1,
-                 perturbation_std: float = 1,
-                 objective='R2,Perturbed-MSE,KL-Divergence',
-                 l2_penalty=0,
-                 complexity_estimation_ratio=1,
-                 bound_reduction=False,
-                 direct_reduction=False,
-                 optimal_design=False,
-                 reference_model='KR',
-                 sharpness_iterations=10,
-                 automatic_std=False,
-                 automatic_std_model='KNN',
-                 only_hard_instance=0,
-                 sharpness_decay=0,
-                 structural_sharpness=0,
-                 adaptive_depth=False,
-                 **params):
+class PACBayesianConfiguration:
+    def __init__(
+        self,
+        kl_term_weight: float = 1,
+        perturbation_std: float = 1,
+        objective="R2,Perturbed-MSE,KL-Divergence",
+        l2_penalty=0,
+        complexity_estimation_ratio=1,
+        bound_reduction=False,
+        direct_reduction=False,
+        optimal_design=False,
+        reference_model="KR",
+        sharpness_iterations=10,
+        automatic_std=False,
+        automatic_std_model="KNN",
+        only_hard_instance=0,
+        sharpness_decay=0,
+        structural_sharpness=0,
+        adaptive_depth=False,
+        **params
+    ):
         # For VCD
         self.adaptive_depth = adaptive_depth
         self.optimal_design = optimal_design
@@ -76,20 +79,20 @@ class PACBayesianConfiguration():
 
 def kl_term_function(m, w, sigma, delta=0.1):
     """
-        Parameters:
-        m (int): The number of training samples.
-        w (numpy.array): The weight vector of the model.
-        sigma (float): The standard deviation of the Gaussian prior on the weights.
-        delta (float): The confidence parameter (0 < delta < 1), used to control the
-                       trade-off between the bound's tightness and the probability
-                       that the bound holds.
+    Parameters:
+    m (int): The number of training samples.
+    w (numpy.array): The weight vector of the model.
+    sigma (float): The standard deviation of the Gaussian prior on the weights.
+    delta (float): The confidence parameter (0 < delta < 1), used to control the
+                   trade-off between the bound's tightness and the probability
+                   that the bound holds.
 
-        Returns:
-        float: The calculated PAC-Bayesian bound term.
+    Returns:
+    float: The calculated PAC-Bayesian bound term.
     """
 
     w_norm = np.linalg.norm(w)
-    kl_term = (w_norm ** 2) / (2 * sigma ** 2)
+    kl_term = (w_norm**2) / (2 * sigma**2)
     log_term = np.log(2 * m / delta)
     result = (1 / m) * (kl_term + log_term)
     return 4 * np.sqrt(result)
@@ -102,14 +105,20 @@ class SharpnessType(Enum):
     Parameter = 5
 
 
-def pac_bayesian_estimation(X, original_X, y, estimator, individual,
-                            cross_validation: bool,
-                            configuration: PACBayesianConfiguration,
-                            sharpness_type: SharpnessType,
-                            feature_generator=None,
-                            data_generator=None,
-                            reference_model: LGBMRegressor = None,
-                            sharpness_vector=None):
+def pac_bayesian_estimation(
+    X,
+    original_X,
+    y,
+    estimator,
+    individual,
+    cross_validation: bool,
+    configuration: PACBayesianConfiguration,
+    sharpness_type: SharpnessType,
+    feature_generator=None,
+    data_generator=None,
+    reference_model: LGBMRegressor = None,
+    sharpness_vector=None,
+):
     """
     Please pay attention, when calculating the sharpness,
     do not use cross-validation prediction as the predictions.
@@ -118,8 +127,10 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     original_predictions = individual.pipe.predict(X)
     baseline = (y - original_predictions) ** 2
     if configuration.structural_sharpness > 0:
-        if hasattr(individual, 'baseline_mse'):
-            individual.structural_sharpness = np.mean(np.maximum(baseline - individual.baseline_mse, 0))
+        if hasattr(individual, "baseline_mse"):
+            individual.structural_sharpness = np.mean(
+                np.maximum(baseline - individual.baseline_mse, 0)
+            )
         else:
             individual.structural_sharpness = 0
         individual.baseline_mse = baseline
@@ -128,16 +139,22 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     num_iterations = configuration.sharpness_iterations
     # sc = StandardScaler()
     # X = sc.fit_transform(X)
-    sc = estimator['Scaler']
+    sc = estimator["Scaler"]
 
     # Create an array to store the R2 scores
     index = None
     if configuration.only_hard_instance != 0:
-        mse_scores = np.zeros((num_iterations, int(len(X) * abs(configuration.only_hard_instance))))
+        mse_scores = np.zeros(
+            (num_iterations, int(len(X) * abs(configuration.only_hard_instance)))
+        )
         if configuration.only_hard_instance > 0:
-            index = np.argsort(baseline)[-int(len(baseline) * configuration.only_hard_instance):]
+            index = np.argsort(baseline)[
+                -int(len(baseline) * configuration.only_hard_instance) :
+            ]
         else:
-            index = np.argsort(baseline)[:int(len(baseline) * -configuration.only_hard_instance)]
+            index = np.argsort(baseline)[
+                : int(len(baseline) * -configuration.only_hard_instance)
+            ]
         baseline = baseline[index]
     else:
         mse_scores = np.zeros((num_iterations, len(X)))
@@ -153,7 +170,10 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
         if sharpness_type == SharpnessType.Semantics:
             # Add random Gaussian noise to the coefficients and intercept
             X_noise = X + np.random.normal(scale=std, size=X.shape)
-        elif sharpness_type == SharpnessType.Data or sharpness_type == SharpnessType.DataLGBM:
+        elif (
+            sharpness_type == SharpnessType.Data
+            or sharpness_type == SharpnessType.DataLGBM
+        ):
             # Generate some random noise data
             data = data_generator()
             X_noise = sc.transform(feature_generator(data))
@@ -169,10 +189,14 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
                 target_y = y[index]
             else:
                 input_x = original_X
-            X_noise = sc.transform(feature_generator(input_x,
-                                                     random_noise=configuration.perturbation_std,
-                                                     random_seed=i,
-                                                     noise_configuration=configuration.noise_configuration))
+            X_noise = sc.transform(
+                feature_generator(
+                    input_x,
+                    random_noise=configuration.perturbation_std,
+                    random_seed=i,
+                    noise_configuration=configuration.noise_configuration,
+                )
+            )
         else:
             raise Exception("Unknown sharpness type!")
 
@@ -183,13 +207,16 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             estimator_noise.fit(X_noise, y)
             y_pred = get_cv_predictions(estimator_noise, X_noise, y)
         else:
-            y_pred = get_cv_predictions(estimator, X_noise, y,
-                                        direct_prediction=True)
+            y_pred = get_cv_predictions(estimator, X_noise, y, direct_prediction=True)
 
-        if isinstance(configuration.objective, str) and 'Derivative' in configuration.objective:
+        if (
+            isinstance(configuration.objective, str)
+            and "Derivative" in configuration.objective
+        ):
             # numerical differentiation
-            y_pred_plus = get_cv_predictions(estimator, X_noise_plus, y,
-                                             direct_prediction=True)
+            y_pred_plus = get_cv_predictions(
+                estimator, X_noise_plus, y, direct_prediction=True
+            )
             derivatives.append(np.mean(np.abs((y_pred_plus - y_pred))))
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
@@ -202,19 +229,19 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
     perturbed_mse = np.mean(mse_scores)
 
     objectives = []
-    for s in configuration.objective.split(','):
-        if '*' in s:
-            weight, s = s.split('*')
+    for s in configuration.objective.split(","):
+        if "*" in s:
+            weight, s = s.split("*")
             weight = float(weight)
         else:
             weight = 1
 
-        if s == 'R2':
+        if s == "R2":
             objectives.append((R2, 1 * weight))
-        elif s == 'Perturbed-MSE' or s == 'MeanSharpness':
+        elif s == "Perturbed-MSE" or s == "MeanSharpness":
             # mean-sharpness, which follows PAC-Bayesian
             objectives.append((perturbed_mse, -1 * weight))
-        elif s == 'MeanSharpness-Base':
+        elif s == "MeanSharpness-Base":
             # mean-sharpness, which follows PAC-Bayesian
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, original_predictions)
@@ -222,39 +249,39 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             sharp_mse = np.mean(mse_scores, axis=1)
             # average over perturbations
             objectives.append((np.mean(sharp_mse - baseline_mse), -1 * weight))
-        elif s == 'MaxSharpness':
+        elif s == "MaxSharpness":
             # n-SAM, reduce the maximum sharpness over all samples
             # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
             # max over perturbations
             objectives.append((np.max(sharp_mse), -1 * weight))
-        elif s == 'MaxSharpness-Base' or s == 'MaxSharpness-Base+':
+        elif s == "MaxSharpness-Base" or s == "MaxSharpness-Base+":
             # n-SAM, reduce the maximum sharpness over all samples
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, original_predictions)
             mse_scores = np.vstack((mse_scores, baseline))
             max_sharp = mse_scores[np.argmax(np.mean(mse_scores, axis=1))]
-            if s == 'MaxSharpness+':
+            if s == "MaxSharpness+":
                 sharpness_vector[:] = max_sharp
             # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
             # max over perturbations
             max_sharpness = np.max(sharp_mse - baseline_mse)
             objectives.append((max_sharpness, -1 * weight))
-        elif s == 'MaxSharpness-1':
+        elif s == "MaxSharpness-1":
             # 1-SAM, reduce the maximum sharpness over each sample
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
-        elif s == 'MaxSharpness-1-Base' or s == 'MaxSharpness-1-Base+':
+        elif s == "MaxSharpness-1-Base" or s == "MaxSharpness-1-Base+":
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             mse_scores = np.vstack((mse_scores, baseline))
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
             max_sharp -= baseline
-            if s == 'MaxSharpness-1-Base+':
+            if s == "MaxSharpness-1-Base+":
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
@@ -262,23 +289,23 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
             # 1-SAM, reduce the maximum sharpness over each sample
             # subtract baseline MSE
             mse_scores = np.vstack((mse_scores, baseline))
-            _, k, _ = s.split('-')
+            _, k, _ = s.split("-")
             max_sharp = m_sharpness(mse_scores.T, int(k))
             max_sharp -= baseline
-            if s.endswith('+'):
+            if s.endswith("+"):
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
-        elif s == 'Derivative':
+        elif s == "Derivative":
             derivative = np.max(derivatives)
             objectives.append((derivative, -1 * weight))
-        elif s == 'KL-Divergence':
+        elif s == "KL-Divergence":
             if np.sum(std) == 0:
                 kl_divergence = np.inf
             else:
                 kl_divergence = kl_term_function(len(X.flatten()), X.flatten(), std)
             objectives.append((kl_divergence, -1 * weight))
-        elif s == 'Size':
+        elif s == "Size":
             objectives.append((np.sum([len(g) for g in individual.gene]), -1 * weight))
         else:
             raise ValueError("Unknown objective function!")
@@ -286,13 +313,13 @@ def pac_bayesian_estimation(X, original_X, y, estimator, individual,
 
 
 def check_format(input_string):
-    pattern = r'^MaxSharpness-(\d+)-Base\+?$'
+    pattern = r"^MaxSharpness-(\d+)-Base\+?$"
     match = re.match(pattern, input_string)
     return bool(match)
 
 
 def get_cv_predictions(estimator, X, y, direct_prediction=False):
-    base_model = estimator['Ridge']
+    base_model = estimator["Ridge"]
     if isinstance(base_model, RidgeCV) and not direct_prediction:
         y_pred = cv_prediction_from_ridge(y, base_model)
     else:
@@ -301,8 +328,10 @@ def get_cv_predictions(estimator, X, y, direct_prediction=False):
 
 
 def get_adaptive_std(estimator):
-    ridge_model: RidgeCV = estimator['Ridge']
-    coef_intercept = np.concatenate((ridge_model.coef_, np.array([ridge_model.intercept_])))
+    ridge_model: RidgeCV = estimator["Ridge"]
+    coef_intercept = np.concatenate(
+        (ridge_model.coef_, np.array([ridge_model.intercept_]))
+    )
     std = np.mean(np.abs(coef_intercept))
     return std
 
@@ -333,8 +362,14 @@ def assign_rank(population, hof, external_archive):
         if isinstance(ind.fitness_list[0], tuple):
             # weight rank by weights in the fitness-weight vector
             ind.fitness.values = (
-                np.mean(list(itertools.starmap(lambda rank, fitness_weight: rank * (-fitness_weight[1]),
-                                               zip(ind.rank_list, ind.fitness_list)))),
+                np.mean(
+                    list(
+                        itertools.starmap(
+                            lambda rank, fitness_weight: rank * (-fitness_weight[1]),
+                            zip(ind.rank_list, ind.fitness_list),
+                        )
+                    )
+                ),
             )
             # after this stage, R2 scores are weighted by a negative weight
             # better values will get a smaller rank, which is correct
@@ -356,7 +391,9 @@ def pac_bayesian_example():
     X, y = load_diabetes(return_X_y=True)
     # X, y = make_friedman1(n_samples=100, n_features=10)
     # Split the data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=0
+    )
     # Standardize X
     scaler_X = StandardScaler()
     X_train_standardized = scaler_X.fit_transform(X_train)
@@ -368,37 +405,37 @@ def pac_bayesian_example():
     y_test_standardized = (y_test - y_mean) / y_std
 
     config = PACBayesianConfiguration(kl_term_weight=1, perturbation_std=0.01)
-    estimator = Pipeline(steps=[('Ridge', Ridge(alpha=0.01))])
+    estimator = Pipeline(steps=[("Ridge", Ridge(alpha=0.01))])
     estimator.fit(X_train, y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(X_test)))
-    print('A', pac_bayesian_estimation(X_train, y_train, estimator, config))
+    print("Test R2", r2_score(y_test, estimator.predict(X_test)))
+    print("A", pac_bayesian_estimation(X_train, y_train, estimator, config))
 
     pf = PolynomialFeatures(degree=2)
     X_features = pf.fit_transform(X_train)
-    estimator = Pipeline(steps=[('Ridge', Ridge(alpha=0.01))])
+    estimator = Pipeline(steps=[("Ridge", Ridge(alpha=0.01))])
     estimator.fit(X_features, y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(pf.fit_transform(X_test))))
-    print('B', pac_bayesian_estimation(X_features, y_train, estimator, config))
+    print("Test R2", r2_score(y_test, estimator.predict(pf.fit_transform(X_test))))
+    print("B", pac_bayesian_estimation(X_features, y_train, estimator, config))
 
     pf = PolynomialFeatures(degree=3)
     X_features = pf.fit_transform(X_train)
-    estimator = Pipeline(steps=[('Ridge', Ridge(alpha=0.01))])
+    estimator = Pipeline(steps=[("Ridge", Ridge(alpha=0.01))])
     estimator.fit(X_features, y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(pf.fit_transform(X_test))))
-    print('C', pac_bayesian_estimation(X_features, y_train, estimator, config))
+    print("Test R2", r2_score(y_test, estimator.predict(pf.fit_transform(X_test))))
+    print("C", pac_bayesian_estimation(X_features, y_train, estimator, config))
 
     X_features = pf.fit_transform(X_train)
-    estimator = Pipeline(steps=[('Ridge', Ridge(alpha=0.01))])
+    estimator = Pipeline(steps=[("Ridge", Ridge(alpha=0.01))])
     # assume y_train is a NumPy array
     shuffled_X_train = np.copy(X_features)
     np.random.shuffle(shuffled_X_train)
     estimator.fit(shuffled_X_train, y_train)
     # Calculate the R2 score on the test set
-    print('Test R2', r2_score(y_test, estimator.predict(pf.fit_transform(X_test))))
-    print('D', pac_bayesian_estimation(shuffled_X_train, y_train, estimator, config))
+    print("Test R2", r2_score(y_test, estimator.predict(pf.fit_transform(X_test))))
+    print("D", pac_bayesian_estimation(shuffled_X_train, y_train, estimator, config))
 
 
 def rank_fitness_example():
@@ -408,7 +445,9 @@ def rank_fitness_example():
     # Generate a population of 50 individuals with random fitness values
     toolbox = base.Toolbox()
     toolbox.register("attr_float", random.uniform, 0.0, 1.0)
-    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_float, n=3)
+    toolbox.register(
+        "individual", tools.initRepeat, creator.Individual, toolbox.attr_float, n=3
+    )
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     population = toolbox.population(n=50)
     for ind in population:
@@ -425,7 +464,7 @@ def rank_fitness_example():
         assert ind.fitness.values == (-1 * sum(ind.rank_list),)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # pac_bayesian_example()
     # rank_fitness_example()
     # Example usage:

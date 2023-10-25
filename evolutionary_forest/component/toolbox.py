@@ -29,7 +29,7 @@ class TypedToolbox(Toolbox):
     population: Callable
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     box = TypedToolbox()
     box.expr = 1
     print(box.expr)

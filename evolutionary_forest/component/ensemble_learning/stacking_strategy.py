@@ -15,8 +15,7 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-class StackingStrategy():
-
+class StackingStrategy:
     def __init__(self, algorithm: "EvolutionaryForestRegressor") -> None:
         super().__init__()
         self.algorithm = algorithm
@@ -24,7 +23,7 @@ class StackingStrategy():
     def stacking_layer_generation(self, X, y):
         algorithm = self.algorithm
         # Check if a second layer is specified
-        if algorithm.second_layer == 'None' or algorithm.second_layer == None:
+        if algorithm.second_layer == "None" or algorithm.second_layer == None:
             return
 
         # Collect predictions from base models
@@ -34,11 +33,11 @@ class StackingStrategy():
             predictions.append(individual.predicted_values)
         predictions = np.array(predictions)
 
-        if algorithm.second_layer == 'DREP':
+        if algorithm.second_layer == "DREP":
             ensemble = DREPEnsemble(y_data, predictions, algorithm)
             ensemble.generate_ensemble_weights()
             algorithm.tree_weight = ensemble.get_ensemble_weights()
-        elif algorithm.second_layer == 'Ridge':
+        elif algorithm.second_layer == "Ridge":
             # Ridge regression for generating ensemble weights
             algorithm.ridge = Ridge(alpha=1e-3, normalize=True, fit_intercept=False)
             algorithm.ridge.fit(predictions.T, y_data)
@@ -48,13 +47,13 @@ class StackingStrategy():
             x /= np.sum(x)
             x = x.flatten()
             algorithm.tree_weight = x
-        elif algorithm.second_layer == 'Ridge-Prediction':
+        elif algorithm.second_layer == "Ridge-Prediction":
             predictions = algorithm.individual_prediction(X)
             # fitting predicted values
             algorithm.ridge = RidgeCV(fit_intercept=False)
             algorithm.ridge.fit(predictions.T, y_data)
             algorithm.tree_weight = algorithm.ridge.coef_.flatten()
-        elif algorithm.second_layer == 'RF-Routing':
+        elif algorithm.second_layer == "RF-Routing":
             predictions = algorithm.individual_prediction(X)
             # fitting predicted values
             algorithm.ridge = RandomForestClassifier(n_estimators=10)
@@ -62,9 +61,11 @@ class StackingStrategy():
             algorithm.ridge.candidates = np.sort(np.unique(best_arg))
             algorithm.ridge.fit(X, best_arg)
             algorithm.tree_weight = None
-        elif algorithm.second_layer == 'TreeBaseline':
+        elif algorithm.second_layer == "TreeBaseline":
             base_line_score = np.mean(cross_val_score(DecisionTreeRegressor(), X, y))
-            score = np.array(list(map(lambda x: x.fitness.wvalues[0], algorithm.hof.items)))
+            score = np.array(
+                list(map(lambda x: x.fitness.wvalues[0], algorithm.hof.items))
+            )
             x = np.zeros_like(score)
             x[score > base_line_score] = 1
             if np.sum(x) == 0:
@@ -72,7 +73,7 @@ class StackingStrategy():
             x /= np.sum(x)
             x = x.flatten()
             algorithm.tree_weight = x
-        elif algorithm.second_layer == 'DiversityPrune':
+        elif algorithm.second_layer == "DiversityPrune":
             sample_len = 500
             predictions = []
             for individual in algorithm.hof:
@@ -101,8 +102,10 @@ class StackingStrategy():
                 div_list = list(sorted(div_list, key=lambda x: -x[0]))
                 index = div_list[0][1]
                 ensemble_size = np.sum(ensemble_list)
-                trial_prediction = ensemble_size / (ensemble_size + 1) * current_prediction + \
-                                   1 / (ensemble_size + 1) * predictions[index]
+                trial_prediction = (
+                    ensemble_size / (ensemble_size + 1) * current_prediction
+                    + 1 / (ensemble_size + 1) * predictions[index]
+                )
                 if np.mean(((current_prediction - trial_prediction) ** 2)) < 0.05:
                     break
                 current_prediction = trial_prediction
@@ -110,7 +113,7 @@ class StackingStrategy():
                 remain_ind.remove(index)
             ensemble_list /= np.sum(ensemble_list)
             algorithm.tree_weight = ensemble_list
-        elif algorithm.second_layer == 'GA':
+        elif algorithm.second_layer == "GA":
             # oob calculation
             pop = algorithm.hof
             x_train = algorithm.X
@@ -121,13 +124,15 @@ class StackingStrategy():
                 chosen[sample] = 1
                 out_of_bag = np.where(chosen == 0)[0]
                 func = algorithm.toolbox.compile(individual)
-                Yp = result_calculation(func, x_train[out_of_bag], algorithm.original_features)
+                Yp = result_calculation(
+                    func, x_train[out_of_bag], algorithm.original_features
+                )
                 oob[i][out_of_bag] = ind.pipe.predict(Yp)
 
             weight = oob_pruning(oob, algorithm.y)
             weight = weight / np.sum(weight)
             algorithm.tree_weight = weight
-        elif algorithm.second_layer == 'CAWPE':
+        elif algorithm.second_layer == "CAWPE":
             pop = algorithm.hof
             weight = np.ones(len(pop))
             for i, ind in enumerate(pop):

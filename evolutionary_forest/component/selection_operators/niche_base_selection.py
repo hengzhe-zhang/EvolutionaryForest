@@ -5,12 +5,17 @@ from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseF
 
 def niche_base_selection(individuals, k, key_objective=0):
     # Sort individuals based on sharpness (worst to best)
-    sorted_individuals = sorted(individuals, key=lambda ind: ind.fitness.wvalues[key_objective])
+    sorted_individuals = sorted(
+        individuals, key=lambda ind: ind.fitness.wvalues[key_objective]
+    )
 
     # Segment the sorted individuals into niches (for simplicity, use sqrt(len(individuals)) niches)
     num_niches = int(len(individuals) ** 0.5)
     niche_size = len(individuals) // num_niches
-    niches = [sorted_individuals[i:i + niche_size] for i in range(0, len(sorted_individuals), niche_size)]
+    niches = [
+        sorted_individuals[i : i + niche_size]
+        for i in range(0, len(sorted_individuals), niche_size)
+    ]
 
     # Select k individuals using the niching selection
     selected_individuals = []

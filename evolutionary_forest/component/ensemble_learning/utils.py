@@ -6,7 +6,6 @@ from sklearn2pmml.ensemble import GBDTLRClassifier
 
 
 class GBDTLRClassifierX(GBDTLRClassifier):
-
     def fit(self, X, y, **fit_params):
         super().fit(X, y, **fit_params)
         self.classes_ = self.gbdt_.classes_

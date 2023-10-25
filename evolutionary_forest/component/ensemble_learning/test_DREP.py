@@ -6,14 +6,13 @@ from evolutionary_forest.component.ensemble_learning.DREP import DREPEnsemble
 
 
 class TestDREPEnsemble(unittest.TestCase):
-
     def setUp(self):
         # Mocked data for the purpose of the test
         self.y_data = np.array([1, 2, 3, 4, 5])
         self.predictions = [
             np.array([0.8, 2.2, 2.7, 3.9, 5.1]),
             np.array([1.1, 1.9, 3.1, 3.8, 5.2]),
-            np.array([1.3, 2.0, 3.0, 4.2, 4.8])
+            np.array([1.3, 2.0, 3.0, 4.2, 4.8]),
         ]
 
         self.algorithm = lambda: None  # Simple mock of the algorithm object

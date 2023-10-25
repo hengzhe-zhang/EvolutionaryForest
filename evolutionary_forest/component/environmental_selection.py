@@ -4,7 +4,14 @@ from operator import attrgetter
 from typing import TYPE_CHECKING, Union
 
 import numpy as np
-from deap.tools import selNSGA2, sortNondominated, selSPEA2, selBest, selNSGA3, uniform_reference_points
+from deap.tools import (
+    selNSGA2,
+    sortNondominated,
+    selSPEA2,
+    selBest,
+    selNSGA3,
+    uniform_reference_points,
+)
 from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from pymoo.mcdm.pseudo_weights import PseudoWeights
@@ -15,11 +22,19 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
 from analysis.knee_point_eurogp.utility_function import knee_point_by_utility
-from evolutionary_forest.component.decision_making.bend_angle_knee import find_knee_based_on_bend_angle
-from evolutionary_forest.component.decision_making.euclidian_knee_selection import point_to_line_distance, \
-    euclidian_knee
-from evolutionary_forest.component.decision_making.harmonic_rank import best_harmonic_rank
-from evolutionary_forest.component.decision_making.manhattan_knee import find_manhattan_knee
+from evolutionary_forest.component.decision_making.bend_angle_knee import (
+    find_knee_based_on_bend_angle,
+)
+from evolutionary_forest.component.decision_making.euclidian_knee_selection import (
+    point_to_line_distance,
+    euclidian_knee,
+)
+from evolutionary_forest.component.decision_making.harmonic_rank import (
+    best_harmonic_rank,
+)
+from evolutionary_forest.component.decision_making.manhattan_knee import (
+    find_manhattan_knee,
+)
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
@@ -27,90 +42,102 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-def knee_point_detection(front, knee_point_strategy: Union[bool, str] = 'Knee'):
+def knee_point_detection(front, knee_point_strategy: Union[bool, str] = "Knee"):
     front = np.array(front)
-    denominator = (np.max(front, axis=0) - np.min(front, axis=0))
+    denominator = np.max(front, axis=0) - np.min(front, axis=0)
     denominator = np.where(denominator > 0, denominator, 1)
     front = (front - np.min(front, axis=0)) / denominator
-    if knee_point_strategy == 'BendAngleKnee':
+    if knee_point_strategy == "BendAngleKnee":
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front)
         return index
-    elif knee_point_strategy == 'AngleKnee':
+    elif knee_point_strategy == "AngleKnee":
         # turn to a minimization problem
         _, index = find_knee_based_on_bend_angle(-1 * front, local=True)
         return index
-    elif knee_point_strategy == 'UtilityFunction':
+    elif knee_point_strategy == "UtilityFunction":
         # turn to a minimization problem
         index, _, _ = knee_point_by_utility(-1 * front)
         return index
-    elif knee_point_strategy == 'AngleKneeF':
+    elif knee_point_strategy == "AngleKneeF":
         # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, four_neighbour=True)
+        _, index = find_knee_based_on_bend_angle(
+            -1 * front, local=True, four_neighbour=True
+        )
         return index
-    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('AngleKS'):
-        weight = float(knee_point_strategy.split('~')[1])
+    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith(
+        "AngleKS"
+    ):
+        weight = float(knee_point_strategy.split("~")[1])
         # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, number_of_cluster=weight)
+        _, index = find_knee_based_on_bend_angle(
+            -1 * front, local=True, number_of_cluster=weight
+        )
         return index
-    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('AngleMKS'):
-        weight = float(knee_point_strategy.split('~')[1])
+    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith(
+        "AngleMKS"
+    ):
+        weight = float(knee_point_strategy.split("~")[1])
         # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, number_of_cluster=weight,
-                                                 minimal_complexity=True)
+        _, index = find_knee_based_on_bend_angle(
+            -1 * front, local=True, number_of_cluster=weight, minimal_complexity=True
+        )
         return index
-    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith('AngleFKS'):
-        weight = float(knee_point_strategy.split('~')[1])
+    elif isinstance(knee_point_strategy, str) and knee_point_strategy.startswith(
+        "AngleFKS"
+    ):
+        weight = float(knee_point_strategy.split("~")[1])
         # turn to a minimization problem
-        _, index = find_knee_based_on_bend_angle(-1 * front, local=True, number_of_cluster=weight,
-                                                 four_neighbour=True)
+        _, index = find_knee_based_on_bend_angle(
+            -1 * front, local=True, number_of_cluster=weight, four_neighbour=True
+        )
         return index
-    elif knee_point_strategy == 'Knee' or knee_point_strategy == True:
+    elif knee_point_strategy == "Knee" or knee_point_strategy == True:
         # turn to a minimization problem
         return euclidian_knee(-1 * front)
-    elif knee_point_strategy == 'BestAdditionalObjetive':
+    elif knee_point_strategy == "BestAdditionalObjetive":
         return np.argmax(front[:, 1])
-    elif knee_point_strategy == 'BestMainObjetive':
+    elif knee_point_strategy == "BestMainObjetive":
         return np.argmax(front[:, 0])
-    elif knee_point_strategy == 'BestHarmonicRank':
+    elif knee_point_strategy == "BestHarmonicRank":
         return best_harmonic_rank(front)
-    elif knee_point_strategy == 'HighTradeoff':
+    elif knee_point_strategy == "HighTradeoff":
         ht = HighTradeoffPoints()
         try:
             # convert to minimization
             ans = ht.do(-1 * front)
             if ans is None:
-                print('Empty Answer', front)
+                print("Empty Answer", front)
                 # if no trade-off point, then choosing the point with the highest R2
                 return max(range(len(front)), key=lambda x: front[x][0])
             else:
                 return max(ans, key=lambda x: front[x][0])
         except (ValueError, IndexError):
-            print('Value Error', front)
+            print("Value Error", front)
             # Unknown Exception
             return max(range(len(front)), key=lambda x: front[x][0])
-    elif knee_point_strategy == 'BestSum':
+    elif knee_point_strategy == "BestSum":
         pf = front
         pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
         id = pf.sum(axis=1).argmax()
         return id
-    elif knee_point_strategy == 'BestSumCbrt':
+    elif knee_point_strategy == "BestSumCbrt":
         pf = front
         pf = (pf - np.min(pf, axis=0)) / (np.max(pf, axis=0) - np.min(pf, axis=0))
         pf[:, 1] = np.cbrt(pf[:, 1])
         id = pf.sum(axis=1).argmax()
         return id
     else:
-        raise Exception('Unknown Knee Point Strategy')
+        raise Exception("Unknown Knee Point Strategy")
 
 
-class EnvironmentalSelection():
+class EnvironmentalSelection:
     @abstractmethod
     def select(self, population, offspring):
         pass
 
 
-class Objective():
+class Objective:
     @abstractmethod
     def set(self, individuals):
         pass
@@ -129,15 +156,17 @@ def unique(individuals):
 
 
 class NSGA2(EnvironmentalSelection):
-
-    def __init__(self,
-                 algorithm: "EvolutionaryForestRegressor",
-                 objective_function: Objective = None,
-                 objective_normalization=False,
-                 knee_point=False,
-                 bootstrapping_selection=False,
-                 first_objective_weight=1,
-                 max_cluster_point=True, **kwargs):
+    def __init__(
+        self,
+        algorithm: "EvolutionaryForestRegressor",
+        objective_function: Objective = None,
+        objective_normalization=False,
+        knee_point=False,
+        bootstrapping_selection=False,
+        first_objective_weight=1,
+        max_cluster_point=True,
+        **kwargs
+    ):
         self.first_objective_weight = first_objective_weight
         self.bootstrapping_selection = bootstrapping_selection
         self.algorithm = algorithm
@@ -168,7 +197,7 @@ class NSGA2(EnvironmentalSelection):
                 values = []
                 for d in range(dims):
                     min_val, max_val = min_max[d]
-                    normalized_fitness = (ind.fitness.values[d] - min_val)
+                    normalized_fitness = ind.fitness.values[d] - min_val
                     if (max_val - min_val) > 0:
                         normalized_fitness = normalized_fitness / (max_val - min_val)
                     values.append(normalized_fitness)
@@ -177,21 +206,24 @@ class NSGA2(EnvironmentalSelection):
         population[:] = self.selection_operator(individuals, len(population))
 
         if self.knee_point != False:
-            if self.knee_point == 'Ensemble':
+            if self.knee_point == "Ensemble":
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 self.algorithm.hof = first_pareto_front
-            elif self.knee_point == 'Top-10':
+            elif self.knee_point == "Top-10":
                 first_pareto_front = sortNondominated(population, len(population))[0]
-                best_individuals = sorted(first_pareto_front, key=lambda x: x.fitness.wvalues)[-10:]
+                best_individuals = sorted(
+                    first_pareto_front, key=lambda x: x.fitness.wvalues
+                )[-10:]
                 self.algorithm.hof = best_individuals
-            elif self.knee_point in ['Cluster+Ensemble',
-                                     'Cluster+Ensemble+Euclidian',
-                                     'Cluster+Ensemble+Fitness'] \
-                or self.knee_point.startswith('Cluster+Ensemble'):
+            elif self.knee_point in [
+                "Cluster+Ensemble",
+                "Cluster+Ensemble+Euclidian",
+                "Cluster+Ensemble+Fitness",
+            ] or self.knee_point.startswith("Cluster+Ensemble"):
                 first_pareto_front = sortNondominated(population, len(population))[0]
-                if '-' in self.knee_point:
-                    n_clusters = int(self.knee_point.split('-')[1])
-                    knee_point_mode = self.knee_point.split('-')[0]
+                if "-" in self.knee_point:
+                    n_clusters = int(self.knee_point.split("-")[1])
+                    knee_point_mode = self.knee_point.split("-")[0]
                 else:
                     n_clusters = 10
                     knee_point_mode = self.knee_point
@@ -199,28 +231,48 @@ class NSGA2(EnvironmentalSelection):
                 if len(first_pareto_front) <= n_clusters:
                     self.algorithm.hof = first_pareto_front
                 else:
-                    fitness_values = np.array([x.fitness.wvalues for x in first_pareto_front])
+                    fitness_values = np.array(
+                        [x.fitness.wvalues for x in first_pareto_front]
+                    )
                     fitness_values = StandardScaler().fit_transform(fitness_values)
-                    if knee_point_mode == 'Cluster+Ensemble+Fitness':
-                        labels = KMeans(n_clusters=n_clusters).fit_predict(fitness_values)
-                    elif knee_point_mode == 'Cluster+Ensemble+Fitness+Spectral':
-                        labels = SpectralClustering(n_clusters=n_clusters).fit_predict(fitness_values)
-                    elif knee_point_mode == 'Cluster+Ensemble+Fitness+AC':
-                        labels = AgglomerativeClustering(n_clusters=n_clusters).fit_predict(fitness_values)
+                    if knee_point_mode == "Cluster+Ensemble+Fitness":
+                        labels = KMeans(n_clusters=n_clusters).fit_predict(
+                            fitness_values
+                        )
+                    elif knee_point_mode == "Cluster+Ensemble+Fitness+Spectral":
+                        labels = SpectralClustering(n_clusters=n_clusters).fit_predict(
+                            fitness_values
+                        )
+                    elif knee_point_mode == "Cluster+Ensemble+Fitness+AC":
+                        labels = AgglomerativeClustering(
+                            n_clusters=n_clusters
+                        ).fit_predict(fitness_values)
                     else:
                         # normalization + reference point synthesis
                         # (1,1,1)-(0,0,0)=(1,1,1,)
-                        semantics = np.array([p.predicted_values - self.algorithm.y for p in first_pareto_front])
+                        semantics = np.array(
+                            [
+                                p.predicted_values - self.algorithm.y
+                                for p in first_pareto_front
+                            ]
+                        )
                         # (0,0,0)-((1,1,1)-(0,0,0))=(-1,-1,-1)
-                        inverse_semantics = np.array([self.algorithm.y - (p.predicted_values - self.algorithm.y)
-                                                      for p in first_pareto_front])
-                        symmetric_semantics = np.concatenate([semantics, inverse_semantics])
-                        if knee_point_mode == 'Cluster+Ensemble+Euclidian':
+                        inverse_semantics = np.array(
+                            [
+                                self.algorithm.y
+                                - (p.predicted_values - self.algorithm.y)
+                                for p in first_pareto_front
+                            ]
+                        )
+                        symmetric_semantics = np.concatenate(
+                            [semantics, inverse_semantics]
+                        )
+                        if knee_point_mode == "Cluster+Ensemble+Euclidian":
                             model = StandardScaler(with_mean=False)
-                        elif knee_point_mode == 'Cluster+Ensemble+Cosine':
-                            model = KernelPCA(kernel='cosine')
+                        elif knee_point_mode == "Cluster+Ensemble+Cosine":
+                            model = KernelPCA(kernel="cosine")
                         else:
-                            raise Exception('Unknown Knee Point Strategy')
+                            raise Exception("Unknown Knee Point Strategy")
                         model.fit(symmetric_semantics)
                         semantics = model.transform(semantics)
                         labels = KMeans(n_clusters=n_clusters).fit_predict(semantics)
@@ -233,36 +285,48 @@ class NSGA2(EnvironmentalSelection):
                         if len(cluster_front) == 0:
                             continue
                         if self.max_cluster_point:
-                            best_individual = max(cluster_front, key=lambda x: x.fitness.wvalues)
+                            best_individual = max(
+                                cluster_front, key=lambda x: x.fitness.wvalues
+                            )
                         else:
-                            best_individual = min(cluster_front, key=lambda x: x.fitness.wvalues)
+                            best_individual = min(
+                                cluster_front, key=lambda x: x.fitness.wvalues
+                            )
                         best_individuals.append(best_individual)
                     self.algorithm.hof = best_individuals
-            elif self.knee_point == 'Validation':
+            elif self.knee_point == "Validation":
                 first_pareto_front = sortNondominated(population, len(population))[0]
                 scores = []
                 for ind in first_pareto_front:
                     features = self.algorithm.feature_generation(self.validation_x, ind)
-                    scores.append(r2_score(self.validation_y, ind.pipe.predict(features)))
+                    scores.append(
+                        r2_score(self.validation_y, ind.pipe.predict(features))
+                    )
                 self.algorithm.hof = [first_pareto_front[np.argmax(scores)]]
                 # refit
                 ind = self.algorithm.hof[0]
-                concatenate_X = np.concatenate([self.algorithm.X, self.validation_x], axis=0)
-                concatenate_y = np.concatenate([self.algorithm.y, self.validation_y.flatten()])
+                concatenate_X = np.concatenate(
+                    [self.algorithm.X, self.validation_x], axis=0
+                )
+                concatenate_y = np.concatenate(
+                    [self.algorithm.y, self.validation_y.flatten()]
+                )
                 concatenate_X = self.algorithm.feature_generation(concatenate_X, ind)
                 ind.pipe.fit(concatenate_X, concatenate_y)
             else:
                 first_pareto_front = sortNondominated(population, len(population))[0]
-                if self.knee_point == 'SAM':
+                if self.knee_point == "SAM":
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
                         for ind in first_pareto_front:
-                            if not hasattr(ind, 'sam_loss'):
+                            if not hasattr(ind, "sam_loss"):
                                 pac.assign_complexity(ind, ind.pipe)
                     knee = np.argmin([[p.sam_loss for p in first_pareto_front]])
                 else:
-                    knee = knee_point_detection([p.fitness.wvalues for p in first_pareto_front],
-                                                knee_point_strategy=self.knee_point)
+                    knee = knee_point_detection(
+                        [p.fitness.wvalues for p in first_pareto_front],
+                        knee_point_strategy=self.knee_point,
+                    )
                 # Select the knee point as the final model
                 self.algorithm.hof = [first_pareto_front[knee]]
 
@@ -272,11 +336,17 @@ class NSGA2(EnvironmentalSelection):
             def quick_evaluation(ind):
                 r2_scores = []
                 func = multiple_gene_compile(ind, self.algorithm.pset)
-                for train_index, test_index in KFold(shuffle=True, random_state=0).split(self.algorithm.X,
-                                                                                         self.algorithm.y):
+                for train_index, test_index in KFold(
+                    shuffle=True, random_state=0
+                ).split(self.algorithm.X, self.algorithm.y):
                     Yp = result_calculation(func, self.algorithm.X, False)
                     ind.pipe.fit(Yp[train_index], self.algorithm.y[train_index])
-                    r2_scores.append(r2_score(self.algorithm.y[test_index], ind.pipe.predict(Yp[test_index])))
+                    r2_scores.append(
+                        r2_score(
+                            self.algorithm.y[test_index],
+                            ind.pipe.predict(Yp[test_index]),
+                        )
+                    )
                 return np.mean(r2_scores)
 
             # Select the minimal cross-validation error as the final model
@@ -290,22 +360,33 @@ class NSGA2(EnvironmentalSelection):
 
 
 class SPEA2(NSGA2):
-
-    def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
-                 objective_normalization=False, knee_point=False, bootstrapping_selection=False, **kwargs):
-        super().__init__(algorithm, objective_function, objective_normalization, knee_point, bootstrapping_selection,
-                         **kwargs)
+    def __init__(
+        self,
+        algorithm: "EvolutionaryForestRegressor",
+        objective_function: Objective = None,
+        objective_normalization=False,
+        knee_point=False,
+        bootstrapping_selection=False,
+        **kwargs
+    ):
+        super().__init__(
+            algorithm,
+            objective_function,
+            objective_normalization,
+            knee_point,
+            bootstrapping_selection,
+            **kwargs
+        )
         self.selection_operator = selSPEA2
 
 
 class Best(EnvironmentalSelection):
-
-    def __init__(self, fit_attr='fitness'):
+    def __init__(self, fit_attr="fitness"):
         super().__init__()
         self.fit_attr = fit_attr
 
     def select(self, population, offspring):
-        if self.fit_attr == 'sam_loss':
+        if self.fit_attr == "sam_loss":
             individuals = population + offspring
             k = len(population)
             return sorted(individuals, key=attrgetter(self.fit_attr))[:k]
@@ -314,14 +395,28 @@ class Best(EnvironmentalSelection):
 
 
 class NSGA3(NSGA2):
-
-    def __init__(self, algorithm: "EvolutionaryForestRegressor", objective_function: Objective = None,
-                 objective_normalization=False, knee_point=False, bootstrapping_selection=False,
-                 first_objective_weight=1,
-                 **kwargs):
-        super().__init__(algorithm, objective_function, objective_normalization, knee_point, bootstrapping_selection,
-                         first_objective_weight, **kwargs)
-        self.selection_operator = partial(selNSGA3, ref_points=uniform_reference_points(3))
+    def __init__(
+        self,
+        algorithm: "EvolutionaryForestRegressor",
+        objective_function: Objective = None,
+        objective_normalization=False,
+        knee_point=False,
+        bootstrapping_selection=False,
+        first_objective_weight=1,
+        **kwargs
+    ):
+        super().__init__(
+            algorithm,
+            objective_function,
+            objective_normalization,
+            knee_point,
+            bootstrapping_selection,
+            first_objective_weight,
+            **kwargs
+        )
+        self.selection_operator = partial(
+            selNSGA3, ref_points=uniform_reference_points(3)
+        )
 
 
 if __name__ == "__main__":
