@@ -77,8 +77,12 @@ class MultipleGeneGP():
     def gene_num(self):
         return len(self.gene)
 
-    def gene_addition(self):
+    def gene_addition(self, tree=None):
         if len(self.gene) < self.max_gene_num:
+            if tree is not None:
+                self.gene.append(tree)
+                return
+
             # not add the same gene
             existing_genes = set([str(g) for g in self.gene])
             mode = 'Random'
