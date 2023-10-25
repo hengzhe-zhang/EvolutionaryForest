@@ -97,12 +97,13 @@ def varAndPlus(population, toolbox: TypedToolbox, cxpb, mutpb, limitation_check,
 
                 addition_and_deletion = random.random()
                 if addition_and_deletion < mutation_configuration.gene_addition_rate:
-                    if i % 2 == 0:
-                        tree = copy.deepcopy(offspring[i + 1].random_select())
-                        offspring[i].gene_addition(tree)
-                    if i % 2 == 1:
-                        tree = copy.deepcopy(offspring[i - 1].random_select())
-                        offspring[i].gene_addition(tree)
+                    # if i % 2 == 0:
+                    #     tree = copy.deepcopy(offspring[i + 1].random_select())
+                    #     offspring[i].gene_addition(tree)
+                    # if i % 2 == 1:
+                    #     tree = copy.deepcopy(offspring[i - 1].random_select())
+                    #     offspring[i].gene_addition(tree)
+                    offspring[i].gene_addition()
                 elif (addition_and_deletion <
                       mutation_configuration.gene_addition_rate +
                       mutation_configuration.gene_deletion_rate):
