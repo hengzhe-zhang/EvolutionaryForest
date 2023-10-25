@@ -56,7 +56,8 @@ def deduplicate_sorted_points(pareto_points):
 
 
 def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=False,
-                                  number_of_cluster=0, return_all_knees=False):
+                                  number_of_cluster=0, return_all_knees=False,
+                                  minimal_complexity=False):
     """
     Identify the knee point based on the bend angle.
     Returns both the knee point and its index.
@@ -112,8 +113,10 @@ def find_knee_based_on_bend_angle(pareto_points, local=False, four_neighbour=Fal
             cluster_centers = kmeans.cluster_centers_
             largest_x_cluster = np.argmax(cluster_centers)
             labels = kmeans.predict(thetas.reshape(-1, 1))
-            # first_knee = np.where(labels == largest_x_cluster)[0][-1] + 1
-            first_knee = np.where(labels == largest_x_cluster)[0][0] + 1
+            if minimal_complexity:
+                first_knee = np.where(labels == largest_x_cluster)[0][-1] + 1
+            else:
+                first_knee = np.where(labels == largest_x_cluster)[0][0] + 1
             knee_index = sorted_indices[first_knee]
             knee_point = sorted_points[first_knee]
 
