@@ -322,13 +322,25 @@ class NSGA2(EnvironmentalSelection):
                             if not hasattr(ind, "sam_loss"):
                                 pac.assign_complexity(ind, ind.pipe)
                     knee = np.argmin([[p.sam_loss for p in first_pareto_front]])
+                elif "+" in self.knee_point:
+                    knee = []
+                    for strategy in self.knee_point.split("+"):
+                        knee.append(
+                            knee_point_detection(
+                                [p.fitness.wvalues for p in first_pareto_front],
+                                knee_point_strategy=strategy,
+                            )
+                        )
                 else:
                     knee = knee_point_detection(
                         [p.fitness.wvalues for p in first_pareto_front],
                         knee_point_strategy=self.knee_point,
                     )
-                # Select the knee point as the final model
-                self.algorithm.hof = [first_pareto_front[knee]]
+                if isinstance(knee, list):
+                    self.algorithm.hof = [first_pareto_front[k] for k in knee]
+                else:
+                    # Select the knee point as the final model
+                    self.algorithm.hof = [first_pareto_front[knee]]
 
         if self.bootstrapping_selection:
             first_pareto_front: list = sortNondominated(population, len(population))[0]
