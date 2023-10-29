@@ -80,11 +80,12 @@ class RacingFunctionSelector:
             del self.function_fitness_lists[function]
 
 
-def valid_individual(individual, valid_functions):
+def valid_individual(individual: MultipleGeneGP, valid_functions):
     """
     Check if an individual only uses valid (non-eliminated) functions.
     """
-    for tree in individual:
+    for tree in individual.gene:
+        tree: PrimitiveTree
         for function in tree:
             if isinstance(function, gp.Primitive) and function not in valid_functions:
                 return False
