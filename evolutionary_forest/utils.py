@@ -104,6 +104,9 @@ def efficient_deepcopy(self, memo=None, custom_filter=None):
             custom_filter = ("predicted_values", "case_values", "estimators")
         if k in custom_filter:
             continue
+        if k in ["content"]:
+            setattr(result, k, v)
+            continue
         # Copy over attributes by copying directly or in case of complex objects like lists
         # for example calling the `__deepcopy()__` method defined by them.
         # Thus, recursively copying the whole tree of objects.

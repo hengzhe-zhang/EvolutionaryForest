@@ -2100,10 +2100,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.constant_type == "Float":
             pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
-            pset.addEphemeralConstant("pi", lambda: math.pi)
-            pset.addEphemeralConstant("e", lambda: math.e)
-        elif self.constant_type == "CoinFlip":
-            pset.addEphemeralConstant("rand101", lambda: random.choice([-1, 1]))
         elif self.constant_type == "GD":
 
             def random_variable():
@@ -4595,11 +4591,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def survival_selection(self, gen, population, offspring):
         # Using NSGA-II or other operators to select parent individuals
         if isinstance(self.racing, RacingFunctionSelector) and gen > 5:
-            self.racing.update(population)
-            self.racing.pset_update()
+            self.racing.update(offspring)
             population[:] = self.racing.environmental_selection(
                 population, offspring, self.n_pop
             )
+            self.hof.clear()
+            self.hof.update(population)
             return
         nsga2 = self.bloat_control is not None and self.bloat_control.get(
             "NSGA2", False

@@ -158,18 +158,6 @@ class RacingFunctionSelector:
         if element_key in primitives:
             return True
 
-    def pset_update(self):
-        """
-        Updates the pset based on eliminated functions and terminals.
-        """
-        for element in self.function_fitness_lists.keys():
-            if isinstance(element, gp.Primitive):
-                if element not in self.pset.primitives[element.ret]:
-                    del self.function_fitness_lists[element]
-            elif isinstance(element, gp.Terminal):
-                if element not in self.pset.terminals[element.ret]:
-                    del self.function_fitness_lists[element]
-
     def isValid(self, individual: MultipleGeneGP) -> bool:
         """
         Checks if the given individual uses any of the eliminated functions or terminals.
@@ -198,11 +186,26 @@ class RacingFunctionSelector:
         """
         combined_population = parents + offspring
         valid_individuals = [ind for ind in combined_population if self.isValid(ind)]
+        invalid_individuals = [
+            ind for ind in combined_population if not self.isValid(ind)
+        ]
 
-        # Sort individuals by their fitness values in descending order and select the top n
-        top_individuals = sorted(
+        # Sort valid individuals by their fitness values in descending order
+        top_valid_individuals = sorted(
             valid_individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
-        )[:n]
+        )
+
+        # If there are not enough valid individuals to fill 'n' slots, add some of the top invalid individuals
+        if len(top_valid_individuals) < n:
+            required_count = n - len(top_valid_individuals)
+            top_invalid_individuals = sorted(
+                invalid_individuals,
+                key=lambda ind: ind.fitness.wvalues[0],
+                reverse=True,
+            )[:required_count]
+            top_individuals = top_valid_individuals + top_invalid_individuals
+        else:
+            top_individuals = top_valid_individuals[:n]
 
         return top_individuals
 
