@@ -129,6 +129,7 @@ from evolutionary_forest.component.primitive_controller import (
     get_differentiable_functions,
 )
 from evolutionary_forest.component.primitive_functions import *
+from evolutionary_forest.component.racing_selection import RacingFunctionSelector
 from evolutionary_forest.component.random_constant import scaled_random_constant
 from evolutionary_forest.component.selection import (
     batch_tournament_selection,
@@ -364,6 +365,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         learner=None,
         constant_ratio=0,
         bounded_prediction=False,
+        racing=False,
         **params,
     ):
         """
@@ -398,6 +400,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.racing = racing
         self.bounded_prediction = bounded_prediction
         self.constant_ratio = constant_ratio
         self.learner = learner
@@ -1768,6 +1771,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.evaluation_configuration.sample_weight = get_sample_weight(
                 self.X, self.test_X, self.y, self.imbalanced_configuration
             )
+
+        if self.racing:
+            self.racing = RacingFunctionSelector()
 
     def mutation_expression_function(self, toolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
@@ -4588,6 +4594,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def survival_selection(self, gen, population, offspring):
         # Using NSGA-II or other operators to select parent individuals
+        if isinstance(self.racing, RacingFunctionSelector):
+            self.racing.update(population)
+            self.racing.pset_update(self.pset)
+            population[:] = self.racing.environmental_selection(
+                population, offspring, self.n_pop
+            )
+            return
         nsga2 = self.bloat_control is not None and self.bloat_control.get(
             "NSGA2", False
         )

@@ -8,30 +8,36 @@ from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
 class RacingFunctionSelector:
-    def __init__(self, pset):
+    def __init__(self):
         self.function_fitness_lists = {}
         self.best_individuals_fitness_list = []
         self.MAX_SIZE = 100
-        self.pset = pset
 
     def update_function_fitness_list(self, individual: MultipleGeneGP):
         """
-        Updates the fitness list of functions in the individual's GP tree.
+        Updates the fitness list of functions and terminals in the individual's GP tree.
         """
         fitness_value = individual.fitness.wvalues[0]
         for tree in individual.gene:
             tree: PrimitiveTree
-            for function in tree:
-                # If the function is a primitiv, then add its fitness value
-                if isinstance(function, Primitive):
-                    if function not in self.function_fitness_lists:
-                        self.function_fitness_lists[function] = []
-                    self.function_fitness_lists[function].append(fitness_value)
+            for element in tree:
+                # If the element is a primitive or terminal, then add its fitness value
+                if isinstance(element, (Primitive, gp.Terminal)):
+                    # Use a string representation as the key
+                    if isinstance(element, gp.Terminal):
+                        element_key = str(element.value)
+                    else:
+                        element_key = str(element.name)
+
+                    if element_key not in self.function_fitness_lists:
+                        self.function_fitness_lists[element_key] = []
+
+                    self.function_fitness_lists[element_key].append(fitness_value)
 
                     # Ensure the list does not exceed maximum size by removing the worst fitness value
-                    if len(self.function_fitness_lists[function]) > self.MAX_SIZE:
-                        self.function_fitness_lists[function].remove(
-                            min(self.function_fitness_lists[function])
+                    if len(self.function_fitness_lists[element_key]) > self.MAX_SIZE:
+                        self.function_fitness_lists[element_key].remove(
+                            min(self.function_fitness_lists[element_key])
                         )
 
     def update_best_individuals_list(self, individual: MultipleGeneGP):
@@ -64,20 +70,67 @@ class RacingFunctionSelector:
 
     def eliminate_functions(self):
         """
-        Eliminate functions that have significantly worse fitness values.
+        Eliminate functions and terminals that have significantly worse fitness values.
         """
-        functions_to_remove = []
-        for function, fitness_list in self.function_fitness_lists.items():
+        elements_to_remove = []
+        for element, fitness_list in self.function_fitness_lists.items():
             _, p_value = stats.mannwhitneyu(
                 self.best_individuals_fitness_list, fitness_list, alternative="greater"
             )
 
             if p_value < 0.05:
-                functions_to_remove.append(function)
+                elements_to_remove.append(element)
 
-        for function in functions_to_remove:
-            self.pset.primitives[function.ret].remove(function)
-            del self.function_fitness_lists[function]
+        print("Removed {} elements".format(elements_to_remove))
+
+        for element in elements_to_remove:
+            if isinstance(element, gp.Primitive):
+                self.pset.primitives[element.ret].remove(element)
+            elif isinstance(element, gp.Terminal):
+                self.pset.terminals[element.ret].remove(element)
+            del self.function_fitness_lists[element]
+
+    def pset_update(self, pset: gp.PrimitiveSet):
+        """
+        Updates the pset based on eliminated functions and terminals.
+        """
+        self.pset = pset
+        for element in self.function_fitness_lists.keys():
+            if isinstance(element, gp.Primitive):
+                if element not in self.pset.primitives[element.ret]:
+                    del self.function_fitness_lists[element]
+            elif isinstance(element, gp.Terminal):
+                if element not in self.pset.terminals[element.ret]:
+                    del self.function_fitness_lists[element]
+
+    def isValid(self, individual: MultipleGeneGP) -> bool:
+        """
+        Checks if the given individual uses any of the eliminated functions or terminals.
+        """
+        for tree in individual.gene:
+            tree: PrimitiveTree
+            for element in tree:
+                element_key = str(element)
+                if element_key not in self.function_fitness_lists:
+                    return False
+        return True
+
+    def environmental_selection(
+        self, parents: List[MultipleGeneGP], offspring: List[MultipleGeneGP], n: int
+    ) -> List[MultipleGeneGP]:
+        """
+        Selects individuals from a combination of parents and offspring, filtering out those that use eliminated functions,
+        and returns the top n individuals based on fitness values.
+        """
+        combined_population = parents + offspring
+        valid_individuals = [ind for ind in combined_population if self.isValid(ind)]
+
+        # Sort individuals by their fitness values in descending order and select the top n
+        top_individuals = sorted(
+            valid_individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
+        )[:n]
+
+        return top_individuals
 
 
 def valid_individual(individual: MultipleGeneGP, valid_functions):
