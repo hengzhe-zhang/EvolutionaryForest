@@ -11,7 +11,7 @@ class RacingFunctionSelector:
     def __init__(self, pset, content):
         self.function_fitness_lists = {}
         self.best_individuals_fitness_list = []
-        self.MAX_SIZE = 100
+        self.MAX_SIZE = 5
         self.pset = pset
         self.content = content
 
@@ -82,7 +82,7 @@ class RacingFunctionSelector:
 
         self.eliminate_functions()
 
-    def eliminate_functions(self, remove_primitives=False, remove_terminals=False):
+    def eliminate_functions(self, remove_primitives=False, remove_terminals=True):
         """
         Eliminate functions and terminals that have significantly worse fitness values.
         """
@@ -111,7 +111,9 @@ class RacingFunctionSelector:
             # Check primitives
             for element, fitness_list in primitive_fitness_lists.items():
                 _, p_value = stats.mannwhitneyu(
-                    best_primitive_fitness_list, fitness_list, alternative="greater"
+                    best_primitive_fitness_list,
+                    fitness_list,
+                    alternative="greater",
                 )
                 if (
                     p_value < 1e-2 and element != best_primitive_key
@@ -130,7 +132,9 @@ class RacingFunctionSelector:
             # Check terminals
             for element, fitness_list in terminal_fitness_lists.items():
                 _, p_value = stats.mannwhitneyu(
-                    best_terminal_fitness_list, fitness_list, alternative="greater"
+                    best_terminal_fitness_list,
+                    fitness_list,
+                    alternative="greater",
                 )
                 if (
                     p_value < 1e-2 and element != best_terminal_key
