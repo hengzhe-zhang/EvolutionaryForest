@@ -1773,7 +1773,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
 
         if self.racing:
-            self.racing = RacingFunctionSelector()
+            self.racing = RacingFunctionSelector(self.pset)
 
     def mutation_expression_function(self, toolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
@@ -4594,9 +4594,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def survival_selection(self, gen, population, offspring):
         # Using NSGA-II or other operators to select parent individuals
-        if isinstance(self.racing, RacingFunctionSelector):
+        if isinstance(self.racing, RacingFunctionSelector) and gen > 5:
             self.racing.update(population)
-            self.racing.pset_update(self.pset)
+            self.racing.pset_update()
             population[:] = self.racing.environmental_selection(
                 population, offspring, self.n_pop
             )

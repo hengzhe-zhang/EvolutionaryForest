@@ -8,10 +8,11 @@ from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
 class RacingFunctionSelector:
-    def __init__(self):
+    def __init__(self, pset):
         self.function_fitness_lists = {}
         self.best_individuals_fitness_list = []
         self.MAX_SIZE = 100
+        self.pset = pset
 
     def update_function_fitness_list(self, individual: MultipleGeneGP):
         """
@@ -23,11 +24,15 @@ class RacingFunctionSelector:
             for element in tree:
                 # If the element is a primitive or terminal, then add its fitness value
                 if isinstance(element, (Primitive, gp.Terminal)):
-                    # Use a string representation as the key
-                    if isinstance(element, gp.Terminal):
-                        element_key = str(element.value)
-                    else:
-                        element_key = str(element.name)
+                    # Check if the element is a constant terminal
+                    if (
+                        isinstance(element, gp.Terminal)
+                        and hasattr(element, "value")
+                        and isinstance(element.value, (int, float))
+                    ):
+                        continue  # Skip the constant terminal
+
+                    element_key = self.get_element_name(element)
 
                     if element_key not in self.function_fitness_lists:
                         self.function_fitness_lists[element_key] = []
@@ -39,6 +44,14 @@ class RacingFunctionSelector:
                         self.function_fitness_lists[element_key].remove(
                             min(self.function_fitness_lists[element_key])
                         )
+
+    def get_element_name(self, element):
+        # Use a string representation as the key
+        if isinstance(element, gp.Terminal):
+            element_key = str(element.value)
+        else:
+            element_key = str(element.name)
+        return element_key
 
     def update_best_individuals_list(self, individual: MultipleGeneGP):
         """
@@ -72,29 +85,83 @@ class RacingFunctionSelector:
         """
         Eliminate functions and terminals that have significantly worse fitness values.
         """
-        elements_to_remove = []
-        for element, fitness_list in self.function_fitness_lists.items():
-            _, p_value = stats.mannwhitneyu(
-                self.best_individuals_fitness_list, fitness_list, alternative="greater"
-            )
+        primitive_fitness_lists = {
+            key: value
+            for key, value in self.function_fitness_lists.items()
+            if self.is_primitive(key)
+        }
+        terminal_fitness_lists = {
+            key: value
+            for key, value in self.function_fitness_lists.items()
+            if not self.is_primitive(key)
+        }
 
-            if p_value < 0.05:
+        # Identify the list with the best average fitness from primitive_fitness_lists
+        best_primitive_key = max(
+            primitive_fitness_lists,
+            key=lambda k: sum(primitive_fitness_lists[k])
+            / len(primitive_fitness_lists[k]),
+        )
+        best_primitive_fitness_list = primitive_fitness_lists[best_primitive_key]
+
+        # Identify the list with the best average fitness from terminal_fitness_lists
+        best_terminal_key = max(
+            terminal_fitness_lists,
+            key=lambda k: sum(terminal_fitness_lists[k])
+            / len(terminal_fitness_lists[k]),
+        )
+        best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
+
+        elements_to_remove = []
+
+        # Check primitives
+        for element, fitness_list in primitive_fitness_lists.items():
+            _, p_value = stats.mannwhitneyu(
+                best_primitive_fitness_list, fitness_list, alternative="greater"
+            )
+            if (
+                p_value < 0.01 and element != best_primitive_key
+            ):  # Ensure we don't remove the best one itself
                 elements_to_remove.append(element)
 
-        print("Removed {} elements".format(elements_to_remove))
+        # Check terminals
+        for element, fitness_list in terminal_fitness_lists.items():
+            _, p_value = stats.mannwhitneyu(
+                best_terminal_fitness_list, fitness_list, alternative="greater"
+            )
+            if (
+                p_value < 0.01 and element != best_terminal_key
+            ):  # Ensure we don't remove the best one itself
+                elements_to_remove.append(element)
 
-        for element in elements_to_remove:
-            if isinstance(element, gp.Primitive):
-                self.pset.primitives[element.ret].remove(element)
-            elif isinstance(element, gp.Terminal):
-                self.pset.terminals[element.ret].remove(element)
-            del self.function_fitness_lists[element]
+        print("Removed elements:", elements_to_remove)
 
-    def pset_update(self, pset: gp.PrimitiveSet):
+        for element_name in elements_to_remove:
+            # Check and remove from pset.primitives
+            for return_type, primitives in list(self.pset.primitives.items()):
+                for p in primitives:
+                    if p.name == element_name:
+                        self.pset.primitives[return_type].remove(p)
+                        break
+
+            # Check and remove from pset.terminals
+            for return_type, terminals in list(self.pset.terminals.items()):
+                for t in terminals:
+                    if t.name == element_name:
+                        self.pset.terminals[return_type].remove(t)
+                        break
+
+            del self.function_fitness_lists[element_name]
+
+    def is_primitive(self, element_key: str) -> bool:
+        primitives = [p.name for p in self.pset.primitives[object]]
+        if element_key in primitives:
+            return True
+
+    def pset_update(self):
         """
         Updates the pset based on eliminated functions and terminals.
         """
-        self.pset = pset
         for element in self.function_fitness_lists.keys():
             if isinstance(element, gp.Primitive):
                 if element not in self.pset.primitives[element.ret]:
@@ -110,7 +177,14 @@ class RacingFunctionSelector:
         for tree in individual.gene:
             tree: PrimitiveTree
             for element in tree:
-                element_key = str(element)
+                # Check if the element is a constant terminal
+                if (
+                    isinstance(element, gp.Terminal)
+                    and hasattr(element, "value")
+                    and isinstance(element.value, (int, float))
+                ):
+                    continue  # Skip the constant terminal
+                element_key = self.get_element_name(element)
                 if element_key not in self.function_fitness_lists:
                     return False
         return True
