@@ -1773,7 +1773,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
 
         if self.racing:
-            self.racing = RacingFunctionSelector(self.pset)
+            self.racing = RacingFunctionSelector(self.pset, self.toolbox.expr)
 
     def mutation_expression_function(self, toolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
@@ -4327,6 +4327,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def update_external_archive(self, population, external_archive):
         if isinstance(self.external_archive, int):
+            if isinstance(self.racing, RacingFunctionSelector):
+                pass
+                # external_archive = selBest(population, self.external_archive)
             if self.check_multi_task_optimization():
                 models = self.base_model_list.split(",")
                 if external_archive is not None:
@@ -4590,7 +4593,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def survival_selection(self, gen, population, offspring):
         # Using NSGA-II or other operators to select parent individuals
-        if isinstance(self.racing, RacingFunctionSelector) and gen > 5:
+        if isinstance(self.racing, RacingFunctionSelector):
             self.racing.update(offspring)
             population[:] = self.racing.environmental_selection(
                 population, offspring, self.n_pop

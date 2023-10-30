@@ -8,11 +8,12 @@ from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
 class RacingFunctionSelector:
-    def __init__(self, pset):
+    def __init__(self, pset, content):
         self.function_fitness_lists = {}
         self.best_individuals_fitness_list = []
         self.MAX_SIZE = 100
         self.pset = pset
+        self.content = content
 
     def update_function_fitness_list(self, individual: MultipleGeneGP):
         """
@@ -81,7 +82,7 @@ class RacingFunctionSelector:
 
         self.eliminate_functions()
 
-    def eliminate_functions(self):
+    def eliminate_functions(self, remove_primitives=False, remove_terminals=False):
         """
         Eliminate functions and terminals that have significantly worse fitness values.
         """
@@ -96,43 +97,45 @@ class RacingFunctionSelector:
             if not self.is_primitive(key)
         }
 
-        # Identify the list with the best average fitness from primitive_fitness_lists
-        best_primitive_key = max(
-            primitive_fitness_lists,
-            key=lambda k: sum(primitive_fitness_lists[k])
-            / len(primitive_fitness_lists[k]),
-        )
-        best_primitive_fitness_list = primitive_fitness_lists[best_primitive_key]
-
-        # Identify the list with the best average fitness from terminal_fitness_lists
-        best_terminal_key = max(
-            terminal_fitness_lists,
-            key=lambda k: sum(terminal_fitness_lists[k])
-            / len(terminal_fitness_lists[k]),
-        )
-        best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
-
         elements_to_remove = []
 
-        # Check primitives
-        for element, fitness_list in primitive_fitness_lists.items():
-            _, p_value = stats.mannwhitneyu(
-                best_primitive_fitness_list, fitness_list, alternative="greater"
+        if remove_primitives:
+            # Identify the list with the best average fitness from primitive_fitness_lists
+            best_primitive_key = max(
+                primitive_fitness_lists,
+                key=lambda k: sum(primitive_fitness_lists[k])
+                / len(primitive_fitness_lists[k]),
             )
-            if (
-                p_value < 0.01 and element != best_primitive_key
-            ):  # Ensure we don't remove the best one itself
-                elements_to_remove.append(element)
+            best_primitive_fitness_list = primitive_fitness_lists[best_primitive_key]
 
-        # Check terminals
-        for element, fitness_list in terminal_fitness_lists.items():
-            _, p_value = stats.mannwhitneyu(
-                best_terminal_fitness_list, fitness_list, alternative="greater"
+            # Check primitives
+            for element, fitness_list in primitive_fitness_lists.items():
+                _, p_value = stats.mannwhitneyu(
+                    best_primitive_fitness_list, fitness_list, alternative="greater"
+                )
+                if (
+                    p_value < 1e-2 and element != best_primitive_key
+                ):  # Ensure we don't remove the best one itself
+                    elements_to_remove.append(element)
+
+        if remove_terminals:
+            # Identify the list with the best average fitness from terminal_fitness_lists
+            best_terminal_key = max(
+                terminal_fitness_lists,
+                key=lambda k: sum(terminal_fitness_lists[k])
+                / len(terminal_fitness_lists[k]),
             )
-            if (
-                p_value < 0.01 and element != best_terminal_key
-            ):  # Ensure we don't remove the best one itself
-                elements_to_remove.append(element)
+            best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
+
+            # Check terminals
+            for element, fitness_list in terminal_fitness_lists.items():
+                _, p_value = stats.mannwhitneyu(
+                    best_terminal_fitness_list, fitness_list, alternative="greater"
+                )
+                if (
+                    p_value < 1e-2 and element != best_terminal_key
+                ):  # Ensure we don't remove the best one itself
+                    elements_to_remove.append(element)
 
         print("Removed elements:", elements_to_remove)
 
@@ -184,6 +187,7 @@ class RacingFunctionSelector:
         Selects individuals from a combination of parents and offspring, filtering out those that use eliminated functions,
         and returns the top n individuals based on fitness values.
         """
+        return offspring
         combined_population = parents + offspring
         valid_individuals = [ind for ind in combined_population if self.isValid(ind)]
         invalid_individuals = [
@@ -194,16 +198,13 @@ class RacingFunctionSelector:
         top_valid_individuals = sorted(
             valid_individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
         )
+        top_invalid_individuals = sorted(
+            invalid_individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
+        )
 
         # If there are not enough valid individuals to fill 'n' slots, add some of the top invalid individuals
-        if len(top_valid_individuals) < n:
-            required_count = n - len(top_valid_individuals)
-            top_invalid_individuals = sorted(
-                invalid_individuals,
-                key=lambda ind: ind.fitness.wvalues[0],
-                reverse=True,
-            )[:required_count]
-            top_individuals = top_valid_individuals + top_invalid_individuals
+        if len(top_valid_individuals) == 0:
+            return top_invalid_individuals[:1]
         else:
             top_individuals = top_valid_individuals[:n]
 
