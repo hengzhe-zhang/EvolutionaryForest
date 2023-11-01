@@ -24,8 +24,8 @@ class OnlineGaussianWelford:
 if __name__ == "__main__":
     import numpy as np
 
-    data_stream = [1, 2, 3, 4, 5]  # Example data stream
-    model = OnlineGaussianWelford(decay_factor=0.5)
+    data_stream = list(reversed([1, 2, 3, 4, 5]))  # Example data stream
+    model = OnlineGaussianWelford(decay_factor=0.1)
     print("Expected", np.mean(data_stream), np.var(data_stream))
 
     for x in data_stream:
