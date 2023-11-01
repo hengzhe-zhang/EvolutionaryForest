@@ -56,7 +56,10 @@ class Simplification:
 
     def gene_prune(self, gene: PrimitiveTree):
         if self.algorithm.bloat_control is None or (
-            not self.algorithm.bloat_control.get("hoist_mutation", False)
+            (
+                not self.algorithm.bloat_control.get("hoist_mutation", False)
+                and (not self.algorithm.simplification)
+            )
         ):
             return
         constant_prune = self.algorithm.bloat_control.get("constant_prune", True)

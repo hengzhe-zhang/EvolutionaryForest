@@ -366,6 +366,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         constant_ratio=0,
         bounded_prediction=False,
         racing=False,
+        simplification=False,
         **params,
     ):
         """
@@ -400,6 +401,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.simplification = simplification
         self.racing = racing
         self.bounded_prediction = bounded_prediction
         self.constant_ratio = constant_ratio
@@ -1080,7 +1082,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if check_semantic_based_bc(self.bloat_control) or self.intron_gp:
             # only do this in intron mode
             intron_ids = information.introns_results
-            if self.intron_gp or check_semantic_based_bc(self.bloat_control):
+            if check_semantic_based_bc(self.bloat_control) or self.intron_gp:
                 assert len(intron_ids) == len(individual.gene)
                 # mark level to all genes
                 for gene_introns, gene in zip(intron_ids, individual.gene):
@@ -1773,7 +1775,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
 
         if self.racing:
-            self.racing = RacingFunctionSelector(self.pset, self.toolbox.expr)
+            self.racing = RacingFunctionSelector(
+                self.pset, self.toolbox.expr, **self.param
+            )
 
     def mutation_expression_function(self, toolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
@@ -2712,17 +2716,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             X = np.concatenate([self.X, X])
 
         # Prune genes in hall of fame using hoist mutation
-        if self.intron_gp:
-            for h in self.hof:
-                for gene in h.gene:
-                    # Find the best gene and hoist it to the top
-                    best_id = max(
-                        [(k, getattr(g, "corr", 0)) for k, g in enumerate(gene)],
-                        key=lambda x: (x[1], x[0]),
-                    )[0]
-                    hoistMutation(gene, best_id)
-                # Reset the pipeline to the base model
-                h.pipe = self.get_base_model()
+        # if self.intron_gp:
+        #     for h in self.hof:
+        #         for gene in h.gene:
+        #             # Find the best gene and hoist it to the top
+        #             best_id = max(
+        #                 [(k, getattr(g, "corr", 0)) for k, g in enumerate(gene)],
+        #                 key=lambda x: (x[1], x[0]),
+        #             )[0]
+        #             hoistMutation(gene, best_id)
+        #         # Reset the pipeline to the base model
+        #         h.pipe = self.get_base_model()
 
         # Train the final model using lazy training
         self.final_model_lazy_training(self.hof, force_training=self.force_retrain)
@@ -4327,9 +4331,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def update_external_archive(self, population, external_archive):
         if isinstance(self.external_archive, int):
-            if isinstance(self.racing, RacingFunctionSelector):
-                pass
-                # external_archive = selBest(population, self.external_archive)
             if self.check_multi_task_optimization():
                 models = self.base_model_list.split(",")
                 if external_archive is not None:
@@ -4598,8 +4599,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             population[:] = self.racing.environmental_selection(
                 population, offspring, self.n_pop
             )
-            self.hof.clear()
-            self.hof.update(population)
             return
         nsga2 = self.bloat_control is not None and self.bloat_control.get(
             "NSGA2", False

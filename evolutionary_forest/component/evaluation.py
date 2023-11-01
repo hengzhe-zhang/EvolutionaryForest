@@ -693,7 +693,6 @@ def single_tree_evaluation(
         evaluation_configuration = EvaluationConfiguration()
     # random noise is vital for sharpness aware minimization
     # quickly evaluate a primitive tree
-    intron_gp = evaluation_configuration.intron_gp
     lsh = evaluation_configuration.lsh
     classification = evaluation_configuration.classification
     if lsh:
@@ -809,14 +808,10 @@ def single_tree_evaluation(
             stack[-1][1].append(result)
     if len(subtree_information) > 0:
         assert len(subtree_information) == len(expr)
-    if intron_gp:
-        # return subtree information
-        return best_subtree_semantics, subtree_information
+    if return_subtree_information:
+        return result, subtree_information
     else:
-        if return_subtree_information:
-            return result, subtree_information
-        else:
-            return result
+        return result
 
 
 def get_adaptive_noise(layer_adaptive, node_depth, random_noise):

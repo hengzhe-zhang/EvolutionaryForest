@@ -1,3 +1,4 @@
+import copy
 from typing import List
 
 from deap import gp
@@ -8,11 +9,22 @@ from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
 class RacingFunctionSelector:
-    def __init__(self, pset, content):
+    def __init__(
+        self,
+        pset,
+        content,
+        remove_primitives=False,
+        remove_terminals=False,
+        racing_list_size=10,
+        **kwargs
+    ):
+        self.remove_primitives = remove_primitives
+        self.remove_terminals = remove_terminals
         self.function_fitness_lists = {}
         self.best_individuals_fitness_list = []
-        self.MAX_SIZE = 5
+        self.racing_list_size = racing_list_size
         self.pset = pset
+        self.backup_pset = copy.deepcopy(pset)
         self.content = content
 
     def update_function_fitness_list(self, individual: MultipleGeneGP):
@@ -41,7 +53,10 @@ class RacingFunctionSelector:
                     self.function_fitness_lists[element_key].append(fitness_value)
 
                     # Ensure the list does not exceed maximum size by removing the worst fitness value
-                    if len(self.function_fitness_lists[element_key]) > self.MAX_SIZE:
+                    if (
+                        len(self.function_fitness_lists[element_key])
+                        > self.racing_list_size
+                    ):
                         self.function_fitness_lists[element_key].remove(
                             min(self.function_fitness_lists[element_key])
                         )
@@ -63,13 +78,15 @@ class RacingFunctionSelector:
         self.best_individuals_fitness_list.sort()
 
         # Ensure the list does not exceed the maximum size by removing the worst fitness value
-        if len(self.best_individuals_fitness_list) > self.MAX_SIZE:
+        if len(self.best_individuals_fitness_list) > self.racing_list_size:
             self.best_individuals_fitness_list.pop()
 
     def update(self, individuals: List[MultipleGeneGP]):
         """
         Updates function fitness lists and the best individuals' list for a given population.
         """
+        self.pset.primitives = copy.deepcopy(self.backup_pset.primitives)
+        self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
         for individual in individuals:
             self.update_function_fitness_list(individual)
 
@@ -77,15 +94,17 @@ class RacingFunctionSelector:
         sorted_individuals = sorted(
             individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
         )
-        for individual in sorted_individuals[: self.MAX_SIZE]:
+        for individual in sorted_individuals[: self.racing_list_size]:
             self.update_best_individuals_list(individual)
 
         self.eliminate_functions()
 
-    def eliminate_functions(self, remove_primitives=False, remove_terminals=True):
+    def eliminate_functions(self):
         """
         Eliminate functions and terminals that have significantly worse fitness values.
         """
+        remove_primitives = self.remove_primitives
+        remove_terminals = self.remove_terminals
         primitive_fitness_lists = {
             key: value
             for key, value in self.function_fitness_lists.items()
@@ -141,7 +160,7 @@ class RacingFunctionSelector:
                 ):  # Ensure we don't remove the best one itself
                     elements_to_remove.append(element)
 
-        print("Removed elements:", elements_to_remove)
+        # print("Removed elements:", len(elements_to_remove), elements_to_remove)
 
         for element_name in elements_to_remove:
             # Check and remove from pset.primitives
