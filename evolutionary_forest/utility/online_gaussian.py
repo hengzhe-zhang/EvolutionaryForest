@@ -13,7 +13,7 @@ class OnlineGaussianWelford:
         self.M2 = self.decay_factor * self.M2 + delta * delta2
 
     def get_parameters(self):
-        if self.n < 2:
+        if self.n <= 1:
             return self.mean, 0
         else:
             variance_n = self.M2 / self.n
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     import numpy as np
 
     data_stream = [1, 2, 3, 4, 5]  # Example data stream
-    model = OnlineGaussianWelford(decay_factor=1)
+    model = OnlineGaussianWelford(decay_factor=0.5)
     print("Expected", np.mean(data_stream), np.var(data_stream))
 
     for x in data_stream:
