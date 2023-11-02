@@ -76,14 +76,10 @@ class RacingFunctionSelector:
                     len(self.function_fitness_lists[element_key])
                     > self.racing_list_size
                 ):
-                    # Get the index of the minimum fitness value
-                    idx_to_remove = self.function_fitness_lists[element_key].index(
-                        min(self.function_fitness_lists[element_key])
-                    )
                     # Remove the fitness value using the index
-                    self.function_fitness_lists[element_key].pop(idx_to_remove)
+                    self.function_fitness_lists[element_key].pop(0)
                     # Remove the corresponding frequency using the same index
-                    self.function_importance_list[element_key].pop(idx_to_remove)
+                    self.function_importance_list[element_key].pop(0)
 
     def get_element_name(self, element):
         # Use a string representation as the key
