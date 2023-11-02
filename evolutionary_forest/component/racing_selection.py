@@ -32,6 +32,9 @@ class RacingFunctionSelector:
         Updates the fitness list of functions and terminals in the individual's GP tree.
         """
         fitness_value = individual.fitness.wvalues[0]
+        seen_elements = (
+            set()
+        )  # Create a set to keep track of seen functions/terminals for this individual
         for tree in individual.gene:
             tree: PrimitiveTree
             for element in tree:
@@ -47,12 +50,20 @@ class RacingFunctionSelector:
 
                     element_key = self.get_element_name(element)
 
+                    # If the element was already seen for this individual, continue to the next element
+                    if element_key in seen_elements:
+                        continue
+
+                    seen_elements.add(
+                        element_key
+                    )  # Mark this element as seen for this individual
+
                     if element_key not in self.function_fitness_lists:
                         self.function_fitness_lists[element_key] = []
 
                     self.function_fitness_lists[element_key].append(fitness_value)
 
-                    # Ensure the list does not exceed maximum size by removing the worst fitness value
+                    # Ensure the list does not exceed maximum size
                     if (
                         len(self.function_fitness_lists[element_key])
                         > self.racing_list_size
