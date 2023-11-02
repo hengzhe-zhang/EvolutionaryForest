@@ -1,6 +1,8 @@
 import copy
+from collections import defaultdict
 from typing import List
 
+import numpy as np
 from deap import gp
 from deap.gp import Primitive, PrimitiveTree
 from scipy import stats
@@ -16,6 +18,7 @@ class RacingFunctionSelector:
         remove_primitives=False,
         remove_terminals=False,
         racing_list_size=10,
+        use_importance_for_removal=False,
         **kwargs
     ):
         self.remove_primitives = remove_primitives
@@ -26,16 +29,19 @@ class RacingFunctionSelector:
         self.pset = pset
         self.backup_pset = copy.deepcopy(pset)
         self.content = content
+        self.function_importance_list = {}
+        self.use_importance_for_removal = use_importance_for_removal
 
     def update_function_fitness_list(self, individual: MultipleGeneGP):
         """
         Updates the fitness list of functions and terminals in the individual's GP tree.
         """
         fitness_value = individual.fitness.wvalues[0]
-        seen_elements = (
-            set()
-        )  # Create a set to keep track of seen functions/terminals for this individual
-        for tree in individual.gene:
+        frequency = defaultdict(int)
+        importance = defaultdict(int)
+        coefs = abs(individual.coef)
+        coefs = coefs / np.sum(coefs)
+        for tree, coef in zip(individual.gene, coefs):
             tree: PrimitiveTree
             for element in tree:
                 # If the element is a primitive or terminal, then add its fitness value
@@ -49,28 +55,35 @@ class RacingFunctionSelector:
                         continue  # Skip the constant terminal
 
                     element_key = self.get_element_name(element)
+                    frequency[element_key] += 1
+                    importance[element_key] += coef
 
-                    # If the element was already seen for this individual, continue to the next element
-                    if element_key in seen_elements:
-                        continue
+            for element_key, freq in frequency.items():
+                if element_key not in self.function_fitness_lists:
+                    self.function_fitness_lists[element_key] = []
 
-                    seen_elements.add(
-                        element_key
-                    )  # Mark this element as seen for this individual
+                self.function_fitness_lists[element_key].append(fitness_value)
 
-                    if element_key not in self.function_fitness_lists:
-                        self.function_fitness_lists[element_key] = []
+                if element_key not in self.function_importance_list:
+                    self.function_importance_list[element_key] = []
 
-                    self.function_fitness_lists[element_key].append(fitness_value)
+                self.function_importance_list[element_key].append(
+                    importance[element_key] / freq
+                )
 
-                    # Ensure the list does not exceed maximum size
-                    if (
-                        len(self.function_fitness_lists[element_key])
-                        > self.racing_list_size
-                    ):
-                        self.function_fitness_lists[element_key].remove(
-                            min(self.function_fitness_lists[element_key])
-                        )
+                # Ensure the list does not exceed maximum size
+                if (
+                    len(self.function_fitness_lists[element_key])
+                    > self.racing_list_size
+                ):
+                    # Get the index of the minimum fitness value
+                    idx_to_remove = self.function_fitness_lists[element_key].index(
+                        min(self.function_fitness_lists[element_key])
+                    )
+                    # Remove the fitness value using the index
+                    self.function_fitness_lists[element_key].pop(idx_to_remove)
+                    # Remove the corresponding frequency using the same index
+                    self.function_importance_list[element_key].pop(idx_to_remove)
 
     def get_element_name(self, element):
         # Use a string representation as the key
@@ -137,6 +150,9 @@ class RacingFunctionSelector:
                 / len(primitive_fitness_lists[k]),
             )
             best_primitive_fitness_list = primitive_fitness_lists[best_primitive_key]
+            best_primitive_frequency_list = self.function_importance_list[
+                best_primitive_key
+            ]
 
             # Check primitives
             for element, fitness_list in primitive_fitness_lists.items():
@@ -149,6 +165,17 @@ class RacingFunctionSelector:
                     p_value < 1e-2 and element != best_primitive_key
                 ):  # Ensure we don't remove the best one itself
                     elements_to_remove.append(element)
+                else:
+                    # Check primitives using frequency if the flag is set
+                    if self.use_importance_for_removal:
+                        frequency_list = self.function_importance_list[element]
+                        _, p_value_frequency = stats.mannwhitneyu(
+                            best_primitive_frequency_list,
+                            frequency_list,
+                            alternative="greater",
+                        )
+                        if p_value_frequency < 1e-2 and element != best_primitive_key:
+                            elements_to_remove.append(element)
 
         if remove_terminals:
             # Identify the list with the best average fitness from terminal_fitness_lists
@@ -158,6 +185,9 @@ class RacingFunctionSelector:
                 / len(terminal_fitness_lists[k]),
             )
             best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
+            best_terminal_frequency_list = self.function_importance_list[
+                best_terminal_key
+            ]
 
             # Check terminals
             for element, fitness_list in terminal_fitness_lists.items():
@@ -170,6 +200,16 @@ class RacingFunctionSelector:
                     p_value < 1e-2 and element != best_terminal_key
                 ):  # Ensure we don't remove the best one itself
                     elements_to_remove.append(element)
+                else:
+                    if self.use_importance_for_removal:
+                        frequency_list = self.function_importance_list[element]
+                        _, p_value_frequency = stats.mannwhitneyu(
+                            best_terminal_frequency_list,
+                            frequency_list,
+                            alternative="greater",
+                        )
+                        if p_value_frequency < 1e-2 and element != best_terminal_key:
+                            elements_to_remove.append(element)
 
         # print("Removed elements:", len(elements_to_remove), elements_to_remove)
 
