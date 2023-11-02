@@ -17,7 +17,7 @@ class RacingFunctionSelector:
         content,
         remove_primitives=False,
         remove_terminals=False,
-        racing_list_size=10,
+        racing_list_size=100,
         use_importance_for_removal=False,
         **kwargs
     ):
@@ -156,6 +156,8 @@ class RacingFunctionSelector:
 
             # Check primitives
             for element, fitness_list in primitive_fitness_lists.items():
+                if len(fitness_list) < self.racing_list_size:
+                    continue
                 _, p_value = stats.mannwhitneyu(
                     best_primitive_fitness_list,
                     fitness_list,
@@ -191,6 +193,8 @@ class RacingFunctionSelector:
 
             # Check terminals
             for element, fitness_list in terminal_fitness_lists.items():
+                if len(fitness_list) < self.racing_list_size:
+                    continue
                 _, p_value = stats.mannwhitneyu(
                     best_terminal_fitness_list,
                     fitness_list,
