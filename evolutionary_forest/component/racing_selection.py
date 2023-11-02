@@ -19,8 +19,10 @@ class RacingFunctionSelector:
         remove_terminals=False,
         racing_list_size=100,
         use_importance_for_removal=False,
+        importance_level="Sqrt",
         **kwargs
     ):
+        self.importance_level = importance_level
         self.remove_primitives = remove_primitives
         self.remove_terminals = remove_terminals
         self.function_fitness_lists = {}
@@ -42,6 +44,17 @@ class RacingFunctionSelector:
         coefs = abs(individual.coef)
         coefs = coefs / np.sum(coefs)
         for tree, coef in zip(individual.gene, coefs):
+            if self.importance_level == "Inv" and coef < 1 / len(individual.gene):
+                continue
+            if self.importance_level == "Sqrt" and coef < 1 / np.sqrt(
+                len(individual.gene)
+            ):
+                continue
+            if self.importance_level == "Cbrt" and coef < 1 / np.cbrt(
+                len(individual.gene)
+            ):
+                continue
+
             tree: PrimitiveTree
             for element in tree:
                 # If the element is a primitive or terminal, then add its fitness value
@@ -152,8 +165,6 @@ class RacingFunctionSelector:
 
             # Check primitives
             for element, fitness_list in primitive_fitness_lists.items():
-                if len(fitness_list) < self.racing_list_size:
-                    continue
                 _, p_value = stats.mannwhitneyu(
                     best_primitive_fitness_list,
                     fitness_list,
@@ -189,8 +200,6 @@ class RacingFunctionSelector:
 
             # Check terminals
             for element, fitness_list in terminal_fitness_lists.items():
-                if len(fitness_list) < self.racing_list_size:
-                    continue
                 _, p_value = stats.mannwhitneyu(
                     best_terminal_fitness_list,
                     fitness_list,
