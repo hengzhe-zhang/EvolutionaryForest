@@ -108,11 +108,10 @@ class RacingFunctionSelector:
         """
         fitness_value = individual.fitness.wvalues[0]
         self.best_individuals_fitness_list.append(fitness_value)
-        self.best_individuals_fitness_list.sort()
 
         # Ensure the list does not exceed the maximum size by removing the worst fitness value
         if len(self.best_individuals_fitness_list) > self.racing_list_size:
-            self.best_individuals_fitness_list.pop()
+            self.best_individuals_fitness_list.pop(0)
 
     def update(self, individuals: List[MultipleGeneGP]):
         """
@@ -122,12 +121,7 @@ class RacingFunctionSelector:
         self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
         for individual in individuals:
             self.update_function_fitness_list(individual)
-
-        # Find the best individuals in the provided population
-        sorted_individuals = sorted(
-            individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
-        )
-        for individual in sorted_individuals[: self.racing_list_size]:
+        for individual in individuals:
             self.update_best_individuals_list(individual)
 
         self.eliminate_functions()
@@ -166,7 +160,7 @@ class RacingFunctionSelector:
             # Check primitives
             for element, fitness_list in primitive_fitness_lists.items():
                 _, p_value = stats.mannwhitneyu(
-                    best_primitive_fitness_list,
+                    self.best_individuals_fitness_list,
                     fitness_list,
                     alternative="greater",
                 )
@@ -201,7 +195,7 @@ class RacingFunctionSelector:
             # Check terminals
             for element, fitness_list in terminal_fitness_lists.items():
                 _, p_value = stats.mannwhitneyu(
-                    best_terminal_fitness_list,
+                    self.best_individuals_fitness_list,
                     fitness_list,
                     alternative="greater",
                 )
