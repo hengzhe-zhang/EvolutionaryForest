@@ -20,8 +20,11 @@ class RacingFunctionSelector:
         racing_list_size=100,
         use_importance_for_removal=False,
         importance_level="Sqrt",
+        use_global_fitness=True,
+        more_than_one=False,
         **kwargs
     ):
+        self.more_than_one = more_than_one
         self.importance_level = importance_level
         self.remove_primitives = remove_primitives
         self.remove_terminals = remove_terminals
@@ -33,6 +36,7 @@ class RacingFunctionSelector:
         self.content = content
         self.function_importance_list = {}
         self.use_importance_for_removal = use_importance_for_removal
+        self.use_global_fitness = use_global_fitness
 
     def update_function_fitness_list(self, individual: MultipleGeneGP):
         """
@@ -44,6 +48,11 @@ class RacingFunctionSelector:
         coefs = abs(individual.coef)
         coefs = coefs / np.sum(coefs)
         for tree, coef in zip(individual.gene, coefs):
+            if (
+                self.importance_level == "Square"
+                and coef < 1 / np.sqrt(len(individual.gene)) ** 2
+            ):
+                continue
             if self.importance_level == "Inv" and coef < 1 / len(individual.gene):
                 continue
             if self.importance_level == "Sqrt" and coef < 1 / np.sqrt(
@@ -72,6 +81,9 @@ class RacingFunctionSelector:
                     importance[element_key] += coef
 
             for element_key, freq in frequency.items():
+                if self.more_than_one and freq <= 1:
+                    continue
+
                 if element_key not in self.function_fitness_lists:
                     self.function_fitness_lists[element_key] = []
 
@@ -152,7 +164,12 @@ class RacingFunctionSelector:
                 key=lambda k: sum(primitive_fitness_lists[k])
                 / len(primitive_fitness_lists[k]),
             )
-            best_primitive_fitness_list = primitive_fitness_lists[best_primitive_key]
+            if self.use_global_fitness:
+                best_primitive_fitness_list = self.best_individuals_fitness_list
+            else:
+                best_primitive_fitness_list = primitive_fitness_lists[
+                    best_primitive_key
+                ]
             best_primitive_frequency_list = self.function_importance_list[
                 best_primitive_key
             ]
@@ -160,7 +177,7 @@ class RacingFunctionSelector:
             # Check primitives
             for element, fitness_list in primitive_fitness_lists.items():
                 _, p_value = stats.mannwhitneyu(
-                    self.best_individuals_fitness_list,
+                    best_primitive_fitness_list,
                     fitness_list,
                     alternative="greater",
                 )
@@ -187,7 +204,10 @@ class RacingFunctionSelector:
                 key=lambda k: sum(terminal_fitness_lists[k])
                 / len(terminal_fitness_lists[k]),
             )
-            best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
+            if self.use_global_fitness:
+                best_terminal_fitness_list = self.best_individuals_fitness_list
+            else:
+                best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
             best_terminal_frequency_list = self.function_importance_list[
                 best_terminal_key
             ]
@@ -195,7 +215,7 @@ class RacingFunctionSelector:
             # Check terminals
             for element, fitness_list in terminal_fitness_lists.items():
                 _, p_value = stats.mannwhitneyu(
-                    self.best_individuals_fitness_list,
+                    best_terminal_fitness_list,
                     fitness_list,
                     alternative="greater",
                 )
