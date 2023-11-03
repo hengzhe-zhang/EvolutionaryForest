@@ -48,9 +48,8 @@ class RacingFunctionSelector:
         coefs = abs(individual.coef)
         coefs = coefs / np.sum(coefs)
         for tree, coef in zip(individual.gene, coefs):
-            if (
-                self.importance_level == "Square"
-                and coef < 1 / np.sqrt(len(individual.gene)) ** 2
+            if self.importance_level == "Square" and coef < 1 / (
+                np.sqrt(len(individual.gene)) ** 2
             ):
                 continue
             if self.importance_level == "Inv" and coef < 1 / len(individual.gene):
