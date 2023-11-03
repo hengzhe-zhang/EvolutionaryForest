@@ -6,6 +6,7 @@ import numpy as np
 from deap import gp
 from deap.gp import Primitive, PrimitiveTree
 from scipy import stats
+from sklearn.ensemble import RandomForestRegressor
 
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
@@ -22,6 +23,7 @@ class RacingFunctionSelector:
         importance_level="Sqrt",
         use_global_fitness=True,
         more_than_one=False,
+        use_sensitivity_analysis=False,
         **kwargs
     ):
         self.more_than_one = more_than_one
@@ -37,6 +39,41 @@ class RacingFunctionSelector:
         self.function_importance_list = {}
         self.use_importance_for_removal = use_importance_for_removal
         self.use_global_fitness = use_global_fitness
+        self.use_sensitivity_analysis = use_sensitivity_analysis
+
+    def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
+        model = RandomForestRegressor()
+        num_features = len(self.pset.terminals[object]) + len(
+            self.pset.primitives[object]
+        )
+        X = np.zeros((len(pop), num_features))  # Feature matrix
+        y = np.zeros(len(pop))  # Target vector
+
+        for ind_idx, ind in enumerate(pop):
+            for tree in ind.gene:
+                for element in tree:
+                    # We check for constant value terminals which we skip
+                    if (
+                        isinstance(element, gp.Terminal)
+                        and hasattr(element, "value")
+                        and isinstance(element.value, (int, float))
+                    ):
+                        continue
+                    feature_idx = self.get_index(element)
+                    X[ind_idx, feature_idx] += 1  # Mark the feature as present
+            y[ind_idx] = ind.fitness.wvalues[0]
+
+        # Train the Random Forest
+        model.fit(X, y)
+
+        # Get feature importances
+        feature_importances = model.feature_importances_
+        return feature_importances
+
+    def get_index(self, element):
+        all_list = self.pset.terminals[object] + self.pset.primitives[object]
+        all_list = [x.name for x in all_list]
+        return all_list.index(element.name)
 
     def update_function_fitness_list(self, individual: MultipleGeneGP):
         """
@@ -135,14 +172,17 @@ class RacingFunctionSelector:
         for individual in individuals:
             self.update_best_individuals_list(individual)
 
-        self.eliminate_functions()
+        sensitivity = self.sensitivity_analysis(individuals)
 
-    def eliminate_functions(self):
+        self.eliminate_functions(sensitivity)
+
+    def eliminate_functions(self, sensitivity: np.ndarray):
         """
         Eliminate functions and terminals that have significantly worse fitness values.
         """
         remove_primitives = self.remove_primitives
         remove_terminals = self.remove_terminals
+
         primitive_fitness_lists = {
             key: value
             for key, value in self.function_fitness_lists.items()
@@ -158,82 +198,63 @@ class RacingFunctionSelector:
 
         if remove_primitives:
             # Identify the list with the best average fitness from primitive_fitness_lists
-            best_primitive_key = max(
-                primitive_fitness_lists,
-                key=lambda k: sum(primitive_fitness_lists[k])
-                / len(primitive_fitness_lists[k]),
-            )
-            if self.use_global_fitness:
-                best_primitive_fitness_list = self.best_individuals_fitness_list
-            else:
-                best_primitive_fitness_list = primitive_fitness_lists[
-                    best_primitive_key
-                ]
-            best_primitive_frequency_list = self.function_importance_list[
-                best_primitive_key
-            ]
+            (
+                best_primitive_fitness_list,
+                best_primitive_key,
+            ) = self.get_reference_element(primitive_fitness_lists)
 
-            # Check primitives
-            for element, fitness_list in primitive_fitness_lists.items():
-                _, p_value = stats.mannwhitneyu(
-                    best_primitive_fitness_list,
-                    fitness_list,
-                    alternative="greater",
-                )
-                if (
-                    p_value < 1e-2 and element != best_primitive_key
-                ):  # Ensure we don't remove the best one itself
-                    elements_to_remove.append(element)
-                else:
-                    # Check primitives using frequency if the flag is set
-                    if self.use_importance_for_removal:
-                        frequency_list = self.function_importance_list[element]
-                        _, p_value_frequency = stats.mannwhitneyu(
-                            best_primitive_frequency_list,
-                            frequency_list,
-                            alternative="greater",
-                        )
-                        if p_value_frequency < 1e-2 and element != best_primitive_key:
-                            elements_to_remove.append(element)
+            self.elminate_elements(
+                best_primitive_fitness_list,
+                best_primitive_key,
+                elements_to_remove,
+                primitive_fitness_lists,
+            )
 
         if remove_terminals:
-            # Identify the list with the best average fitness from terminal_fitness_lists
-            best_terminal_key = max(
-                terminal_fitness_lists,
-                key=lambda k: sum(terminal_fitness_lists[k])
-                / len(terminal_fitness_lists[k]),
+            best_terminal_fitness_list, best_terminal_key = self.get_reference_element(
+                terminal_fitness_lists
             )
-            if self.use_global_fitness:
-                best_terminal_fitness_list = self.best_individuals_fitness_list
-            else:
-                best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
-            best_terminal_frequency_list = self.function_importance_list[
-                best_terminal_key
-            ]
-
-            # Check terminals
-            for element, fitness_list in terminal_fitness_lists.items():
-                _, p_value = stats.mannwhitneyu(
-                    best_terminal_fitness_list,
-                    fitness_list,
-                    alternative="greater",
-                )
-                if (
-                    p_value < 1e-2 and element != best_terminal_key
-                ):  # Ensure we don't remove the best one itself
-                    elements_to_remove.append(element)
-                else:
-                    if self.use_importance_for_removal:
-                        frequency_list = self.function_importance_list[element]
-                        _, p_value_frequency = stats.mannwhitneyu(
-                            best_terminal_frequency_list,
-                            frequency_list,
-                            alternative="greater",
-                        )
-                        if p_value_frequency < 1e-2 and element != best_terminal_key:
-                            elements_to_remove.append(element)
+            self.elminate_elements(
+                best_terminal_fitness_list,
+                best_terminal_key,
+                elements_to_remove,
+                terminal_fitness_lists,
+            )
 
         # print("Removed elements:", len(elements_to_remove), elements_to_remove)
+        if self.use_sensitivity_analysis:
+            terminal_sensitivity = sensitivity[: len(self.pset.terminals[object])]
+            primitive_sensitivity = sensitivity[len(self.pset.terminals[object]) :]
+            good_terminal = [
+                x.name
+                for x, s in zip(self.pset.terminals[object], terminal_sensitivity)
+                if s > np.percentile(terminal_sensitivity, 80)
+            ]
+            bad_terminal = [
+                x.name
+                for x, s in zip(self.pset.terminals[object], terminal_sensitivity)
+                if s < np.percentile(terminal_sensitivity, 20)
+            ]
+            good_primitive = [
+                x.name
+                for x, s in zip(self.pset.primitives[object], primitive_sensitivity)
+                if s > np.percentile(primitive_sensitivity, 80)
+            ]
+            bad_primitive = [
+                x.name
+                for x, s in zip(self.pset.primitives[object], primitive_sensitivity)
+                if s < np.percentile(primitive_sensitivity, 20)
+            ]
+
+            elements_to_remove = list(
+                filter(
+                    lambda x: x not in good_terminal and x not in good_primitive,
+                    elements_to_remove,
+                )
+            )
+            for e in bad_primitive + bad_terminal:
+                if e not in elements_to_remove:
+                    elements_to_remove.append(e)
 
         for element_name in elements_to_remove:
             # Check and remove from pset.primitives
@@ -250,7 +271,37 @@ class RacingFunctionSelector:
                         self.pset.terminals[return_type].remove(t)
                         break
 
-            del self.function_fitness_lists[element_name]
+    def elminate_elements(
+        self,
+        best_primitive_fitness_list: list,
+        best_primitive_key: str,
+        elements_to_remove: list,
+        primitive_fitness_lists: dict,
+    ):
+        # Check primitives
+        for element, fitness_list in primitive_fitness_lists.items():
+            _, p_value = stats.mannwhitneyu(
+                best_primitive_fitness_list,
+                fitness_list,
+                alternative="greater",
+            )
+            if (
+                p_value < 1e-2 and element != best_primitive_key
+            ):  # Ensure we don't remove the best one itself
+                elements_to_remove.append(element)
+
+    def get_reference_element(self, terminal_fitness_lists) -> [list, str]:
+        # Identify the list with the best average fitness from terminal_fitness_lists
+        best_terminal_key = max(
+            terminal_fitness_lists,
+            key=lambda k: sum(terminal_fitness_lists[k])
+            / len(terminal_fitness_lists[k]),
+        )
+        if self.use_global_fitness:
+            best_terminal_fitness_list = self.best_individuals_fitness_list
+        else:
+            best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
+        return best_terminal_fitness_list, best_terminal_key
 
     def is_primitive(self, element_key: str) -> bool:
         primitives = [p.name for p in self.pset.primitives[object]]
