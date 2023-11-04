@@ -1476,9 +1476,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == "SVR":
             ridge_model = SVR()
         elif self.base_learner == "KNN":
-            ridge_model = KNeighborsRegressor(weights="distance")
-        elif self.base_learner == "KNN-U":
+            ridge_model = KNeighborsRegressor(weights="uniform")
+        elif self.base_learner == "KNN-3":
             ridge_model = KNeighborsRegressor(n_neighbors=3, weights="uniform")
+        elif self.base_learner == "KNN-D":
+            ridge_model = KNeighborsRegressor(weights="distance")
         elif self.base_learner == "HuberRegressor":
             ridge_model = HuberRegressor()
         elif self.base_learner == "PLTree":
