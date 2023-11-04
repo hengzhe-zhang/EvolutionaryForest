@@ -21,7 +21,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 
 class GeneralFeature:
@@ -126,6 +126,39 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         return self.x_scaler.transform(X)
+
+
+class DummyScaler(TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        return X
+
+    def inverse_transform(self, X):
+        return X
+
+
+class StandardScalerWithMinMaxScaler(TransformerMixin):
+    def __init__(self):
+        self.std_scaler = StandardScaler()
+        self.minmax_scaler = MinMaxScaler()
+
+    def fit(self, X, y=None):
+        self.std_scaler.fit(X)
+        self.minmax_scaler.fit(X)
+        return self
+
+    def transform(self, X, y=None):
+        combined_data = X
+
+        standardized_data = self.std_scaler.transform(X)
+        combined_data = np.hstack((combined_data, standardized_data))
+
+        minmax_scaled_data = self.minmax_scaler.transform(X)
+        combined_data = np.hstack((combined_data, minmax_scaled_data))
+
+        return combined_data
 
 
 if __name__ == "__main__":

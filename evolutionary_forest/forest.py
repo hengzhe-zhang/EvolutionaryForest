@@ -181,6 +181,8 @@ from evolutionary_forest.preprocess_utils import (
     BooleanFeature,
     NumericalFeature,
     FeatureTransformer,
+    StandardScalerWithMinMaxScaler,
+    DummyScaler,
 )
 from evolutionary_forest.probability_gp import genHalfAndHalf, genFull
 from evolutionary_forest.strategies.adaptive_operator_selection import (
@@ -554,6 +556,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if normalize is True:
             self.x_scaler = StandardScaler()
             self.y_scaler = StandardScaler()
+        elif normalize == "STD+MinMax":
+            self.x_scaler = StandardScalerWithMinMaxScaler()
+            self.y_scaler = DummyScaler()
         elif normalize == "LN":
             self.x_scaler = Pipeline(
                 [
