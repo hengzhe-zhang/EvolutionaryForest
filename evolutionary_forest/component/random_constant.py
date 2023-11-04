@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 
 
@@ -12,3 +14,7 @@ def scaled_random_constant(biggest_val):
         lambda: round((np.random.rand() * (max_erc - min_erc) + min_erc) * 1e3) / 1e3
     )
     return generator
+
+
+def random_int():
+    return random.randint(-1, 1)

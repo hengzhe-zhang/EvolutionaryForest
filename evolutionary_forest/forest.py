@@ -130,7 +130,7 @@ from evolutionary_forest.component.primitive_controller import (
 )
 from evolutionary_forest.component.primitive_functions import *
 from evolutionary_forest.component.racing_selection import RacingFunctionSelector
-from evolutionary_forest.component.random_constant import scaled_random_constant
+from evolutionary_forest.component.random_constant import *
 from evolutionary_forest.component.selection import (
     batch_tournament_selection,
     selAutomaticEpsilonLexicaseK,
@@ -2120,7 +2120,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pset.addEphemeralConstant("rand101", generator)
         else:
             assert self.constant_type == "Int"
-            pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
+            pset.addEphemeralConstant("rand101", random_int)
         # Check if MGP mode is enabled and create a new primitive set for each gene
         if isinstance(pset, PrimitiveSet) and self.mgp_mode is True:
             new_pset = MultiplePrimitiveSet("MAIN", self.X.shape[1])
