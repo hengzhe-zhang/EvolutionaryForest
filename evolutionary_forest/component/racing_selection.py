@@ -20,7 +20,7 @@ class RacingFunctionSelector:
         remove_terminals=False,
         racing_list_size=100,
         use_importance_for_removal=False,
-        importance_level="Sqrt",
+        importance_level="Inv",
         use_global_fitness=True,
         more_than_one=False,
         use_sensitivity_analysis=False,
