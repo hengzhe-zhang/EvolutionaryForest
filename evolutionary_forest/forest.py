@@ -1086,13 +1086,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ]
         if check_semantic_based_bc(self.bloat_control) or self.intron_gp:
             # only do this in intron mode
-            intron_ids = information.introns_results
+            similarity_information = information.introns_results
             if check_semantic_based_bc(self.bloat_control) or self.intron_gp:
-                assert len(intron_ids) == len(individual.gene)
+                assert len(similarity_information) == len(individual.gene)
                 # mark level to all genes
-                for gene_introns, gene in zip(intron_ids, individual.gene):
+                for tree_information, gene in zip(
+                    similarity_information, individual.gene
+                ):
                     q = []
-                    for id, coef in sorted(gene_introns.items(), key=lambda x: x[0]):
+                    for id, coef in sorted(
+                        tree_information.items(), key=lambda x: x[0]
+                    ):
                         s = id
                         # Replace gene node with IntronPrimitive or IntronTerminal
                         if isinstance(gene[s], Primitive):

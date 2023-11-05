@@ -174,7 +174,7 @@ def calculate_score(args):
             Yp = Yp[: len(Y)]
         assert isinstance(Yp, (np.ndarray, torch.Tensor))
         if isinstance(Yp, np.ndarray):
-            assert not np.any(np.isnan(Yp))
+            assert not np.any(np.isnan(Yp)), f"Type: {Yp.dtype}, Yp"
             assert not np.any(np.isinf(Yp))
 
         # only use for PS-Tree
@@ -618,7 +618,7 @@ def multi_tree_evaluation(
     else:
         # ordinary GP evaluation
         for gene in func:
-            feature, intron_ids = single_tree_evaluation(
+            feature, semantic_similarity = single_tree_evaluation(
                 gene,
                 pset,
                 data,
@@ -629,7 +629,7 @@ def multi_tree_evaluation(
                 evaluation_configuration=configuration,
                 noise_configuration=noise_configuration,
             )
-            introns_results.append(intron_ids)
+            introns_results.append(semantic_similarity)
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
             if target is not None and configuration.intron_calculation:
