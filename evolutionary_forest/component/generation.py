@@ -36,6 +36,9 @@ def varAndPlus(
         offspring: List[MultipleGeneGP] = [toolbox.clone(ind) for ind in population]
         crossed_individual = set()
 
+        if crossover_configuration.var_or:
+            return varOr(offspring)
+
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -129,12 +132,6 @@ def varAndPlus(
 
                 addition_and_deletion = random.random()
                 if addition_and_deletion < mutation_configuration.gene_addition_rate:
-                    # if i % 2 == 0:
-                    #     tree = copy.deepcopy(offspring[i + 1].random_select())
-                    #     offspring[i].gene_addition(tree)
-                    # if i % 2 == 1:
-                    #     tree = copy.deepcopy(offspring[i - 1].random_select())
-                    #     offspring[i].gene_addition(tree)
                     offspring[i].gene_addition()
                 elif (
                     addition_and_deletion
@@ -147,6 +144,35 @@ def varAndPlus(
                         offspring[i].gene_deletion()
             del offspring[i].fitness.values
             i += 1
+        return offspring
+
+    def varOr(offspring):
+        # Allocate indexes for genetic operators
+        for i in range(0, len(offspring), 2):
+            r = random.random()
+            if r < mutpb:
+                for k in range(i, i + 2):
+                    rr = random.random()
+                    if rr < mutation_configuration.gene_addition_rate:
+                        offspring[k].gene_addition()
+                        del offspring[k].fitness.values
+                    elif rr < mutation_configuration.gene_deletion_rate:
+                        offspring[k].gene_deletion()
+                        del offspring[k].fitness.values
+                    else:
+                        (offspring[k],) = toolbox.mutate(offspring[k])
+                        del offspring[k].fitness.values
+            elif r < cxpb + mutpb:
+                (
+                    offspring[i],
+                    offspring[i + 1],
+                ) = toolbox.mate(offspring[i], offspring[i + 1])
+                del offspring[i].fitness.values
+                del offspring[i + 1].fitness.values
+            else:
+                for k in range(i, i + 2):
+                    offspring[k] = [copy.deepcopy(offspring[k])]
+                    del offspring[k].fitness.values
         return offspring
 
     def get_number_of_invokes(gene_num):

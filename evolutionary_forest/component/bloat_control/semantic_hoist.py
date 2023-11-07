@@ -160,6 +160,7 @@ class SHM:
                             # any successful hoist is okay
                             fail = False
                             # all previous genes are not re-usable, thus skip them
+                            # just for better computational efficiency
                             if shared_gene:
                                 all_genes = all_genes[c_index + 1 :]
                             else:
