@@ -42,7 +42,11 @@ def protected_division(x1, *x2):
     with np.errstate(divide="ignore", invalid="ignore"):
         x2 = reduce(operator.mul, x2)
         # threshold from GEPPY
-        return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
+        try:
+            return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
+        except ZeroDivisionError as e:
+            print("Exception occurred", x1, x2)
+            raise e
 
 
 def protected_division_torch(x1, *x2):
@@ -62,25 +66,41 @@ def protected_log_xy(x1, x2):
 def protected_log(x1):
     """Closure of log for zero and negative arguments."""
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.0)
+        try:
+            return np.where(np.abs(x1) > threshold, np.log(np.abs(x1)), 0.0)
+        except TypeError as e:
+            print("Exception occurred", x1)
+            raise e
 
 
 def protected_log2(x1):
     """Closure of log for zero and negative arguments."""
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.where(np.abs(x1) > threshold, np.log2(np.abs(x1)), 0.0)
+        try:
+            return np.where(np.abs(x1) > threshold, np.log2(np.abs(x1)), 0.0)
+        except TypeError as e:
+            print("Exception occurred", x1)
+            raise e
 
 
 def protected_log10(x1):
     """Closure of log for zero and negative arguments."""
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.where(np.abs(x1) > threshold, np.log10(np.abs(x1)), 0.0)
+        try:
+            return np.where(np.abs(x1) > threshold, np.log10(np.abs(x1)), 0.0)
+        except TypeError as e:
+            print("Exception occurred", x1)
+            raise e
 
 
 def protected_inverse(x1):
     """Closure of inverse for zero arguments."""
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.where(np.abs(x1) > threshold, np.divide(1, x1), 0.0)
+        try:
+            return np.where(np.abs(x1) > threshold, np.divide(1, x1), 0.0)
+        except ZeroDivisionError as e:
+            print("Exception occurred", x1)
+            raise e
 
 
 def analytical_quotient(x1, x2):
