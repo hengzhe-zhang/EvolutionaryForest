@@ -95,33 +95,6 @@ class MultipleGeneGP:
     def gene_num(self):
         return len(self.gene)
 
-    def gene_addition(self, tree=None):
-        if len(self.gene) < self.max_gene_num:
-            if tree is not None:
-                self.gene.append(tree)
-                return
-
-            # not add the same gene
-            existing_genes = set([str(g) for g in self.gene])
-            mode = "Random"
-            tree = self.tree_generation(mode)
-            iteration = 0
-            while str(tree) in existing_genes:
-                if iteration >= 100:
-                    # not try to add genes
-                    return
-                tree = PrimitiveTree(self.content())
-                iteration += 1
-            self.gene.append(tree)
-
-    def tree_generation(self, mode) -> PrimitiveTree:
-        if mode == "Crossover":
-            gene_a, gene_b = self.random_select(), self.random_select()
-            tree, _ = cxOnePoint(copy.deepcopy(gene_a), copy.deepcopy(gene_b))
-        else:
-            tree = PrimitiveTree(self.content())
-        return tree
-
     def gene_deletion(self, weighted=False):
         if len(self.gene) > 1:
             if weighted:
@@ -1351,6 +1324,31 @@ def genFull_with_prob(
     return generate_with_prob(
         pset, min_, max_, condition, terminal_probs, primitive_probs, type_, sample_type
     )
+
+
+def genGrow_with_prob(
+    pset, min_, max_, model: "EvolutionaryForestRegressor", type_=None, sample_type=None
+):
+    def condition(height, depth):
+        """Expression generation stops when the depth is equal to height
+        or when it is randomly determined that a node should be a terminal.
+        """
+        return depth == height or (
+            depth >= min_ and random.random() < pset.terminalRatio
+        )
+
+    terminal_probs = model.estimation_of_distribution.terminal_prob
+    primitive_probs = model.estimation_of_distribution.primitive_prob
+    return generate_with_prob(
+        pset, min_, max_, condition, terminal_probs, primitive_probs, type_, sample_type
+    )
+
+
+def genHalfAndHalf_with_prob(
+    pset, min_, max_, model: "EvolutionaryForestRegressor", type_=None, sample_type=None
+):
+    method = random.choice((genGrow_with_prob, genFull_with_prob))
+    return method(pset, min_, max_, model, type_, sample_type)
 
 
 def generate_with_prob(

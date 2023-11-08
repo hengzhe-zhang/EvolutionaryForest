@@ -1597,15 +1597,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         else:
             # generate initial population
-            if self.initial_tree_size is None:
-                toolbox.expr = partial(gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
-            else:
-                min_height, max_height = self.initial_tree_size.split("-")
-                min_height = int(min_height)
-                max_height = int(max_height)
-                toolbox.expr = partial(
-                    gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
-                )
+            self.tree_initialization_function(pset, toolbox)
 
         # individual initialization
         toolbox.individual = partial(
@@ -1788,6 +1780,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.racing:
             self.racing = RacingFunctionSelector(
                 self.pset, self.toolbox.expr, **self.param
+            )
+
+    def tree_initialization_function(self, pset, toolbox: TypedToolbox):
+        if self.initial_tree_size is None:
+            toolbox.expr = partial(gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
+        else:
+            min_height, max_height = self.initial_tree_size.split("-")
+            min_height = int(min_height)
+            max_height = int(max_height)
+            toolbox.expr = partial(
+                gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
             )
 
     def mutation_expression_function(self, toolbox):
@@ -3198,6 +3201,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 limitation_check,
                                 crossover_configuration=self.crossover_configuration,
                                 mutation_configuration=self.mutation_configuration,
+                                algorithm=self,
                             )
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)

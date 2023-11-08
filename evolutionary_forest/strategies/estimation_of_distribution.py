@@ -211,6 +211,7 @@ class EstimationOfDistribution:
         self.mab = MultiArmBandit()
         self.independent_eda_archive = independent_eda_archive
         self.algorithm: "EvolutionaryForestRegressor" = algorithm
+        self.turn_on = self.algorithm.mutation_scheme == "EDA-Terminal-PM"
 
         self.primitive_prob = None
         self.terminal_prob = None

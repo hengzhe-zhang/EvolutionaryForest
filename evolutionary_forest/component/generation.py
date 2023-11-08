@@ -1,6 +1,6 @@
 import copy
 import random
-from typing import List
+from typing import List, TYPE_CHECKING
 
 import numpy as np
 from deap.tools import cxTwoPoint
@@ -10,11 +10,17 @@ from evolutionary_forest.component.configuration import (
     MutationConfiguration,
 )
 from evolutionary_forest.component.toolbox import TypedToolbox
+
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+
 from evolutionary_forest.multigene_gp import (
     gene_crossover,
     MultipleGeneGP,
     gene_mutation,
 )
+from evolutionary_forest.utility.multi_tree_utils import gene_addition
 
 
 def varAndPlus(
@@ -25,6 +31,7 @@ def varAndPlus(
     limitation_check,
     crossover_configuration: CrossoverConfiguration = None,
     mutation_configuration: MutationConfiguration = None,
+    algorithm: "EvolutionaryForestRegressor" = None,
 ):
     if crossover_configuration is None:
         crossover_configuration = CrossoverConfiguration()
@@ -132,7 +139,7 @@ def varAndPlus(
 
                 addition_and_deletion = random.random()
                 if addition_and_deletion < mutation_configuration.gene_addition_rate:
-                    offspring[i].gene_addition()
+                    gene_addition(offspring[i], algorithm)
                 elif (
                     addition_and_deletion
                     < mutation_configuration.gene_addition_rate
@@ -154,7 +161,7 @@ def varAndPlus(
                 for k in range(i, i + 2):
                     rr = random.random()
                     if rr < mutation_configuration.gene_addition_rate:
-                        offspring[k].gene_addition()
+                        gene_addition(offspring[k])
                         del offspring[k].fitness.values
                     elif rr < mutation_configuration.gene_deletion_rate:
                         offspring[k].gene_deletion()
