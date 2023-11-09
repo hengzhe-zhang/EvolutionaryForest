@@ -89,7 +89,9 @@ class ModeFeaturesTransformer(BaseEstimator, TransformerMixin):
                 self.aggregations_[feature] = aggregated
 
                 # Initialize the categorical indicator
-                self.categorical_indicator_.extend([True, False, False] * 3)
+                self.categorical_indicator_.extend(
+                    [True, False, False] * len(features_to_agg),
+                )
         return self
 
     def transform(self, X):
@@ -176,7 +178,9 @@ class OneHotEncoderCustom(BaseEstimator, TransformerMixin):
             if is_categorical
         ]
         # Initialize OneHotEncoder from sklearn and fit it on the categorical columns
-        self.encoder = OneHotEncoder(drop="first", sparse=False)
+        self.encoder = OneHotEncoder(
+            drop="first", sparse=False, handle_unknown="ignore"
+        )
         self.encoder.fit(X[self.categorical_columns])
         return self
 
