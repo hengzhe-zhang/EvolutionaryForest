@@ -256,6 +256,8 @@ class RacingFunctionSelector:
                 if e not in elements_to_remove:
                     elements_to_remove.append(e)
 
+        # print("Elements to remove:", elements_to_remove)
+
         for element_name in elements_to_remove:
             # Check and remove from pset.primitives
             for return_type, primitives in list(self.pset.primitives.items()):
