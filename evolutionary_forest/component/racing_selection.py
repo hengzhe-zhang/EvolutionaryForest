@@ -221,7 +221,6 @@ class RacingFunctionSelector:
                 terminal_fitness_lists,
             )
 
-        # print("Removed elements:", len(elements_to_remove), elements_to_remove)
         if self.use_sensitivity_analysis:
             terminal_sensitivity = sensitivity[: len(self.pset.terminals[object])]
             primitive_sensitivity = sensitivity[len(self.pset.terminals[object]) :]
@@ -257,6 +256,7 @@ class RacingFunctionSelector:
                     elements_to_remove.append(e)
 
         # print("Elements to remove:", elements_to_remove)
+        # print("Removed elements:", len(elements_to_remove), elements_to_remove)
 
         for element_name in elements_to_remove:
             # Check and remove from pset.primitives
