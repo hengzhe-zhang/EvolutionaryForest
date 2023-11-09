@@ -89,7 +89,7 @@ class ModeFeaturesTransformer(BaseEstimator, TransformerMixin):
                 self.aggregations_[feature] = aggregated
 
                 # Initialize the categorical indicator
-                self.categorical_indicator_.extend([True, False, False])
+                self.categorical_indicator_.extend([True, False, False] * 3)
         return self
 
     def transform(self, X):
@@ -203,11 +203,17 @@ class OneHotEncoderCustom(BaseEstimator, TransformerMixin):
 
 
 class IdentityTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, categorical_indicator):
+        self.categorical_indicator_ = categorical_indicator
+
     def fit(self, X, y=None):
         return self
 
     def transform(self, X):
         return X
+
+    def get_categorical_indicator(self):
+        return self.categorical_indicator_
 
 
 class DataFrameFeatureUnion(FeatureUnion):
@@ -238,7 +244,14 @@ class DataFrameFeatureUnion(FeatureUnion):
         return feature_names
 
 
-def get_processing_transformer(categorical_features, numerical_columns) -> FeatureUnion:
+def get_processing_transformer(
+    categorical_indicator,
+    categorical_features,
+    numerical_columns,
+    use_mean_features=False,
+    use_mode_features=False,
+    use_combine_features=False,
+) -> FeatureUnion:
     # Initialize transformers
     mean_median_transformer = MeanMedianFeaturesTransformer(
         categorical_features=categorical_features, numerical_columns=numerical_columns
@@ -250,14 +263,23 @@ def get_processing_transformer(categorical_features, numerical_columns) -> Featu
         categorical_features=categorical_features
     )
     # Create a FeatureUnion of transformers
-    combined_transformer = DataFrameFeatureUnion(
-        transformer_list=[
+    transformer_list = [
+        ("identity", IdentityTransformer(categorical_indicator)),
+        ("combine_features", combine_features_transformer),
+    ]
+    if use_mean_features:
+        transformer_list.append(
             ("mean_median", mean_median_transformer),
+        )
+    if use_mode_features:
+        transformer_list.append(
             ("mode_features", mode_features_transformer),
+        )
+    if use_combine_features:
+        transformer_list.append(
             ("combine_features", combine_features_transformer),
-            ("identity", IdentityTransformer()),
-        ]
-    )
+        )
+    combined_transformer = DataFrameFeatureUnion(transformer_list=transformer_list)
     return combined_transformer
 
 
@@ -283,18 +305,28 @@ def fit_and_transform(
     categorical_indicator,
     categorical_features,
     numerical_columns,
+    use_mean_features=False,
+    use_mode_features=False,
+    use_combine_features=False,
 ):
     combined_transformer = get_processing_transformer(
-        categorical_features, numerical_columns
+        categorical_indicator,
+        categorical_features,
+        numerical_columns,
+        use_mean_features=use_mean_features,
+        use_mode_features=use_mode_features,
+        use_combine_features=use_combine_features,
     )
     combined_transformer.fit(X_train)  # Fit the transformer to the training data
     X_train_transformed = combined_transformer.transform(
         X_train
     )  # Transform training data
     X_test_transformed = combined_transformer.transform(X_test)  # Transform test data
+
+    categorical_indicators = []
     for name, transformer in combined_transformer.transformer_list:
-        categorical_indicator.extend(transformer.get_categorical_indicator())
-    return X_train_transformed, X_test_transformed
+        categorical_indicators.extend(transformer.get_categorical_indicator())
+    return X_train_transformed, X_test_transformed, categorical_indicators
 
 
 if __name__ == "__main__":
@@ -305,7 +337,7 @@ if __name__ == "__main__":
 
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
 
-    X_train_transformed, X_test_transformed = fit_and_transform(
+    X_train_transformed, X_test_transformed, categorical_indicators = fit_and_transform(
         X_train,
         X_test,
         categorical_indicator,
@@ -315,7 +347,10 @@ if __name__ == "__main__":
 
     print(X_train_transformed)
     print(X_test_transformed)
-    print(categorical_indicator)
+    print(categorical_indicators)
+    assert (
+        len(categorical_indicators) == X_train_transformed.shape[1]
+    ), f"{len(categorical_indicators)},{X_train_transformed.shape[1]}"
     one_hot = OneHotEncoderCustom(categorical_indicator)
     one_hot.fit(X_train_transformed)
     print(one_hot.transform(X_train_transformed))
