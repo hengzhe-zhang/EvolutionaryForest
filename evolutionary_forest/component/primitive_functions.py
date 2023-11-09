@@ -12,6 +12,14 @@ from scipy.stats import mode
 threshold = 1e-6
 
 
+def degree_sin(x):
+    return np.sin(np.deg2rad(x))
+
+
+def degree_cos(x):
+    return np.cos(np.deg2rad(x))
+
+
 def radian_sin(x):
     return np.sin(np.pi * x)
 
@@ -26,6 +34,18 @@ def radian_sin_torch(x):
 
 def radian_cos_torch(x):
     return torch.cos(torch.pi * x)
+
+
+def protected_exp2(x):
+    with np.errstate(divide="ignore", invalid="ignore"):
+        e = np.exp2(x)
+        return np.where(e < 1 / threshold, e, 1.0)
+
+
+def protected_exp(x):
+    with np.errstate(divide="ignore", invalid="ignore"):
+        e = np.exp(x)
+        return np.where(e < 1 / threshold, e, 1.0)
 
 
 def gaussian(x):
@@ -514,7 +534,7 @@ def residual(x):
 
 
 def np_mean(a, b):
-    return np.mean([a, b], axis=0)
+    return (a + b) / 2
 
 
 def greater_or_equal_than(a, b):
@@ -523,6 +543,18 @@ def greater_or_equal_than(a, b):
 
 def less_or_equal_than(a, b):
     return np.where(a <= b, 1, 0)
+
+
+def greater_or_equal_than_triple_a(a, b, c):
+    return np.where(a >= b, a + b, c)
+
+
+def greater_or_equal_than_triple_b(a, b, c):
+    return np.where(a >= b, a + b, a + c)
+
+
+def greater_or_equal_than_triple_c(a, b, c):
+    return np.where(a >= b, a + b, a * c)
 
 
 def greater_or_equal_than_quadruple_a(a, b, c, d):

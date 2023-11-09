@@ -60,6 +60,8 @@ def get_functions(p):
         "Cos": (np.cos, 1),  # Cosine function
         "RSin": (radian_sin, 1),  # Sine function
         "RCos": (radian_cos, 1),  # Cosine function
+        "DSin": (degree_sin, 1),  # Sine function
+        "DCos": (degree_cos, 1),  # Cosine function
         "Arcsin": (np.arcsin, 1),  # Cosine function
         "Arccos": (np.arccos, 1),  # Cosine function
         "Arctan": (np.arctan, 1),  # Arctangent function
@@ -71,10 +73,15 @@ def get_functions(p):
         "Log": (protected_log, 1),
         "Log2": (protected_log2, 1),
         "Log10": (protected_log10, 1),
+        "Exp2": (protected_exp2, 1),
+        "Exp": (protected_exp, 1),
         "Inv": (protected_inverse, 1),
         # Comparison operations
         "GE": (greater_or_equal_than, 2),  # Greater than or equal to comparison
         "LE": (less_or_equal_than, 2),  # Less than or equal to comparison
+        "GE3A": (greater_or_equal_than_triple_a, 3),
+        "GE3B": (greater_or_equal_than_triple_b, 3),
+        "GE3C": (greater_or_equal_than_triple_c, 3),
         "GE4A": (greater_or_equal_than_quadruple_a, 4),
         # Greater than or equal to comparison for quadruple
         "GE4B": (greater_or_equal_than_quadruple_b, 4),
@@ -104,6 +111,8 @@ def get_functions(p):
         "Max": (np.maximum, 2),  # Maximum function
         "Min": (np.minimum, 2),  # Minimum function
         "Mean": (np_mean, 2),  # Mean function
+        "ArgMax": (partial(np.argmax, axis=0), 2),
+        "ArgMin": (partial(np.argmin, axis=0), 2),
         "Neg": (
             np.negative,
             1,
