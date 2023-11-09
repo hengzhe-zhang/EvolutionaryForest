@@ -265,7 +265,6 @@ def get_processing_transformer(
     # Create a FeatureUnion of transformers
     transformer_list = [
         ("identity", IdentityTransformer(categorical_indicator)),
-        ("combine_features", combine_features_transformer),
     ]
     if use_mean_features:
         transformer_list.append(
