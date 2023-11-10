@@ -1779,7 +1779,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.racing:
             self.racing = RacingFunctionSelector(
-                self.pset, self.toolbox.expr, **self.param
+                self.pset,
+                self.toolbox.expr,
+                **self.param,
+                algorithm=self,
+                verbose=self.verbose,
             )
 
     def tree_initialization_function(self, pset, toolbox: TypedToolbox):

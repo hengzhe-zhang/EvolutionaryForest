@@ -24,8 +24,10 @@ class RacingFunctionSelector:
         use_global_fitness=True,
         more_than_one=False,
         use_sensitivity_analysis=False,
+        verbose=False,
         **kwargs
     ):
+        self.verbose = verbose
         self.more_than_one = more_than_one
         self.importance_level = importance_level
         self.remove_primitives = remove_primitives
@@ -256,7 +258,8 @@ class RacingFunctionSelector:
                     elements_to_remove.append(e)
 
         # print("Elements to remove:", elements_to_remove)
-        # print("Removed elements:", len(elements_to_remove), elements_to_remove)
+        if self.verbose:
+            print("Removed elements:", len(elements_to_remove), elements_to_remove)
 
         for element_name in elements_to_remove:
             # Check and remove from pset.primitives
@@ -288,7 +291,7 @@ class RacingFunctionSelector:
                 alternative="greater",
             )
             if (
-                p_value < 1e-2 and element != best_primitive_key
+                p_value < 5 * 1e-2 and element != best_primitive_key
             ):  # Ensure we don't remove the best one itself
                 elements_to_remove.append(element)
 
