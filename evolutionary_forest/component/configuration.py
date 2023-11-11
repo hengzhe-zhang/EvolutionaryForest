@@ -222,9 +222,11 @@ class EvaluationConfiguration:
         transductive_learning=False,
         classification=False,
         max_height=None,
+        ood_split=None,
         **params
     ):
         # prediction results of the neural network
+        self.ood_split = ood_split
         self.gradient_optimizer = gradient_optimizer
         # random generate cross-validation scheme
         self.dynamic_target = dynamic_target

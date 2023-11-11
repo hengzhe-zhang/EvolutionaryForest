@@ -58,6 +58,7 @@ from evolutionary_forest.multigene_gp import (
     GPPipeline,
 )
 from evolutionary_forest.sklearn_utils import cross_val_predict
+from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
 from evolutionary_forest.utils import (
     reset_random,
     cv_prediction_from_ridge,
@@ -270,7 +271,15 @@ def calculate_score(args):
         else:
             base_model = pipe["Ridge"]
         regression_task = isinstance(base_model, RegressorMixin)
-        if isinstance(base_model, RidgeCV):
+        if configuration.ood_split:
+            cv = OutOfDistributionSplit(n_splits=5, n_bins=5)
+            y_pred, estimators = cross_val_predict(
+                pipe,
+                Yp,
+                Y,
+                cv=cv,
+            )
+        elif isinstance(base_model, RidgeCV):
             if time_flag:
                 cv_st = time.time()
             else:
