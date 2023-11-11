@@ -1219,6 +1219,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 (feature_norm, -1 * weights[1]),
             )
             return (0,)
+        elif self.score_func == "QuadError":
+            # Return maximum mean squared error
+            return (np.mean((Y - y_pred) ** 4),)
         elif self.score_func == "Lower-Bound":
             # Return maximum mean squared error
             return (np.max(mean_squared_error(Y, y_pred)),)
@@ -1246,13 +1249,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             or isinstance(self.score_func, Fitness)
         ):
             individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
-            # individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 4
         elif self.score_func == "MAE":
             individual.case_values = np.abs(((y_pred - Y.flatten()).flatten()))
         elif self.score_func == "Spearman":
             individual.case_values = np.abs(
                 rankdata(y_pred) - rankdata(Y.flatten())
             ).flatten()
+        elif self.score_func == "QuadError":
+            individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 4
         elif "CV" in self.score_func:
             individual.case_values = -1 * y_pred
         elif self.score_func == "NoveltySearch":
