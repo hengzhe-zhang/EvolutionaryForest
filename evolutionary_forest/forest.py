@@ -1208,7 +1208,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             if self.validation_ratio > 0:
                 number = len(Y) - round(len(Y) * self.validation_ratio)
-                score = r2_score(Y[number:], y_pred[number:])
+                score = r2_score(Y[:number], y_pred[:number])
             # Return negative of R2 score
             return (-1 * score,)
         elif self.score_func == "R2-L2":
@@ -2258,6 +2258,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Automatically determine the ensemble size
             def comparison(a, b):
                 return sum(a.fitness.wvalues) > sum(b.fitness.wvalues)
+
+            self.hof = CustomHOF(
+                self.ensemble_size,
+                comparison_function=comparison,
+                key_metric=lambda x: sum(x.fitness.wvalues),
+            )
+        elif self.validation_ratio > 0:
+            # Automatically determine the ensemble size
+            def comparison(a, b):
+                number = (1 - self.validation_ratio) * len(self.y)
+                error_a = np.mean((a.predicted_values - self.y)[number:] ** 2)
+                a.validation_error = sum(error_a)
+                return a.validation_error < sum(b.validation_error)
 
             self.hof = CustomHOF(
                 self.ensemble_size,
