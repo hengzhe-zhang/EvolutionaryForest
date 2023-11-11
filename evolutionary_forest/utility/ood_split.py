@@ -1,6 +1,6 @@
-from sklearn.model_selection import BaseCrossValidator
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import BaseCrossValidator
 
 
 class OutOfDistributionSplit(BaseCrossValidator):

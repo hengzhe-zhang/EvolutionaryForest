@@ -272,7 +272,7 @@ def calculate_score(args):
             base_model = pipe["Ridge"]
         regression_task = isinstance(base_model, RegressorMixin)
         if configuration.ood_split:
-            cv = OutOfDistributionSplit(n_splits=10, n_bins=10)
+            cv = OutOfDistributionSplit(n_splits=5, n_bins=5)
             y_pred, estimators = cross_val_predict(
                 pipe,
                 Yp,

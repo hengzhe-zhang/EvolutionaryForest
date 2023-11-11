@@ -369,6 +369,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         bounded_prediction=False,
         racing=False,
         simplification=False,
+        validation_ratio=0,
         **params,
     ):
         """
@@ -403,6 +404,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.validation_ratio = validation_ratio
         self.simplification = simplification
         self.racing = racing
         self.bounded_prediction = bounded_prediction
@@ -1035,6 +1037,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     len(individual.case_values)
                     == self.evaluation_configuration.batch_size
                 ), len(individual.case_values)
+            elif self.validation_ratio > 0:
+                pass
             else:
                 assert len(individual.case_values) == len(
                     Y
@@ -1202,6 +1206,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.weighted_coef:
                 individual.coef = np.array(individual.coef) * score
 
+            if self.validation_ratio > 0:
+                number = len(Y) - round(len(Y) * self.validation_ratio)
+                score = r2_score(Y[number:], y_pred[number:])
             # Return negative of R2 score
             return (-1 * score,)
         elif self.score_func == "R2-L2":
@@ -1248,7 +1255,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             or self.score_func == "Lower-Bound"
             or isinstance(self.score_func, Fitness)
         ):
-            individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
+            if self.validation_ratio:
+                number = len(Y) - round(len(Y) * self.validation_ratio)
+                individual.case_values = (
+                    (y_pred - Y.flatten()).flatten()[:number]
+                ) ** 2
+            else:
+                individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
         elif self.score_func == "MAE":
             individual.case_values = np.abs(((y_pred - Y.flatten()).flatten()))
         elif self.score_func == "Spearman":
