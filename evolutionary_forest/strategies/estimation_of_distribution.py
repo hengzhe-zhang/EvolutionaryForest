@@ -224,9 +224,13 @@ class EstimationOfDistribution:
             # If in MGP mode, set terminal_prob to empty list
             if self.algorithm.mgp_mode:
                 self.terminal_prob = []
-            if "Terminal" in self.algorithm.mutation_scheme:
+            if self.only_terminal_selection():
                 # If in Terminal mode, set uniform probability for functions
-                self.primitive_prob = np.ones(self.algorithm.pset.prims_count)
+                # self.primitive_prob = np.ones(self.algorithm.pset.prims_count)
+                self.primitive_prob = np.array([])
+
+    def only_terminal_selection(self):
+        return "Terminal" in self.algorithm.mutation_scheme
 
     def permutation_importance_calculation(self, X, Y, individual):
         # The correct way is to calculate the terminal importance based on the test data
@@ -340,7 +344,8 @@ class EstimationOfDistribution:
                         # Weight count by gene size
                         weight *= 1 / count_of_terminals
                     if isinstance(x, Primitive):
-                        primitive_prob_count[primitive_dict[x.name]] += weight
+                        if not self.only_terminal_selection():
+                            primitive_prob_count[primitive_dict[x.name]] += weight
                     elif isinstance(x, Terminal):
                         if x.name not in terminal_dict:
                             assert is_number(x.name)
@@ -549,7 +554,9 @@ class EstimationOfDistribution:
                 print("primitive_prob", self.primitive_prob)
                 print("terminal_prob", self.terminal_prob)
         elif self.algorithm.mutation_scheme.startswith("EDA-Terminal-PM"):
-            self.primitive_prob /= np.sum(self.primitive_prob)
+            if len(self.primitive_prob) > 0:
+                self.primitive_prob /= np.sum(self.primitive_prob)
+
             if isinstance(self.terminal_prob_count, dict):
                 # if it is a dict don't do normalization
                 self.terminal_prob = self.terminal_prob_count
