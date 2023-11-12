@@ -21,7 +21,7 @@ from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
 from scipy.spatial.distance import cosine
-from scipy.stats import spearmanr, kendalltau, rankdata, ranksums
+from scipy.stats import spearmanr, kendalltau, rankdata, ranksums, wilcoxon
 from sklearn.base import ClassifierMixin, TransformerMixin
 from sklearn.ensemble import (
     ExtraTreesRegressor,
@@ -1209,7 +1209,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.validation_ratio > 0:
                 number = len(Y) - round(len(Y) * self.validation_ratio)
                 score = r2_score(Y[:number], y_pred[:number])
-                validation_score = r2_score(Y[number:], y_pred[number:])
+                validation_score = (Y[number:] - y_pred[number:]) ** 2
                 individual.validation_score = validation_score
             # Return negative of R2 score
             return (-1 * score,)
@@ -2266,16 +2266,36 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 comparison_function=comparison,
                 key_metric=lambda x: sum(x.fitness.wvalues),
             )
-        elif self.validation_ratio > 0:
+        elif self.validation_ratio > 0 or self.ensemble_selection == "VS":
             # Automatically determine the ensemble size
             def comparison(a, b):
-                return a.validation_score > b.validation_score
+                a_score = a.validation_score
+                b_score = b.validation_score
+                # a_score = a.case_values
+                # b_score = b.optimal_case_values
+                if np.all((a_score - b_score) == 0):
+                    return False
+                p_value = wilcoxon(a_score, b_score).pvalue
+                if np.median(a_score) < np.median(b_score) and p_value < 0.05:
+                    return True
+                elif np.median(a_score) <= np.median(b_score) and sum(
+                    [len(tree) for tree in a.gene]
+                ) < sum([len(tree) for tree in b.gene]):
+                    return True
+                else:
+                    return False
 
-            self.hof = CustomHOF(
+            class VHOF(CustomHOF):
+                def insert(self, item):
+                    # item.optimal_case_values = item.case_values
+                    super().insert(item)
+
+            self.hof = VHOF(
                 self.ensemble_size,
                 comparison_function=comparison,
                 key_metric=lambda x: sum(x.fitness.wvalues),
             )
+
         elif self.ensemble_selection == "StrictlyImprovement":
             self.hof = StrictlyImprovementHOF(self.ensemble_size)
         elif self.ensemble_selection == "GeneralizationHOF":
