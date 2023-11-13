@@ -137,21 +137,33 @@ def varAndPlus(
                             parent_fitness = offspring[i].fitness.wvalues[0]
                             offspring[i].parent_fitness = (parent_fitness,)
 
-                addition_and_deletion = random.random()
-                if addition_and_deletion < mutation_configuration.gene_addition_rate:
-                    gene_addition(offspring[i], algorithm)
-                elif (
-                    addition_and_deletion
-                    < mutation_configuration.gene_addition_rate
-                    + mutation_configuration.gene_deletion_rate
-                ):
-                    if mutation_configuration.weighted_deletion:
-                        offspring[i].gene_deletion(weighted=True)
-                    else:
-                        offspring[i].gene_deletion()
+                if mutation_configuration.addition_or_deletion:
+                    addition_or_deletion(i, offspring)
+                else:
+                    addition_and_deletion(i, offspring)
             del offspring[i].fitness.values
             i += 1
         return offspring
+
+    def addition_or_deletion(i, offspring):
+        addition_and_deletion = random.random()
+        if addition_and_deletion < mutation_configuration.gene_addition_rate:
+            gene_addition(offspring[i], algorithm)
+        elif (
+            addition_and_deletion
+            < mutation_configuration.gene_addition_rate
+            + mutation_configuration.gene_deletion_rate
+        ):
+            if mutation_configuration.weighted_deletion:
+                offspring[i].gene_deletion(weighted=True)
+            else:
+                offspring[i].gene_deletion()
+
+    def addition_and_deletion(i, offspring):
+        if random.random() < mutation_configuration.gene_addition_rate:
+            gene_addition(offspring[i], algorithm)
+        if random.random() < mutation_configuration.gene_deletion_rate:
+            offspring[i].gene_deletion()
 
     def varOr(offspring):
         # Allocate indexes for genetic operators

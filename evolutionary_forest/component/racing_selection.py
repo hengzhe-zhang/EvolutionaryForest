@@ -22,7 +22,7 @@ class RacingFunctionSelector:
         use_importance_for_removal=False,
         importance_level="Inv",
         use_global_fitness=True,
-        more_than_one=False,
+        frequency_threshold=0,
         use_sensitivity_analysis=False,
         verbose=False,
         racing_environmental_selection=True,
@@ -32,7 +32,7 @@ class RacingFunctionSelector:
         self.p_threshold = p_threshold
         self.racing_environmental_selection = racing_environmental_selection
         self.verbose = verbose
-        self.more_than_one = more_than_one
+        self.frequency_threshold = frequency_threshold
         self.importance_level = importance_level
         self.remove_primitives = remove_primitives
         self.remove_terminals = remove_terminals
@@ -123,7 +123,9 @@ class RacingFunctionSelector:
                     importance[element_key] += coef
 
             for element_key, freq in frequency.items():
-                if self.more_than_one and freq <= 1:
+                if self.frequency_threshold > 0 and freq <= self.frequency_threshold:
+                    continue
+                if self.frequency_threshold < 0 and freq > -self.frequency_threshold:
                     continue
 
                 if element_key not in self.function_fitness_lists:

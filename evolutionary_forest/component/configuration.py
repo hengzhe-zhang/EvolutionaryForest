@@ -176,6 +176,7 @@ class MutationConfiguration:
         gene_addition_rate=0,
         gene_deletion_rate=0,
         weighted_deletion=False,
+        addition_or_deletion=True,
         **params
     ):
         self.gene_addition_rate = gene_addition_rate
@@ -184,6 +185,7 @@ class MutationConfiguration:
         self.safe_mutation = safe_mutation
         self.mutation_expr_height: str = mutation_expr_height
         self.max_height = max_height
+        self.addition_or_deletion = addition_or_deletion
 
 
 class ImbalancedConfiguration:
