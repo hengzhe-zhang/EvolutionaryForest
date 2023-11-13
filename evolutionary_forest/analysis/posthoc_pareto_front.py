@@ -177,6 +177,7 @@ def create_scatter_plot(data, color_map="viridis"):
     # Extract x, y, and color values
     x = [point[0] for point in data]
     y = [point[1] for point in data]
+    x, y = y, x
     colors = [point[2] for point in data]
 
     # Create colormap object and normalize colors
@@ -185,7 +186,7 @@ def create_scatter_plot(data, color_map="viridis"):
 
     # Highlight points on the scatter plot
     sns.scatterplot(x=x, y=y, hue=colors, palette=color_map)
-    legend = plt.legend(title="RSE")
+    legend = plt.legend(title="Test RSE")
 
     # Convert knee_index to integers for indexing
     knee_index_int = [int(k) for k in knee_index]
@@ -224,5 +225,5 @@ def create_scatter_plot(data, color_map="viridis"):
         label="Complexity Knee",
     )
 
-    plt.ylabel("Objective B: Complexity")
-    plt.xlabel("Objective A: Training Error")
+    plt.xlabel("Objective B: Complexity")
+    plt.ylabel("Objective A: Training Error")

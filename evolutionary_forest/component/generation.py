@@ -161,7 +161,7 @@ def varAndPlus(
                 for k in range(i, i + 2):
                     rr = random.random()
                     if rr < mutation_configuration.gene_addition_rate:
-                        gene_addition(offspring[k])
+                        gene_addition(offspring[k], algorithm)
                         del offspring[k].fitness.values
                     elif rr < mutation_configuration.gene_deletion_rate:
                         offspring[k].gene_deletion()

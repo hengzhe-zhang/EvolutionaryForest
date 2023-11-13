@@ -224,38 +224,9 @@ class RacingFunctionSelector:
             )
 
         if self.use_sensitivity_analysis:
-            terminal_sensitivity = sensitivity[: len(self.pset.terminals[object])]
-            primitive_sensitivity = sensitivity[len(self.pset.terminals[object]) :]
-            good_terminal = [
-                x.name
-                for x, s in zip(self.pset.terminals[object], terminal_sensitivity)
-                if s > np.percentile(terminal_sensitivity, 80)
-            ]
-            bad_terminal = [
-                x.name
-                for x, s in zip(self.pset.terminals[object], terminal_sensitivity)
-                if s < np.percentile(terminal_sensitivity, 20)
-            ]
-            good_primitive = [
-                x.name
-                for x, s in zip(self.pset.primitives[object], primitive_sensitivity)
-                if s > np.percentile(primitive_sensitivity, 80)
-            ]
-            bad_primitive = [
-                x.name
-                for x, s in zip(self.pset.primitives[object], primitive_sensitivity)
-                if s < np.percentile(primitive_sensitivity, 20)
-            ]
-
-            elements_to_remove = list(
-                filter(
-                    lambda x: x not in good_terminal and x not in good_primitive,
-                    elements_to_remove,
-                )
+            elements_to_remove = self.remove_by_sensitivity_analysis(
+                elements_to_remove, sensitivity
             )
-            for e in bad_primitive + bad_terminal:
-                if e not in elements_to_remove:
-                    elements_to_remove.append(e)
 
         # print("Elements to remove:", elements_to_remove)
         if self.verbose:
@@ -276,6 +247,45 @@ class RacingFunctionSelector:
                         self.pset.terminals[return_type].remove(t)
                         break
 
+    def remove_by_sensitivity_analysis(self, elements_to_remove, sensitivity):
+        terminal_sensitivity = sensitivity[: len(self.pset.terminals[object])]
+        primitive_sensitivity = sensitivity[len(self.pset.terminals[object]) :]
+        good_terminal = [
+            x.name
+            for x, s in zip(self.pset.terminals[object], terminal_sensitivity)
+            if s > np.percentile(terminal_sensitivity, 80)
+        ]
+        bad_terminal = [
+            x.name
+            for x, s in zip(self.pset.terminals[object], terminal_sensitivity)
+            if s < np.percentile(terminal_sensitivity, 20)
+        ]
+        good_primitive = [
+            x.name
+            for x, s in zip(self.pset.primitives[object], primitive_sensitivity)
+            if s > np.percentile(primitive_sensitivity, 80)
+        ]
+        bad_primitive = [
+            x.name
+            for x, s in zip(self.pset.primitives[object], primitive_sensitivity)
+            if s < np.percentile(primitive_sensitivity, 20)
+        ]
+        elements_to_remove = list(
+            filter(
+                lambda x: x not in good_terminal and x not in good_primitive,
+                elements_to_remove,
+            )
+        )
+        remove_list = []
+        if self.remove_primitives:
+            remove_list += bad_primitive
+        if self.remove_terminals:
+            remove_list += bad_terminal
+        for e in remove_list:
+            if e not in elements_to_remove:
+                elements_to_remove.append(e)
+        return elements_to_remove
+
     def elminate_elements(
         self,
         best_primitive_fitness_list: list,
@@ -288,10 +298,10 @@ class RacingFunctionSelector:
             _, p_value = stats.mannwhitneyu(
                 best_primitive_fitness_list,
                 fitness_list,
-                alternative="greater",
+                # alternative="greater",
             )
             if (
-                p_value < 5 * 1e-2 and element != best_primitive_key
+                p_value > 1e-2 and element != best_primitive_key
             ):  # Ensure we don't remove the best one itself
                 elements_to_remove.append(element)
 
@@ -313,6 +323,11 @@ class RacingFunctionSelector:
         if element_key in primitives:
             return True
 
+    def is_terminal(self, element_key: str) -> bool:
+        terminals = [p.name for p in self.pset.terminals[object]]
+        if element_key in terminals:
+            return True
+
     def isValid(self, individual: MultipleGeneGP) -> bool:
         """
         Checks if the given individual uses any of the eliminated functions or terminals.
@@ -328,9 +343,23 @@ class RacingFunctionSelector:
                 ):
                     continue  # Skip the constant terminal
                 element_key = self.get_element_name(element)
-                if element_key not in self.function_fitness_lists:
+
+                if not self.is_primitive(element_key) and not self.is_terminal(
+                    element_key
+                ):
                     return False
         return True
+
+    def remove_duplicates(self, combined_population):
+        unique_population = []
+        encountered_keys = set()
+
+        for individual in combined_population:
+            key = tuple(str(gene) for gene in individual.gene)
+            if key not in encountered_keys:
+                unique_population.append(individual)
+                encountered_keys.add(key)
+        return unique_population
 
     def environmental_selection(
         self, parents: List[MultipleGeneGP], offspring: List[MultipleGeneGP], n: int
@@ -339,8 +368,9 @@ class RacingFunctionSelector:
         Selects individuals from a combination of parents and offspring, filtering out those that use eliminated functions,
         and returns the top n individuals based on fitness values.
         """
-        return offspring
+        # return offspring
         combined_population = parents + offspring
+        combined_population = self.remove_duplicates(combined_population)
         valid_individuals = [ind for ind in combined_population if self.isValid(ind)]
         invalid_individuals = [
             ind for ind in combined_population if not self.isValid(ind)
@@ -355,12 +385,13 @@ class RacingFunctionSelector:
         )
 
         # If there are not enough valid individuals to fill 'n' slots, add some of the top invalid individuals
-        if len(top_valid_individuals) == 0:
-            return top_invalid_individuals[:1]
+        if len(top_valid_individuals) >= n:
+            return top_valid_individuals[:n]
         else:
-            top_individuals = top_valid_individuals[:n]
-
-        return top_individuals
+            return (
+                top_valid_individuals[:n]
+                + top_invalid_individuals[: n - len(top_valid_individuals)]
+            )
 
 
 def valid_individual(individual: MultipleGeneGP, valid_functions):
