@@ -25,8 +25,12 @@ class RacingFunctionSelector:
         more_than_one=False,
         use_sensitivity_analysis=False,
         verbose=False,
+        racing_environmental_selection=True,
+        p_threshold=1e-2,
         **kwargs
     ):
+        self.p_threshold = p_threshold
+        self.racing_environmental_selection = racing_environmental_selection
         self.verbose = verbose
         self.more_than_one = more_than_one
         self.importance_level = importance_level
@@ -300,8 +304,9 @@ class RacingFunctionSelector:
                 fitness_list,
                 # alternative="greater",
             )
+            p_threshold = self.p_threshold
             if (
-                p_value > 1e-2 and element != best_primitive_key
+                p_value > p_threshold and element != best_primitive_key
             ):  # Ensure we don't remove the best one itself
                 elements_to_remove.append(element)
 
@@ -368,7 +373,8 @@ class RacingFunctionSelector:
         Selects individuals from a combination of parents and offspring, filtering out those that use eliminated functions,
         and returns the top n individuals based on fitness values.
         """
-        # return offspring
+        if not self.racing_environmental_selection:
+            return offspring
         combined_population = parents + offspring
         combined_population = self.remove_duplicates(combined_population)
         valid_individuals = [ind for ind in combined_population if self.isValid(ind)]
