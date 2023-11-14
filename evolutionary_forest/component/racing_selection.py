@@ -3,10 +3,12 @@ from collections import defaultdict
 from typing import List
 
 import numpy as np
+import pandas as pd
 from deap import gp
 from deap.gp import Primitive, PrimitiveTree
 from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
+from statsmodels.tsa.arima.model import ARIMA
 
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
@@ -19,7 +21,6 @@ class RacingFunctionSelector:
         remove_primitives=False,
         remove_terminals=False,
         racing_list_size=100,
-        use_importance_for_removal=False,
         importance_level="Inv",
         use_global_fitness=True,
         frequency_threshold=0,
@@ -27,8 +28,10 @@ class RacingFunctionSelector:
         verbose=False,
         racing_environmental_selection=True,
         p_threshold=1e-2,
+        ts_num_predictions=0,
         **kwargs
     ):
+        self.ts_num_predictions = ts_num_predictions
         self.p_threshold = p_threshold
         self.racing_environmental_selection = racing_environmental_selection
         self.verbose = verbose
@@ -43,7 +46,6 @@ class RacingFunctionSelector:
         self.backup_pset = copy.deepcopy(pset)
         self.content = content
         self.function_importance_list = {}
-        self.use_importance_for_removal = use_importance_for_removal
         self.use_global_fitness = use_global_fitness
         self.use_sensitivity_analysis = use_sensitivity_analysis
 
@@ -292,6 +294,23 @@ class RacingFunctionSelector:
                 elements_to_remove.append(e)
         return elements_to_remove
 
+    def ts_predict(self, fitness_list):
+        auto_regressive_order = 5
+        integrate_order = 1
+        if (
+            self.ts_num_predictions > 0
+            and len(fitness_list) > auto_regressive_order + integrate_order
+        ):
+            series = pd.Series(fitness_list)
+            model = ARIMA(series, order=(auto_regressive_order, integrate_order, 0))
+            model_fit = model.fit()
+            # Forecast future data points
+            forecast = model_fit.forecast(steps=self.ts_num_predictions)
+            extended_fitness_list = fitness_list + list(forecast)
+            return extended_fitness_list
+        else:
+            return fitness_list
+
     def elminate_elements(
         self,
         best_primitive_fitness_list: list,
@@ -301,6 +320,7 @@ class RacingFunctionSelector:
     ):
         # Check primitives
         for element, fitness_list in primitive_fitness_lists.items():
+            fitness_list = self.ts_predict(fitness_list)
             _, p_value = stats.mannwhitneyu(
                 best_primitive_fitness_list,
                 fitness_list,
