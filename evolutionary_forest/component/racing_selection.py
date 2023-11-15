@@ -11,6 +11,7 @@ from sklearn.ensemble import RandomForestRegressor
 from statsmodels.tsa.arima.model import ARIMA
 
 from evolutionary_forest.multigene_gp import MultipleGeneGP
+from evolutionary_forest.utility.priority_queue import MinPriorityQueue
 
 
 class RacingFunctionSelector:
@@ -29,6 +30,7 @@ class RacingFunctionSelector:
         racing_environmental_selection=True,
         p_threshold=1e-2,
         ts_num_predictions=0,
+        priority_queue=False,
         **kwargs
     ):
         self.ts_num_predictions = ts_num_predictions
@@ -40,7 +42,10 @@ class RacingFunctionSelector:
         self.remove_primitives = remove_primitives
         self.remove_terminals = remove_terminals
         self.function_fitness_lists = {}
-        self.best_individuals_fitness_list = []
+        if priority_queue:
+            self.best_individuals_fitness_list = MinPriorityQueue()
+        else:
+            self.best_individuals_fitness_list = []
         self.racing_list_size = racing_list_size
         self.pset = pset
         self.backup_pset = copy.deepcopy(pset)
@@ -48,6 +53,7 @@ class RacingFunctionSelector:
         self.function_importance_list = {}
         self.use_global_fitness = use_global_fitness
         self.use_sensitivity_analysis = use_sensitivity_analysis
+        self.priority_queue = priority_queue
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -131,7 +137,10 @@ class RacingFunctionSelector:
                     continue
 
                 if element_key not in self.function_fitness_lists:
-                    self.function_fitness_lists[element_key] = []
+                    if self.priority_queue:
+                        self.function_fitness_lists[element_key] = MinPriorityQueue()
+                    else:
+                        self.function_fitness_lists[element_key] = []
 
                 self.function_fitness_lists[element_key].append(fitness_value)
 
@@ -321,6 +330,9 @@ class RacingFunctionSelector:
         # Check primitives
         for element, fitness_list in primitive_fitness_lists.items():
             fitness_list = self.ts_predict(fitness_list)
+            if self.priority_queue:
+                best_primitive_fitness_list = list(best_primitive_fitness_list)
+                fitness_list = list(fitness_list)
             _, p_value = stats.mannwhitneyu(
                 best_primitive_fitness_list,
                 fitness_list,
