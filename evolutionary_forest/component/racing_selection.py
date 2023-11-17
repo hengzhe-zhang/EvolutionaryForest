@@ -31,6 +31,7 @@ class RacingFunctionSelector:
         p_threshold=1e-2,
         ts_num_predictions=0,
         priority_queue=False,
+        only_better=False,
         **kwargs
     ):
         self.ts_num_predictions = ts_num_predictions
@@ -54,6 +55,7 @@ class RacingFunctionSelector:
         self.use_global_fitness = use_global_fitness
         self.use_sensitivity_analysis = use_sensitivity_analysis
         self.priority_queue = priority_queue
+        self.only_better = only_better
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -333,11 +335,18 @@ class RacingFunctionSelector:
             if self.priority_queue:
                 best_primitive_fitness_list = list(best_primitive_fitness_list)
                 fitness_list = list(fitness_list)
-            _, p_value = stats.mannwhitneyu(
-                best_primitive_fitness_list,
-                fitness_list,
-                # alternative="greater",
-            )
+            if self.only_better:
+                _, p_value = stats.mannwhitneyu(
+                    best_primitive_fitness_list,
+                    fitness_list,
+                    alternative="smaller",
+                )
+            else:
+                _, p_value = stats.mannwhitneyu(
+                    best_primitive_fitness_list,
+                    fitness_list,
+                    # alternative="greater",
+                )
             p_threshold = self.p_threshold
             if (
                 p_value > p_threshold and element != best_primitive_key
