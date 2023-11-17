@@ -339,7 +339,7 @@ class RacingFunctionSelector:
                 _, p_value = stats.mannwhitneyu(
                     best_primitive_fitness_list,
                     fitness_list,
-                    alternative="smaller",
+                    alternative="less",
                 )
             else:
                 _, p_value = stats.mannwhitneyu(
