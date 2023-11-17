@@ -107,6 +107,8 @@ class RacingFunctionSelector:
                 continue
             if self.importance_level == "Inv" and coef < 1 / len(individual.gene):
                 continue
+            if self.importance_level == "-Inv" and coef >= 1 / len(individual.gene):
+                continue
             if self.importance_level == "Sqrt" and coef < 1 / np.sqrt(
                 len(individual.gene)
             ):
@@ -335,18 +337,10 @@ class RacingFunctionSelector:
             if self.priority_queue:
                 best_primitive_fitness_list = list(best_primitive_fitness_list)
                 fitness_list = list(fitness_list)
-            if self.only_better:
-                _, p_value = stats.mannwhitneyu(
-                    best_primitive_fitness_list,
-                    fitness_list,
-                    alternative="less",
-                )
-            else:
-                _, p_value = stats.mannwhitneyu(
-                    best_primitive_fitness_list,
-                    fitness_list,
-                    # alternative="greater",
-                )
+            _, p_value = stats.mannwhitneyu(
+                best_primitive_fitness_list,
+                fitness_list,
+            )
             p_threshold = self.p_threshold
             if (
                 p_value > p_threshold and element != best_primitive_key
