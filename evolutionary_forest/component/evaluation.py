@@ -537,7 +537,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             prim, args, id = stack.pop()
             equivalent_subtree = -1
             if isinstance(prim, Primitive):
-                result = pset.context[](*args)
+                result = pset.context[prim.name](*args)
                 if target is not None:
                     for arg_id, a in enumerate(args):
                         if np.array_equal(result, a):
