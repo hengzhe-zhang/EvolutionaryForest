@@ -537,7 +537,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
             prim, args, id = stack.pop()
             equivalent_subtree = -1
             if isinstance(prim, Primitive):
-                result = pset.context[prim.name](*args)
+                result = pset.context[](*args)
                 if target is not None:
                     for arg_id, a in enumerate(args):
                         if np.array_equal(result, a):
@@ -551,7 +551,7 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix='ARG', target=None,
                     else:
                         raise ValueError("Unsupported data type!")
                 else:
-                    result = float(prim.name)
+                    result = float(prim.value)
             else:
                 raise Exception
             if target is not None:
