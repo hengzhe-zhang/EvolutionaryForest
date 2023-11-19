@@ -319,9 +319,11 @@ class RacingFunctionSelector:
             # Forecast future data points
             try:
                 if self.ts_num_predictions == "Auto":
-                    forecast = model_fit.forecast(
-                        steps=self.racing_list_size - len(fitness_list)
-                    )
+                    steps = self.racing_list_size - len(fitness_list)
+                    if steps > 0:
+                        forecast = model_fit.forecast(steps=steps)
+                    else:
+                        forecast = []
                 else:
                     forecast = model_fit.forecast(steps=self.ts_num_predictions)
                 fitness_list = fitness_list + list(forecast)
