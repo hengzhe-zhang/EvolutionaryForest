@@ -12,9 +12,7 @@ from deap.tools import (
     selNSGA3,
     uniform_reference_points,
 )
-from pymoo.decomposition.asf import ASF
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
-from pymoo.mcdm.pseudo_weights import PseudoWeights
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import r2_score
@@ -31,9 +29,6 @@ from evolutionary_forest.component.decision_making.euclidian_knee_selection impo
 )
 from evolutionary_forest.component.decision_making.harmonic_rank import (
     best_harmonic_rank,
-)
-from evolutionary_forest.component.decision_making.manhattan_knee import (
-    find_manhattan_knee,
 )
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
