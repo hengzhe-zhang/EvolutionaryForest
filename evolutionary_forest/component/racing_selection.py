@@ -310,17 +310,24 @@ class RacingFunctionSelector:
     def ts_predict(self, fitness_list):
         auto_regressive_order = 5
         integrate_order = 1
-        if (
-            self.ts_num_predictions > 0
-            and len(fitness_list) > auto_regressive_order + integrate_order
-        ):
+        if (self.ts_num_predictions == "Auto" or self.ts_num_predictions > 0) and len(
+            fitness_list
+        ) > auto_regressive_order + integrate_order:
             series = pd.Series(fitness_list)
             model = ARIMA(series, order=(auto_regressive_order, integrate_order, 0))
             model_fit = model.fit()
             # Forecast future data points
-            forecast = model_fit.forecast(steps=self.ts_num_predictions)
-            extended_fitness_list = fitness_list + list(forecast)
-            return extended_fitness_list
+            try:
+                if self.ts_num_predictions == "Auto":
+                    forecast = model_fit.forecast(
+                        steps=self.racing_list_size - len(fitness_list)
+                    )
+                else:
+                    forecast = model_fit.forecast(steps=self.ts_num_predictions)
+                fitness_list = fitness_list + list(forecast)
+            except np.linalg.LinAlgError:
+                print("Error list", fitness_list)
+            return fitness_list
         else:
             return fitness_list
 
