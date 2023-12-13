@@ -757,8 +757,11 @@ def single_tree_evaluation(
                     if (
                         random_noise > 0
                         and isinstance(result, np.ndarray)
+                        # not a trivial expression
                         and len(result) > 1
                         and noise_configuration.noise_to_terminal is not False
+                        # not a trivial tree
+                        and len(expr) > 1
                     ):
                         layer_random_noise = get_adaptive_noise(
                             noise_configuration.layer_adaptive,
