@@ -1,5 +1,4 @@
 import enum
-import enum
 import logging
 import random
 import time
@@ -26,17 +25,11 @@ from sklearn.inspection import permutation_importance
 from sklearn.linear_model import RidgeCV, LogisticRegression
 from sklearn.linear_model._base import LinearModel
 from sklearn.metrics import (
-    make_scorer,
     accuracy_score,
-    balanced_accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
     r2_score,
 )
 from sklearn.model_selection import (
     StratifiedKFold,
-    cross_validate,
     train_test_split,
     KFold,
 )
@@ -726,17 +719,21 @@ def single_tree_evaluation(
                         and isinstance(result, np.ndarray)
                         and result.size > 1
                     ):
-                        layer_random_noise = get_adaptive_noise(
-                            noise_configuration.layer_adaptive,
-                            depth_information[id],
-                            random_noise,
-                        )
-                        result = inject_noise_to_data(
-                            result,
-                            layer_random_noise,
-                            noise_configuration,
-                            random_seed=random_seed,
-                        )
+                        if len(stack) == 0 and noise_configuration.noise_to_terminal:
+                            # not add noise to the root node
+                            pass
+                        else:
+                            layer_random_noise = get_adaptive_noise(
+                                noise_configuration.layer_adaptive,
+                                depth_information[id],
+                                random_noise,
+                            )
+                            result = inject_noise_to_data(
+                                result,
+                                layer_random_noise,
+                                noise_configuration,
+                                random_seed=random_seed,
+                            )
                 except OverflowError as e:
                     result = args[0]
                     logging.error(
@@ -760,8 +757,8 @@ def single_tree_evaluation(
                         # not a trivial expression
                         and len(result) > 1
                         and noise_configuration.noise_to_terminal is not False
-                        # not a trivial tree
-                        and len(expr) > 1
+                        # not add noise to only a terminal node
+                        and not (len(stack) == 0)
                     ):
                         layer_random_noise = get_adaptive_noise(
                             noise_configuration.layer_adaptive,
