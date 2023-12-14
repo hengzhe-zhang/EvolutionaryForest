@@ -771,7 +771,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         }
         self.safe_initialization_check()
 
-        # Pareto front of training error and sharpness
+        # Pareto front of training error and test error
         self.pareto_front = []
         # Pareto front of test error and sharpness
         self.test_pareto_front = []
