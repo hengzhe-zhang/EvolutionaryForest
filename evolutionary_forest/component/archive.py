@@ -33,12 +33,17 @@ class StrictlyImprovementHOF(HallOfFame):
 
 
 class CustomHOF(HallOfFame):
-    def __init__(self, maxsize, comparison_function, key_metric, similar=eq):
+    def __init__(
+        self, maxsize, comparison_function, key_metric, similar=eq, preprocess=None
+    ):
+        self.preprocess = preprocess
         self.comparison_function = comparison_function
         self.key_metric = key_metric
         super().__init__(maxsize, similar)
 
     def update(self, population):
+        if self.preprocess is not None:
+            self.preprocess(population)
         for ind in population:
             if len(self) == 0 and self.maxsize != 0:
                 # Working on an empty hall of fame is problematic for the

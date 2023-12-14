@@ -2251,10 +2251,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             def comparison(a, b):
                 return a.sam_loss < b.sam_loss
 
+            pac_bayesian = R2PACBayesian(self, **self.param)
             self.hof = CustomHOF(
                 self.ensemble_size,
                 comparison_function=comparison,
                 key_metric=lambda x: -x.sam_loss,
+                preprocess=lambda pop: pac_bayesian.assign_complexity_pop(pop),
             )
         elif self.ensemble_selection == "WeightedSum":
             # Automatically determine the ensemble size
