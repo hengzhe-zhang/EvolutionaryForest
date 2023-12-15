@@ -153,6 +153,7 @@ from evolutionary_forest.component.selection import (
     SelectionConfiguration,
     Selection,
     TournamentLexicase,
+    selLexicaseDCD,
 )
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
@@ -1844,6 +1845,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # selection operators
         if isinstance(self.select, Selection):
             toolbox.register("select", self.select.select)
+        elif self.select == "LexicaseDCD":
+            toolbox.register("select", selLexicaseDCD)
         elif self.select == "Tournament":
             toolbox.register(
                 "select", tools.selTournament, tournsize=self.param["tournament_size"]
