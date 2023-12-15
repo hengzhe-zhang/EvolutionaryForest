@@ -719,7 +719,7 @@ def single_tree_evaluation(
                         and isinstance(result, np.ndarray)
                         and result.size > 1
                     ):
-                        if len(stack) == 0 and noise_configuration.noise_to_terminal:
+                        if len(stack) == 0 and noise_configuration.skip_root:
                             # not add noise to the root node
                             pass
                         else:
@@ -758,7 +758,7 @@ def single_tree_evaluation(
                         and len(result) > 1
                         and noise_configuration.noise_to_terminal is not False
                         # not add noise to only a terminal node
-                        and not (len(stack) == 0)
+                        and not (len(stack) == 0 and noise_configuration.skip_root)
                     ):
                         layer_random_noise = get_adaptive_noise(
                             noise_configuration.layer_adaptive,

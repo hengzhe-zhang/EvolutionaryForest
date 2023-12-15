@@ -22,6 +22,7 @@ class NoiseConfiguration:
         noise_to_terminal: Union[float, bool] = False,
         noise_normalization="Instance+",
         layer_adaptive=False,
+        skip_root=False,
         **params
     ):
         """
@@ -35,6 +36,7 @@ class NoiseConfiguration:
         self.noise_to_terminal = noise_to_terminal
         self.noise_normalization = noise_normalization
         self.layer_adaptive = layer_adaptive
+        self.skip_root = skip_root
 
 
 class MABConfiguration:
