@@ -2259,7 +2259,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.ensemble_size,
                 comparison_function=comparison,
                 key_metric=lambda x: -x.sam_loss,
-                preprocess=lambda pop: pac_bayesian.assign_complexity_pop(pop),
+                # preprocess=lambda pop: pac_bayesian.assign_complexity_pop(pop),
             )
         elif self.ensemble_selection == "WeightedSum":
             # Automatically determine the ensemble size

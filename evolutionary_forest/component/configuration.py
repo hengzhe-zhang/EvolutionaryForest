@@ -19,10 +19,10 @@ class NoiseConfiguration:
     def __init__(
         self,
         noise_type="Normal",
-        noise_to_terminal: Union[float, bool] = False,
+        noise_to_terminal: Union[float, bool] = True,
         noise_normalization="Instance+",
         layer_adaptive=False,
-        skip_root=False,
+        skip_root=True,
         **params
     ):
         """
