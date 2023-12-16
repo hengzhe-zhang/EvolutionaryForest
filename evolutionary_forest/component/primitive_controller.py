@@ -47,6 +47,9 @@ def get_functions(p):
             analytical_quotient,
             2,
         ),  # Analytical Quotient for symbolic differentiation
+        "AQ^3": (partial(simple_reduce, analytical_quotient), 3),  # AQ
+        "AQ^4": (partial(simple_reduce, analytical_quotient), 4),  # AQ
+        "AQ^5": (partial(simple_reduce, analytical_quotient), 5),  # AQ
         "Sqrt": (protect_sqrt, 1),  # Protected square root for handling negative values
         "ALog": (
             analytical_log,

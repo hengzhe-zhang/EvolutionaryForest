@@ -123,7 +123,8 @@ def protected_inverse(x1):
             raise e
 
 
-def analytical_quotient(x1, x2):
+def analytical_quotient(x1, *x2):
+    x2 = reduce(operator.mul, x2)
     return x1 / np.sqrt(1 + (x2**2))
 
 
