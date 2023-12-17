@@ -198,6 +198,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
     MultiFidelityEvaluation,
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
+from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -1267,6 +1268,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
         elif self.score_func == "MAE":
             individual.case_values = np.abs(((y_pred - Y.flatten()).flatten()))
+        elif self.score_func.startswith("EvoMAL"):
+            loss_function = {
+                "EvoMAL1": loss_function_1,
+                "EvoMAL2": loss_function_2,
+                "EvoMAL3": loss_function_3,
+                "EvoMAL4": loss_function_4,
+                "EvoMAL5": loss_function_5,
+            }
+            individual.case_values = loss_function[self.score_func](y_pred, Y.flatten())
         elif self.score_func == "Spearman":
             individual.case_values = np.abs(
                 rankdata(y_pred) - rankdata(Y.flatten())
