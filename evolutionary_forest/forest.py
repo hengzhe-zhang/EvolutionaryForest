@@ -1192,6 +1192,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return self.score_func.fitness_value(individual, estimators, Y, y_pred)
         elif (
             self.score_func == "R2"
+            or self.score_func.startswith("EvoMAL")
             or self.score_func == "NoveltySearch"
             or self.score_func == "MAE"
         ):
