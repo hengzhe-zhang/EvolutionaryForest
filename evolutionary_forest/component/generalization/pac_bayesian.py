@@ -47,7 +47,7 @@ class PACBayesianConfiguration:
         direct_reduction=False,
         optimal_design=False,
         reference_model="KR",
-        sharpness_iterations=10,
+        sharpness_iterations=5,
         automatic_std=False,
         automatic_std_model="KNN",
         only_hard_instance=0,
