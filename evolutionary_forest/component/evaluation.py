@@ -719,7 +719,9 @@ def single_tree_evaluation(
                         and isinstance(result, np.ndarray)
                         and result.size > 1
                     ):
-                        if len(stack) == 0 and noise_configuration.skip_root:
+                        if (
+                            len(stack) == 0 and noise_configuration.skip_root
+                        ) or noise_configuration.only_terminal:
                             # not add noise to the root node
                             pass
                         else:

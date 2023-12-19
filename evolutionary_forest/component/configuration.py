@@ -23,6 +23,7 @@ class NoiseConfiguration:
         noise_normalization="Instance+",
         layer_adaptive=False,
         skip_root=True,
+        only_terminal=False,
         **params
     ):
         """
@@ -37,6 +38,7 @@ class NoiseConfiguration:
         self.noise_normalization = noise_normalization
         self.layer_adaptive = layer_adaptive
         self.skip_root = skip_root
+        self.only_terminal = only_terminal
 
 
 class MABConfiguration:
