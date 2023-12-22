@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib import cm
 from matplotlib.colors import Normalize
+from sklearn.base import ClassifierMixin
 
 from evolutionary_forest.component.decision_making.bend_angle_knee import (
     find_knee_based_on_bend_angle,
@@ -95,6 +96,9 @@ class ParetoFrontTool:
             self.environmental_selection, EnvironmentalSelection
         ):
             pac = R2PACBayesian(self, **self.param)
+            if isinstance(self, ClassifierMixin):
+                pac.classification = True
+                pac.instance_weights = self.class_weight
             self.training_test_pareto_front = []
             self.test_pareto_front = []
             """

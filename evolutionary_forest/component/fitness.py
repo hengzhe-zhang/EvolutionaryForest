@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
+from sklearn.base import ClassifierMixin
 from sklearn.metrics import r2_score
 from torch import optim
 
@@ -33,6 +34,7 @@ from evolutionary_forest.component.generalization.wcrv import (
     calculate_mic,
 )
 from evolutionary_forest.multigene_gp import MultipleGeneGP
+from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utils import tuple_to_list, list_to_tuple
 
 if TYPE_CHECKING:
@@ -40,10 +42,22 @@ if TYPE_CHECKING:
 
 
 class Fitness:
+    def __init__(self):
+        self.classification = False
+        self.instance_weights = None
+
     def fitness_value(self, individual, estimators, Y, y_pred):
         # basic fitness evaluation
         # warning: Minimization
-        return (-1 * r2_score(Y, y_pred),)
+        if self.classification:
+            if self.instance_weights is not None:
+                return (
+                    np.mean(calculate_cross_entropy(Y, y_pred) * self.instance_weights),
+                )
+            else:
+                return (np.mean(calculate_cross_entropy(Y, y_pred)),)
+        else:
+            return (-1 * r2_score(Y, y_pred),)
 
     @abstractmethod
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
@@ -422,7 +436,10 @@ class VCDimensionR2(Fitness):
 
 class R2Size(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
-        score = r2_score(Y, y_pred)
+        if self.classification:
+            score = np.mean(calculate_cross_entropy(Y, y_pred))
+        else:
+            score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
         return (-1 * score, tree_size)
 
@@ -598,6 +615,7 @@ class R2PACBayesian(Fitness):
                 data_generator=data_generator,
                 reference_model=self.algorithm.reference_lgbm,
                 sharpness_vector=sharpness_vector,
+                instance_weights=self.instance_weights,
             )
         if (
             hasattr(individual, "fitness_list")

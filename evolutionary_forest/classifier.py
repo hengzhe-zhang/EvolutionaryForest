@@ -22,12 +22,14 @@ from tpot import TPOTClassifier
 
 from evolutionary_forest.component.archive import EnsembleSelectionHallOfFame
 from evolutionary_forest.component.evaluation import multi_tree_evaluation
+from evolutionary_forest.component.fitness import Fitness
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 from evolutionary_forest.component.ensemble_learning.utils import GBDTLRClassifierX
 from evolutionary_forest.model.PLTree import LRDTClassifier
 from evolutionary_forest.model.SafetyLR import SafetyLogisticRegression
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
+from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utils import save_array
 
 
@@ -171,6 +173,10 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         if isinstance(self.hof, EnsembleSelectionHallOfFame):
             self.hof.categories = len(np.unique(self.y))
             self.hof.label = self.label_encoder.transform(self.y.reshape(-1, 1))
+        if isinstance(self.score_func, Fitness):
+            self.score_func.classification = True
+            self.pac_bayesian.classification = True
+            self.score_func.instance_weights = self.class_weight
 
     def entropy_calculation(self):
         if self.score_func == "NoveltySearch":
@@ -192,15 +198,14 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             matrix = confusion_matrix(Y.flatten(), y_pred.flatten())
             score = matrix.diagonal() / matrix.sum(axis=1)
             individual.case_values = -1 * score
-        elif self.score_func == "CrossEntropy" or self.score_func == "NoveltySearch":
-            one_hot_targets = OneHotEncoder(sparse_output=False).fit_transform(
-                self.y.reshape(-1, 1)
-            )
-            eps = np.finfo(y_pred.dtype).eps
-            # Cross entropy
-            individual.case_values = -1 * np.sum(
-                one_hot_targets * np.log(np.clip(y_pred, eps, 1 - eps)), axis=1
-            )
+        elif (
+            self.score_func == "CrossEntropy"
+            or self.score_func == "NoveltySearch"
+            or isinstance(self.score_func, Fitness)
+        ):
+            target_label = self.y
+            cross_entropy = calculate_cross_entropy(target_label, y_pred)
+            individual.case_values = cross_entropy
             assert not np.any(np.isnan(individual.case_values)), save_array(
                 individual.case_values
             )
@@ -293,6 +298,8 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
                     ]
                 ),
             )
+        elif isinstance(self.score_func, Fitness):
+            return self.score_func.fitness_value(individual, estimators, Y, y_pred)
         elif "CV" in self.score_func:
             return (-1 * np.mean(y_pred),)
         else:

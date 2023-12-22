@@ -8,6 +8,7 @@ import numpy as np
 from deap import creator, base, tools
 from lightgbm import LGBMRegressor
 from numba import njit
+from sklearn.base import ClassifierMixin
 from sklearn.datasets import load_diabetes
 from sklearn.linear_model import RidgeCV, Ridge
 from sklearn.metrics import r2_score, mean_squared_error
@@ -17,6 +18,7 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from evolutionary_forest.component.configuration import NoiseConfiguration
 from evolutionary_forest.component.evaluation import inject_noise_to_data
+from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
@@ -55,6 +57,7 @@ class PACBayesianConfiguration:
         sharpness_decay=0,
         structural_sharpness=0,
         adaptive_depth=False,
+        classification=False,
         **params
     ):
         # For VCD
@@ -76,6 +79,7 @@ class PACBayesianConfiguration:
         self.sharpness_decay = sharpness_decay
         self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
+        self.classification = classification
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -119,14 +123,24 @@ def pac_bayesian_estimation(
     data_generator=None,
     reference_model: LGBMRegressor = None,
     sharpness_vector=None,
+    instance_weights=None,
 ):
     """
     Please pay attention, when calculating the sharpness,
     do not use cross-validation prediction as the predictions.
     Here, we should strictly follow the process of sharpness estimation.
     """
-    original_predictions = individual.pipe.predict(X)
-    baseline = (y - original_predictions) ** 2
+    if configuration.classification:
+        original_predictions = individual.pipe.predict_proba(X)
+        if instance_weights is not None:
+            baseline = (
+                calculate_cross_entropy(y, original_predictions) * instance_weights
+            )
+        else:
+            baseline = calculate_cross_entropy(y, original_predictions)
+    else:
+        original_predictions = individual.pipe.predict(X)
+        baseline = (y - original_predictions) ** 2
     if configuration.structural_sharpness > 0:
         if hasattr(individual, "baseline_mse"):
             individual.structural_sharpness = np.mean(
@@ -231,7 +245,22 @@ def pac_bayesian_estimation(
         if sharpness_type == SharpnessType.DataLGBM:
             mse_scores[i] = (reference_model.predict(data) - y_pred) ** 2
         else:
-            mse_scores[i] = (target_y - y_pred) ** 2
+            if configuration.classification:
+                if instance_weights is not None:
+                    mse_scores[i] = (
+                        calculate_cross_entropy(
+                            target_y,
+                            y_pred,
+                        )
+                        * instance_weights
+                    )
+                else:
+                    mse_scores[i] = calculate_cross_entropy(
+                        target_y,
+                        y_pred,
+                    )
+            else:
+                mse_scores[i] = (target_y - y_pred) ** 2
 
     # Compute the mean and standard deviation of the R2 scores
     perturbed_mse = np.mean(mse_scores)
@@ -331,7 +360,10 @@ def get_cv_predictions(estimator, X, y, direct_prediction=False):
     if isinstance(base_model, RidgeCV) and not direct_prediction:
         y_pred = cv_prediction_from_ridge(y, base_model)
     else:
-        y_pred = base_model.predict(X)
+        if isinstance(base_model, ClassifierMixin):
+            y_pred = base_model.predict_proba(X)
+        else:
+            y_pred = base_model.predict(X)
     return y_pred
 
 
