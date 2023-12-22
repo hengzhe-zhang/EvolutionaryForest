@@ -16,6 +16,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from evolutionary_forest.component.configuration import NoiseConfiguration
+from evolutionary_forest.component.evaluation import inject_noise_to_data
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
@@ -177,7 +178,14 @@ def pac_bayesian_estimation(
             # Generate some random noise data
             data = data_generator()
             X_noise = sc.transform(feature_generator(data))
-            X_noise_plus = sc.transform(feature_generator(data + 1e-8))
+            X_noise_plus = sc.transform(
+                feature_generator(
+                    data,
+                    random_noise=configuration.perturbation_std,
+                    random_seed=i,
+                    noise_configuration=configuration.noise_configuration,
+                )
+            )
         elif sharpness_type == SharpnessType.Parameter:
             if configuration.only_hard_instance > 0:
                 # worst x%

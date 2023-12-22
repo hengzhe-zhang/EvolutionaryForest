@@ -2692,6 +2692,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.reference_lgbm = DecisionTreeRegressor()
             elif self.pac_bayesian.reference_model == "RF":
                 self.reference_lgbm = RandomForestRegressor()
+            elif self.pac_bayesian.reference_model == "ET":
+                self.reference_lgbm = ExtraTreesRegressor()
             elif self.pac_bayesian.reference_model == "KR":
                 self.reference_lgbm = GridSearchCV(
                     KernelRidge(),
