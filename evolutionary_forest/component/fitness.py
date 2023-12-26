@@ -91,6 +91,7 @@ class RademacherComplexityR2(Fitness):
         rademacher_mode="Analytical",
         **params
     ):
+        super().__init__()
         self.algorithm = algorithm
         self.size_objective = False
         self.feature_count_objective = False
@@ -351,6 +352,7 @@ class R2GrandComplexity(Fitness):
 
 class R2WCRV(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor"):
+        super().__init__()
         self.algorithm = algorithm
 
     def fitness_value(self, individual, estimators, Y, y_pred):
@@ -382,6 +384,7 @@ class R2WCRV(Fitness):
 
 class R2IODC(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor"):
+        super().__init__()
         self.algorithm = algorithm
 
     def fitness_value(self, individual, estimators, Y, y_pred):
@@ -395,6 +398,7 @@ class R2IODC(Fitness):
 
 class VCDimensionR2(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
+        super().__init__()
         self.algorithm = algorithm
         self.size_objective = False
 
@@ -452,6 +456,7 @@ class R2FeatureCount(Fitness):
 
 class R2SizeScaler(Fitness):
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
+        super().__init__()
         self.algorithm = algorithm
 
     def fitness_value(self, individual, estimators, Y, y_pred):
@@ -473,6 +478,7 @@ class R2PACBayesian(Fitness):
         sharpness_loss_weight=0.5,
         **params
     ):
+        super().__init__()
         self.sharpness_distribution = sharpness_distribution
         self.algorithm = algorithm
         if sharpness_type == "Data":
