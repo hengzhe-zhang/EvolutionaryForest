@@ -1202,9 +1202,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.score_func.startswith("BoundedS"):
             if "-" in self.score_func:
                 lower_bound = float(self.score_func.split("-")[1])
-                uppwer_bound = float(self.score_func.split("-")[2])
+                upper_bound = float(self.score_func.split("-")[2])
+            else:
+                lower_bound, upper_bound = 0, 1
             original_mse = ((y_pred - Y.flatten()).flatten()) ** 2
-            mse = np.mean(np.clip(original_mse, lower_bound, uppwer_bound))
+            mse = np.mean(np.clip(original_mse, lower_bound, upper_bound))
             return (mse,)
         elif (
             self.score_func == "R2"
@@ -1292,9 +1294,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.score_func == "Bounded" or self.score_func.startswith("Bounded"):
             if "-" in self.score_func:
                 lower_bound = float(self.score_func.split("-")[1])
-                uppwer_bound = float(self.score_func.split("-")[2])
+                upper_bound = float(self.score_func.split("-")[2])
+            else:
+                lower_bound, upper_bound = 0, 1
             original_mse = ((y_pred - Y.flatten()).flatten()) ** 2
-            individual.case_values = np.clip(original_mse, lower_bound, uppwer_bound)
+            individual.case_values = np.clip(original_mse, lower_bound, upper_bound)
         elif self.score_func.startswith("EvoMAL"):
             loss_function = {
                 "EvoMAL1": loss_function_1,

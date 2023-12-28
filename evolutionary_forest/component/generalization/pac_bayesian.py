@@ -195,14 +195,6 @@ def pac_bayesian_estimation(
             # Generate some random noise data
             data = data_generator()
             X_noise = sc.transform(feature_generator(data))
-            X_noise_plus = sc.transform(
-                feature_generator(
-                    data,
-                    random_noise=configuration.perturbation_std,
-                    random_seed=i,
-                    noise_configuration=configuration.noise_configuration,
-                )
-            )
         elif sharpness_type == SharpnessType.Parameter:
             if configuration.only_hard_instance > 0:
                 # worst x%
@@ -232,6 +224,7 @@ def pac_bayesian_estimation(
             estimator_noise.fit(X_noise, y)
             y_pred = get_cv_predictions(estimator_noise, X_noise, y)
         else:
+            # in most cases, don't need to refit the model
             y_pred = get_cv_predictions(estimator, X_noise, y, direct_prediction=True)
 
         if (
