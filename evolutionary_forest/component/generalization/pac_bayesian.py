@@ -28,11 +28,14 @@ def m_sharpness(baseline, k=4):
     random_indices = np.random.choice(len(baseline), baseline.shape[0], replace=False)
 
     for i in range(0, len(random_indices), k):
+        # batch
         g = random_indices[i : i + k]
         tmp = np.zeros(baseline.shape[1])
         for idx in g:
             tmp += baseline[idx]
+        # large sharpness
         base_id = np.argmax(tmp)
+        # final sharpness over batch
         for idx in g:
             final_baseline[idx] = baseline[idx][base_id]
     return final_baseline
@@ -279,13 +282,19 @@ def pac_bayesian_estimation(
             # mean-sharpness, which follows PAC-Bayesian
             objectives.append((perturbed_mse, -1 * weight))
         elif s == "MeanSharpness-Base":
-            # mean-sharpness, which follows PAC-Bayesian
+            # mean-sharpness, which strictly follows PAC-Bayesian theory
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, original_predictions)
             # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
             # average over perturbations
-            objectives.append((np.mean(sharp_mse - baseline_mse), -1 * weight))
+            """
+            In very rare cases, the average sharpness could be less than 0.
+            This is undesired because it indicates the model located at the a very bad loss maximum point,
+            and adding arbitrary noise could improve the performance.
+            """
+            protected_sharpness = max(np.mean(sharp_mse - baseline_mse), 0)
+            objectives.append((protected_sharpness, -1 * weight))
         elif s == "MaxSharpness":
             # n-SAM, reduce the maximum sharpness over all samples
             # average over samples
@@ -297,8 +306,9 @@ def pac_bayesian_estimation(
             # subtract baseline MSE
             baseline_mse = mean_squared_error(y, original_predictions)
             mse_scores = np.vstack((mse_scores, baseline))
-            max_sharp = mse_scores[np.argmax(np.mean(mse_scores, axis=1))]
             if s == "MaxSharpness+":
+                best_index = np.argmax(np.mean(mse_scores, axis=1))
+                max_sharp = mse_scores[best_index]
                 sharpness_vector[:] = max_sharp
             # average over samples
             sharp_mse = np.mean(mse_scores, axis=1)
@@ -323,7 +333,7 @@ def pac_bayesian_estimation(
             max_sharpness = np.mean(max_sharp)
             objectives.append((max_sharpness, -1 * weight))
         elif check_format(s):
-            # 1-SAM, reduce the maximum sharpness over each sample
+            # K-SAM, reduce the maximum sharpness over K samples
             # subtract baseline MSE
             mse_scores = np.vstack((mse_scores, baseline))
             _, k, _ = s.split("-")
