@@ -1204,7 +1204,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 lower_bound = float(self.score_func.split("-")[1])
                 uppwer_bound = float(self.score_func.split("-")[2])
             original_mse = ((y_pred - Y.flatten()).flatten()) ** 2
-            mse = np.clip(original_mse, lower_bound, uppwer_bound)
+            mse = np.mean(np.clip(original_mse, lower_bound, uppwer_bound))
             return (mse,)
         elif (
             self.score_func == "R2"
