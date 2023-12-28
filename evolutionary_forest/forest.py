@@ -3,6 +3,7 @@ import inspect
 from multiprocessing import Pool
 
 import dill
+import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -1198,11 +1199,22 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         """
         if isinstance(self.score_func, Fitness):
             return self.score_func.fitness_value(individual, estimators, Y, y_pred)
+        elif self.score_func.startswith("BoundedS"):
+            if "-" in self.score_func:
+                lower_bound = float(self.score_func.split("-")[1])
+                uppwer_bound = float(self.score_func.split("-")[2])
+            original_mse = ((y_pred - Y.flatten()).flatten()) ** 2
+            mse = np.clip(original_mse, lower_bound, uppwer_bound)
+            return (mse,)
         elif (
             self.score_func == "R2"
             or self.score_func.startswith("EvoMAL")
             or self.score_func == "NoveltySearch"
             or self.score_func == "MAE"
+            or (
+                self.score_func.startswith("Bounded")
+                and not self.score_func.startswith("BoundedS")
+            )
         ):
             # Calculate R2 score
             if self.imbalanced_configuration.balanced_fitness:
@@ -1277,6 +1289,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
         elif self.score_func == "MAE":
             individual.case_values = np.abs(((y_pred - Y.flatten()).flatten()))
+        elif self.score_func == "Bounded" or self.score_func.startswith("Bounded"):
+            if "-" in self.score_func:
+                lower_bound = float(self.score_func.split("-")[1])
+                uppwer_bound = float(self.score_func.split("-")[2])
+            original_mse = ((y_pred - Y.flatten()).flatten()) ** 2
+            individual.case_values = np.clip(original_mse, lower_bound, uppwer_bound)
         elif self.score_func.startswith("EvoMAL"):
             loss_function = {
                 "EvoMAL1": loss_function_1,
