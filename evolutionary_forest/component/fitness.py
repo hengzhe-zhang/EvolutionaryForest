@@ -510,9 +510,11 @@ class R2PACBayesian(Fitness):
                 print("GAN Training Time ", end - start)
 
     def mixup(self):
-        # Mixup for data augmentation
+        # MixUp for data augmentation
         algorithm = self.algorithm
-        ratio = np.random.beta(0.2, 0.2, len(algorithm.X))
+        # Temporarily using perturbation_std as the MixUp parameter
+        alpha_beta = self.algorithm.pac_bayesian.perturbation_std
+        ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         data = algorithm.X[indices_a] * ratio.reshape(-1, 1) + algorithm.X[
