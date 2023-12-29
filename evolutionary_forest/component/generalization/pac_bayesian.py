@@ -194,6 +194,9 @@ def pac_bayesian_estimation(
         ):
             # Generate some random noise data
             data = data_generator()
+            if isinstance(data, tuple):
+                # in some cases, function may return both data and label
+                data, target_y = data
             X_noise = sc.transform(feature_generator(data))
         elif sharpness_type == SharpnessType.Parameter:
             if configuration.only_hard_instance > 0:

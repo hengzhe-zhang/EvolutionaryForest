@@ -1,3 +1,4 @@
+import time
 from abc import abstractmethod
 from functools import partial
 from typing import TYPE_CHECKING
@@ -492,6 +493,40 @@ class R2PACBayesian(Fitness):
         self.sharpness_type = sharpness_type
         self.sharpness_loss_weight = sharpness_loss_weight
 
+    def lazy_init(self):
+        if self.sharpness_distribution == "GAN":
+            from ctgan import CTGAN
+
+            start = time.time()
+            self.gan = CTGAN()
+            self.gan.fit(
+                np.concatenate(
+                    [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
+                )
+            )
+            end = time.time()
+            gan_verbose = True
+            if gan_verbose:
+                print("GAN Training Time ", end - start)
+
+    def mixup(self):
+        # Mixup for data augmentation
+        algorithm = self.algorithm
+        ratio = np.random.beta(0.2, 0.2, len(algorithm.X))
+        indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
+        indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
+        data = algorithm.X[indices_a] * ratio.reshape(-1, 1) + algorithm.X[
+            indices_b
+        ] * (1 - ratio.reshape(-1, 1))
+        label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * ratio
+        return data, label
+
+    def GAN(self):
+        # GAN for data augmentation
+        sampled_data = self.gan.sample(len(self.algorithm.X))
+        X, y = sampled_data[:, :-1], sampled_data[:, -1]
+        return X, y
+
     def assign_complexity(self, individual, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
@@ -521,6 +556,10 @@ class R2PACBayesian(Fitness):
                 * algorithm.X.std(axis=0),
                 size=algorithm.X.shape,
             )
+        elif self.sharpness_distribution == "MixUp":
+            data_generator = self.mixup
+        elif self.sharpness_distribution == "GAN":
+            data_generator = self.GAN
         else:
             raise Exception
         feature_generator = lambda data, random_noise=0, random_seed=0, noise_configuration=None: algorithm.feature_generation(

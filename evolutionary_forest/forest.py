@@ -1847,6 +1847,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 verbose=self.verbose,
             )
 
+        if isinstance(self.score_func, R2PACBayesian):
+            self.score_func.lazy_init()
+
     def tree_initialization_function(self, pset, toolbox: TypedToolbox):
         if self.initial_tree_size is None:
             toolbox.expr = partial(gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
