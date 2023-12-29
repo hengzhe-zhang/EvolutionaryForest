@@ -1,6 +1,6 @@
 import time
 from abc import abstractmethod
-from functools import partial
+from functools import partial, lru_cache
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -9,6 +9,7 @@ from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import r2_score
+from sklearn.metrics.pairwise import rbf_kernel
 from torch import optim
 
 from evolutionary_forest.component.evaluation import multi_tree_evaluation
@@ -509,25 +510,59 @@ class R2PACBayesian(Fitness):
             if gan_verbose:
                 print("GAN Training Time ", end - start)
 
-    def mixup(self):
+    def sample_according_to_probability(self, distance_matrix, indices_a):
+        """
+        Sample indices according to the probability distribution given by the distance matrix.
+        """
+        prob_distribution = distance_matrix[
+            indices_a
+        ]  # Extract probabilities for the given indices
+        # Normalize to form a valid probability distribution
+        prob_distribution = prob_distribution / np.sum(
+            prob_distribution, axis=1, keepdims=True
+        )
+        # Sample indices according to the probability distribution
+        indices_b = [
+            np.random.choice(len(distance_matrix), p=prob_distribution[i])
+            for i in range(len(indices_a))
+        ]
+        return indices_b
+
+    @lru_cache(maxsize=128)
+    def mixup(self, random_seed=0, c_mixup=False):
         # MixUp for data augmentation
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
         alpha_beta = self.algorithm.pac_bayesian.perturbation_std
         ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
+        if c_mixup:
+            # sample indices
+            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
+        else:
+            indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         data = algorithm.X[indices_a] * ratio.reshape(-1, 1) + algorithm.X[
             indices_b
         ] * (1 - ratio.reshape(-1, 1))
         label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * ratio
         return data, label
 
-    def GAN(self):
+    @lru_cache(maxsize=128)
+    def GAN(self, random_seed=0):
         # GAN for data augmentation
         sampled_data = self.gan.sample(len(self.algorithm.X))
         X, y = sampled_data[:, :-1], sampled_data[:, -1]
         return X, y
+
+    @lru_cache(maxsize=128)
+    def gaussian_noise(self, random_seed=0, std=None):
+        algorithm = self.algorithm
+        return algorithm.X + np.random.normal(
+            scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+            * algorithm.X.std(axis=0),
+            size=algorithm.X.shape,
+        )
 
     def assign_complexity(self, individual, estimator):
         # reducing the time of estimating VC-Dimension
@@ -535,13 +570,7 @@ class R2PACBayesian(Fitness):
         X_features = algorithm.feature_generation(algorithm.X, individual)
         # random generate training data
         if self.sharpness_distribution == "Normal":
-            data_generator = lambda std=None: algorithm.X + np.random.normal(
-                scale=(
-                    self.algorithm.pac_bayesian.perturbation_std if std is None else std
-                )
-                * algorithm.X.std(axis=0),
-                size=algorithm.X.shape,
-            )
+            data_generator = self.gaussian_noise
         elif self.sharpness_distribution == "Uniform":
             data_generator = lambda std=None: algorithm.X + np.random.uniform(
                 high=(
@@ -560,6 +589,8 @@ class R2PACBayesian(Fitness):
             )
         elif self.sharpness_distribution == "MixUp":
             data_generator = self.mixup
+        elif self.sharpness_distribution == "C-MixUp":
+            data_generator = partial(self.mixup, c_mixup=True)
         elif self.sharpness_distribution == "GAN":
             data_generator = self.GAN
         else:

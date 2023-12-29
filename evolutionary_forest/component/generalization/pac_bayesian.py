@@ -197,7 +197,7 @@ def pac_bayesian_estimation(
             if isinstance(data, tuple):
                 # in some cases, function may return both data and label
                 data, target_y = data
-            X_noise = sc.transform(feature_generator(data))
+            X_noise = sc.transform(feature_generator(data, random_seed=i))
         elif sharpness_type == SharpnessType.Parameter:
             if configuration.only_hard_instance > 0:
                 # worst x%
