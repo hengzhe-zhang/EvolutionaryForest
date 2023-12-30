@@ -545,29 +545,35 @@ class R2PACBayesian(Fitness):
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         if d_mixup:
             distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            probability = np.sum(distance_matrix, axis=1)
+            probability = probability / np.sum(probability)
             indices_a = np.random.choice(
                 len(distance_matrix),
-                p=np.sum(distance_matrix, axis=1),
+                p=probability,
                 size=len(distance_matrix),
             )
             indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         elif dd_mixup:
             distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            probability = np.sum(distance_matrix, axis=1)
+            probability = probability / np.sum(probability)
             indices_a = np.random.choice(
                 len(distance_matrix),
-                p=np.sum(distance_matrix, axis=1),
+                p=probability,
                 size=len(distance_matrix),
             )
             indices_b = np.random.choice(
                 len(distance_matrix),
-                p=np.sum(distance_matrix, axis=1),
+                p=probability,
                 size=len(distance_matrix),
             )
         elif dc_mixup:
             distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            probability = np.sum(distance_matrix, axis=1)
+            probability = probability / np.sum(probability)
             indices_a = np.random.choice(
                 len(distance_matrix),
-                p=np.sum(distance_matrix, axis=1),
+                p=probability,
                 size=len(distance_matrix),
             )
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
