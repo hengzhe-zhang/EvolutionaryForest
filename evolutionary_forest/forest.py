@@ -2712,7 +2712,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             elif self.pac_bayesian.reference_model == "Ridge":
                 self.reference_lgbm = RidgeCV()
             elif self.pac_bayesian.reference_model == "KNN":
-                self.reference_lgbm = KNeighborsRegressor(n_jobs=1)
+                self.reference_lgbm = KNeighborsRegressor(n_neighbors=3, n_jobs=1)
+            elif self.pac_bayesian.reference_model == "D-KNN":
+                self.reference_lgbm = KNeighborsRegressor(
+                    n_neighbors=3, n_jobs=1, weights="distance"
+                )
             elif self.pac_bayesian.reference_model == "DT":
                 self.reference_lgbm = DecisionTreeRegressor()
             elif self.pac_bayesian.reference_model == "RF":
