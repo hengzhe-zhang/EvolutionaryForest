@@ -35,6 +35,7 @@ from evolutionary_forest.component.generalization.wcrv import (
     calculate_WCRV,
     calculate_mic,
 )
+from evolutionary_forest.model.ASGAN import ASGAN
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utils import tuple_to_list, list_to_tuple
@@ -495,11 +496,17 @@ class R2PACBayesian(Fitness):
         self.sharpness_loss_weight = sharpness_loss_weight
 
     def lazy_init(self):
-        if self.sharpness_distribution == "GAN":
+        if self.sharpness_distribution in ["GAN", "ASGAN-Real", "ASGAN-Fake"]:
             from ctgan import CTGAN
 
             start = time.time()
-            self.gan = CTGAN()
+            if self.sharpness_distribution == "GAN":
+                self.gan = CTGAN()
+            elif self.sharpness_distribution == "ASGAN-Real":
+                self.gan = ASGAN()
+            elif self.sharpness_distribution == "ASGAN-Fake":
+                self.gan = ASGAN(learn_from_real=False)
+
             self.gan.fit(
                 np.concatenate(
                     [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
@@ -638,7 +645,7 @@ class R2PACBayesian(Fitness):
             data_generator = partial(self.mixup, dc_mixup=True)
         elif self.sharpness_distribution == "DD-MixUp":
             data_generator = partial(self.mixup, dd_mixup=True)
-        elif self.sharpness_distribution == "GAN":
+        elif self.sharpness_distribution in ["GAN", "ASGAN-Real", "ASGAN-Fake"]:
             data_generator = self.GAN
         else:
             raise Exception

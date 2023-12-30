@@ -1,10 +1,72 @@
 from ctgan.synthesizers.ctgan import *
+from sklearn.datasets import load_diabetes
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.preprocessing import StandardScaler
 from torch import optim
 from tqdm import tqdm
 
 
+class IndexDataSampler(DataSampler):
+    def sample_data(self, n, col, opt, return_index=False):
+        """Sample data from original training data satisfying the sampled conditional vector.
+
+        Returns:
+            n rows of matrix data.
+        """
+        if col is None:
+            idx = np.random.randint(len(self._data), size=n)
+            if return_index:
+                return self._data[idx], idx
+            else:
+                return self._data[idx]
+
+        idx = []
+        for c, o in zip(col, opt):
+            idx.append(np.random.choice(self._rid_by_cat_cols[c][o]))
+        if return_index:
+            return self._data[idx], idx
+        else:
+            return self._data[idx]
+
+
 class ASGAN(CTGAN):
-    def fit(self, train_data, discrete_columns=(), epochs=None):
+    def __init__(
+        self,
+        embedding_dim=128,
+        generator_dim=(256, 256),
+        discriminator_dim=(256, 256),
+        generator_lr=2e-4,
+        generator_decay=1e-6,
+        discriminator_lr=2e-4,
+        discriminator_decay=1e-6,
+        batch_size=500,
+        discriminator_steps=1,
+        log_frequency=True,
+        verbose=False,
+        epochs=300,
+        pac=10,
+        cuda=True,
+        learn_from_real=True,
+    ):
+        super().__init__(
+            embedding_dim,
+            generator_dim,
+            discriminator_dim,
+            generator_lr,
+            generator_decay,
+            discriminator_lr,
+            discriminator_decay,
+            batch_size,
+            discriminator_steps,
+            log_frequency,
+            verbose,
+            epochs,
+            pac,
+            cuda,
+        )
+        self.learn_from_real = learn_from_real
+
+    def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
         """Fit the CTGAN Synthesizer models to the training data.
 
         Args:
@@ -16,6 +78,12 @@ class ASGAN(CTGAN):
                 contain the integer indices of the columns. Otherwise, if it is
                 a ``pandas.DataFrame``, this list should contain the column names.
         """
+        train_label = (
+            StandardScaler().fit_transform(train_label.reshape(-1, 1)).reshape(-1)
+        )
+        forest = ExtraTreesRegressor()
+        forest.fit(train_data, train_label)
+
         self._validate_discrete_columns(train_data, discrete_columns)
 
         if epochs is None:
@@ -34,8 +102,10 @@ class ASGAN(CTGAN):
 
         train_data = self._transformer.transform(train_data)
 
-        self._data_sampler = DataSampler(
-            train_data, self._transformer.output_info_list, self._log_frequency
+        self._data_sampler = IndexDataSampler(
+            train_data,
+            self._transformer.output_info_list,
+            self._log_frequency,
         )
 
         data_dim = self._transformer.output_dimensions
@@ -52,6 +122,13 @@ class ASGAN(CTGAN):
             pac=self.pac,
         ).to(self._device)
 
+        # use the same architecture as discriminator
+        learner = Discriminator(
+            data_dim + self._data_sampler.dim_cond_vec(),
+            self._discriminator_dim,
+            pac=1,
+        ).to(self._device)
+
         optimizerG = optim.Adam(
             self._generator.parameters(),
             lr=self._generator_lr,
@@ -66,6 +143,13 @@ class ASGAN(CTGAN):
             weight_decay=self._discriminator_decay,
         )
 
+        optimizerL = optim.Adam(
+            learner.parameters(),
+            lr=self._discriminator_lr,
+            betas=(0.5, 0.9),
+            weight_decay=self._discriminator_decay,
+        )
+
         mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
         std = mean + 1
 
@@ -75,8 +159,10 @@ class ASGAN(CTGAN):
 
         epoch_iterator = tqdm(range(epochs), disable=(not self._verbose))
         if self._verbose:
-            description = "Gen. ({gen:.2f}) | Discrim. ({dis:.2f})"
-            epoch_iterator.set_description(description.format(gen=0, dis=0))
+            description = (
+                "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) | Learner. ({lea:.2f})"
+            )
+            epoch_iterator.set_description(description.format(gen=0, dis=0, lea=0))
 
         steps_per_epoch = max(len(train_data) // self._batch_size, 1)
         for i in epoch_iterator:
@@ -87,8 +173,8 @@ class ASGAN(CTGAN):
                     condvec = self._data_sampler.sample_condvec(self._batch_size)
                     if condvec is None:
                         c1, m1, col, opt = None, None, None, None
-                        real = self._data_sampler.sample_data(
-                            self._batch_size, col, opt
+                        real, real_index = self._data_sampler.sample_data(
+                            self._batch_size, col, opt, return_index=True
                         )
                     else:
                         c1, m1, col, opt = condvec
@@ -98,8 +184,8 @@ class ASGAN(CTGAN):
 
                         perm = np.arange(self._batch_size)
                         np.random.shuffle(perm)
-                        real = self._data_sampler.sample_data(
-                            self._batch_size, col[perm], opt[perm]
+                        real, real_index = self._data_sampler.sample_data(
+                            self._batch_size, col[perm], opt[perm], return_index=True
                         )
                         c2 = c1[perm]
 
@@ -125,8 +211,30 @@ class ASGAN(CTGAN):
 
                     optimizerD.zero_grad(set_to_none=False)
                     pen.backward(retain_graph=True)
-                    loss_d.backward()
+                    loss_d.backward(retain_graph=True)
                     optimizerD.step()
+
+                    if self.learn_from_real:
+                        real_pred = learner(real_cat)
+                        real_label = torch.from_numpy(
+                            train_label[real_index].astype("float32")
+                        ).to(self._device)
+                        # MSE
+                        loss_l = torch.mean((real_label - real_pred.view(-1)) ** 2)
+                    else:
+                        fake_pred = learner(fake_cat)
+                        fake_data = self._transformer.inverse_transform(
+                            fake_cat.detach().numpy()
+                        )
+                        fake_target = torch.from_numpy(
+                            forest.predict(fake_data).astype("float32")
+                        ).to(self._device)
+                        # MSE
+                        loss_l = torch.mean((fake_target - fake_pred.view(-1)) ** 2)
+
+                    optimizerL.zero_grad(set_to_none=False)
+                    loss_l.backward()
+                    optimizerL.step()
 
                 fakez = torch.normal(mean=mean, std=std)
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
@@ -152,7 +260,16 @@ class ASGAN(CTGAN):
                 else:
                     cross_entropy = self._cond_loss(fake, c1, m1)
 
-                loss_g = -torch.mean(y_fake) + cross_entropy
+                fake_pred = learner(fakeact)
+                fake_data = self._transformer.inverse_transform(
+                    fakeact.detach().numpy()
+                )
+                fake_target = torch.from_numpy(
+                    forest.predict(fake_data).astype("float32")
+                ).to(self._device)
+                # maximize learner loss to deceptive learner (let learner make false prediction)
+                learner_loss = torch.mean((fake_target - fake_pred) ** 2)
+                loss_g = -torch.mean(y_fake) + cross_entropy - torch.mean(learner_loss)
 
                 optimizerG.zero_grad(set_to_none=False)
                 loss_g.backward()
@@ -160,12 +277,14 @@ class ASGAN(CTGAN):
 
             generator_loss = loss_g.detach().cpu()
             discriminator_loss = loss_d.detach().cpu()
+            learner_loss = loss_l.detach().cpu()
 
             epoch_loss_df = pd.DataFrame(
                 {
                     "Epoch": [i],
                     "Generator Loss": [generator_loss],
                     "Discriminator Loss": [discriminator_loss],
+                    "Learner Loss": [learner],
                 }
             )
             if not self.loss_values.empty:
@@ -177,12 +296,14 @@ class ASGAN(CTGAN):
 
             if self._verbose:
                 epoch_iterator.set_description(
-                    description.format(gen=generator_loss, dis=discriminator_loss)
+                    description.format(
+                        gen=generator_loss, dis=discriminator_loss, lea=learner_loss
+                    )
                 )
 
 
 if __name__ == "__main__":
-    X = np.random.random(size=(100, 5))
-    ctgan = ASGAN(epochs=10)
-    ctgan.fit(X)
+    X, y = load_diabetes(return_X_y=True)
+    ctgan = ASGAN(epochs=1000, verbose=True)
+    ctgan.fit(X, y)
     print(ctgan.sample(50))
