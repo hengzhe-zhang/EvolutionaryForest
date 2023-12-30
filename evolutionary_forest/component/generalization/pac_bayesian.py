@@ -242,7 +242,7 @@ def pac_bayesian_estimation(
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         if sharpness_type == SharpnessType.DataLGBM:
-            mse_scores[i] = (reference_model.predict(data) - y_pred) ** 2
+            mse_scores[i] = (reference_model.predict(data).flatten() - y_pred) ** 2
         else:
             if configuration.classification:
                 if instance_weights is not None:
