@@ -529,14 +529,49 @@ class R2PACBayesian(Fitness):
         return indices_b
 
     @lru_cache(maxsize=128)
-    def mixup(self, random_seed=0, c_mixup=False):
+    def mixup(
+        self,
+        random_seed=0,
+        c_mixup=False,
+        d_mixup=False,
+        dd_mixup=False,
+        dc_mixup=False,
+    ):
         # MixUp for data augmentation
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
         alpha_beta = self.algorithm.pac_bayesian.perturbation_std
         ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if c_mixup:
+        if d_mixup:
+            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            indices_a = np.random.choice(
+                len(distance_matrix),
+                p=np.sum(distance_matrix, axis=1),
+                size=len(distance_matrix),
+            )
+            indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
+        elif dd_mixup:
+            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            indices_a = np.random.choice(
+                len(distance_matrix),
+                p=np.sum(distance_matrix, axis=1),
+                size=len(distance_matrix),
+            )
+            indices_b = np.random.choice(
+                len(distance_matrix),
+                p=np.sum(distance_matrix, axis=1),
+                size=len(distance_matrix),
+            )
+        elif dc_mixup:
+            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            indices_a = np.random.choice(
+                len(distance_matrix),
+                p=np.sum(distance_matrix, axis=1),
+                size=len(distance_matrix),
+            )
+            indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
+        elif c_mixup:
             # sample indices
             distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
@@ -591,6 +626,12 @@ class R2PACBayesian(Fitness):
             data_generator = self.mixup
         elif self.sharpness_distribution == "C-MixUp":
             data_generator = partial(self.mixup, c_mixup=True)
+        elif self.sharpness_distribution == "D-MixUp":
+            data_generator = partial(self.mixup, d_mixup=True)
+        elif self.sharpness_distribution == "DC-MixUp":
+            data_generator = partial(self.mixup, dc_mixup=True)
+        elif self.sharpness_distribution == "DD-MixUp":
+            data_generator = partial(self.mixup, dd_mixup=True)
         elif self.sharpness_distribution == "GAN":
             data_generator = self.GAN
         else:
