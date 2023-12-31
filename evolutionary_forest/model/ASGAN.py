@@ -47,6 +47,7 @@ class ASGAN(CTGAN):
         pac=10,
         cuda=True,
         learn_from_real=True,
+        gan_accuracy_weight=0.2,
     ):
         super().__init__(
             embedding_dim,
@@ -65,6 +66,7 @@ class ASGAN(CTGAN):
             cuda,
         )
         self.learn_from_real = learn_from_real
+        self.gan_accuracy_weight = gan_accuracy_weight
 
     def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
         """Fit the CTGAN Synthesizer models to the training data.
@@ -270,7 +272,9 @@ class ASGAN(CTGAN):
                 # minimize learner loss to generate real samples
                 learner_loss = torch.mean((fake_target - fake_pred) ** 2)
                 loss_g = (
-                    -torch.mean(y_fake) + cross_entropy + 0.2 * torch.mean(learner_loss)
+                    -torch.mean(y_fake)
+                    + cross_entropy
+                    + self.gan_accuracy_weight * torch.mean(learner_loss)
                 )
 
                 optimizerG.zero_grad(set_to_none=False)

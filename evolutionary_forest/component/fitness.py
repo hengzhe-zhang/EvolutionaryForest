@@ -479,10 +479,12 @@ class R2PACBayesian(Fitness):
         sharpness_type="Semantics",
         sharpness_distribution="Normal",
         sharpness_loss_weight=0.5,
+        gan_accuracy_weight=0,
         **params
     ):
         super().__init__()
         self.sharpness_distribution = sharpness_distribution
+        self.gan_accuracy_weight = gan_accuracy_weight
         self.algorithm = algorithm
         if sharpness_type == "Data":
             sharpness_type = SharpnessType.Data
@@ -503,9 +505,15 @@ class R2PACBayesian(Fitness):
             if self.sharpness_distribution == "GAN":
                 self.gan = CTGAN()
             elif self.sharpness_distribution == "ASGAN-Real":
-                self.gan = ASGAN(epochs=1000)
+                self.gan = ASGAN(
+                    epochs=1000, gan_accuracy_weight=self.gan_accuracy_weight
+                )
             elif self.sharpness_distribution == "ASGAN-Fake":
-                self.gan = ASGAN(epochs=1000, learn_from_real=False)
+                self.gan = ASGAN(
+                    epochs=1000,
+                    learn_from_real=False,
+                    gan_accuracy_weight=self.gan_accuracy_weight,
+                )
 
             if isinstance(self.gan, ASGAN):
                 self.gan.fit(self.algorithm.X, self.algorithm.y)
