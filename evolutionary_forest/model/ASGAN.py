@@ -269,7 +269,9 @@ class ASGAN(CTGAN):
                 ).to(self._device)
                 # maximize learner loss to deceptive learner (let learner make false prediction)
                 learner_loss = torch.mean((fake_target - fake_pred) ** 2)
-                loss_g = -torch.mean(y_fake) + cross_entropy - torch.mean(learner_loss)
+                loss_g = (
+                    -torch.mean(y_fake) + cross_entropy - 0.1 * torch.mean(learner_loss)
+                )
 
                 optimizerG.zero_grad(set_to_none=False)
                 loss_g.backward()
