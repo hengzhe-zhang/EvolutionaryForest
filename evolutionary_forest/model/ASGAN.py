@@ -47,7 +47,7 @@ class ASGAN(CTGAN):
         pac=10,
         cuda=True,
         learn_from_real=True,
-        gan_accuracy_weight=0.2,
+        gan_accuracy_weight=1,
     ):
         super().__init__(
             embedding_dim,
@@ -68,7 +68,8 @@ class ASGAN(CTGAN):
         self.learn_from_real = learn_from_real
         self.gan_accuracy_weight = gan_accuracy_weight
 
-    def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
+    # def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
+    def fit(self, train_data, discrete_columns=(), epochs=None):
         """Fit the CTGAN Synthesizer models to the training data.
 
         Args:
@@ -80,11 +81,9 @@ class ASGAN(CTGAN):
                 contain the integer indices of the columns. Otherwise, if it is
                 a ``pandas.DataFrame``, this list should contain the column names.
         """
-        train_label = (
-            StandardScaler().fit_transform(train_label.reshape(-1, 1)).reshape(-1)
-        )
-        forest = ExtraTreesRegressor()
-        forest.fit(train_data, train_label)
+        # train_label = (
+        #     StandardScaler().fit_transform(train_label.reshape(-1, 1)).reshape(-1)
+        # )
 
         self._validate_discrete_columns(train_data, discrete_columns)
 
@@ -103,6 +102,10 @@ class ASGAN(CTGAN):
         self._transformer.fit(train_data, discrete_columns)
 
         train_data = self._transformer.transform(train_data)
+
+        # Train a model
+        forest = ExtraTreesRegressor()
+        forest.fit(train_data[:, :-1], train_data[:, -1])
 
         self._data_sampler = IndexDataSampler(
             train_data,
@@ -162,7 +165,8 @@ class ASGAN(CTGAN):
         epoch_iterator = tqdm(range(epochs), disable=(not self._verbose))
         if self._verbose:
             description = (
-                "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) | Learner. ({lea:.2f})"
+                # "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) | Learner. ({lea:.2f})"
+                "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) "
             )
             epoch_iterator.set_description(description.format(gen=0, dis=0, lea=0))
 
@@ -216,27 +220,27 @@ class ASGAN(CTGAN):
                     loss_d.backward(retain_graph=True)
                     optimizerD.step()
 
-                    if self.learn_from_real:
-                        real_pred = learner(real_cat)
-                        real_label = torch.from_numpy(
-                            train_label[real_index].astype("float32")
-                        ).to(self._device)
-                        # MSE
-                        loss_l = torch.mean((real_label - real_pred.view(-1)) ** 2)
-                    else:
-                        fake_pred = learner(fake_cat)
-                        fake_data = self._transformer.inverse_transform(
-                            fake_cat.detach().numpy()
-                        )
-                        fake_target = torch.from_numpy(
-                            forest.predict(fake_data).astype("float32")
-                        ).to(self._device)
-                        # MSE
-                        loss_l = torch.mean((fake_target - fake_pred.view(-1)) ** 2)
-
-                    optimizerL.zero_grad(set_to_none=False)
-                    loss_l.backward()
-                    optimizerL.step()
+                    # if self.learn_from_real:
+                    #     real_pred = learner(real_cat)
+                    #     real_label = torch.from_numpy(
+                    #         train_label[real_index].astype("float32")
+                    #     ).to(self._device)
+                    #     # MSE
+                    #     loss_l = torch.mean((real_label - real_pred.view(-1)) ** 2)
+                    # else:
+                    #     fake_pred = learner(fake_cat)
+                    #     fake_data = self._transformer.inverse_transform(
+                    #         fake_cat.detach().numpy()
+                    #     )
+                    #     fake_target = torch.from_numpy(
+                    #         forest.predict(fake_data).astype("float32")
+                    #     ).to(self._device)
+                    #     # MSE
+                    #     loss_l = torch.mean((fake_target - fake_pred.view(-1)) ** 2)
+                    #
+                    # optimizerL.zero_grad(set_to_none=False)
+                    # loss_l.backward()
+                    # optimizerL.step()
 
                 fakez = torch.normal(mean=mean, std=std)
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
@@ -262,15 +266,17 @@ class ASGAN(CTGAN):
                 else:
                     cross_entropy = self._cond_loss(fake, c1, m1)
 
-                fake_pred = learner(fakeact)
-                fake_data = self._transformer.inverse_transform(
-                    fakeact.detach().numpy()
-                )
+                # fake_pred = learner(fakeact)
+                # fake_data = self._transformer.inverse_transform(
+                #     fakeact.detach().numpy()
+                # )
+                fake_data = fakeact
                 fake_target = torch.from_numpy(
-                    forest.predict(fake_data).astype("float32")
+                    forest.predict(fake_data[:, :-1].detach().numpy()).astype("float32")
                 ).to(self._device)
-                # minimize learner loss to generate real samples
-                learner_loss = torch.mean((fake_target - fake_pred) ** 2)
+                # # minimize learner loss to generate real samples
+                # learner_loss = torch.mean((fake_target - fake_pred) ** 2)
+                learner_loss = torch.mean((fake[:, -1] - fake_target) ** 2)
                 loss_g = (
                     -torch.mean(y_fake)
                     + cross_entropy
@@ -283,7 +289,7 @@ class ASGAN(CTGAN):
 
             generator_loss = loss_g.detach().cpu()
             discriminator_loss = loss_d.detach().cpu()
-            learner_loss = loss_l.detach().cpu()
+            # learner_loss = loss_l.detach().cpu()
 
             epoch_loss_df = pd.DataFrame(
                 {
@@ -303,7 +309,9 @@ class ASGAN(CTGAN):
             if self._verbose:
                 epoch_iterator.set_description(
                     description.format(
-                        gen=generator_loss, dis=discriminator_loss, lea=learner_loss
+                        gen=generator_loss,
+                        dis=discriminator_loss,
+                        # lea=learner_loss
                     )
                 )
 
@@ -311,5 +319,5 @@ class ASGAN(CTGAN):
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
     ctgan = ASGAN(epochs=1000, verbose=True)
-    ctgan.fit(X, y)
+    ctgan.fit(X)
     print(ctgan.sample(50))
