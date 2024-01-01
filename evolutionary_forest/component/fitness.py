@@ -505,14 +505,11 @@ class R2PACBayesian(Fitness):
             if self.sharpness_distribution == "GAN":
                 self.gan = CTGAN()
             elif self.sharpness_distribution == "ASGAN-Real":
-                self.gan = ASGAN(
-                    epochs=1000, gan_accuracy_weight=self.gan_accuracy_weight
-                )
+                self.gan = ASGAN(epochs=500)
             elif self.sharpness_distribution == "ASGAN-Fake":
                 self.gan = ASGAN(
-                    epochs=1000,
+                    epochs=500,
                     learn_from_real=False,
-                    gan_accuracy_weight=self.gan_accuracy_weight,
                 )
 
             self.gan.fit(

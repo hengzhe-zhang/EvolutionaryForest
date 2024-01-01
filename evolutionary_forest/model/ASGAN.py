@@ -165,8 +165,8 @@ class ASGAN(CTGAN):
         epoch_iterator = tqdm(range(epochs), disable=(not self._verbose))
         if self._verbose:
             description = (
-                "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) | Learner. ({lea:.2f})"
-                # "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) "
+                # "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) | Learner. ({lea:.2f})"
+                "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) "
             )
             epoch_iterator.set_description(description.format(gen=0, dis=0, lea=0))
 
@@ -220,27 +220,27 @@ class ASGAN(CTGAN):
                     loss_d.backward(retain_graph=True)
                     optimizerD.step()
 
-                    if self.learn_from_real:
-                        real_pred = learner(real_cat)
-                        real_label = torch.from_numpy(
-                            train_label[real_index].astype("float32")
-                        ).to(self._device)
-                        # MSE
-                        loss_l = torch.mean((real_label - real_pred.view(-1)) ** 2)
-                    else:
-                        fake_pred = learner(fake_cat)
-                        fake_data = self._transformer.inverse_transform(
-                            fake_cat.detach().numpy()
-                        )
-                        fake_target = torch.from_numpy(
-                            forest.predict(fake_data[:, :-1]).astype("float32")
-                        ).to(self._device)
-                        # MSE
-                        loss_l = torch.mean((fake_target - fake_pred.view(-1)) ** 2)
-
-                    optimizerL.zero_grad(set_to_none=False)
-                    loss_l.backward()
-                    optimizerL.step()
+                    # if self.learn_from_real:
+                    #     real_pred = learner(real_cat)
+                    #     real_label = torch.from_numpy(
+                    #         train_label[real_index].astype("float32")
+                    #     ).to(self._device)
+                    #     # MSE
+                    #     loss_l = torch.mean((real_label - real_pred.view(-1)) ** 2)
+                    # else:
+                    #     fake_pred = learner(fake_cat)
+                    #     fake_data = self._transformer.inverse_transform(
+                    #         fake_cat.detach().numpy()
+                    #     )
+                    #     fake_target = torch.from_numpy(
+                    #         forest.predict(fake_data[:, :-1]).astype("float32")
+                    #     ).to(self._device)
+                    #     # MSE
+                    #     loss_l = torch.mean((fake_target - fake_pred.view(-1)) ** 2)
+                    #
+                    # optimizerL.zero_grad(set_to_none=False)
+                    # loss_l.backward()
+                    # optimizerL.step()
 
                 fakez = torch.normal(mean=mean, std=std)
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
@@ -278,8 +278,10 @@ class ASGAN(CTGAN):
                 # learner_loss = torch.mean((fake[:, -1] - fake_target) ** 2)
                 loss_g = (
                     -torch.mean(y_fake)
+                    - torch.abs(torch.mean(fakeact) - np.mean(train_data))
+                    - torch.abs(torch.std(fakeact) - np.std(train_data))
                     + cross_entropy
-                    + self.gan_accuracy_weight * learner_loss
+                    # + self.gan_accuracy_weight * learner_loss
                 )
 
                 optimizerG.zero_grad(set_to_none=False)
@@ -288,14 +290,14 @@ class ASGAN(CTGAN):
 
             generator_loss = loss_g.detach().cpu()
             discriminator_loss = loss_d.detach().cpu()
-            learner_loss = loss_l.detach().cpu()
+            # learner_loss = loss_l.detach().cpu()
 
             epoch_loss_df = pd.DataFrame(
                 {
                     "Epoch": [i],
                     "Generator Loss": [generator_loss],
                     "Discriminator Loss": [discriminator_loss],
-                    "Learner Loss": [learner],
+                    # "Learner Loss": [learner],
                 }
             )
             if not self.loss_values.empty:
@@ -308,7 +310,9 @@ class ASGAN(CTGAN):
             if self._verbose:
                 epoch_iterator.set_description(
                     description.format(
-                        gen=generator_loss, dis=discriminator_loss, lea=learner_loss
+                        gen=generator_loss,
+                        dis=discriminator_loss,
+                        # lea=learner_loss
                     )
                 )
 
