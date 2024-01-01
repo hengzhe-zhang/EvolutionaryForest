@@ -515,14 +515,11 @@ class R2PACBayesian(Fitness):
                     gan_accuracy_weight=self.gan_accuracy_weight,
                 )
 
-            if isinstance(self.gan, ASGAN):
-                self.gan.fit(self.algorithm.X, self.algorithm.y)
-            else:
-                self.gan.fit(
-                    np.concatenate(
-                        [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
-                    )
+            self.gan.fit(
+                np.concatenate(
+                    [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
                 )
+            )
             end = time.time()
             gan_verbose = True
             if gan_verbose:
@@ -611,10 +608,7 @@ class R2PACBayesian(Fitness):
     def GAN(self, random_seed=0):
         # GAN for data augmentation
         sampled_data = self.gan.sample(len(self.algorithm.X))
-        if isinstance(self.gan, ASGAN):
-            X, y = sampled_data, None
-        else:
-            X, y = sampled_data[:, :-1], sampled_data[:, -1]
+        X, y = sampled_data[:, :-1], sampled_data[:, -1]
         return X, y
 
     @lru_cache(maxsize=128)
