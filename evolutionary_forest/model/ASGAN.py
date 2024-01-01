@@ -276,10 +276,22 @@ class ASGAN(CTGAN):
                 # # minimize learner loss to generate real samples
                 learner_loss = torch.mean((fake_target - fake_pred) ** 2)
                 # learner_loss = torch.mean((fake[:, -1] - fake_target) ** 2)
+
+                train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
+                    self._device
+                )
+                std1 = torch.std(fakeact, dim=0)
+                std2 = torch.std(train_data_torch, dim=0)
+                mean1 = torch.mean(fakeact, dim=0)
+                mean2 = torch.mean(train_data_torch, dim=0)
+                log_term = torch.log(std2 / std1)
+                variance_term = (std1**2 + (mean1 - mean2) ** 2) / (2 * std2**2)
+                kl_divergence = torch.mean(log_term + variance_term)
                 loss_g = (
                     -torch.mean(y_fake)
-                    - torch.abs(torch.mean(fakeact) - np.mean(train_data))
-                    - torch.abs(torch.std(fakeact) - np.std(train_data))
+                    + kl_divergence
+                    # - torch.abs(torch.mean(fakeact) - np.mean(train_data))
+                    # - torch.abs(torch.std(fakeact) - np.std(train_data))
                     + cross_entropy
                     # + self.gan_accuracy_weight * learner_loss
                 )
