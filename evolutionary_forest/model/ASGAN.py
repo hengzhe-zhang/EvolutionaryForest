@@ -233,7 +233,7 @@ class ASGAN(CTGAN):
                             fake_cat.detach().numpy()
                         )
                         fake_target = torch.from_numpy(
-                            forest.predict(fake_data).astype("float32")
+                            forest.predict(fake_data[:, :-1]).astype("float32")
                         ).to(self._device)
                         # MSE
                         loss_l = torch.mean((fake_target - fake_pred.view(-1)) ** 2)
