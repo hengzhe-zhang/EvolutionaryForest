@@ -91,12 +91,12 @@ class ASGAN(CTGAN):
                 a ``pandas.DataFrame``, this list should contain the column names.
         """
         # Train a model
-        forest = ExtraTreesRegressor()
-        train_data, train_label = train_data, train_data[:, -1]
-        train_label = (
-            StandardScaler().fit_transform(train_label.reshape(-1, 1)).reshape(-1)
-        )
-        forest.fit(train_data[:, :-1], train_label)
+        # forest = ExtraTreesRegressor()
+        # train_data, train_label = train_data, train_data[:, -1]
+        # train_label = (
+        #     StandardScaler().fit_transform(train_label.reshape(-1, 1)).reshape(-1)
+        # )
+        # forest.fit(train_data[:, :-1], train_label)
 
         self._validate_discrete_columns(train_data, discrete_columns)
 
@@ -136,12 +136,12 @@ class ASGAN(CTGAN):
             pac=self.pac,
         ).to(self._device)
 
-        # use the same architecture as discriminator
-        learner = Discriminator(
-            data_dim + self._data_sampler.dim_cond_vec(),
-            self._discriminator_dim,
-            pac=1,
-        ).to(self._device)
+        # # use the same architecture as discriminator
+        # learner = Discriminator(
+        #     data_dim + self._data_sampler.dim_cond_vec(),
+        #     self._discriminator_dim,
+        #     pac=1,
+        # ).to(self._device)
 
         optimizerG = optim.Adam(
             self._generator.parameters(),
@@ -157,12 +157,12 @@ class ASGAN(CTGAN):
             weight_decay=self._discriminator_decay,
         )
 
-        optimizerL = optim.Adam(
-            learner.parameters(),
-            lr=self._discriminator_lr,
-            betas=(0.5, 0.9),
-            weight_decay=self._discriminator_decay,
-        )
+        # optimizerL = optim.Adam(
+        #     learner.parameters(),
+        #     lr=self._discriminator_lr,
+        #     betas=(0.5, 0.9),
+        #     weight_decay=self._discriminator_decay,
+        # )
 
         mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
         std = mean + 1
@@ -275,15 +275,15 @@ class ASGAN(CTGAN):
                 else:
                     cross_entropy = self._cond_loss(fake, c1, m1)
 
-                fake_pred = learner(fakeact)
-                fake_data = self._transformer.inverse_transform(
-                    fakeact.detach().numpy()
-                )
-                fake_target = torch.from_numpy(
-                    forest.predict(fake_data[:, :-1]).astype("float32")
-                ).to(self._device)
-                # # minimize learner loss to generate real samples
-                learner_loss = torch.mean((fake_target - fake_pred) ** 2)
+                # fake_pred = learner(fakeact)
+                # fake_data = self._transformer.inverse_transform(
+                #     fakeact.detach().numpy()
+                # )
+                # fake_target = torch.from_numpy(
+                #     forest.predict(fake_data[:, :-1]).astype("float32")
+                # ).to(self._device)
+                # # # minimize learner loss to generate real samples
+                # learner_loss = torch.mean((fake_target - fake_pred) ** 2)
                 # learner_loss = torch.mean((fake[:, -1] - fake_target) ** 2)
 
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
