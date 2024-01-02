@@ -498,7 +498,7 @@ class R2PACBayesian(Fitness):
         self.sharpness_loss_weight = sharpness_loss_weight
 
     def lazy_init(self):
-        if self.sharpness_distribution in ["GAN", "ASGAN-KL", "ASGAN-Mean"]:
+        if self.sharpness_distribution in ["GAN", "ASGAN-KL", "ASGAN-Mean", "ASGAN-WA"]:
             from ctgan import CTGAN
 
             start = time.time()
@@ -508,6 +508,8 @@ class R2PACBayesian(Fitness):
                 self.gan = ASGAN(epochs=500, assisted_loss="KL")
             elif self.sharpness_distribution == "ASGAN-Mean":
                 self.gan = ASGAN(epochs=500, assisted_loss="Mean")
+            elif self.sharpness_distribution == "ASGAN-WA":
+                self.gan = ASGAN(epochs=500, assisted_loss="WA")
 
             self.gan.fit(
                 np.concatenate(
@@ -647,7 +649,12 @@ class R2PACBayesian(Fitness):
             data_generator = partial(self.mixup, dc_mixup=True)
         elif self.sharpness_distribution == "DD-MixUp":
             data_generator = partial(self.mixup, dd_mixup=True)
-        elif self.sharpness_distribution in ["GAN", "ASGAN-KL", "ASGAN-Mean"]:
+        elif self.sharpness_distribution in [
+            "GAN",
+            "ASGAN-KL",
+            "ASGAN-Mean",
+            "ASGAN-WA",
+        ]:
             data_generator = self.GAN
         else:
             raise Exception

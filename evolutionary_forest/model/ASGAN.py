@@ -6,6 +6,11 @@ from sklearn.preprocessing import StandardScaler
 from torch import optim
 from tqdm import tqdm
 
+from evolutionary_forest.utility.wasserstein_distance import (
+    covariance_matrix,
+    wasserstein_distance_torch,
+)
+
 
 class IndexDataSampler(DataSampler):
     def sample_data(self, n, col, opt, return_index=False):
@@ -281,7 +286,15 @@ class ASGAN(CTGAN):
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
                 )
-                if self.assisted_loss == "KL":
+                if self.assisted_loss == "WA":
+                    mean_fake = torch.mean(fakeact, dim=0)
+                    mean_train = torch.mean(train_data_torch, dim=0)
+                    cov_fake = covariance_matrix(fakeact, mean_fake)
+                    cov_train = covariance_matrix(train_data_torch, mean_train)
+                    kl_divergence = wasserstein_distance_torch(
+                        mean_fake, mean_train, cov_fake, cov_train
+                    )
+                elif self.assisted_loss == "KL":
                     std1 = torch.std(train_data_torch, dim=0)
                     std2 = torch.std(fakeact, dim=0)
                     mean1 = torch.mean(train_data_torch, dim=0)
@@ -352,6 +365,7 @@ class ASGAN(CTGAN):
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
-    ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="Mean")
+    # ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="Mean")
+    ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="WA")
     ctgan.fit(X)
     print(ctgan.sample(50))
