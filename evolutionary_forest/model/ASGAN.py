@@ -55,6 +55,7 @@ class ASGAN(CTGAN):
         cuda=True,
         learn_from_real=True,
         assisted_loss=None,
+        weight_of_distance=1,
     ):
         super().__init__(
             embedding_dim,
@@ -72,8 +73,9 @@ class ASGAN(CTGAN):
             pac,
             cuda,
         )
-        self.assisted_loss = assisted_loss
         self.learn_from_real = learn_from_real
+        self.assisted_loss = assisted_loss
+        self.weight_of_distance = weight_of_distance
 
     # def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
     def fit(self, train_data, discrete_columns=(), epochs=None):
@@ -366,7 +368,7 @@ class ASGAN(CTGAN):
                     distance_loss = 0
                 loss_g = (
                     -torch.mean(y_fake)
-                    + distance_loss
+                    + self.weight_of_distance * distance_loss
                     + cross_entropy
                     # + self.gan_accuracy_weight * learner_loss
                 )

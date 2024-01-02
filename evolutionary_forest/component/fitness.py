@@ -479,14 +479,14 @@ class R2PACBayesian(Fitness):
         sharpness_type="Semantics",
         sharpness_distribution="Normal",
         sharpness_loss_weight=0.5,
-        gan_accuracy_weight=0,
+        weight_of_distance=0,
         assisted_loss=None,
         **params
     ):
         super().__init__()
         self.assisted_loss = assisted_loss
         self.sharpness_distribution = sharpness_distribution
-        self.gan_accuracy_weight = gan_accuracy_weight
+        self.weight_of_distance = weight_of_distance
         self.algorithm = algorithm
         if sharpness_type == "Data":
             sharpness_type = SharpnessType.Data
@@ -507,7 +507,11 @@ class R2PACBayesian(Fitness):
             if self.sharpness_distribution == "GAN":
                 self.gan = CTGAN()
             elif self.sharpness_distribution == "ASGAN":
-                self.gan = ASGAN(epochs=500, assisted_loss=self.assisted_loss)
+                self.gan = ASGAN(
+                    epochs=500,
+                    assisted_loss=self.assisted_loss,
+                    weight_of_distance=self.weight_of_distance,
+                )
             self.gan.fit(
                 np.concatenate(
                     [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
