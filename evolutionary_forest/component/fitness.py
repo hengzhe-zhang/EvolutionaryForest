@@ -480,9 +480,11 @@ class R2PACBayesian(Fitness):
         sharpness_distribution="Normal",
         sharpness_loss_weight=0.5,
         gan_accuracy_weight=0,
+        assisted_loss=None,
         **params
     ):
         super().__init__()
+        self.assisted_loss = assisted_loss
         self.sharpness_distribution = sharpness_distribution
         self.gan_accuracy_weight = gan_accuracy_weight
         self.algorithm = algorithm
@@ -498,19 +500,14 @@ class R2PACBayesian(Fitness):
         self.sharpness_loss_weight = sharpness_loss_weight
 
     def lazy_init(self):
-        if self.sharpness_distribution in ["GAN", "ASGAN-KL", "ASGAN-Mean", "ASGAN-WA"]:
+        if self.sharpness_distribution in ["GAN", "ASGAN"]:
             from ctgan import CTGAN
 
             start = time.time()
             if self.sharpness_distribution == "GAN":
                 self.gan = CTGAN()
-            elif self.sharpness_distribution == "ASGAN-KL":
-                self.gan = ASGAN(epochs=500, assisted_loss="KL")
-            elif self.sharpness_distribution == "ASGAN-Mean":
-                self.gan = ASGAN(epochs=500, assisted_loss="Mean")
-            elif self.sharpness_distribution == "ASGAN-WA":
-                self.gan = ASGAN(epochs=500, assisted_loss="WA")
-
+            elif self.sharpness_distribution == "ASGAN":
+                self.gan = ASGAN(epochs=500, assisted_loss=self.assisted_loss)
             self.gan.fit(
                 np.concatenate(
                     [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
@@ -649,12 +646,7 @@ class R2PACBayesian(Fitness):
             data_generator = partial(self.mixup, dc_mixup=True)
         elif self.sharpness_distribution == "DD-MixUp":
             data_generator = partial(self.mixup, dd_mixup=True)
-        elif self.sharpness_distribution in [
-            "GAN",
-            "ASGAN-KL",
-            "ASGAN-Mean",
-            "ASGAN-WA",
-        ]:
+        elif self.sharpness_distribution in ["GAN", "ASGAN"]:
             data_generator = self.GAN
         else:
             raise Exception

@@ -1,5 +1,6 @@
 import torch
 from ctgan.synthesizers.ctgan import *
+from geomloss import SamplesLoss
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.preprocessing import StandardScaler
@@ -286,12 +287,52 @@ class ASGAN(CTGAN):
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
                 )
-                if self.assisted_loss == "WA":
+                if self.assisted_loss == "SD":
+                    loss = SamplesLoss(loss="sinkhorn")
+                    distance_loss = loss(
+                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
+                    )
+                elif self.assisted_loss == "HD":
+                    loss = SamplesLoss(loss="hausdorff")
+                    distance_loss = loss(
+                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
+                    )
+                elif self.assisted_loss == "EMMD":
+                    loss = SamplesLoss(loss="energy")
+                    distance_loss = loss(
+                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
+                    )
+                elif self.assisted_loss == "GMMD":
+                    loss = SamplesLoss(loss="gaussian")
+                    distance_loss = loss(
+                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
+                    )
+                elif self.assisted_loss == "LMMD":
+                    loss = SamplesLoss(loss="laplacian")
+                    distance_loss = loss(
+                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
+                    )
+                elif self.assisted_loss == "ASD":
+                    loss = SamplesLoss(loss="sinkhorn")
+                    distance_loss = loss(fakeact, train_data_torch)
+                elif self.assisted_loss == "AHD":
+                    loss = SamplesLoss(loss="hausdorff")
+                    distance_loss = loss(fakeact, train_data_torch)
+                elif self.assisted_loss == "AEMMD":
+                    loss = SamplesLoss(loss="energy")
+                    distance_loss = loss(fakeact, train_data_torch)
+                elif self.assisted_loss == "AGMMD":
+                    loss = SamplesLoss(loss="gaussian")
+                    distance_loss = loss(fakeact, train_data_torch)
+                elif self.assisted_loss == "ALMMD":
+                    loss = SamplesLoss(loss="laplacian")
+                    distance_loss = loss(fakeact, train_data_torch)
+                elif self.assisted_loss == "WA":
                     mean_fake = torch.mean(fakeact, dim=0)
                     mean_train = torch.mean(train_data_torch, dim=0)
                     cov_fake = covariance_matrix(fakeact, mean_fake)
                     cov_train = covariance_matrix(train_data_torch, mean_train)
-                    kl_divergence = wasserstein_distance_torch(
+                    distance_loss = wasserstein_distance_torch(
                         mean_fake, mean_train, cov_fake, cov_train
                     )
                 elif self.assisted_loss == "KL":
@@ -304,9 +345,9 @@ class ASGAN(CTGAN):
                     std2 = std2 + eps
                     log_term = torch.log(std2 / std1)
                     variance_term = (std1**2 + (mean1 - mean2) ** 2) / (2 * std2**2)
-                    kl_divergence = torch.mean(log_term + variance_term)
+                    distance_loss = torch.mean(log_term + variance_term)
                 elif self.assisted_loss == "Mean":
-                    kl_divergence = -(
+                    distance_loss = -(
                         torch.abs(
                             torch.mean(fakeact, dim=0)
                             - torch.from_numpy(np.mean(train_data, axis=0)).to(
@@ -320,12 +361,12 @@ class ASGAN(CTGAN):
                             )
                         )
                     )
-                    kl_divergence = torch.mean(kl_divergence)
+                    distance_loss = torch.mean(distance_loss)
                 else:
-                    kl_divergence = 0
+                    distance_loss = 0
                 loss_g = (
                     -torch.mean(y_fake)
-                    + kl_divergence
+                    + distance_loss
                     + cross_entropy
                     # + self.gan_accuracy_weight * learner_loss
                 )
@@ -366,6 +407,16 @@ class ASGAN(CTGAN):
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
     # ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="Mean")
-    ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="WA")
-    ctgan.fit(X)
-    print(ctgan.sample(50))
+    for loss in [
+        "SD",
+        "EMMD",
+        "GMMD",
+        "LMMD",
+        "ASD",
+        "AEMMD",
+        "AGMMD",
+        "ALMMD",
+    ]:
+        ctgan = ASGAN(epochs=10, verbose=True, assisted_loss=loss)
+        ctgan.fit(X)
+        print(ctgan.sample(50))
