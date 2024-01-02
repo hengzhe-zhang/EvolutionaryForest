@@ -1,3 +1,4 @@
+import torch
 from ctgan.synthesizers.ctgan import *
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import ExtraTreesRegressor
@@ -47,7 +48,7 @@ class ASGAN(CTGAN):
         pac=10,
         cuda=True,
         learn_from_real=True,
-        gan_accuracy_weight=1,
+        assisted_loss=None,
     ):
         super().__init__(
             embedding_dim,
@@ -65,8 +66,8 @@ class ASGAN(CTGAN):
             pac,
             cuda,
         )
+        self.assisted_loss = assisted_loss
         self.learn_from_real = learn_from_real
-        self.gan_accuracy_weight = gan_accuracy_weight
 
     # def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
     def fit(self, train_data, discrete_columns=(), epochs=None):
@@ -280,18 +281,38 @@ class ASGAN(CTGAN):
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
                 )
-                std1 = torch.std(fakeact, dim=0)
-                std2 = torch.std(train_data_torch, dim=0)
-                mean1 = torch.mean(fakeact, dim=0)
-                mean2 = torch.mean(train_data_torch, dim=0)
-                log_term = torch.log(std2 / std1)
-                variance_term = (std1**2 + (mean1 - mean2) ** 2) / (2 * std2**2)
-                kl_divergence = torch.mean(log_term + variance_term)
+                if self.assisted_loss == "KL":
+                    std1 = torch.std(train_data_torch, dim=0)
+                    std2 = torch.std(fakeact, dim=0)
+                    mean1 = torch.mean(train_data_torch, dim=0)
+                    mean2 = torch.mean(fakeact, dim=0)
+                    eps = torch.finfo(torch.float32).eps
+                    std1 = std1 + eps
+                    std2 = std2 + eps
+                    log_term = torch.log(std2 / std1)
+                    variance_term = (std1**2 + (mean1 - mean2) ** 2) / (2 * std2**2)
+                    kl_divergence = torch.mean(log_term + variance_term)
+                elif self.assisted_loss == "Mean":
+                    kl_divergence = -(
+                        torch.abs(
+                            torch.mean(fakeact, dim=0)
+                            - torch.from_numpy(np.mean(train_data, axis=0)).to(
+                                self._device
+                            )
+                        )
+                        + torch.abs(
+                            torch.std(fakeact, dim=0)
+                            - torch.from_numpy(np.std(train_data, axis=0)).to(
+                                self._device
+                            )
+                        )
+                    )
+                    kl_divergence = torch.mean(kl_divergence)
+                else:
+                    kl_divergence = 0
                 loss_g = (
                     -torch.mean(y_fake)
                     + kl_divergence
-                    # - torch.abs(torch.mean(fakeact) - np.mean(train_data))
-                    # - torch.abs(torch.std(fakeact) - np.std(train_data))
                     + cross_entropy
                     # + self.gan_accuracy_weight * learner_loss
                 )
@@ -331,6 +352,6 @@ class ASGAN(CTGAN):
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
-    ctgan = ASGAN(epochs=1000, verbose=True)
+    ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="Mean")
     ctgan.fit(X)
     print(ctgan.sample(50))
