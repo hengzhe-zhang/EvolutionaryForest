@@ -291,29 +291,19 @@ class ASGAN(CTGAN):
                 )
                 if self.assisted_loss == "SD":
                     loss = SamplesLoss(loss="sinkhorn")
-                    distance_loss = loss(
-                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
-                    )
+                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
                 elif self.assisted_loss == "HD":
                     loss = SamplesLoss(loss="hausdorff")
-                    distance_loss = loss(
-                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
-                    )
+                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
                 elif self.assisted_loss == "EMMD":
                     loss = SamplesLoss(loss="energy")
-                    distance_loss = loss(
-                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
-                    )
+                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
                 elif self.assisted_loss == "GMMD":
                     loss = SamplesLoss(loss="gaussian")
-                    distance_loss = loss(
-                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
-                    )
+                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
                 elif self.assisted_loss == "LMMD":
                     loss = SamplesLoss(loss="laplacian")
-                    distance_loss = loss(
-                        fakeact[:, -1].view(-1, 1), train_data_torch[:, -1].view(-1, 1)
-                    )
+                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
                 elif self.assisted_loss == "ASD":
                     loss = SamplesLoss(loss="sinkhorn")
                     distance_loss = loss(fakeact, train_data_torch)
