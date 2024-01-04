@@ -323,11 +323,14 @@ class ASGAN(CTGAN):
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
                 )
-                self.feature_matching_loss(fakeact, train_data, train_data_torch)
+                distance_loss = self.feature_matching_loss(
+                    fakeact, train_data, train_data_torch
+                )
                 loss_g = (
                     -torch.mean(y_fake)
                     + cross_entropy
-                    + self.weight_of_distance * learner_loss
+                    # + self.weight_of_distance * learner_loss
+                    + self.weight_of_distance * distance_loss
                 )
 
                 optimizerG.zero_grad(set_to_none=False)
@@ -367,36 +370,38 @@ class ASGAN(CTGAN):
         return fake_data, fake_target
 
     def feature_matching_loss(self, fakeact, train_data, train_data_torch):
+        index = 0
+        coarse_index = []
+        for info in self._transformer.output_info_list:
+            index += info[0].dim
+            coarse_index.extend([i for i in range(index, index + info[1].dim)])
+            index += info[1].dim
+        coarse_index = torch.tensor(coarse_index)
         if self.assisted_loss == "SD":
             loss = SamplesLoss(loss="sinkhorn")
-            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+            distance_loss = loss(
+                fakeact[:, coarse_index], train_data_torch[:, coarse_index]
+            )
         elif self.assisted_loss == "HD":
             loss = SamplesLoss(loss="hausdorff")
-            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+            distance_loss = loss(
+                fakeact[:, coarse_index], train_data_torch[:, coarse_index]
+            )
         elif self.assisted_loss == "EMMD":
             loss = SamplesLoss(loss="energy")
-            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+            distance_loss = loss(
+                fakeact[:, coarse_index], train_data_torch[:, coarse_index]
+            )
         elif self.assisted_loss == "GMMD":
             loss = SamplesLoss(loss="gaussian")
-            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+            distance_loss = loss(
+                fakeact[:, coarse_index], train_data_torch[:, coarse_index]
+            )
         elif self.assisted_loss == "LMMD":
             loss = SamplesLoss(loss="laplacian")
-            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
-        elif self.assisted_loss == "ASD":
-            loss = SamplesLoss(loss="sinkhorn")
-            distance_loss = loss(fakeact, train_data_torch)
-        elif self.assisted_loss == "AHD":
-            loss = SamplesLoss(loss="hausdorff")
-            distance_loss = loss(fakeact, train_data_torch)
-        elif self.assisted_loss == "AEMMD":
-            loss = SamplesLoss(loss="energy")
-            distance_loss = loss(fakeact, train_data_torch)
-        elif self.assisted_loss == "AGMMD":
-            loss = SamplesLoss(loss="gaussian")
-            distance_loss = loss(fakeact, train_data_torch)
-        elif self.assisted_loss == "ALMMD":
-            loss = SamplesLoss(loss="laplacian")
-            distance_loss = loss(fakeact, train_data_torch)
+            distance_loss = loss(
+                fakeact[:, coarse_index], train_data_torch[:, coarse_index]
+            )
         elif self.assisted_loss == "WA":
             mean_fake = torch.mean(fakeact, dim=0)
             mean_train = torch.mean(train_data_torch, dim=0)
@@ -418,10 +423,11 @@ class ASGAN(CTGAN):
             distance_loss = torch.mean(log_term + variance_term)
         else:
             distance_loss = 0
+        return distance_loss
 
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
-    ctgan = ASGAN(epochs=100, verbose=True, learn_from_teacher="Real")
+    ctgan = ASGAN(epochs=100, verbose=True)
     ctgan.fit(X)
     print(ctgan.sample(50))
