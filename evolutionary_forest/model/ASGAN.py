@@ -74,7 +74,7 @@ class ASGAN(CTGAN):
         epochs=300,
         pac=10,
         cuda=True,
-        learn_from_real=True,
+        learn_from_teacher=None,
         assisted_loss=None,
         weight_of_distance=1,
     ):
@@ -94,7 +94,7 @@ class ASGAN(CTGAN):
             pac,
             cuda,
         )
-        self.learn_from_real = learn_from_real
+        self.learn_from_teacher = learn_from_teacher
         self.assisted_loss = assisted_loss
         self.weight_of_distance = weight_of_distance
 
@@ -157,12 +157,15 @@ class ASGAN(CTGAN):
             pac=self.pac,
         ).to(self._device)
 
-        # # use the same architecture as discriminator
-        # learner = Discriminator(
-        #     data_dim + self._data_sampler.dim_cond_vec(),
-        #     self._discriminator_dim,
-        #     pac=1,
-        # ).to(self._device)
+        # use the same architecture as discriminator
+        int_dimension = self._transformer.output_info_list[-1][0].dim
+        cluster_dimension = self._transformer.output_info_list[-1][1].dim
+        label_dimension = cluster_dimension + int_dimension
+        learner = Discriminator(
+            data_dim - label_dimension + self._data_sampler.dim_cond_vec(),
+            self._discriminator_dim,
+            pac=1,
+        ).to(self._device)
 
         optimizerG = optim.Adam(
             self._generator.parameters(),
@@ -178,12 +181,12 @@ class ASGAN(CTGAN):
             weight_decay=self._discriminator_decay,
         )
 
-        # optimizerL = optim.Adam(
-        #     learner.parameters(),
-        #     lr=self._discriminator_lr,
-        #     betas=(0.5, 0.9),
-        #     weight_decay=self._discriminator_decay,
-        # )
+        optimizerL = optim.Adam(
+            learner.parameters(),
+            lr=self._discriminator_lr,
+            betas=(0.5, 0.9),
+            weight_decay=self._discriminator_decay,
+        )
 
         mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
         std = mean + 1
@@ -194,10 +197,7 @@ class ASGAN(CTGAN):
 
         epoch_iterator = tqdm(range(epochs), disable=(not self._verbose))
         if self._verbose:
-            description = (
-                # "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) | Learner. ({lea:.2f})"
-                "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) "
-            )
+            description = "Gen. ({gen:.2f}) | Discrim. ({dis:.2f}) "
             epoch_iterator.set_description(description.format(gen=0, dis=0, lea=0))
 
         steps_per_epoch = max(len(train_data) // self._batch_size, 1)
@@ -250,27 +250,25 @@ class ASGAN(CTGAN):
                     loss_d.backward(retain_graph=True)
                     optimizerD.step()
 
-                    # if self.learn_from_real:
-                    #     real_pred = learner(real_cat)
-                    #     real_label = torch.from_numpy(
-                    #         train_label[real_index].astype("float32")
-                    #     ).to(self._device)
-                    #     # MSE
-                    #     loss_l = torch.mean((real_label - real_pred.view(-1)) ** 2)
-                    # else:
-                    #     fake_pred = learner(fake_cat)
-                    #     fake_data = self._transformer.inverse_transform(
-                    #         fake_cat.detach().numpy()
-                    #     )
-                    #     fake_target = torch.from_numpy(
-                    #         forest.predict(fake_data[:, :-1]).astype("float32")
-                    #     ).to(self._device)
-                    #     # MSE
-                    #     loss_l = torch.mean((fake_target - fake_pred.view(-1)) ** 2)
-                    #
-                    # optimizerL.zero_grad(set_to_none=False)
-                    # loss_l.backward()
-                    # optimizerL.step()
+                    if self.learn_from_teacher is not None:
+                        if self.learn_from_teacher == "Real":
+                            real_pred = learner(real_cat[:, :-label_dimension])
+                            real_label = torch.from_numpy(
+                                train_label[real_index].astype("float32")
+                            ).to(self._device)
+                            # MSE
+                            loss_l = mse_loss(real_pred.view(-1), real_label)
+                        elif self.learn_from_teacher == "Fake":
+                            fake_pred = learner(fake_cat[:, :-label_dimension])
+                            _, fake_target = self.get_prediction(fake_cat, forest)
+                            # MSE
+                            loss_l = mse_loss(fake_pred.view(-1), fake_target)
+                        else:
+                            raise Exception
+
+                        optimizerL.zero_grad(set_to_none=False)
+                        loss_l.backward()
+                        optimizerL.step()
 
                 fakez = torch.normal(mean=mean, std=std)
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
@@ -297,106 +295,37 @@ class ASGAN(CTGAN):
                     cross_entropy = self._cond_loss(fake, c1, m1)
 
                 # fake_pred = learner(fakeact)
-                fake_data = self._transformer.inverse_transform(
-                    fakeact.detach().numpy()
-                )
-                fake_target = torch.from_numpy(
-                    forest.predict(fake_data[:, :-1]).astype("float32")
-                ).to(self._device)
+                fake_data, fake_target = self.get_prediction(fakeact, forest)
                 generated_data = np.concatenate(
                     (fake_data, fake_target.reshape(-1, 1)), axis=1
                 )
-                int_dimension = self._transformer.output_info_list[-1][0].dim
-                cluster_dimension = self._transformer.output_info_list[-1][1].dim
                 generated_data = self._transformer.transform(generated_data).astype(
                     np.float32
                 )
-                # minimize learner loss to generate real samples
-                learner_loss = mse_loss(
-                    fakeact[:, -(cluster_dimension + int_dimension)],
-                    torch.from_numpy(
-                        generated_data[:, -(cluster_dimension + int_dimension)]
-                    ).to(self._device),
-                ) + nll_loss(
-                    fakeact[:, -cluster_dimension:],
-                    torch.from_numpy(
-                        np.argmax(generated_data[:, -cluster_dimension:], axis=1)
-                    ).to(self._device),
-                )
+                if self.learn_from_teacher is None:
+                    # minimize learner loss to generate real samples
+                    learner_loss = mse_loss(
+                        fakeact[:, -(cluster_dimension + int_dimension)],
+                        torch.from_numpy(
+                            generated_data[:, -(cluster_dimension + int_dimension)]
+                        ).to(self._device),
+                    ) + nll_loss(
+                        fakeact[:, -cluster_dimension:],
+                        torch.from_numpy(
+                            np.argmax(generated_data[:, -cluster_dimension:], axis=1)
+                        ).to(self._device),
+                    )
+                else:
+                    learner_loss = mse_loss(
+                        learner(fakeact[:, :-label_dimension]).view(-1), fake_target
+                    )
 
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
                 )
-                if self.assisted_loss == "SD":
-                    loss = SamplesLoss(loss="sinkhorn")
-                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
-                elif self.assisted_loss == "HD":
-                    loss = SamplesLoss(loss="hausdorff")
-                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
-                elif self.assisted_loss == "EMMD":
-                    loss = SamplesLoss(loss="energy")
-                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
-                elif self.assisted_loss == "GMMD":
-                    loss = SamplesLoss(loss="gaussian")
-                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
-                elif self.assisted_loss == "LMMD":
-                    loss = SamplesLoss(loss="laplacian")
-                    distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
-                elif self.assisted_loss == "ASD":
-                    loss = SamplesLoss(loss="sinkhorn")
-                    distance_loss = loss(fakeact, train_data_torch)
-                elif self.assisted_loss == "AHD":
-                    loss = SamplesLoss(loss="hausdorff")
-                    distance_loss = loss(fakeact, train_data_torch)
-                elif self.assisted_loss == "AEMMD":
-                    loss = SamplesLoss(loss="energy")
-                    distance_loss = loss(fakeact, train_data_torch)
-                elif self.assisted_loss == "AGMMD":
-                    loss = SamplesLoss(loss="gaussian")
-                    distance_loss = loss(fakeact, train_data_torch)
-                elif self.assisted_loss == "ALMMD":
-                    loss = SamplesLoss(loss="laplacian")
-                    distance_loss = loss(fakeact, train_data_torch)
-                elif self.assisted_loss == "WA":
-                    mean_fake = torch.mean(fakeact, dim=0)
-                    mean_train = torch.mean(train_data_torch, dim=0)
-                    cov_fake = covariance_matrix(fakeact, mean_fake)
-                    cov_train = covariance_matrix(train_data_torch, mean_train)
-                    distance_loss = wasserstein_distance_torch(
-                        mean_fake, mean_train, cov_fake, cov_train
-                    )
-                elif self.assisted_loss == "KL":
-                    std1 = torch.std(train_data_torch, dim=0)
-                    std2 = torch.std(fakeact, dim=0)
-                    mean1 = torch.mean(train_data_torch, dim=0)
-                    mean2 = torch.mean(fakeact, dim=0)
-                    eps = torch.finfo(torch.float32).eps
-                    std1 = std1 + eps
-                    std2 = std2 + eps
-                    log_term = torch.log(std2 / std1)
-                    variance_term = (std1**2 + (mean1 - mean2) ** 2) / (2 * std2**2)
-                    distance_loss = torch.mean(log_term + variance_term)
-                elif self.assisted_loss == "Mean":
-                    distance_loss = -(
-                        torch.abs(
-                            torch.mean(fakeact, dim=0)
-                            - torch.from_numpy(np.mean(train_data, axis=0)).to(
-                                self._device
-                            )
-                        )
-                        + torch.abs(
-                            torch.std(fakeact, dim=0)
-                            - torch.from_numpy(np.std(train_data, axis=0)).to(
-                                self._device
-                            )
-                        )
-                    )
-                    distance_loss = torch.mean(distance_loss)
-                else:
-                    distance_loss = 0
+                self.feature_matching_loss(fakeact, train_data, train_data_torch)
                 loss_g = (
                     -torch.mean(y_fake)
-                    # + self.weight_of_distance * distance_loss
                     + cross_entropy
                     + self.weight_of_distance * learner_loss
                 )
@@ -407,14 +336,12 @@ class ASGAN(CTGAN):
 
             generator_loss = loss_g.detach().cpu()
             discriminator_loss = loss_d.detach().cpu()
-            # learner_loss = loss_l.detach().cpu()
 
             epoch_loss_df = pd.DataFrame(
                 {
                     "Epoch": [i],
                     "Generator Loss": [generator_loss],
                     "Discriminator Loss": [discriminator_loss],
-                    # "Learner Loss": [learner],
                 }
             )
             if not self.loss_values.empty:
@@ -429,14 +356,72 @@ class ASGAN(CTGAN):
                     description.format(
                         gen=generator_loss,
                         dis=discriminator_loss,
-                        # lea=learner_loss
                     )
                 )
+
+    def get_prediction(self, fake_cat, forest):
+        fake_data = self._transformer.inverse_transform(fake_cat.detach().numpy())
+        fake_target = torch.from_numpy(
+            forest.predict(fake_data[:, :-1]).astype("float32")
+        ).to(self._device)
+        return fake_data, fake_target
+
+    def feature_matching_loss(self, fakeact, train_data, train_data_torch):
+        if self.assisted_loss == "SD":
+            loss = SamplesLoss(loss="sinkhorn")
+            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+        elif self.assisted_loss == "HD":
+            loss = SamplesLoss(loss="hausdorff")
+            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+        elif self.assisted_loss == "EMMD":
+            loss = SamplesLoss(loss="energy")
+            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+        elif self.assisted_loss == "GMMD":
+            loss = SamplesLoss(loss="gaussian")
+            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+        elif self.assisted_loss == "LMMD":
+            loss = SamplesLoss(loss="laplacian")
+            distance_loss = loss(fakeact[:, :-1], train_data_torch[:, :-1])
+        elif self.assisted_loss == "ASD":
+            loss = SamplesLoss(loss="sinkhorn")
+            distance_loss = loss(fakeact, train_data_torch)
+        elif self.assisted_loss == "AHD":
+            loss = SamplesLoss(loss="hausdorff")
+            distance_loss = loss(fakeact, train_data_torch)
+        elif self.assisted_loss == "AEMMD":
+            loss = SamplesLoss(loss="energy")
+            distance_loss = loss(fakeact, train_data_torch)
+        elif self.assisted_loss == "AGMMD":
+            loss = SamplesLoss(loss="gaussian")
+            distance_loss = loss(fakeact, train_data_torch)
+        elif self.assisted_loss == "ALMMD":
+            loss = SamplesLoss(loss="laplacian")
+            distance_loss = loss(fakeact, train_data_torch)
+        elif self.assisted_loss == "WA":
+            mean_fake = torch.mean(fakeact, dim=0)
+            mean_train = torch.mean(train_data_torch, dim=0)
+            cov_fake = covariance_matrix(fakeact, mean_fake)
+            cov_train = covariance_matrix(train_data_torch, mean_train)
+            distance_loss = wasserstein_distance_torch(
+                mean_fake, mean_train, cov_fake, cov_train
+            )
+        elif self.assisted_loss == "KL":
+            std1 = torch.std(train_data_torch, dim=0)
+            std2 = torch.std(fakeact, dim=0)
+            mean1 = torch.mean(train_data_torch, dim=0)
+            mean2 = torch.mean(fakeact, dim=0)
+            eps = torch.finfo(torch.float32).eps
+            std1 = std1 + eps
+            std2 = std2 + eps
+            log_term = torch.log(std2 / std1)
+            variance_term = (std1**2 + (mean1 - mean2) ** 2) / (2 * std2**2)
+            distance_loss = torch.mean(log_term + variance_term)
+        else:
+            distance_loss = 0
 
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
-    # ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="Mean")
-    ctgan = ASGAN(epochs=100, verbose=True)
+    ctgan = ASGAN(epochs=100, verbose=True, learn_from_teacher="Real")
     ctgan.fit(X)
     print(ctgan.sample(50))
