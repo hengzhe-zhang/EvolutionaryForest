@@ -1,10 +1,10 @@
-import torch
 from ctgan.synthesizers.ctgan import *
 from geomloss import SamplesLoss
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.preprocessing import StandardScaler
 from torch import optim
+from torch.nn.functional import nll_loss, mse_loss
 from tqdm import tqdm
 
 from evolutionary_forest.utility.wasserstein_distance import (
@@ -34,6 +34,27 @@ class IndexDataSampler(DataSampler):
             return self._data[idx], idx
         else:
             return self._data[idx]
+
+
+class SyncDataTransformer(DataTransformer):
+    def transform(self, raw_data):
+        """Take raw data and output a matrix data."""
+        if not isinstance(raw_data, pd.DataFrame):
+            column_names = [str(num) for num in range(raw_data.shape[1])]
+            raw_data = pd.DataFrame(raw_data, columns=column_names)
+
+        # Only use parallelization with larger data sizes.
+        # Otherwise, the transformation will be slower.
+        if raw_data.shape[0] < 5000:
+            column_data_list = self._synchronous_transform(
+                raw_data, self._column_transform_info_list
+            )
+        else:
+            column_data_list = self._parallel_transform(
+                raw_data, self._column_transform_info_list
+            )
+
+        return np.concatenate(column_data_list, axis=1).astype(float)
 
 
 class ASGAN(CTGAN):
@@ -91,12 +112,12 @@ class ASGAN(CTGAN):
                 a ``pandas.DataFrame``, this list should contain the column names.
         """
         # Train a model
-        # forest = ExtraTreesRegressor()
-        # train_data, train_label = train_data, train_data[:, -1]
-        # train_label = (
-        #     StandardScaler().fit_transform(train_label.reshape(-1, 1)).reshape(-1)
-        # )
-        # forest.fit(train_data[:, :-1], train_label)
+        forest = ExtraTreesRegressor()
+        train_data, train_label = train_data, train_data[:, -1]
+        train_label = (
+            StandardScaler().fit_transform(train_label.reshape(-1, 1)).reshape(-1)
+        )
+        forest.fit(train_data[:, :-1], train_label)
 
         self._validate_discrete_columns(train_data, discrete_columns)
 
@@ -111,7 +132,7 @@ class ASGAN(CTGAN):
                 DeprecationWarning,
             )
 
-        self._transformer = DataTransformer()
+        self._transformer = SyncDataTransformer()
         self._transformer.fit(train_data, discrete_columns)
 
         train_data = self._transformer.transform(train_data)
@@ -276,15 +297,32 @@ class ASGAN(CTGAN):
                     cross_entropy = self._cond_loss(fake, c1, m1)
 
                 # fake_pred = learner(fakeact)
-                # fake_data = self._transformer.inverse_transform(
-                #     fakeact.detach().numpy()
-                # )
-                # fake_target = torch.from_numpy(
-                #     forest.predict(fake_data[:, :-1]).astype("float32")
-                # ).to(self._device)
-                # # # minimize learner loss to generate real samples
-                # learner_loss = torch.mean((fake_target - fake_pred) ** 2)
-                # learner_loss = torch.mean((fake[:, -1] - fake_target) ** 2)
+                fake_data = self._transformer.inverse_transform(
+                    fakeact.detach().numpy()
+                )
+                fake_target = torch.from_numpy(
+                    forest.predict(fake_data[:, :-1]).astype("float32")
+                ).to(self._device)
+                generated_data = np.concatenate(
+                    (fake_data, fake_target.reshape(-1, 1)), axis=1
+                )
+                int_dimension = self._transformer.output_info_list[-1][0].dim
+                cluster_dimension = self._transformer.output_info_list[-1][1].dim
+                generated_data = self._transformer.transform(generated_data).astype(
+                    np.float32
+                )
+                # minimize learner loss to generate real samples
+                learner_loss = mse_loss(
+                    fakeact[:, -(cluster_dimension + int_dimension)],
+                    torch.from_numpy(
+                        generated_data[:, -(cluster_dimension + int_dimension)]
+                    ).to(self._device),
+                ) + nll_loss(
+                    fakeact[:, -cluster_dimension:],
+                    torch.from_numpy(
+                        np.argmax(generated_data[:, -cluster_dimension:], axis=1)
+                    ).to(self._device),
+                )
 
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
@@ -358,9 +396,9 @@ class ASGAN(CTGAN):
                     distance_loss = 0
                 loss_g = (
                     -torch.mean(y_fake)
-                    + self.weight_of_distance * distance_loss
+                    # + self.weight_of_distance * distance_loss
                     + cross_entropy
-                    # + self.gan_accuracy_weight * learner_loss
+                    + self.weight_of_distance * learner_loss
                 )
 
                 optimizerG.zero_grad(set_to_none=False)
@@ -399,16 +437,6 @@ class ASGAN(CTGAN):
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
     # ctgan = ASGAN(epochs=1000, verbose=True, assisted_loss="Mean")
-    for loss in [
-        "SD",
-        "EMMD",
-        "GMMD",
-        "LMMD",
-        "ASD",
-        "AEMMD",
-        "AGMMD",
-        "ALMMD",
-    ]:
-        ctgan = ASGAN(epochs=10, verbose=True, assisted_loss=loss)
-        ctgan.fit(X)
-        print(ctgan.sample(50))
+    ctgan = ASGAN(epochs=100, verbose=True)
+    ctgan.fit(X)
+    print(ctgan.sample(50))
