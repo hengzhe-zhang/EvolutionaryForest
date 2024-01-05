@@ -76,7 +76,7 @@ class ASGAN(CTGAN):
         cuda=True,
         learn_from_teacher=None,
         assisted_loss=None,
-        weight_of_distance=1,
+        weight_of_distance: float = 1,
     ):
         super().__init__(
             embedding_dim,
@@ -326,11 +326,15 @@ class ASGAN(CTGAN):
                 distance_loss = self.feature_matching_loss(
                     fakeact, train_data, train_data_torch
                 )
+                scaling_weight = (
+                    abs(torch.mean(y_fake).detach().cpu())
+                ) / distance_loss.detach().cpu()
+                print("Scaling Weight", scaling_weight)
                 loss_g = (
                     -torch.mean(y_fake)
                     + cross_entropy
                     # + self.weight_of_distance * learner_loss
-                    + self.weight_of_distance * distance_loss
+                    + self.weight_of_distance * scaling_weight * distance_loss
                 )
 
                 optimizerG.zero_grad(set_to_none=False)
@@ -377,7 +381,16 @@ class ASGAN(CTGAN):
             coarse_index.extend([i for i in range(index, index + info[1].dim)])
             index += info[1].dim
         coarse_index = torch.tensor(coarse_index)
-        if self.assisted_loss == "SD":
+        if self.assisted_loss == "Mean":
+            distance_loss = torch.mean(
+                (
+                    torch.mean(fakeact[:, coarse_index], dim=0)
+                    - torch.mean(train_data_torch[:, coarse_index], dim=0)
+                )
+                ** 2
+            )
+            # print("Distance Loss", distance_loss)
+        elif self.assisted_loss == "SD":
             loss = SamplesLoss(loss="sinkhorn")
             distance_loss = loss(
                 fakeact[:, coarse_index], train_data_torch[:, coarse_index]
@@ -428,6 +441,8 @@ class ASGAN(CTGAN):
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
-    ctgan = ASGAN(epochs=100, verbose=True)
+    ctgan = ASGAN(
+        epochs=100, verbose=True, assisted_loss="Mean", weight_of_distance=0.1
+    )
     ctgan.fit(X)
     print(ctgan.sample(50))
