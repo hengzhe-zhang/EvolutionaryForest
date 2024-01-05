@@ -2,7 +2,10 @@ from ctgan.synthesizers.ctgan import *
 from geomloss import SamplesLoss
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
 from torch import optim
 from torch.nn.functional import nll_loss, mse_loss
 from tqdm import tqdm
@@ -77,6 +80,8 @@ class ASGAN(CTGAN):
         learn_from_teacher=None,
         assisted_loss=None,
         weight_of_distance: float = 1,
+        adaptive_weight=False,
+        norm_type=None,
     ):
         super().__init__(
             embedding_dim,
@@ -94,9 +99,11 @@ class ASGAN(CTGAN):
             pac,
             cuda,
         )
+        self.norm_type = norm_type
         self.learn_from_teacher = learn_from_teacher
         self.assisted_loss = assisted_loss
         self.weight_of_distance = weight_of_distance
+        self.adaptive_weight = adaptive_weight
 
     # def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
     def fit(self, train_data, discrete_columns=(), epochs=None):
@@ -191,6 +198,8 @@ class ASGAN(CTGAN):
         mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
         std = mean + 1
 
+        coarse_index = self.get_coarse_index()
+
         self.loss_values = pd.DataFrame(
             columns=["Epoch", "Generator Loss", "Distriminator Loss"]
         )
@@ -250,7 +259,7 @@ class ASGAN(CTGAN):
                     loss_d.backward(retain_graph=True)
                     optimizerD.step()
 
-                    if self.learn_from_teacher is not None:
+                    if self.learn_from_teacher in ["Real", "Fake"]:
                         if self.learn_from_teacher == "Real":
                             real_pred = learner(real_cat[:, :-label_dimension])
                             real_label = torch.from_numpy(
@@ -294,7 +303,7 @@ class ASGAN(CTGAN):
                 else:
                     cross_entropy = self._cond_loss(fake, c1, m1)
 
-                # fake_pred = learner(fakeact)
+                # get prediction from RF
                 fake_data, fake_target = self.get_prediction(fakeact, forest)
                 generated_data = np.concatenate(
                     (fake_data, fake_target.reshape(-1, 1)), axis=1
@@ -302,7 +311,7 @@ class ASGAN(CTGAN):
                 generated_data = self._transformer.transform(generated_data).astype(
                     np.float32
                 )
-                if self.learn_from_teacher is None:
+                if self.learn_from_teacher == "Direct":
                     # minimize learner loss to generate real samples
                     learner_loss = mse_loss(
                         fakeact[:, -(cluster_dimension + int_dimension)],
@@ -315,10 +324,12 @@ class ASGAN(CTGAN):
                             np.argmax(generated_data[:, -cluster_dimension:], axis=1)
                         ).to(self._device),
                     )
-                else:
+                elif self.learn_from_teacher in ["Real", "Fake"]:
                     learner_loss = mse_loss(
                         learner(fakeact[:, :-label_dimension]).view(-1), fake_target
                     )
+                else:
+                    learner_loss = 0
 
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
@@ -326,15 +337,48 @@ class ASGAN(CTGAN):
                 distance_loss = self.feature_matching_loss(
                     fakeact, train_data, train_data_torch
                 )
-                scaling_weight = (
-                    abs(torch.mean(y_fake).detach().cpu())
-                ) / distance_loss.detach().cpu()
-                print("Scaling Weight", scaling_weight)
+
+                if self.norm_type == "All":
+                    norm_loss = torch.mean(torch.square(fakeact[:, ~coarse_index]))
+                elif self.norm_type == "Prediction":
+                    norm_loss = torch.mean(torch.square(fakeact[:, -label_dimension]))
+                else:
+                    norm_loss = 0
+
+                if self.adaptive_weight:
+                    if norm_loss is not 0:
+                        scaling_weight_norm = (
+                            abs(torch.mean(y_fake).detach().cpu())
+                        ) / norm_loss.detach().cpu()
+                    else:
+                        scaling_weight_norm = 0
+                    if learner_loss is not 0:
+                        scaling_weight_learner = (
+                            abs(torch.mean(y_fake).detach().cpu())
+                        ) / learner_loss.detach().cpu()
+                    else:
+                        scaling_weight_learner = 0
+                    if distance_loss is not 0:
+                        scaling_weight_distance = (
+                            abs(torch.mean(y_fake).detach().cpu())
+                        ) / distance_loss.detach().cpu()
+                    else:
+                        scaling_weight_distance = 0
+                else:
+                    scaling_weight_norm = 1
+                    scaling_weight_learner = 1
+                    scaling_weight_distance = 1
+                """
+                Maximize Norm: Encourage boundary data
+                Minimize Distance: Generate faithful data
+                Minimize Learner: Generate Good Data
+                """
                 loss_g = (
                     -torch.mean(y_fake)
                     + cross_entropy
-                    # + self.weight_of_distance * learner_loss
-                    + self.weight_of_distance * scaling_weight * distance_loss
+                    - self.weight_of_distance * scaling_weight_norm * norm_loss
+                    + self.weight_of_distance * scaling_weight_learner * learner_loss
+                    + self.weight_of_distance * scaling_weight_distance * distance_loss
                 )
 
                 optimizerG.zero_grad(set_to_none=False)
@@ -374,13 +418,7 @@ class ASGAN(CTGAN):
         return fake_data, fake_target
 
     def feature_matching_loss(self, fakeact, train_data, train_data_torch):
-        index = 0
-        coarse_index = []
-        for info in self._transformer.output_info_list:
-            index += info[0].dim
-            coarse_index.extend([i for i in range(index, index + info[1].dim)])
-            index += info[1].dim
-        coarse_index = torch.tensor(coarse_index)
+        coarse_index = self.get_coarse_index()
         if self.assisted_loss == "Mean":
             distance_loss = torch.mean(
                 (
@@ -438,11 +476,46 @@ class ASGAN(CTGAN):
             distance_loss = 0
         return distance_loss
 
+    def get_coarse_index(self):
+        index = 0
+        coarse_index = []
+        for info in self._transformer.output_info_list:
+            index += info[0].dim
+            coarse_index.extend([i for i in range(index, index + info[1].dim)])
+            index += info[1].dim
+        coarse_index = torch.tensor(coarse_index)
+        return coarse_index
+
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
-    ctgan = ASGAN(
-        epochs=100, verbose=True, assisted_loss="Mean", weight_of_distance=0.1
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, train_size=100, random_state=0
     )
-    ctgan.fit(X)
-    print(ctgan.sample(50))
+    base_et = SVR()
+    base_et.fit(X_train, y_train)
+    print("Before Distillation", r2_score(y_test, base_et.predict(X_test)))
+    ctgan = ASGAN(
+        epochs=100,
+        verbose=True,
+        # learn_from_teacher="Direct",
+        # assisted_loss="Mean",
+        # norm_type="Prediction",
+        learn_from_teacher=None,
+        assisted_loss=None,
+        weight_of_distance=0.1,
+        adaptive_weight=True,
+    )
+    X_y = np.concatenate([X_train, y_train.reshape(-1, 1)], axis=1)
+    ctgan.fit(X_y)
+    X_train_sampled = ctgan.sample(100)
+    X_train_sampled = np.concatenate([X_train_sampled, X_y], axis=0)
+
+    X_train_sampled, y_train_sampled = (
+        X_train_sampled[:, :-1],
+        # base_et.predict(X_train_sampled[:, :-1]),
+        X_train_sampled[:, -1],
+    )
+    et = SVR()
+    et.fit(X_train_sampled, y_train_sampled)
+    print("After Distillation", r2_score(y_test, et.predict(X_test)))
