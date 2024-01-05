@@ -481,10 +481,16 @@ class R2PACBayesian(Fitness):
         sharpness_loss_weight=0.5,
         weight_of_distance=0,
         assisted_loss=None,
+        learn_from_teacher=None,
+        norm_type=None,
         **params
     ):
         super().__init__()
+        ### For GAN
+        self.norm_type = norm_type
+        self.learn_from_teacher = learn_from_teacher
         self.assisted_loss = assisted_loss
+        ###
         self.sharpness_distribution = sharpness_distribution
         self.weight_of_distance = weight_of_distance
         self.algorithm = algorithm
@@ -511,20 +517,8 @@ class R2PACBayesian(Fitness):
                     epochs=500,
                     assisted_loss=self.assisted_loss,
                     weight_of_distance=self.weight_of_distance,
-                )
-            elif self.sharpness_distribution == "ASGAN-R":
-                self.gan = ASGAN(
-                    epochs=500,
-                    assisted_loss=self.assisted_loss,
-                    weight_of_distance=self.weight_of_distance,
-                    learn_from_teacher="Real",
-                )
-            elif self.sharpness_distribution == "ASGAN-F":
-                self.gan = ASGAN(
-                    epochs=500,
-                    assisted_loss=self.assisted_loss,
-                    weight_of_distance=self.weight_of_distance,
-                    learn_from_teacher="Fake",
+                    learn_from_teacher=self.learn_from_teacher,
+                    norm_type=self.norm_type,
                 )
             self.gan.fit(
                 np.concatenate(
