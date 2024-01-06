@@ -8,7 +8,7 @@ import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
 from sklearn.base import ClassifierMixin
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, pairwise_distances
 from sklearn.metrics.pairwise import rbf_kernel
 from torch import optim
 
@@ -496,17 +496,16 @@ class R2PACBayesian(Fitness):
         self.sharpness_loss_weight = sharpness_loss_weight
 
     def lazy_init(self):
-        if self.sharpness_distribution in [
-            "GAN",
-            "ASGAN",
-        ]:
+        if self.sharpness_distribution.startswith(
+            "GAN"
+        ) or self.sharpness_distribution.startswith("ASGAN"):
             from ctgan import CTGAN
 
             start = time.time()
-            if self.sharpness_distribution == "GAN":
+            if self.sharpness_distribution.startswith("GAN"):
                 self.gan = CTGAN()
-            elif self.sharpness_distribution == "ASGAN":
-                self.gan = ASGAN()
+            elif self.sharpness_distribution.startswith("ASGAN"):
+                self.gan = ASGAN(batch_size=len(self.algorithm.X))
             self.gan.fit(
                 np.concatenate(
                     [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
@@ -601,6 +600,17 @@ class R2PACBayesian(Fitness):
         # GAN for data augmentation
         sampled_data = self.gan.sample(len(self.algorithm.X))
         X, y = sampled_data[:, :-1], sampled_data[:, -1]
+        if self.sharpness_distribution.endswith("-N"):
+            dis = pairwise_distances(self.algorithm.X, X)
+            all_index = dis.argmin(axis=1)
+            return X[all_index], y[all_index]
+        if self.sharpness_distribution.endswith("-T"):
+            lgbm_predict = self.algorithm.reference_lgbm.predict(X)
+            dis = pairwise_distances(
+                self.algorithm.y.reshape(-1, 1), lgbm_predict.reshape(-1, 1)
+            )
+            all_index = dis.argmin(axis=1)
+            return X[all_index], y[all_index]
         return X, y
 
     @lru_cache(maxsize=128)
@@ -645,7 +655,9 @@ class R2PACBayesian(Fitness):
             data_generator = partial(self.mixup, dc_mixup=True)
         elif self.sharpness_distribution == "DD-MixUp":
             data_generator = partial(self.mixup, dd_mixup=True)
-        elif self.sharpness_distribution in ["GAN", "ASGAN"]:
+        elif self.sharpness_distribution.startswith(
+            "GAN"
+        ) or self.sharpness_distribution.startswith("ASGAN"):
             data_generator = self.GAN
         else:
             raise Exception

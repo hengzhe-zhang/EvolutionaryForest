@@ -316,33 +316,35 @@ class ASGAN(CTGAN):
                 else:
                     cross_entropy = self._cond_loss(fake, c1, m1)
 
-                # get prediction from RF
-                fake_data, fake_target = self.get_prediction(fakeact, forest)
-                generated_data = np.concatenate(
-                    (fake_data, fake_target.reshape(-1, 1)), axis=1
-                )
-                generated_data = self._transformer.transform(generated_data).astype(
-                    np.float32
-                )
-                if self.learn_from_teacher == "Direct":
-                    # minimize learner loss to generate real samples
-                    learner_loss = mse_loss(
-                        fakeact[:, -(cluster_dimension + int_dimension)],
-                        torch.from_numpy(
-                            generated_data[:, -(cluster_dimension + int_dimension)]
-                        ).to(self._device),
-                    ) + nll_loss(
-                        fakeact[:, -cluster_dimension:],
-                        torch.from_numpy(
-                            np.argmax(generated_data[:, -cluster_dimension:], axis=1)
-                        ).to(self._device),
+                if self.learn_from_teacher is not None:
+                    # get prediction from RF
+                    fake_data, fake_target = self.get_prediction(fakeact, forest)
+                    generated_data = np.concatenate(
+                        (fake_data, fake_target.reshape(-1, 1)), axis=1
                     )
-                elif self.learn_from_teacher in ["Real", "Fake"]:
-                    learner_loss = mse_loss(
-                        learner(fakeact[:, :-label_dimension]).view(-1), fake_target
+                    # need to transform the RF predictions
+                    generated_data = self._transformer.transform(generated_data).astype(
+                        np.float32
                     )
-                else:
-                    learner_loss = 0
+                    if self.learn_from_teacher == "Direct":
+                        # minimize learner loss to generate real samples
+                        learner_loss = mse_loss(
+                            fakeact[:, -(cluster_dimension + int_dimension)],
+                            torch.from_numpy(
+                                generated_data[:, -(cluster_dimension + int_dimension)]
+                            ).to(self._device),
+                        ) + nll_loss(
+                            fakeact[:, -cluster_dimension:],
+                            torch.from_numpy(
+                                np.argmax(
+                                    generated_data[:, -cluster_dimension:], axis=1
+                                )
+                            ).to(self._device),
+                        )
+                    elif self.learn_from_teacher in ["Real", "Fake"]:
+                        learner_loss = mse_loss(
+                            learner(fakeact[:, :-label_dimension]).view(-1), fake_target
+                        )
 
                 train_data_torch = torch.from_numpy(train_data.astype("float32")).to(
                     self._device
@@ -358,41 +360,12 @@ class ASGAN(CTGAN):
                 else:
                     norm_loss = 0
 
-                if self.adaptive_weight:
-                    if norm_loss is not 0:
-                        scaling_weight_norm = (
-                            abs(torch.mean(y_fake).detach().cpu())
-                        ) / norm_loss.detach().cpu()
-                    else:
-                        scaling_weight_norm = 0
-                    if learner_loss is not 0:
-                        scaling_weight_learner = (
-                            abs(torch.mean(y_fake).detach().cpu())
-                        ) / learner_loss.detach().cpu()
-                    else:
-                        scaling_weight_learner = 0
-                    if distance_loss is not 0:
-                        scaling_weight_distance = (
-                            abs(torch.mean(y_fake).detach().cpu())
-                        ) / distance_loss.detach().cpu()
-                    else:
-                        scaling_weight_distance = 0
-                else:
-                    scaling_weight_norm = 1
-                    scaling_weight_learner = 1
-                    scaling_weight_distance = 1
                 """
                 Maximize Norm: Encourage boundary data
                 Minimize Distance: Generate faithful data
                 Minimize Learner: Generate Good Data
                 """
-                loss_g = (
-                    -torch.mean(y_fake)
-                    + cross_entropy
-                    - self.weight_of_distance * scaling_weight_norm * norm_loss
-                    + self.weight_of_distance * scaling_weight_learner * learner_loss
-                    + self.weight_of_distance * scaling_weight_distance * distance_loss
-                )
+                loss_g = -torch.mean(y_fake) + cross_entropy
 
                 optimizerG.zero_grad(set_to_none=False)
                 loss_g.backward()
@@ -556,7 +529,6 @@ if __name__ == "__main__":
     print("Before Distillation", r2_score(y_test, base_et.predict(X_test)))
     ctgan = ASGAN(
         epochs=100,
-        # generator_dim=(128, 16, 128),
         generator_dim=(256, 256),
         batch_size=len(X_train),
         verbose=True,
@@ -569,23 +541,21 @@ if __name__ == "__main__":
     X_y = np.concatenate([X_train, y_train.reshape(-1, 1)], axis=1)
     ctgan.fit(X_y)
     r2_scores = []
-    X_train_sampled_ = ctgan.sample(len(X_train) * 10)
     for id in range(10):
+        X_train_sampled_ = ctgan.sample(len(X_train))
         X_train_sampled, y_train_sampled = (
-            X_train_sampled_[id * 100 : (id + 1) * 100, :-1],
-            et.predict(X_train_sampled_[id * 100 : (id + 1) * 100, :-1]),
+            X_train_sampled_[:, :-1],
+            et.predict(X_train_sampled_[:, :-1]),
         )
         y_train_sampled = np.concatenate(
             [y_train_sampled, y_train],
             axis=0,
         )
         X_train_sampled = np.concatenate([X_train_sampled, X_train], axis=0)
-        # print(y_train)
         # for i in range(X_train.shape[1]):
         #     print(pearsonr(et.predict(X_train_sampled[:100]), y_train))
         base_et = KNeighborsRegressor()
         base_et.fit(X_train_sampled, y_train_sampled)
-        # print(len(X_train_sampled), len(y_train_sampled))
         score = r2_score(y_test, base_et.predict(X_test))
         print("After Distillation", score)
         r2_scores.append(score)
