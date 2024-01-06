@@ -1,6 +1,6 @@
 import numpy as np
 import os
-import lib
+import ddpm_lib
 from tab_ddpm.modules import MLPDiffusion, ResNetDiffusion
 
 
@@ -34,69 +34,74 @@ def concat_y_to_X(X, y):
 
 
 def make_dataset(
-    data_path: str,
-    T: lib.Transformations,
+    # data_path: str,
+    X: np.ndarray,
+    y: np.ndarray,
+    T: ddpm_lib.Transformations,
     num_classes: int,
     is_y_cond: bool,
     change_val: bool,
 ):
     # classification
-    if num_classes > 0:
-        X_cat = (
-            {}
-            if os.path.exists(os.path.join(data_path, "X_cat_train.npy"))
-            or not is_y_cond
-            else None
-        )
-        X_num = (
-            {} if os.path.exists(os.path.join(data_path, "X_num_train.npy")) else None
-        )
-        y = {}
+    # if num_classes > 0:
+    #     X_cat = (
+    #         {}
+    #         if os.path.exists(os.path.join(data_path, "X_cat_train.npy"))
+    #         or not is_y_cond
+    #         else None
+    #     )
+    #     X_num = (
+    #         {} if os.path.exists(os.path.join(data_path, "X_num_train.npy")) else None
+    #     )
+    #     y = {}
+    #
+    #     for split in ["train", "val", "test"]:
+    #         X_num_t, X_cat_t, y_t = ddpm_lib.read_pure_data(data_path, split)
+    #         if X_num is not None:
+    #             X_num[split] = X_num_t
+    #         if not is_y_cond:
+    #             X_cat_t = concat_y_to_X(X_cat_t, y_t)
+    #         if X_cat is not None:
+    #             X_cat[split] = X_cat_t
+    #         y[split] = y_t
+    # else:
+    #     # regression
+    #     X_cat = (
+    #         {} if os.path.exists(os.path.join(data_path, "X_cat_train.npy")) else None
+    #     )
+    #     X_num = (
+    #         {}
+    #         if os.path.exists(os.path.join(data_path, "X_num_train.npy"))
+    #         or not is_y_cond
+    #         else None
+    #     )
+    #     y = {}
+    #
+    #     for split in ["train", "val", "test"]:
+    #         X_num_t, X_cat_t, y_t = ddpm_lib.read_pure_data(data_path, split)
+    #         if not is_y_cond:
+    #             X_num_t = concat_y_to_X(X_num_t, y_t)
+    #         if X_num is not None:
+    #             X_num[split] = X_num_t
+    #         if X_cat is not None:
+    #             X_cat[split] = X_cat_t
+    #         y[split] = y_t
 
-        for split in ["train", "val", "test"]:
-            X_num_t, X_cat_t, y_t = lib.read_pure_data(data_path, split)
-            if X_num is not None:
-                X_num[split] = X_num_t
-            if not is_y_cond:
-                X_cat_t = concat_y_to_X(X_cat_t, y_t)
-            if X_cat is not None:
-                X_cat[split] = X_cat_t
-            y[split] = y_t
-    else:
-        # regression
-        X_cat = (
-            {} if os.path.exists(os.path.join(data_path, "X_cat_train.npy")) else None
-        )
-        X_num = (
-            {}
-            if os.path.exists(os.path.join(data_path, "X_num_train.npy"))
-            or not is_y_cond
-            else None
-        )
-        y = {}
+    # info = ddpm_lib.load_json(os.path.join(data_path, "info.json"))
 
-        for split in ["train", "val", "test"]:
-            X_num_t, X_cat_t, y_t = lib.read_pure_data(data_path, split)
-            if not is_y_cond:
-                X_num_t = concat_y_to_X(X_num_t, y_t)
-            if X_num is not None:
-                X_num[split] = X_num_t
-            if X_cat is not None:
-                X_cat[split] = X_cat_t
-            y[split] = y_t
-
-    info = lib.load_json(os.path.join(data_path, "info.json"))
-
-    D = lib.Dataset(
+    X_num = X
+    D = ddpm_lib.Dataset(
         X_num,
-        X_cat,
+        # X_cat,
+        None,
         y,
         y_info={},
-        task_type=lib.TaskType(info["task_type"]),
-        n_classes=info.get("n_classes"),
+        task_type="regression"
+        # task_type=ddpm_lib.TaskType(info["task_type"]),
+        # n_classes=info.get("n_classes"),
     )
 
     if change_val:
-        D = lib.change_val(D)
+        D = ddpm_lib.change_val(D)
 
-    return lib.transform_dataset(D, T, None)
+    return ddpm_lib.transform_dataset(D, T, None)

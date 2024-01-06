@@ -5,8 +5,8 @@ import os
 from tab_ddpm.gaussian_multinomial_diffsuion import GaussianMultinomialDiffusion
 from tab_ddpm.utils import FoundNANsError
 from utils_train import get_model, make_dataset
-from lib import round_columns
-import lib
+from ddpm_lib import round_columns
+import ddpm_lib
 
 
 def to_good_ohe(ohe, X):
@@ -37,9 +37,9 @@ def sample(
     seed=0,
     change_val=False,
 ):
-    zero.improve_reproducibility(seed)
+    delu.improve_reproducibility(seed)
 
-    T = lib.Transformations(**T_dict)
+    T = ddpm_lib.Transformations(**T_dict)
     D = make_dataset(
         real_data_path,
         T,
@@ -117,7 +117,7 @@ def sample(
     # try:
     # except FoundNANsError as ex:
     #     print("Found NaNs during sampling!")
-    #     loader = lib.prepare_fast_dataloader(D, 'train', 8)
+    #     loader = ddpm_lib.prepare_fast_dataloader(D, 'train', 8)
     #     x_gen = next(loader)[0]
     #     y_gen = torch.multinomial(
     #         empirical_class_dist.float(),
@@ -144,7 +144,7 @@ def sample(
         np.save(
             os.path.join(parent_dir, "X_cat_unnorm"), X_gen[:, num_numerical_features:]
         )
-        # _, _, cat_encoder = lib.cat_encode({'train': X_cat_real}, T_dict['cat_encoding'], y_real, T_dict['seed'], True)
+        # _, _, cat_encoder = ddpm_lib.cat_encode({'train': X_cat_real}, T_dict['cat_encoding'], y_real, T_dict['seed'], True)
         if T_dict["cat_encoding"] == "one-hot":
             X_gen[:, num_numerical_features:] = to_good_ohe(
                 D.cat_transform.steps[0][1], X_num_[:, num_numerical_features:]
@@ -152,7 +152,7 @@ def sample(
         X_cat = D.cat_transform.inverse_transform(X_gen[:, num_numerical_features:])
 
     if num_numerical_features_ != 0:
-        # _, normalize = lib.normalize({'train' : X_num_real}, T_dict['normalization'], T_dict['seed'], True)
+        # _, normalize = ddpm_lib.normalize({'train' : X_num_real}, T_dict['normalization'], T_dict['seed'], True)
         np.save(
             os.path.join(parent_dir, "X_num_unnorm"), X_gen[:, :num_numerical_features]
         )
