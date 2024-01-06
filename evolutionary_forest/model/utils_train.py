@@ -91,12 +91,13 @@ def make_dataset(
 
     X_num = X
     D = ddpm_lib.Dataset(
-        X_num,
+        {"train": X_num},
         # X_cat,
         None,
-        y,
+        {"train": y},
         y_info={},
-        task_type="regression"
+        task_type=ddpm_lib.TaskType("regression"),
+        n_classes=0
         # task_type=ddpm_lib.TaskType(info["task_type"]),
         # n_classes=info.get("n_classes"),
     )

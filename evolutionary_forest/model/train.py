@@ -33,7 +33,7 @@ class Trainer:
         self.device = device
         self.loss_history = pd.DataFrame(columns=["step", "mloss", "gloss", "loss"])
         self.log_every = 100
-        self.print_every = 500
+        self.print_every = 100
         self.ema_every = 1000
 
     def _anneal_lr(self, step):
@@ -95,9 +95,11 @@ class Trainer:
             step += 1
 
 
-def train(
-    parent_dir,
-    real_data_path="data/higgs-small",
+def ddpm_train(
+    # parent_dir,
+    # real_data_path="data/higgs-small",
+    X,
+    y,
     steps=1000,
     lr=0.002,
     weight_decay=1e-4,
@@ -109,19 +111,21 @@ def train(
     scheduler="cosine",
     T_dict=None,
     num_numerical_features=0,
-    device=torch.device("cuda:1"),
+    device=torch.device("cpu"),
     seed=0,
     change_val=False,
-):
-    real_data_path = os.path.normpath(real_data_path)
-    parent_dir = os.path.normpath(parent_dir)
+) -> GaussianMultinomialDiffusion:
+    # real_data_path = os.path.normpath(real_data_path)
+    # parent_dir = os.path.normpath(parent_dir)
 
     delu.improve_reproducibility(seed)
 
     T = ddpm_lib.Transformations(**T_dict)
 
     dataset = make_dataset(
-        real_data_path,
+        # real_data_path,
+        X,
+        y,
         T,
         num_classes=model_params["num_classes"],
         is_y_cond=model_params["is_y_cond"],
@@ -176,6 +180,7 @@ def train(
     )
     trainer.run_loop()
 
-    trainer.loss_history.to_csv(os.path.join(parent_dir, "loss.csv"), index=False)
-    torch.save(diffusion._denoise_fn.state_dict(), os.path.join(parent_dir, "model.pt"))
-    torch.save(trainer.ema_model.state_dict(), os.path.join(parent_dir, "model_ema.pt"))
+    # trainer.loss_history.to_csv(os.path.join(parent_dir, "loss.csv"), index=False)
+    # torch.save(diffusion._denoise_fn.state_dict(), os.path.join(parent_dir, "model.pt"))
+    # torch.save(trainer.ema_model.state_dict(), os.path.join(parent_dir, "model_ema.pt"))
+    return diffusion

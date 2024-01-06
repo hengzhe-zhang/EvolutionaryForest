@@ -19,9 +19,12 @@ def to_good_ohe(ohe, X):
     return np.hstack(Xres)
 
 
-def sample(
-    parent_dir,
-    real_data_path="data/higgs-small",
+def ddpm_sample(
+    # parent_dir,
+    # real_data_path="data/higgs-small",
+    X,
+    y,
+    model,
     batch_size=2000,
     num_samples=0,
     model_type="mlp",
@@ -33,7 +36,7 @@ def sample(
     T_dict=None,
     num_numerical_features=0,
     disbalance=None,
-    device=torch.device("cuda:1"),
+    device=torch.device("cpu"),
     seed=0,
     change_val=False,
 ):
@@ -41,7 +44,9 @@ def sample(
 
     T = ddpm_lib.Transformations(**T_dict)
     D = make_dataset(
-        real_data_path,
+        # real_data_path,
+        X,
+        y,
         T,
         num_classes=model_params["num_classes"],
         is_y_cond=model_params["is_y_cond"],
@@ -55,14 +60,14 @@ def sample(
     num_numerical_features_ = D.X_num["train"].shape[1] if D.X_num is not None else 0
     d_in = np.sum(K) + num_numerical_features_
     model_params["d_in"] = int(d_in)
-    model = get_model(
-        model_type,
-        model_params,
-        num_numerical_features_,
-        category_sizes=D.get_category_sizes("train"),
-    )
+    # model = get_model(
+    #     model_type,
+    #     model_params,
+    #     num_numerical_features_,
+    #     category_sizes=D.get_category_sizes("train"),
+    # )
 
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+    # model.load_state_dict(torch.load(model_path, map_location="cpu"))
 
     diffusion = GaussianMultinomialDiffusion(
         K,
@@ -140,28 +145,26 @@ def sample(
     )
 
     X_num_ = X_gen
-    if num_numerical_features < X_gen.shape[1]:
-        np.save(
-            os.path.join(parent_dir, "X_cat_unnorm"), X_gen[:, num_numerical_features:]
-        )
-        # _, _, cat_encoder = ddpm_lib.cat_encode({'train': X_cat_real}, T_dict['cat_encoding'], y_real, T_dict['seed'], True)
-        if T_dict["cat_encoding"] == "one-hot":
-            X_gen[:, num_numerical_features:] = to_good_ohe(
-                D.cat_transform.steps[0][1], X_num_[:, num_numerical_features:]
-            )
-        X_cat = D.cat_transform.inverse_transform(X_gen[:, num_numerical_features:])
+    # if num_numerical_features < X_gen.shape[1]:
+    #     np.save(
+    #         os.path.join(parent_dir, "X_cat_unnorm"), X_gen[:, num_numerical_features:]
+    #     )
+    #     # _, _, cat_encoder = ddpm_lib.cat_encode({'train': X_cat_real}, T_dict['cat_encoding'], y_real, T_dict['seed'], True)
+    #     if T_dict["cat_encoding"] == "one-hot":
+    #         X_gen[:, num_numerical_features:] = to_good_ohe(
+    #             D.cat_transform.steps[0][1], X_num_[:, num_numerical_features:]
+    #         )
+    #     X_cat = D.cat_transform.inverse_transform(X_gen[:, num_numerical_features:])
 
     if num_numerical_features_ != 0:
         # _, normalize = ddpm_lib.normalize({'train' : X_num_real}, T_dict['normalization'], T_dict['seed'], True)
-        np.save(
-            os.path.join(parent_dir, "X_num_unnorm"), X_gen[:, :num_numerical_features]
-        )
+        # np.save(
+        #     os.path.join(parent_dir, "X_num_unnorm"), X_gen[:, :num_numerical_features]
+        # )
         X_num_ = D.num_transform.inverse_transform(X_gen[:, :num_numerical_features])
         X_num = X_num_[:, :num_numerical_features]
 
-        X_num_real = np.load(
-            os.path.join(real_data_path, "X_num_train.npy"), allow_pickle=True
-        )
+        X_num_real = X
         disc_cols = []
         for col in range(X_num_real.shape[1]):
             uniq_vals = np.unique(X_num_real[:, col])
@@ -174,9 +177,10 @@ def sample(
         if len(disc_cols):
             X_num = round_columns(X_num_real, X_num, disc_cols)
 
-    if num_numerical_features != 0:
-        print("Num shape: ", X_num.shape)
-        np.save(os.path.join(parent_dir, "X_num_train"), X_num)
-    if num_numerical_features < X_gen.shape[1]:
-        np.save(os.path.join(parent_dir, "X_cat_train"), X_cat)
-    np.save(os.path.join(parent_dir, "y_train"), y_gen)
+    # if num_numerical_features != 0:
+    #     print("Num shape: ", X_num.shape)
+    #     np.save(os.path.join(parent_dir, "X_num_train"), X_num)
+    # if num_numerical_features < X_gen.shape[1]:
+    #     np.save(os.path.join(parent_dir, "X_cat_train"), X_cat)
+    # np.save(os.path.join(parent_dir, "y_train"), y_gen)
+    return X_num
