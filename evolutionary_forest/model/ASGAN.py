@@ -4,8 +4,8 @@ from sklearn.datasets import load_diabetes
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVR
 from torch import optim
 from torch.nn.functional import nll_loss, mse_loss
 from tqdm import tqdm
@@ -104,6 +104,8 @@ class ASGAN(CTGAN):
         self.assisted_loss = assisted_loss
         self.weight_of_distance = weight_of_distance
         self.adaptive_weight = adaptive_weight
+        self.ordered_generation = True
+        self.noise_std = 0.1
 
     # def fit(self, train_data, train_label, discrete_columns=(), epochs=None):
     def fit(self, train_data, discrete_columns=(), epochs=None):
@@ -143,6 +145,7 @@ class ASGAN(CTGAN):
         self._transformer.fit(train_data, discrete_columns)
 
         train_data = self._transformer.transform(train_data)
+        self.train_data = train_data
 
         self._data_sampler = IndexDataSampler(
             train_data,
@@ -197,7 +200,8 @@ class ASGAN(CTGAN):
         )
 
         mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
-        std = mean + 1
+        # std = mean + 1
+        std = mean + self.noise_std
 
         coarse_index = self.get_coarse_index()
 
@@ -235,7 +239,8 @@ class ASGAN(CTGAN):
                         )
                         c2 = c1[perm]
                     real = torch.from_numpy(real.astype("float32")).to(self._device)
-                    fakez += real
+                    if self.ordered_generation:
+                        fakez += real
 
                     fake = self._generator(fakez)
                     fakeact = self._apply_activate(fake)
@@ -253,7 +258,7 @@ class ASGAN(CTGAN):
                     pen = discriminator.calc_gradient_penalty(
                         real_cat, fake_cat, self._device, self.pac
                     )
-                    loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
+                    loss_d = -(torch.mean(y_real - y_fake))
 
                     optimizerD.zero_grad(set_to_none=False)
                     pen.backward(retain_graph=True)
@@ -286,7 +291,8 @@ class ASGAN(CTGAN):
                     self._batch_size, col, opt, return_index=True
                 )
                 real = torch.from_numpy(real.astype("float32")).to(self._device)
-                fakez += real
+                if self.ordered_generation:
+                    fakez += real
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
 
                 if condvec is None:
@@ -493,29 +499,94 @@ class ASGAN(CTGAN):
         coarse_index = torch.tensor(coarse_index)
         return coarse_index
 
+    def sample(self, n, condition_column=None, condition_value=None):
+        if condition_column is not None and condition_value is not None:
+            condition_info = self._transformer.convert_column_name_value_to_id(
+                condition_column, condition_value
+            )
+            global_condition_vec = (
+                self._data_sampler.generate_cond_from_condition_column_info(
+                    condition_info, self._batch_size
+                )
+            )
+        else:
+            global_condition_vec = None
+
+        steps = n // self._batch_size + 1
+        data = []
+        for i in range(steps):
+            mean = torch.zeros(self._batch_size, self._embedding_dim)
+            # std = mean + 1
+            std = mean + self.noise_std
+            fakez = torch.normal(mean=mean, std=std).to(self._device)
+            if self.ordered_generation:
+                fakez += torch.from_numpy(self.train_data).to(self._device)
+
+            if global_condition_vec is not None:
+                condvec = global_condition_vec.copy()
+            else:
+                condvec = self._data_sampler.sample_original_condvec(self._batch_size)
+
+            if condvec is None:
+                pass
+            else:
+                c1 = condvec
+                c1 = torch.from_numpy(c1).to(self._device)
+                fakez = torch.cat([fakez, c1], dim=1)
+
+            fake = self._generator(fakez)
+            fakeact = self._apply_activate(fake)
+            data.append(fakeact.detach().cpu().numpy())
+
+        data = np.concatenate(data, axis=0)
+        data = data[:n]
+
+        return self._transformer.inverse_transform(data)
+
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, train_size=100, random_state=0
     )
-    base_et = SVR()
+    et = ExtraTreesRegressor()
+    et.fit(X_train, y_train)
+    base_et = KNeighborsRegressor()
     base_et.fit(X_train, y_train)
     print("Before Distillation", r2_score(y_test, base_et.predict(X_test)))
     ctgan = ASGAN(
         epochs=100,
+        # generator_dim=(128, 16, 128),
+        generator_dim=(256, 256),
+        batch_size=len(X_train),
         verbose=True,
     )
+    # ctgan = CTGAN(
+    #     epochs=100,
+    #     batch_size=len(X_train),
+    #     verbose=True,
+    # )
     X_y = np.concatenate([X_train, y_train.reshape(-1, 1)], axis=1)
     ctgan.fit(X_y)
-    X_train_sampled = ctgan.sample(100)
-    X_train_sampled = np.concatenate([X_train_sampled, X_y], axis=0)
-
-    X_train_sampled, y_train_sampled = (
-        X_train_sampled[:, :-1],
-        # base_et.predict(X_train_sampled[:, :-1]),
-        X_train_sampled[:, -1],
-    )
-    et = SVR()
-    et.fit(X_train_sampled, y_train_sampled)
-    print("After Distillation", r2_score(y_test, et.predict(X_test)))
+    r2_scores = []
+    X_train_sampled_ = ctgan.sample(len(X_train) * 10)
+    for id in range(10):
+        X_train_sampled, y_train_sampled = (
+            X_train_sampled_[id * 100 : (id + 1) * 100, :-1],
+            et.predict(X_train_sampled_[id * 100 : (id + 1) * 100, :-1]),
+        )
+        y_train_sampled = np.concatenate(
+            [y_train_sampled, y_train],
+            axis=0,
+        )
+        X_train_sampled = np.concatenate([X_train_sampled, X_train], axis=0)
+        # print(y_train)
+        # for i in range(X_train.shape[1]):
+        #     print(pearsonr(et.predict(X_train_sampled[:100]), y_train))
+        base_et = KNeighborsRegressor()
+        base_et.fit(X_train_sampled, y_train_sampled)
+        # print(len(X_train_sampled), len(y_train_sampled))
+        score = r2_score(y_test, base_et.predict(X_test))
+        print("After Distillation", score)
+        r2_scores.append(score)
+    print(np.mean(r2_scores))

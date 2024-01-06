@@ -479,20 +479,10 @@ class R2PACBayesian(Fitness):
         sharpness_type="Semantics",
         sharpness_distribution="Normal",
         sharpness_loss_weight=0.5,
-        weight_of_distance=0,
-        assisted_loss=None,
-        learn_from_teacher=None,
-        norm_type=None,
         **params
     ):
         super().__init__()
-        ### For GAN
-        self.norm_type = norm_type
-        self.learn_from_teacher = learn_from_teacher
-        self.assisted_loss = assisted_loss
-        ###
         self.sharpness_distribution = sharpness_distribution
-        self.weight_of_distance = weight_of_distance
         self.algorithm = algorithm
         if sharpness_type == "Data":
             sharpness_type = SharpnessType.Data
@@ -506,20 +496,17 @@ class R2PACBayesian(Fitness):
         self.sharpness_loss_weight = sharpness_loss_weight
 
     def lazy_init(self):
-        if self.sharpness_distribution in ["GAN", "ASGAN", "ASGAN-R", "ASGAN-F"]:
+        if self.sharpness_distribution in [
+            "GAN",
+            "ASGAN",
+        ]:
             from ctgan import CTGAN
 
             start = time.time()
             if self.sharpness_distribution == "GAN":
                 self.gan = CTGAN()
             elif self.sharpness_distribution == "ASGAN":
-                self.gan = ASGAN(
-                    epochs=500,
-                    assisted_loss=self.assisted_loss,
-                    weight_of_distance=self.weight_of_distance,
-                    learn_from_teacher=self.learn_from_teacher,
-                    norm_type=self.norm_type,
-                )
+                self.gan = ASGAN()
             self.gan.fit(
                 np.concatenate(
                     [self.algorithm.X, self.algorithm.y.reshape(-1, 1)], axis=1
@@ -658,7 +645,7 @@ class R2PACBayesian(Fitness):
             data_generator = partial(self.mixup, dc_mixup=True)
         elif self.sharpness_distribution == "DD-MixUp":
             data_generator = partial(self.mixup, dd_mixup=True)
-        elif self.sharpness_distribution in ["GAN", "ASGAN", "ASGAN-R", "ASGAN-F"]:
+        elif self.sharpness_distribution in ["GAN", "ASGAN"]:
             data_generator = self.GAN
         else:
             raise Exception

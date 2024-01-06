@@ -183,4 +183,4 @@ def ddpm_train(
     # trainer.loss_history.to_csv(os.path.join(parent_dir, "loss.csv"), index=False)
     # torch.save(diffusion._denoise_fn.state_dict(), os.path.join(parent_dir, "model.pt"))
     # torch.save(trainer.ema_model.state_dict(), os.path.join(parent_dir, "model_ema.pt"))
-    return diffusion
+    return diffusion._denoise_fn
