@@ -151,6 +151,7 @@ class ASGAN(CTGAN):
         )
 
         data_dim = self._transformer.output_dimensions
+        self._embedding_dim = data_dim
 
         self._generator = Generator(
             self._embedding_dim + self._data_sampler.dim_cond_vec(),
@@ -233,11 +234,11 @@ class ASGAN(CTGAN):
                             self._batch_size, col[perm], opt[perm], return_index=True
                         )
                         c2 = c1[perm]
+                    real = torch.from_numpy(real.astype("float32")).to(self._device)
+                    fakez += real
 
                     fake = self._generator(fakez)
                     fakeact = self._apply_activate(fake)
-
-                    real = torch.from_numpy(real.astype("float32")).to(self._device)
 
                     if c1 is not None:
                         fake_cat = torch.cat([fakeact, c1], dim=1)
@@ -280,6 +281,12 @@ class ASGAN(CTGAN):
                         optimizerL.step()
 
                 fakez = torch.normal(mean=mean, std=std)
+                c1, m1, col, opt = None, None, None, None
+                real, real_index = self._data_sampler.sample_data(
+                    self._batch_size, col, opt, return_index=True
+                )
+                real = torch.from_numpy(real.astype("float32")).to(self._device)
+                fakez += real
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
 
                 if condvec is None:
@@ -498,13 +505,6 @@ if __name__ == "__main__":
     ctgan = ASGAN(
         epochs=100,
         verbose=True,
-        # learn_from_teacher="Direct",
-        # assisted_loss="Mean",
-        # norm_type="Prediction",
-        learn_from_teacher=None,
-        assisted_loss=None,
-        weight_of_distance=0.1,
-        adaptive_weight=True,
     )
     X_y = np.concatenate([X_train, y_train.reshape(-1, 1)], axis=1)
     ctgan.fit(X_y)
