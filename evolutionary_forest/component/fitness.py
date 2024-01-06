@@ -602,14 +602,14 @@ class R2PACBayesian(Fitness):
         X, y = sampled_data[:, :-1], sampled_data[:, -1]
         if self.sharpness_distribution.endswith("-N"):
             dis = pairwise_distances(self.algorithm.X, X)
-            all_index = dis.argmin(axis=1)
+            all_index = dis.argmax(axis=1)
             return X[all_index], y[all_index]
         if self.sharpness_distribution.endswith("-T"):
             lgbm_predict = self.algorithm.reference_lgbm.predict(X)
             dis = pairwise_distances(
                 self.algorithm.y.reshape(-1, 1), lgbm_predict.reshape(-1, 1)
             )
-            all_index = dis.argmin(axis=1)
+            all_index = dis.argmax(axis=1)
             return X[all_index], y[all_index]
         return X, y
 

@@ -83,22 +83,40 @@ class ASGAN(CTGAN):
         adaptive_weight=False,
         norm_type=None,
     ):
-        super().__init__(
-            embedding_dim,
-            generator_dim,
-            discriminator_dim,
-            generator_lr,
-            generator_decay,
-            discriminator_lr,
-            discriminator_decay,
-            batch_size,
-            discriminator_steps,
-            log_frequency,
-            verbose,
-            epochs,
-            pac,
-            cuda,
+        # replace historical data
+        self._embedding_dim = embedding_dim
+        self._generator_dim = generator_dim
+        self._discriminator_dim = discriminator_dim
+
+        self._generator_lr = generator_lr
+        self._generator_decay = generator_decay
+        self._discriminator_lr = discriminator_lr
+        self._discriminator_decay = discriminator_decay
+
+        self._batch_size = batch_size
+        self._discriminator_steps = discriminator_steps
+        self._log_frequency = log_frequency
+        self._verbose = verbose
+        self._epochs = epochs
+        self.pac = pac
+
+        if not cuda or not torch.cuda.is_available():
+            device = "cpu"
+        elif isinstance(cuda, str):
+            device = cuda
+        else:
+            device = "cuda"
+
+        self._device = torch.device(device)
+
+        self._transformer = None
+        self._data_sampler = None
+        self._generator = None
+
+        self.loss_values = pd.DataFrame(
+            columns=["Epoch", "Generator Loss", "Distriminator Loss"]
         )
+
         self.norm_type = norm_type
         self.learn_from_teacher = learn_from_teacher
         self.assisted_loss = assisted_loss
@@ -120,6 +138,9 @@ class ASGAN(CTGAN):
                 contain the integer indices of the columns. Otherwise, if it is
                 a ``pandas.DataFrame``, this list should contain the column names.
         """
+        if len(train_data) % 10 != 0:
+            # for those datasets cannot use PAC
+            self.pac = 1
         # Train a model
         forest = ExtraTreesRegressor()
         train_data, train_label = train_data, train_data[:, -1]
