@@ -77,11 +77,6 @@ class ASGAN(CTGAN):
         epochs=300,
         pac=10,
         cuda=True,
-        learn_from_teacher=None,
-        assisted_loss=None,
-        weight_of_distance: float = 1,
-        adaptive_weight=False,
-        norm_type=None,
     ):
         # replace historical data
         self._embedding_dim = embedding_dim
@@ -117,11 +112,6 @@ class ASGAN(CTGAN):
             columns=["Epoch", "Generator Loss", "Distriminator Loss"]
         )
 
-        self.norm_type = norm_type
-        self.learn_from_teacher = learn_from_teacher
-        self.assisted_loss = assisted_loss
-        self.weight_of_distance = weight_of_distance
-        self.adaptive_weight = adaptive_weight
         self.ordered_generation = True
         self.noise_std = 0.1
 

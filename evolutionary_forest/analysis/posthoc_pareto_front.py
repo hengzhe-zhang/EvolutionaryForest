@@ -59,7 +59,6 @@ class ParetoFrontTool:
             self.environmental_selection, EnvironmentalSelection
         ):
             pac = R2PACBayesian(self, **self.param)
-            self.pac_bayesian.objective = "R2,MaxSharpness-1-Base"
 
             # Calculate normalization factors
             normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
@@ -116,22 +115,25 @@ class ParetoFrontTool:
                 ParetoFrontTool.sharpness_estimation(self, ind, pac)
                 prediction = self.individual_prediction(test_x, [ind])[0]
 
-                # the mean 1-sharpness across all samples
+                # the sharpness across all samples on test data
                 sharpness_value = ind.fitness_list[1][0]
                 errors = (test_y - prediction) ** 2
                 assert len(errors) == len(test_y)
-                test_error_normalized_by_test = (
-                    np.mean(errors) / normalization_factor_test
-                )
                 """
                 1. Normalized test error (1-Test R2)
                 2. Normalized sharpness values / model size
                 3. Normalized test error, but use same normalization factor as training data
                 """
+                test_error_normalized_by_test = (
+                    np.mean(errors) / normalization_factor_test
+                )
+                sharpness_normalized_by_test = float(
+                    sharpness_value / normalization_factor_test
+                )
                 self.test_pareto_front.append(
                     (
                         test_error_normalized_by_test,
-                        float(sharpness_value / normalization_factor_scaled),
+                        sharpness_normalized_by_test,
                     )
                 )
                 self.size_pareto_front.append(
@@ -162,8 +164,6 @@ class ParetoFrontTool:
             self.training_test_pareto_front = self.training_test_pareto_front[indices]
             self.training_test_pareto_front = self.training_test_pareto_front.tolist()
 
-            # create_scatter_plot(self.training_test_pareto_front)
-
 
 def create_scatter_plot(data, color_map="viridis"):
     data[:, :2] = (data[:, :2] - data[:, :2].min(axis=0)) / (
@@ -181,6 +181,7 @@ def create_scatter_plot(data, color_map="viridis"):
     # Extract x, y, and color values
     x = [point[0] for point in data]
     y = [point[1] for point in data]
+    # Exchange X and Y
     x, y = y, x
     colors = [point[2] for point in data]
 
