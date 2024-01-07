@@ -191,6 +191,7 @@ def pac_bayesian_estimation(
             X_noise = X + np.random.normal(scale=std, size=X.shape)
         elif (
             sharpness_type == SharpnessType.Data
+            or sharpness_type == SharpnessType.DataGP
             or sharpness_type == SharpnessType.DataLGBM
         ):
             # Generate some random noise data
