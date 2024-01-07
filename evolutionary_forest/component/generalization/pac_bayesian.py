@@ -109,6 +109,7 @@ def kl_term_function(m, w, sigma, delta=0.1):
 class SharpnessType(Enum):
     Data = 1
     Semantics = 2
+    DataGP = 3
     DataLGBM = 4
     Parameter = 5
 
@@ -243,6 +244,9 @@ def pac_bayesian_estimation(
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         if sharpness_type == SharpnessType.DataLGBM:
             mse_scores[i] = (reference_model.predict(data).flatten() - y_pred) ** 2
+        elif sharpness_type == SharpnessType.DataGP:
+            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
+            mse_scores[i] = (gp_predictions.flatten() - y_pred) ** 2
         else:
             if configuration.classification:
                 if instance_weights is not None:
