@@ -81,8 +81,8 @@ class ParetoFrontTool:
             self.pareto_front, _ = pareto_front_2d(self.pareto_front)
 
     @staticmethod
-    def sharpness_estimation(self, ind, pac):
-        if not isinstance(self.score_func, R2PACBayesian):
+    def sharpness_estimation(self, ind, pac, force=False):
+        if not isinstance(self.score_func, R2PACBayesian) or force:
             if isinstance(self.score_func, RademacherComplexityR2):
                 ind.rademacher_fitness_list = ind.fitness_list
             pac.assign_complexity(ind, ind.pipe)
@@ -109,14 +109,39 @@ class ParetoFrontTool:
             # Calculate normalization factors
             normalization_factor_test = np.mean((test_y - np.mean(test_y)) ** 2)
             normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
+            # Get scaled test data
+            test_X_scaled = self.x_scaler.transform(test_x)
+            test_y_scaled = self.y_scaler.transform(test_y.reshape(-1, 1)).reshape(-1)
+            normalization_factor_test_scaled = np.mean(
+                (test_y_scaled - np.mean(test_y_scaled)) ** 2
+            )
 
             # Compute sharpness and other metrics for each individual
             for ind in self.pop:
-                ParetoFrontTool.sharpness_estimation(self, ind, pac)
+                test_sharpness_estimation = False
+                if test_sharpness_estimation:
+                    # calculate sharpness based on test data
+                    # backup
+                    back_up_x = self.X
+                    back_up_y = self.y
+                    backup_fitness_list = ind.fitness_list
+                    # estimate sharpness
+                    self.X = test_X_scaled
+                    self.y = test_y_scaled
+                    # the sharpness is calculated based on scaled y
+                    ParetoFrontTool.sharpness_estimation(self, ind, pac, force=True)
+                    # the sharpness across all samples on test data
+                    sharpness_value = ind.fitness_list[1][0]
+                    # restore
+                    ind.fitness_list = backup_fitness_list
+                    self.X = back_up_x
+                    self.y = back_up_y
+                else:
+                    # calculate sharpness based on training data
+                    ParetoFrontTool.sharpness_estimation(self, ind, pac)
+
                 prediction = self.individual_prediction(test_x, [ind])[0]
 
-                # the sharpness across all samples on test data
-                sharpness_value = ind.fitness_list[1][0]
                 errors = (test_y - prediction) ** 2
                 assert len(errors) == len(test_y)
                 """
@@ -127,8 +152,9 @@ class ParetoFrontTool:
                 test_error_normalized_by_test = (
                     np.mean(errors) / normalization_factor_test
                 )
+                # sharpness should be scaled on scaled y because it is calculated on scaled y
                 sharpness_normalized_by_test = float(
-                    sharpness_value / normalization_factor_test
+                    sharpness_value / normalization_factor_test_scaled
                 )
                 self.test_pareto_front.append(
                     (

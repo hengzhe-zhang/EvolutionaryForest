@@ -160,8 +160,10 @@ class NSGA2(EnvironmentalSelection):
         bootstrapping_selection=False,
         first_objective_weight=1,
         max_cluster_point=True,
+        handle_objective_duplication=False,
         **kwargs
     ):
+        self.handle_objective_duplication = handle_objective_duplication
         self.first_objective_weight = first_objective_weight
         self.bootstrapping_selection = bootstrapping_selection
         self.algorithm = algorithm
@@ -176,7 +178,11 @@ class NSGA2(EnvironmentalSelection):
 
     def select(self, population, offspring):
         individuals = population + offspring
+        # remove exactly the same individuals
         individuals = unique(individuals)
+        # remove individuals with the same objective values
+        if self.handle_objective_duplication:
+            individuals = self.objective_space_duplication_removal(individuals)
 
         if self.objective_normalization:
             for ind in individuals:
@@ -364,6 +370,22 @@ class NSGA2(EnvironmentalSelection):
             for ind in individuals:
                 ind.fitness.values = ind.unnormalized_fitness
         return population
+
+    def objective_space_duplication_removal(self, combined_population):
+        # Remove duplicates based on fitness values
+        # Create a dictionary to hold unique individuals
+        unique_individuals = {}
+
+        for individual in combined_population:
+            # Convert fitness values to a hashable type (tuple)
+            fitness = tuple(individual.fitness.values)
+
+            # If this fitness value hasn't been added yet, add the individual to the dictionary
+            if fitness not in unique_individuals:
+                unique_individuals[fitness] = individual
+
+        # Extract the individuals from the dictionary to form a new population without duplicates
+        return list(unique_individuals.values())
 
 
 class SPEA2(NSGA2):
