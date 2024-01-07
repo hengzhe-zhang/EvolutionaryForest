@@ -139,6 +139,7 @@ class ParetoFrontTool:
                 else:
                     # calculate sharpness based on training data
                     ParetoFrontTool.sharpness_estimation(self, ind, pac)
+                    sharpness_value = ind.fitness_list[1][0]
 
                 prediction = self.individual_prediction(test_x, [ind])[0]
 
@@ -152,14 +153,20 @@ class ParetoFrontTool:
                 test_error_normalized_by_test = (
                     np.mean(errors) / normalization_factor_test
                 )
-                # sharpness should be scaled on scaled y because it is calculated on scaled y
-                sharpness_normalized_by_test = float(
-                    sharpness_value / normalization_factor_test_scaled
-                )
+                if test_sharpness_estimation:
+                    # sharpness should be scaled on scaled y because it is calculated on scaled y
+                    sharpness_normalized = float(
+                        sharpness_value / normalization_factor_test_scaled
+                    )
+                else:
+                    # if sharpness is calculated on training data, it should be scaled on training data
+                    sharpness_normalized = float(
+                        sharpness_value / normalization_factor_scaled
+                    )
                 self.test_pareto_front.append(
                     (
                         test_error_normalized_by_test,
-                        sharpness_normalized_by_test,
+                        sharpness_normalized,
                     )
                 )
                 self.size_pareto_front.append(
