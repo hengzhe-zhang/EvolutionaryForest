@@ -318,6 +318,8 @@ def pac_bayesian_estimation(
             objectives.append((max_sharpness, -1 * weight))
         elif s == "MaxSharpness-1":
             # 1-SAM, reduce the maximum sharpness over each sample
+            # include baseline
+            mse_scores = np.vstack((mse_scores, baseline))
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
