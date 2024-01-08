@@ -1,3 +1,4 @@
+import numpy as np
 from scipy.special import expit, logit
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.datasets import load_diabetes
@@ -31,6 +32,25 @@ class SigmoidTransformer(BaseEstimator, TransformerMixin):
         return self.scaler.inverse_transform(X.reshape(-1, 1)).flatten()
 
 
+class BoundedTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, lower_bound=None, upper_bound=None):
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+
+    def fit(self, X, y=None):
+        if self.lower_bound is None:
+            self.lower_bound = np.min(X, axis=0)
+        if self.upper_bound is None:
+            self.upper_bound = np.max(X, axis=0)
+        return self
+
+    def transform(self, X):
+        return X
+
+    def inverse_transform(self, X):
+        return np.clip(X, self.lower_bound, self.upper_bound)
+
+
 if __name__ == "__main__":
     diabetes = load_diabetes()
     X = diabetes.data
@@ -42,7 +62,7 @@ if __name__ == "__main__":
     )
 
     # Create a LinearRegression model
-    lr = SVR()
+    lr = SVR(kernel="poly")
 
     # Fit the model on the training data
     lr.fit(X_train, y_train)
@@ -56,10 +76,11 @@ if __name__ == "__main__":
 
     # Create a SigmoidTransformer instance to transform the target variable y_train
     sigmoid_transformer = SigmoidTransformer()
+    # sigmoid_transformer = BoundedTransformer()
     y_train_transformed = sigmoid_transformer.fit_transform(y_train)
 
     # Fit a LinearRegression model on the transformed target variable
-    linear_regression = SVR()
+    linear_regression = SVR(kernel="poly")
     linear_regression.fit(X_train, y_train_transformed)
 
     # Make predictions on the test data with the transformed target variable
