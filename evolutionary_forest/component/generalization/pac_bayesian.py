@@ -316,10 +316,18 @@ def pac_bayesian_estimation(
             # max over perturbations
             max_sharpness = np.max(sharp_mse - baseline_mse)
             objectives.append((max_sharpness, -1 * weight))
-        elif s == "MaxSharpness-1":
+        elif s == "MaxSharpness-1" or s == "MaxSharpness-1~":
             # 1-SAM, reduce the maximum sharpness over each sample
-            # include baseline
-            mse_scores = np.vstack((mse_scores, baseline))
+            """
+            Warning: Please be caution to include baseline, because sometimes the sharpness is not a full loss
+            Sharpness: Loss after perturbation
+            """
+            assert not (
+                sharpness_type == SharpnessType.DataGP and s == "MaxSharpness-1"
+            )
+            if s == "MaxSharpness-1":
+                # include baseline
+                mse_scores = np.vstack((mse_scores, baseline))
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
             max_sharpness = np.mean(max_sharp)
