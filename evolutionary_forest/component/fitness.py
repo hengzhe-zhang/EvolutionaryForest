@@ -624,6 +624,24 @@ class R2PACBayesian(Fitness):
             size=algorithm.X.shape,
         )
 
+    @lru_cache(maxsize=128)
+    def uniform_noise(self, random_seed=0, std=None):
+        algorithm = self.algorithm
+        return algorithm.X + np.random.uniform(
+            high=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+            * algorithm.X.std(axis=0),
+            size=algorithm.X.shape,
+        )
+
+    @lru_cache(maxsize=128)
+    def laplace_noise(self, random_seed=0, std=None):
+        algorithm = self.algorithm
+        return algorithm.X + np.random.laplace(
+            scale=(self.algorithm.pac_bayesian.perturbation_std if std is None else std)
+            * algorithm.X.std(axis=0),
+            size=algorithm.X.shape,
+        )
+
     def assign_complexity(self, individual, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
@@ -632,21 +650,9 @@ class R2PACBayesian(Fitness):
         if self.sharpness_distribution == "Normal":
             data_generator = self.gaussian_noise
         elif self.sharpness_distribution == "Uniform":
-            data_generator = lambda std=None: algorithm.X + np.random.uniform(
-                high=(
-                    self.algorithm.pac_bayesian.perturbation_std if std is None else std
-                )
-                * algorithm.X.std(axis=0),
-                size=algorithm.X.shape,
-            )
+            data_generator = self.uniform_noise
         elif self.sharpness_distribution == "Laplace":
-            data_generator = lambda std=None: algorithm.X + np.random.laplace(
-                scale=(
-                    self.algorithm.pac_bayesian.perturbation_std if std is None else std
-                )
-                * algorithm.X.std(axis=0),
-                size=algorithm.X.shape,
-            )
+            data_generator = self.laplace_noise
         elif self.sharpness_distribution == "MixUp":
             data_generator = self.mixup
         elif self.sharpness_distribution == "C-MixUp":
