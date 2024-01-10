@@ -285,8 +285,9 @@ class EvaluationConfiguration:
 
 
 class BloatControlConfiguration:
-    def __init__(self, hoist_before_selection=True, **params):
+    def __init__(self, hoist_before_selection=True, lexicase_round=2, **params):
         self.hoist_before_selection = hoist_before_selection
+        self.lexicase_round = lexicase_round
 
 
 class BaseLearnerConfiguration:
