@@ -266,9 +266,6 @@ def pac_bayesian_estimation(
             else:
                 mse_scores[i] = (target_y - y_pred) ** 2
 
-    # Compute the mean and standard deviation of the R2 scores
-    perturbed_mse = np.mean(mse_scores)
-
     objectives = []
     for s in configuration.objective.split(","):
         if "*" in s:
@@ -280,6 +277,8 @@ def pac_bayesian_estimation(
         if s == "R2":
             objectives.append((R2, 1 * weight))
         elif s == "Perturbed-MSE" or s == "MeanSharpness":
+            # Compute the mean
+            perturbed_mse = np.mean(mse_scores)
             # mean-sharpness, which follows PAC-Bayesian
             objectives.append((perturbed_mse, -1 * weight))
         elif s == "MeanSharpness-Base":
