@@ -449,7 +449,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 **bloat_control,
             )
         else:
-            self.bloat_control_configuration = BloatControlConfiguration()
+            self.bloat_control_configuration = BloatControlConfiguration(**params)
         # explicitly to make some genes as introns
         self.intron_threshold = intron_threshold
         self.active_gene_num = active_gene_num
