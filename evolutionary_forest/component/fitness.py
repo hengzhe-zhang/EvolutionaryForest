@@ -451,6 +451,24 @@ class R2Size(Fitness):
         return (-1 * score, tree_size)
 
 
+class R2BootstrapError(Fitness):
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        if self.classification:
+            score = np.mean(calculate_cross_entropy(Y, y_pred))
+        else:
+            score = r2_score(Y, y_pred)
+        bse = []
+        semantic_loss = individual.case_values
+        for _ in range(50):
+            sample_indices = np.arange(len(semantic_loss))
+            bootstrap_indices = np.random.choice(
+                sample_indices, size=sample_indices.shape[0], replace=True
+            )
+            bse.append(semantic_loss[bootstrap_indices].mean())
+        # minimize standard deviation
+        return (-1 * score, np.std(bse))
+
+
 class R2FeatureCount(Fitness):
     def fitness_value(self, individual: MultipleGeneGP, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)

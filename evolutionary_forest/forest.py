@@ -857,6 +857,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = R2GrandComplexity()
         elif isinstance(score_func, str) and score_func == "R2-Size":
             self.score_func = R2Size()
+        elif isinstance(score_func, str) and score_func == "R2-BootstrapError":
+            self.score_func = R2BootstrapError()
         elif isinstance(score_func, str) and score_func == "R2-FeatureCount":
             self.score_func = R2FeatureCount()
         elif isinstance(score_func, str) and score_func == "R2-Size-Scaler":
