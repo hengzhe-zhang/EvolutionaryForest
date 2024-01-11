@@ -6,6 +6,7 @@ from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseF
 
 def doubleLexicase(pop, k, lexicase_round=10, size_selection="Roulette"):
     chosen = []
+    objective_std = np.std([x.fitness.wvalues[1] for x in pop])
     for _ in range(k):
         candidates = selAutomaticEpsilonLexicaseFast(pop, lexicase_round)
         if hasattr(candidates[0], "fitness") and len(candidates[0].fitness.wvalues) > 1:
@@ -17,6 +18,8 @@ def doubleLexicase(pop, k, lexicase_round=10, size_selection="Roulette"):
             size_arr = np.array([len(x) for x in candidates])
         if size_selection == "Softmax":
             # because it's a minimization problem, we need to convert back
+            if objective_std > 0:
+                size_arr /= objective_std
             index = np.random.choice(
                 [i for i in range(0, len(size_arr))], p=softmax(-1 * size_arr)
             )

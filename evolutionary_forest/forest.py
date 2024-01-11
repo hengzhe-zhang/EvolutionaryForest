@@ -1939,7 +1939,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", partial(niche_base_selection, key_objective=1))
         elif self.select == "DoubleLexicase" or self.select == "SoftmaxDLS":
             lexicase_round = self.bloat_control_configuration.lexicase_round
-            size_selection = self.bloat_control.get("size_selection", "Roulette")
+            size_selection = self.bloat_control_configuration.size_selection
             if self.select == "SoftmaxDLS":
                 size_selection = "Softmax"
             toolbox.register(
