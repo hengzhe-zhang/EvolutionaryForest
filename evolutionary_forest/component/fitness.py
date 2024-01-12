@@ -536,13 +536,20 @@ class R2PACBayesian(Fitness):
             if gan_verbose:
                 print("GAN Training Time ", end - start)
 
-    def sample_according_to_probability(self, distance_matrix, indices_a):
+    def sample_according_to_probability(
+        self, distance_matrix, indices_a, inverse_prob=False
+    ):
         """
         Sample indices according to the probability distribution given by the distance matrix.
         """
         prob_distribution = distance_matrix[
             indices_a
         ]  # Extract probabilities for the given indices
+        if inverse_prob:
+            # inverse the probability vector
+            prob_distribution[prob_distribution != 0] = (
+                1 / prob_distribution[prob_distribution != 0]
+            )
         # Normalize to form a valid probability distribution
         prob_distribution = prob_distribution / np.sum(
             prob_distribution, axis=1, keepdims=True
@@ -558,18 +565,32 @@ class R2PACBayesian(Fitness):
     def mixup(
         self,
         random_seed=0,
-        c_mixup=False,
-        d_mixup=False,
-        dd_mixup=False,
-        dc_mixup=False,
+        mixup_strategy="C-MixUp",
     ):
         # MixUp for data augmentation
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
         alpha_beta = self.algorithm.pac_bayesian.perturbation_std
         ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
+        if ratio < 1 - ratio:
+            ratio = 1 - ratio
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if d_mixup:
+        if mixup_strategy == ["I-MixUp", "II-MixUp"]:
+            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            indices_a = np.arange(0, len(algorithm.X))
+            if mixup_strategy == "II-MixUp":
+                indices_b = self.sample_according_to_probability(
+                    distance_matrix, indices_a, inverse_prob=True
+                )
+            else:
+                indices_b = self.sample_according_to_probability(
+                    distance_matrix, indices_a
+                )
+        elif mixup_strategy == "D-MixUp":
+            """
+            1. First, determine the high density and low density data
+            2. Then, determine a random index for cross-over
+            """
             distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
             probability = np.sum(distance_matrix, axis=1)
             probability = probability / np.sum(probability)
@@ -579,33 +600,10 @@ class R2PACBayesian(Fitness):
                 size=len(distance_matrix),
             )
             indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        elif dd_mixup:
-            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
-            probability = np.sum(distance_matrix, axis=1)
-            probability = probability / np.sum(probability)
-            indices_a = np.random.choice(
-                len(distance_matrix),
-                p=probability,
-                size=len(distance_matrix),
-            )
-            indices_b = np.random.choice(
-                len(distance_matrix),
-                p=probability,
-                size=len(distance_matrix),
-            )
-        elif dc_mixup:
-            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
-            probability = np.sum(distance_matrix, axis=1)
-            probability = probability / np.sum(probability)
-            indices_a = np.random.choice(
-                len(distance_matrix),
-                p=probability,
-                size=len(distance_matrix),
-            )
-            indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
-        elif c_mixup:
+        elif mixup_strategy == "C-MixUp":
             # sample indices
             distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            # prefer larger distance
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
         else:
             indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
@@ -671,16 +669,16 @@ class R2PACBayesian(Fitness):
             data_generator = self.uniform_noise
         elif self.sharpness_distribution == "Laplace":
             data_generator = self.laplace_noise
-        elif self.sharpness_distribution == "MixUp":
-            data_generator = self.mixup
-        elif self.sharpness_distribution == "C-MixUp":
-            data_generator = partial(self.mixup, c_mixup=True)
-        elif self.sharpness_distribution == "D-MixUp":
-            data_generator = partial(self.mixup, d_mixup=True)
-        elif self.sharpness_distribution == "DC-MixUp":
-            data_generator = partial(self.mixup, dc_mixup=True)
-        elif self.sharpness_distribution == "DD-MixUp":
-            data_generator = partial(self.mixup, dd_mixup=True)
+        elif (
+            self.sharpness_distribution == "MixUp"
+            or self.sharpness_distribution.endswith("MixUp")
+        ):
+            if self.sharpness_distribution == "MixUp":
+                data_generator = self.mixup
+            else:
+                data_generator = partial(
+                    self.mixup, mixup_strateg=self.sharpness_distribution
+                )
         elif self.sharpness_distribution.startswith(
             "GAN"
         ) or self.sharpness_distribution.startswith("ASGAN"):
