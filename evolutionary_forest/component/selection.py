@@ -113,6 +113,16 @@ def batch_tournament_selection(
 
 
 @njit(cache=True)
+def sample_with_probability(elements, probabilities):
+    cum_probs = np.cumsum(probabilities)
+    random_num = np.random.random()
+    for i in range(len(cum_probs)):
+        if random_num < cum_probs[i]:
+            return elements[i]
+    return elements[-1]  # Fallback, in case of numerical issues
+
+
+@njit(cache=True)
 def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k):
     selected_individuals = []
     avg_cases = 0
@@ -126,7 +136,7 @@ def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k):
 
         while len(cases) > 0 and len(candidates) > 1:
             probability = probability / np.sum(probability)
-            sample_index = np.random.choice(np.arange(len(cases)), p=probability)
+            sample_index = sample_with_probability(np.arange(len(cases)), probability)
             sample_case = cases[sample_index]
             errors_for_this_case = np.array(
                 [case_values[x][sample_case] for x in candidates]
