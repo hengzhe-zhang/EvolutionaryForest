@@ -160,6 +160,7 @@ from evolutionary_forest.component.selection import (
     Selection,
     TournamentLexicase,
     selLexicaseDCD,
+    selAutomaticEpsilonLexicaseCLFast,
 )
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
@@ -1931,6 +1932,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicographicParsimonyPressure)
         elif self.select in ["AutomaticLexicase"] + map_elite_series:
             toolbox.register("select", selAutomaticEpsilonLexicaseFast)
+        elif self.select == "CLLexicase":
+            toolbox.register("select", selAutomaticEpsilonLexicaseCLFast)
         elif self.select == "AutomaticLexicaseFast":
             toolbox.register("select", selAutomaticEpsilonLexicaseFast)
         elif self.select == "Niching":

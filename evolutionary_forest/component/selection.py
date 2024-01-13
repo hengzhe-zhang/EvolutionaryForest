@@ -113,6 +113,62 @@ def batch_tournament_selection(
 
 
 @njit(cache=True)
+def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k):
+    selected_individuals = []
+    avg_cases = 0
+
+    for i in range(k):
+        candidates = list(range(len(case_values)))
+        cases = np.arange(len(case_values[0]))
+
+        probability = np.sum(case_values, axis=1)
+        probability = probability / np.sum(probability)
+
+        while len(cases) > 0 and len(candidates) > 1:
+            sample_index = np.random.choice(np.arange(len(cases)), probability)
+            sample_case = cases[sample_index]
+            errors_for_this_case = np.array(
+                [case_values[x][sample_case] for x in candidates]
+            )
+            median_val = np.median(errors_for_this_case)
+            median_absolute_deviation = np.median(
+                np.array([abs(x - median_val) for x in errors_for_this_case])
+            )
+            if fit_weights > 0:
+                best_val_for_case = np.max(errors_for_this_case)
+                min_val_to_survive = best_val_for_case - median_absolute_deviation
+                candidates = list(
+                    [
+                        x
+                        for x in candidates
+                        if case_values[x][sample_case] >= min_val_to_survive
+                    ]
+                )
+            else:
+                best_val_for_case = np.min(errors_for_this_case)
+                max_val_to_survive = best_val_for_case + median_absolute_deviation
+                candidates = list(
+                    [
+                        x
+                        for x in candidates
+                        if case_values[x][sample_case] <= max_val_to_survive
+                    ]
+                )
+            cases = np.delete(cases, sample_index)
+        avg_cases = (avg_cases * i + (len(case_values[0]) - len(cases))) / (i + 1)
+        selected_individuals.append(np.random.choice(np.array(candidates)))
+    return selected_individuals, avg_cases
+
+
+def selAutomaticEpsilonLexicaseCLFast(individuals, k):
+    fit_weights = individuals[0].fitness.weights[0]
+    case_values = np.array([ind.case_values for ind in individuals])
+    index, avg_cases = selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k)
+    selected_individuals = [individuals[i] for i in index]
+    return selected_individuals
+
+
+@njit(cache=True)
 def selAutomaticEpsilonLexicaseNumba(case_values, fit_weights, k):
     selected_individuals = []
     avg_cases = 0
