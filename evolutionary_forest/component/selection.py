@@ -121,11 +121,12 @@ def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k):
         candidates = list(range(len(case_values)))
         cases = np.arange(len(case_values[0]))
 
-        probability = np.sum(case_values, axis=1)
-        probability = probability / np.sum(probability)
+        probability = np.sum(case_values, axis=0)
+        probability = max(probability) + min(probability) - probability
 
         while len(cases) > 0 and len(candidates) > 1:
-            sample_index = np.random.choice(np.arange(len(cases)), probability)
+            probability = probability / np.sum(probability)
+            sample_index = np.random.choice(np.arange(len(cases)), p=probability)
             sample_case = cases[sample_index]
             errors_for_this_case = np.array(
                 [case_values[x][sample_case] for x in candidates]
@@ -155,6 +156,7 @@ def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k):
                     ]
                 )
             cases = np.delete(cases, sample_index)
+            probability = np.delete(probability, sample_index)
         avg_cases = (avg_cases * i + (len(case_values[0]) - len(cases))) / (i + 1)
         selected_individuals.append(np.random.choice(np.array(candidates)))
     return selected_individuals, avg_cases
