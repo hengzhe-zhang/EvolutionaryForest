@@ -123,7 +123,15 @@ def sample_with_probability(elements, probabilities):
 
 
 @njit(cache=True)
-def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k):
+def median_axis_0(arr):
+    result = np.empty(arr.shape[1])
+    for i in range(arr.shape[1]):
+        result[i] = np.median(arr[:, i])
+    return result
+
+
+@njit(cache=True)
+def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k, inverse=False):
     selected_individuals = []
     avg_cases = 0
 
@@ -131,8 +139,9 @@ def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k):
         candidates = list(range(len(case_values)))
         cases = np.arange(len(case_values[0]))
 
-        probability = np.sum(case_values, axis=0)
-        probability = max(probability) + min(probability) - probability
+        probability = median_axis_0(case_values)
+        if not inverse:
+            probability = max(probability) + min(probability) - probability
 
         while len(cases) > 0 and len(candidates) > 1:
             probability = probability / np.sum(probability)
@@ -176,6 +185,17 @@ def selAutomaticEpsilonLexicaseCLFast(individuals, k):
     fit_weights = individuals[0].fitness.weights[0]
     case_values = np.array([ind.case_values for ind in individuals])
     index, avg_cases = selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k)
+    selected_individuals = [individuals[i] for i in index]
+    return selected_individuals
+
+
+def selAutomaticEpsilonLexicaseInverseCLFast(individuals, k):
+    fit_weights = individuals[0].fitness.weights[0]
+    case_values = np.array([ind.case_values for ind in individuals])
+    # challenging example more probability
+    index, avg_cases = selAutomaticEpsilonLexicaseCLNumba(
+        case_values, fit_weights, k, inverse=True
+    )
     selected_individuals = [individuals[i] for i in index]
     return selected_individuals
 
