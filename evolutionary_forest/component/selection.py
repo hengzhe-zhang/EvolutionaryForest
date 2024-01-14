@@ -131,6 +131,14 @@ def median_axis_0(arr):
 
 
 @njit(cache=True)
+def min_axis_0(arr):
+    result = np.empty(arr.shape[1])
+    for i in range(arr.shape[1]):
+        result[i] = np.min(arr[:, i])
+    return result
+
+
+@njit(cache=True)
 def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k, inverse=False):
     selected_individuals = []
     avg_cases = 0
@@ -139,7 +147,7 @@ def selAutomaticEpsilonLexicaseCLNumba(case_values, fit_weights, k, inverse=Fals
         candidates = list(range(len(case_values)))
         cases = np.arange(len(case_values[0]))
 
-        probability = median_axis_0(case_values)
+        probability = min_axis_0(case_values)
         if not inverse:
             probability = max(probability) + min(probability) - probability
 

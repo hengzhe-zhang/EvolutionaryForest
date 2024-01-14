@@ -1933,9 +1933,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicographicParsimonyPressure)
         elif self.select in ["AutomaticLexicase"] + map_elite_series:
             toolbox.register("select", selAutomaticEpsilonLexicaseFast)
-        elif self.select == "CLLexicase":
+        elif self.select == "CLLexicase+":
             toolbox.register("select", selAutomaticEpsilonLexicaseCLFast)
-        elif self.select == "InverseCLLexicase":
+        elif self.select == "InverseCLLexicase+":
             toolbox.register("select", selAutomaticEpsilonLexicaseInverseCLFast)
         elif self.select == "AutomaticLexicaseFast":
             toolbox.register("select", selAutomaticEpsilonLexicaseFast)
