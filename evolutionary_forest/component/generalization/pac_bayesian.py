@@ -112,6 +112,7 @@ class SharpnessType(Enum):
     DataGP = 3
     DataLGBM = 4
     Parameter = 5
+    DataRealVariance = 6
 
 
 def pac_bayesian_estimation(
@@ -193,6 +194,7 @@ def pac_bayesian_estimation(
             sharpness_type == SharpnessType.Data
             or sharpness_type == SharpnessType.DataGP
             or sharpness_type == SharpnessType.DataLGBM
+            or sharpness_type == SharpnessType.DataRealVariance
         ):
             # Generate some random noise data
             data = data_generator()
@@ -248,6 +250,9 @@ def pac_bayesian_estimation(
         elif sharpness_type == SharpnessType.DataGP:
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
             mse_scores[i] = (gp_predictions.flatten() - y_pred) ** 2
+        elif sharpness_type == SharpnessType.DataRealVariance:
+            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
+            mse_scores[i] = gp_predictions.flatten()
         else:
             if configuration.classification:
                 if instance_weights is not None:
@@ -265,6 +270,11 @@ def pac_bayesian_estimation(
                     )
             else:
                 mse_scores[i] = (target_y - y_pred) ** 2
+    if sharpness_type == SharpnessType.DataRealVariance:
+        # This is the real variance
+        mean_score = np.mean(mse_scores, axis=0)
+        for i in range(len(mse_scores)):
+            mse_scores[i] = (mse_scores[i] - mean_score) ** 2
 
     objectives = []
     for s in configuration.objective.split(","):
