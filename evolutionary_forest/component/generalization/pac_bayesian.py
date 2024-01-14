@@ -197,7 +197,7 @@ def pac_bayesian_estimation(
             or sharpness_type == SharpnessType.DataRealVariance
         ):
             # Generate some random noise data
-            data = data_generator()
+            data = data_generator(random_seed=i)
             if isinstance(data, tuple):
                 # in some cases, function may return both data and label
                 data, target_y = data
