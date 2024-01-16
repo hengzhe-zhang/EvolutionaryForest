@@ -510,6 +510,8 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.DataGP
         if sharpness_type == "DataLGBM":
             sharpness_type = SharpnessType.DataLGBM
+        if sharpness_type == "DataGPSource":
+            sharpness_type = SharpnessType.DataGPSource
         if sharpness_type == "Parameter":
             sharpness_type = SharpnessType.Parameter
         if sharpness_type == "DataRealVariance":
@@ -605,8 +607,8 @@ class R2PACBayesian(Fitness):
         data = algorithm.X[indices_a] * ratio.reshape(-1, 1) + algorithm.X[
             indices_b
         ] * (1 - ratio.reshape(-1, 1))
-        label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * ratio
-        return data, label
+        label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * (1 - ratio)
+        return data, label, ((indices_a, ratio), (indices_b, ratio))
 
     @lru_cache(maxsize=128)
     def GAN(self, random_seed=0):

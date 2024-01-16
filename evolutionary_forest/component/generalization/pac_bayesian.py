@@ -113,6 +113,7 @@ class SharpnessType(Enum):
     DataLGBM = 4
     Parameter = 5
     DataRealVariance = 6
+    DataGPSource = 7
 
 
 def pac_bayesian_estimation(
@@ -195,12 +196,17 @@ def pac_bayesian_estimation(
             or sharpness_type == SharpnessType.DataGP
             or sharpness_type == SharpnessType.DataLGBM
             or sharpness_type == SharpnessType.DataRealVariance
+            or sharpness_type == SharpnessType.DataGPSource
         ):
             # Generate some random noise data
             data = data_generator(random_seed=i)
             if isinstance(data, tuple):
                 # in some cases, function may return both data and label
-                data, target_y = data
+                if len(data) == 3:
+                    source_indices: list[int]
+                    data, target_y, source_indices = data
+                if len(data) == 2:
+                    data, target_y = data
             X_noise = sc.transform(feature_generator(data, random_seed=i))
         elif sharpness_type == SharpnessType.Parameter:
             if configuration.only_hard_instance > 0:
@@ -251,8 +257,15 @@ def pac_bayesian_estimation(
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
             mse_scores[i] = (gp_predictions.flatten() - y_pred) ** 2
         elif sharpness_type == SharpnessType.DataRealVariance:
+            # not recommend
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
             mse_scores[i] = gp_predictions.flatten()
+        elif sharpness_type == SharpnessType.DataGPSource:
+            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
+            target_value = np.zeros_like(y_pred)
+            for index, ratio in source_indices:
+                target_value += y_pred[index] * ratio
+            mse_scores[i] = (gp_predictions.flatten() - target_value) ** 2
         else:
             if configuration.classification:
                 if instance_weights is not None:
