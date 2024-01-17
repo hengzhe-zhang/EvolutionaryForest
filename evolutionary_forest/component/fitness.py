@@ -513,6 +513,10 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.DataLGBM
         if sharpness_type == "DataGPSource":
             sharpness_type = SharpnessType.DataGPSource
+        if sharpness_type == "DataGPHybrid":
+            sharpness_type = SharpnessType.DataGPHybrid
+        if sharpness_type == "MaxMargin":
+            sharpness_type = SharpnessType.MaxMargin
         if sharpness_type == "Parameter":
             sharpness_type = SharpnessType.Parameter
         if sharpness_type == "DataRealVariance":
