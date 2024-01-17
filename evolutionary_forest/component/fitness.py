@@ -497,6 +497,7 @@ class R2PACBayesian(Fitness):
         sharpness_type="Semantics",
         sharpness_distribution="Normal",
         sharpness_loss_weight=0.5,
+        mixup_bandwidth=1,
         **params
     ):
         super().__init__()
@@ -518,6 +519,7 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.DataRealVariance
         self.sharpness_type = sharpness_type
         self.sharpness_loss_weight = sharpness_loss_weight
+        self.mixup_bandwith = mixup_bandwidth
 
     def lazy_init(self):
         if self.sharpness_distribution.startswith(
@@ -579,7 +581,9 @@ class R2PACBayesian(Fitness):
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         if mixup_strategy in ["I-MixUp"]:
             ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
-            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            distance_matrix = rbf_kernel(
+                algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
+            )
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
         elif mixup_strategy == "D-MixUp":
@@ -599,7 +603,9 @@ class R2PACBayesian(Fitness):
             )
         elif mixup_strategy == "C-MixUp":
             # sample indices
-            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            distance_matrix = rbf_kernel(
+                algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
+            )
             # for the distance, the large the near, because it's Gaussian
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
         else:

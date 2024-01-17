@@ -264,8 +264,8 @@ def pac_bayesian_estimation(
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
             target_value = np.zeros_like(y_pred)
             for index, ratio in source_indices:
-                target_value += y_pred[index] * ratio
-            mse_scores[i] = (gp_predictions.flatten() - target_value) ** 2
+                target_value += gp_predictions[index] * ratio
+            mse_scores[i] = (target_value - y_pred) ** 2
         else:
             if configuration.classification:
                 if instance_weights is not None:
