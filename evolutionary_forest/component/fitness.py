@@ -614,7 +614,7 @@ class R2PACBayesian(Fitness):
             indices_b
         ] * (1 - ratio.reshape(-1, 1))
         label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * (1 - ratio)
-        return data, label, ((indices_a, ratio), (indices_b, ratio))
+        return data, label, ((indices_a, ratio), (indices_b, 1 - ratio))
 
     @lru_cache(maxsize=128)
     def GAN(self, random_seed=0):
