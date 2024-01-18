@@ -199,6 +199,7 @@ def pac_bayesian_estimation(
             or sharpness_type == SharpnessType.DataLGBM
             or sharpness_type == SharpnessType.DataRealVariance
             or sharpness_type == SharpnessType.DataGPSource
+            or sharpness_type == SharpnessType.MaxMargin
         ):
             # Generate some random noise data
             data = data_generator(random_seed=i)
@@ -229,10 +230,7 @@ def pac_bayesian_estimation(
                     noise_configuration=configuration.noise_configuration,
                 )
             )
-        elif (
-            sharpness_type == SharpnessType.MaxMargin
-            or sharpness_type == SharpnessType.DataGPHybrid
-        ):
+        elif sharpness_type == SharpnessType.DataGPHybrid:
             data = data_generator(random_seed=i)
             if len(data) == 3:
                 source_indices: list[int]
@@ -277,6 +275,14 @@ def pac_bayesian_estimation(
             for index, ratio in source_indices:
                 target_value += gp_predictions[index] * ratio
             mse_scores[i] = (target_value - y_pred) ** 2
+        elif sharpness_type == SharpnessType.MaxMargin:
+            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
+            target_value = np.zeros_like(y_pred)
+            for index, ratio in source_indices:
+                target_value += gp_predictions[index] * ratio
+            mse_scores[i] = (target_value - y_pred) ** 2 + 2 * (
+                (target_y - target_value) * (target_value - y_pred)
+            )
         elif sharpness_type == SharpnessType.DataGPHybrid:
             # target_y: the synthesized target
             # y_pred: prediction on unmodified data
@@ -284,14 +290,6 @@ def pac_bayesian_estimation(
             for index, ratio in source_indices:
                 target_value += y_pred[index] * ratio
             mse_scores[i] = (target_value - target_y) ** 2
-        elif sharpness_type == SharpnessType.MaxMargin:
-            # y_pred: prediction on unmodified data
-            index_a, _ = source_indices[0]
-            index_b, _ = source_indices[1]
-            weight = configuration.perturbation_std
-            mse_scores[i] = (
-                weight * (y[index_a] - y_pred[index_a]) * (y[index_b] - y_pred[index_b])
-            )
         else:
             if configuration.classification:
                 if instance_weights is not None:
