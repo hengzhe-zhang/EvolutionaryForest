@@ -185,6 +185,8 @@ class ParetoFrontTool:
                         test_error_normalized_by_test,
                     )
                 )
+                del prediction
+                del errors
 
             self.test_pareto_front, _ = pareto_front_2d(self.test_pareto_front)
             self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
