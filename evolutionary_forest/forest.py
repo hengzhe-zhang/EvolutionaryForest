@@ -163,6 +163,7 @@ from evolutionary_forest.component.selection import (
     selLexicaseDCD,
     selAutomaticEpsilonLexicaseCLFast,
     selAutomaticEpsilonLexicaseInverseCLFast,
+    selGroupALS,
 )
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
@@ -1965,6 +1966,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selAutomaticEpsilonLexicaseInverseCLFast)
         elif self.select == "AutomaticLexicaseFast":
             toolbox.register("select", selAutomaticEpsilonLexicaseFast)
+        elif self.select == "GroupALS":
+            toolbox.register("select", selGroupALS)
+        elif self.select == "GroupALS-DCD":
+            toolbox.register(
+                "select", partial(selGroupALS, inner_selection="LexicaseDCD")
+            )
+        elif self.select == "GroupDCD-ALS":
+            toolbox.register("select", partial(selGroupALS, inner_selection="DCD-ALS"))
         elif self.select == "Niching":
             toolbox.register("select", niche_base_selection)
         elif self.select == "Niching+":

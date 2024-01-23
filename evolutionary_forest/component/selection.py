@@ -2,6 +2,7 @@ import copy
 import math
 import random
 from abc import abstractmethod
+from collections import Counter, defaultdict
 from operator import attrgetter
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -288,6 +289,49 @@ def selAutomaticEpsilonLexicaseFast(individuals, k, return_avg_cases=False):
         return selected_individuals, avg_cases
     else:
         return selected_individuals
+
+
+def selGroupALS(individuals, k, inner_selection="Lexicase"):
+    # Group individuals by base_model and count the occurrences
+    count = Counter(ind.base_model for ind in individuals)
+
+    # Create a dictionary to store individuals grouped by base_model
+    groups = defaultdict(list)
+    for ind in individuals:
+        groups[ind.base_model].append(ind)
+
+    # Calculate the total number of individuals
+    total_individuals = sum(count.values())
+
+    # Calculate the probability for each base_model based on group size
+    probabilities = {model: size / total_individuals for model, size in count.items()}
+
+    if inner_selection == "DCD-ALS":
+        k *= 2
+    # Sample k base models based on their probabilities
+    sampled_models = random.choices(
+        list(probabilities.keys()), weights=probabilities.values(), k=k
+    )
+
+    # Randomly select an individual from each of the sampled groups
+    if inner_selection == "Lexicase":
+        selected_individuals = [
+            selAutomaticEpsilonLexicase(groups[model], 1)[0] for model in sampled_models
+        ]
+    elif inner_selection == "LexicaseDCD":
+        selected_individuals = [
+            selLexicaseDCD(groups[model], 1)[0] for model in sampled_models
+        ]
+    elif inner_selection == "DCD-ALS":
+        selected_individuals = [
+            selAutomaticEpsilonLexicase(groups[model], 1)[0] for model in sampled_models
+        ]
+        selected_individuals = [
+            tourn(selected_individuals[i], selected_individuals[i + 1])
+            for i in range(0, len(selected_individuals), 2)
+        ]
+
+    return selected_individuals
 
 
 def selRandomPlus(individuals, k, fit_attr="fitness"):
@@ -1055,6 +1099,22 @@ def selRoulette(individuals, k, fit_attr="fitness"):
     return chosen
 
 
+def tourn(ind1, ind2):
+    if ind1.fitness.dominates(ind2.fitness):
+        return ind1
+    elif ind2.fitness.dominates(ind1.fitness):
+        return ind2
+
+    if ind1.fitness.crowding_dist < ind2.fitness.crowding_dist:
+        return ind2
+    elif ind1.fitness.crowding_dist > ind2.fitness.crowding_dist:
+        return ind1
+
+    if random.random() <= 0.5:
+        return ind1
+    return ind2
+
+
 def selLexicaseDCD(individuals, k):
     if k > len(individuals):
         raise ValueError(
@@ -1065,21 +1125,6 @@ def selLexicaseDCD(individuals, k):
         raise ValueError(
             "selTournamentDCD: k must be divisible by four if k == len(individuals)"
         )
-
-    def tourn(ind1, ind2):
-        if ind1.fitness.dominates(ind2.fitness):
-            return ind1
-        elif ind2.fitness.dominates(ind1.fitness):
-            return ind2
-
-        if ind1.fitness.crowding_dist < ind2.fitness.crowding_dist:
-            return ind2
-        elif ind1.fitness.crowding_dist > ind2.fitness.crowding_dist:
-            return ind1
-
-        if random.random() <= 0.5:
-            return ind1
-        return ind2
 
     individuals_chosen = selAutomaticEpsilonLexicaseFast(individuals, k * 2)
 
