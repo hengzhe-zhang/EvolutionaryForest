@@ -319,10 +319,12 @@ def selGroupALS(individuals, k, inner_selection="Lexicase"):
             selAutomaticEpsilonLexicase(groups[model], 1)[0] for model in sampled_models
         ]
     elif inner_selection == "LexicaseDCD":
+        # DCD on the same type
         selected_individuals = [
             selLexicaseDCD(groups[model], 1)[0] for model in sampled_models
         ]
     elif inner_selection == "DCD-ALS":
+        # DCD on different types
         selected_individuals = [
             selAutomaticEpsilonLexicase(groups[model], 1)[0] for model in sampled_models
         ]
@@ -330,6 +332,8 @@ def selGroupALS(individuals, k, inner_selection="Lexicase"):
             tourn(selected_individuals[i], selected_individuals[i + 1])
             for i in range(0, len(selected_individuals), 2)
         ]
+    else:
+        raise Exception("Unsupported inner selection method")
 
     return selected_individuals
 
