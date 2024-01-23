@@ -2902,7 +2902,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 predicted = self.y_scaler.inverse_transform(
                     predicted.reshape(-1, 1)
                 ).flatten()
-            predictions.append(predicted)
             if (
                 hasattr(self.hof, "ensemble_weight")
                 and len(self.hof.ensemble_weight) > 0
@@ -2911,6 +2910,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 weight_list.append(
                     self.hof.ensemble_weight[individual_to_tuple(individual)]
                 )
+            if len(weight_list) > 0 and not return_std:
+                predictions.append(predicted)
+            else:
+                if len(predictions) == 0:
+                    predictions = [predicted]
+                else:
+                    predictions[0] += predicted
+
+        if len(predictions) != len(self.hof):
+            predictions[0] = predictions[0] / len(self.hof)
+            assert len(predictions) == 1
+
         if self.second_layer == "RF-Routing":
             self.ridge: RandomForestClassifier
             proba = self.ridge.predict_proba(X)
