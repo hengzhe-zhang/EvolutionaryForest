@@ -43,6 +43,7 @@ from sklearn.preprocessing import (
     RobustScaler,
     MaxAbsScaler,
     QuantileTransformer,
+    SplineTransformer,
 )
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
@@ -181,7 +182,7 @@ from evolutionary_forest.model.PLTree import (
     RandomWeightRidge,
 )
 from evolutionary_forest.model.RBFN import RBFN
-from evolutionary_forest.model.SafeRidgeCV import BoundedRidgeCV
+from evolutionary_forest.model.SafeRidgeCV import BoundedRidgeCV, SplineRidgeCV
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.preprocess_utils import (
@@ -569,6 +570,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.normalize = normalize
         if normalize is True:
             self.x_scaler = StandardScaler()
+            self.y_scaler = StandardScaler()
+        elif normalize == "Spline":
+            self.x_scaler = Pipeline(
+                [
+                    ("StandardScaler", StandardScaler()),
+                    ("Spline", SplineTransformer()),
+                ]
+            )
             self.y_scaler = StandardScaler()
         elif normalize == "Sigmoid":
             self.x_scaler = StandardScaler()
@@ -1484,6 +1493,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ridge = eval(self.ridge_alphas)
             ridge_model = RidgeCV(
                 alphas=ridge, store_cv_values=True, scoring=make_scorer(r2_score)
+            )
+        elif self.base_learner == "SplineRidgeCV":
+            ridge_model = SplineRidgeCV(
+                store_cv_values=True, scoring=make_scorer(r2_score)
             )
         elif self.base_learner == "Bounded-RidgeCV":
             ridge_model = BoundedRidgeCV(
