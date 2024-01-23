@@ -150,11 +150,13 @@ def get_differentiable_functions(p):
             2,
         ),  # Protected Division for handling divide-by-zero errors
         "AQ": (analytical_quotient_torch, 2),
+        "ALog": (analytical_quotient_torch, 2),
         # Analytical Quotient for symbolic differentiation
         "Sqrt": (protect_sqrt_torch, 1),
         # Protected square root for handling negative values
         "Sin": (torch.sin, 1),  # Sine function
         "Cos": (torch.cos, 1),  # Cosine function
+        "Square": (torch.square, 1),  # Square function
         "Max": (torch.maximum, 2),  # Maximum function
         "Min": (torch.minimum, 2),  # Minimum function
         "Neg": (

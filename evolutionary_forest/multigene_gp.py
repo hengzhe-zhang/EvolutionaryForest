@@ -1290,12 +1290,15 @@ def result_post_process(result, data, original_features):
 
 
 def quick_fill(result, data: np.ndarray):
+    # check whether tensor imputation or numpy imputation
     include_tensor = False
-    for i in range(len(result)):
-        yp = result[i]
+    for yp in result:
         if isinstance(yp, torch.Tensor):
             include_tensor = True
+            break
 
+    for i in range(len(result)):
+        yp = result[i]
         if not isinstance(yp, (np.ndarray, torch.Tensor)):
             yp = np.full(len(data), 0)
         elif yp.size == 1:
@@ -1308,7 +1311,10 @@ def quick_fill(result, data: np.ndarray):
         result = np.nan_to_num(result, posinf=0, neginf=0)
     else:
         for i in range(len(result)):
+            if isinstance(result[i], np.ndarray):
+                result[i] = torch.from_numpy(result[i])
             result[i] = torch.nan_to_num(result[i], posinf=0, neginf=0)
+            assert isinstance(result[i], torch.Tensor)
     return result
 
 

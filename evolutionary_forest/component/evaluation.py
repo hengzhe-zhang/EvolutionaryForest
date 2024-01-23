@@ -198,10 +198,19 @@ def calculate_score(args):
             # extract coefficients from linear model
             weights = ridge.coef_
             bias = ridge.intercept_
-            weights_torch = torch.tensor(
-                weights, dtype=torch.float32, requires_grad=True
-            )
-            bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
+            optimize_lr_weights = True
+            if not optimize_lr_weights:
+                weights_torch = torch.tensor(
+                    weights, dtype=torch.float32, requires_grad=False
+                )
+                bias_torch = torch.tensor(
+                    bias, dtype=torch.float32, requires_grad=False
+                )
+            else:
+                weights_torch = torch.tensor(
+                    weights, dtype=torch.float32, requires_grad=True
+                )
+                bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
 
             mean = Yp.mean(dim=0)
             std = Yp.std(dim=0)
@@ -226,19 +235,21 @@ def calculate_score(args):
             # assert np.all(np.isnan(check)) or check[0] > 0.99, \
             #     f"Predictions do not match, {check}"
 
-            for v in [weights_torch, bias_torch] + variables:
+            if optimize_lr_weights:
+                torch_variables = [weights_torch, bias_torch] + variables
+            else:
+                torch_variables = variables
+            for v in torch_variables:
                 assert v.requires_grad is True
             if len(variables) >= 1:
                 if configuration.gradient_optimizer == "GD":
                     optimizer = optim.SGD(
-                        [weights_torch, bias_torch] + variables,
+                        torch_variables,
                         lr=0.1,
                         weight_decay=1e-5,
                     )
                 elif configuration.gradient_optimizer == "GD-1":
-                    optimizer = optim.SGD(
-                        [weights_torch, bias_torch] + variables, lr=1, weight_decay=1e-5
-                    )
+                    optimizer = optim.SGD(torch_variables, lr=1, weight_decay=1e-5)
                 else:
                     raise Exception()
                 loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())
@@ -649,9 +660,6 @@ def multi_tree_evaluation(
         # result = np.reshape(result[:, -1], (-1, 1))
     if gradient_descent:
         result = quick_fill(result, data)
-        for i in range(len(result)):
-            if isinstance(result[i], np.ndarray):
-                result[i] = torch.from_numpy(result[i])
         result = torch.stack(tuple(result)).T
 
     if not need_hash:

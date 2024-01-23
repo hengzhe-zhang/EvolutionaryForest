@@ -1870,7 +1870,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
             )
 
-    def mutation_expression_function(self, toolbox):
+    def mutation_expression_function(self, toolbox: TypedToolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
             # custom defined height
             min_, max_ = self.mutation_configuration.mutation_expr_height.split("-")
