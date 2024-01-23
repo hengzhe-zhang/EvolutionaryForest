@@ -695,6 +695,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_model_list = "Balanced-DT,Balanced-LogisticRegression"
         elif self.base_learner == "DT-LGBM":
             self.base_model_list = "Random-DT,LightGBM-Stump,DT"
+        elif self.base_learner == "Spline-Ridge":
+            self.base_model_list = "SplineRidgeCV,RidgeCV"
+        elif self.base_learner == "Spline-Ridge-DT":
+            self.base_model_list = "SplineRidgeCV,RidgeCV,DT"
+        elif self.base_learner == "Spline-Ridge-DT-KNN":
+            self.base_model_list = "SplineRidgeCV,RidgeCV,DT,KNN"
         else:
             self.base_model_list = None
 
@@ -954,6 +960,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "Balanced-RDT-LR",
             "DT-LGBM",
             "RDT~LightGBM-Stump",
+            "Spline-Ridge",
+            "Spline-Ridge-DT",
+            "Spline-Ridge-DT-KNN",
         ] or isinstance(self.base_learner, list):
             pipe = self.get_base_model(base_model=individual.base_model)
         elif self.base_learner == "Dynamic-LogisticRegression":
@@ -1474,7 +1483,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "PL-Tree":
             ridge_model = LinearTreeRegressor(base_estimator=LinearRegression())
-        elif self.base_learner == "RidgeCV" or self.base_learner == "RidgeCV-ENet":
+        elif (
+            self.base_learner == "RidgeCV"
+            or self.base_learner == "RidgeCV-ENet"
+            or base_model == "RidgeCV"
+        ):
             # from sklearn.linear_model._coordinate_descent import _alpha_grid
             # alphas = _alpha_grid(self.X, self.y, normalize=True)
             if self.ridge_alphas is None:
@@ -1494,7 +1507,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = RidgeCV(
                 alphas=ridge, store_cv_values=True, scoring=make_scorer(r2_score)
             )
-        elif self.base_learner == "SplineRidgeCV":
+        elif self.base_learner == "SplineRidgeCV" or base_model == "SplineRidgeCV":
             ridge_model = SplineRidgeCV(
                 store_cv_values=True, scoring=make_scorer(r2_score)
             )
@@ -1567,7 +1580,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = RBFN(min(self.X.shape[0], 64))
         elif self.base_learner == "SVR":
             ridge_model = SVR()
-        elif self.base_learner == "KNN":
+        elif self.base_learner == "KNN" or base_model == "KNN":
             ridge_model = KNeighborsRegressor(weights="uniform")
         elif self.base_learner == "KNN-3":
             ridge_model = KNeighborsRegressor(n_neighbors=3, weights="uniform")
