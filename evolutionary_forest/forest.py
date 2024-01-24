@@ -164,6 +164,7 @@ from evolutionary_forest.component.selection import (
     selAutomaticEpsilonLexicaseCLFast,
     selAutomaticEpsilonLexicaseInverseCLFast,
     selGroupALS,
+    selLexicaseTournament,
 )
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
@@ -1927,6 +1928,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", self.select.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
+        elif self.select == "LexicaseTournament":
+            toolbox.register("select", selLexicaseTournament)
         elif self.select == "Tournament":
             toolbox.register(
                 "select", tools.selTournament, tournsize=self.param["tournament_size"]

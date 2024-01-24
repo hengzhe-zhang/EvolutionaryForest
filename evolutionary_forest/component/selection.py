@@ -1138,6 +1138,28 @@ def selLexicaseDCD(individuals, k):
     return chosen
 
 
+def selLexicaseTournament(individuals, k):
+    # First lexicase, then tournament with a size of 2
+    individuals_chosen = selAutomaticEpsilonLexicaseFast(individuals, k * 2)
+
+    chosen = []
+    for i in range(0, k * 2, 2):
+        # larger is better
+        if (
+            individuals_chosen[i].fitness.wvalues
+            > individuals_chosen[i + 1].fitness.wvalues
+        ):
+            chosen.append((individuals_chosen[i]))
+        else:
+            chosen.append((individuals_chosen[i + 1]))
+            assert (
+                individuals_chosen[i].fitness.wvalues
+                <= individuals_chosen[i + 1].fitness.wvalues
+            )
+    assert len(chosen) == k
+    return chosen
+
+
 class MockIndividual:
     def __init__(self, case_values):
         self.case_values = case_values
