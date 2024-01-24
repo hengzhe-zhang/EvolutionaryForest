@@ -2952,6 +2952,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     predictions = [predicted]
                 else:
                     predictions[0] += predicted
+                del predicted
 
         if len(predictions) != len(self.hof):
             predictions[0] = predictions[0] / len(self.hof)
