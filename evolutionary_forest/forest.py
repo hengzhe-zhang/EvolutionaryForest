@@ -565,7 +565,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.interleaving_period = interleaving_period
         self.test_data = None
 
-        if params.get("record_training_data", False):
+        if params.get("record_training_data", False) and self.test_fun != None:
             self.test_fun[0].regr = self
             self.test_fun[1].regr = self
 
