@@ -2,7 +2,7 @@ import enum
 import logging
 import random
 import time
-from functools import lru_cache
+from functools import lru_cache, wraps
 from typing import List, Tuple
 
 import dill
@@ -569,10 +569,51 @@ def get_cv_splitter(base_model, cv, random_state=0):
     return cv
 
 
+def split_and_combine_data_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Identifying the 'data' argument by its keyword or position
+        data_arg_position = 2  # typically the third argument (indexing from 0)
+        data = kwargs.get(
+            "data", args[data_arg_position] if len(args) > data_arg_position else None
+        )
+
+        # Check if data needs to be split
+        step_size = 50000
+        if data is not None and len(data) > step_size:
+            # Split the data into slices of 50000 elements
+            slices = [data[i : i + step_size] for i in range(0, len(data), step_size)]
+
+            # Process each slice and collect results
+            results = []
+            for slice_data in slices:
+                if "data" in kwargs:
+                    kwargs["data"] = slice_data
+                else:
+                    args = list(args)
+                    args[data_arg_position] = slice_data
+                    args = tuple(args)
+
+                result = func(*args, **kwargs)
+                results.append(result)
+                assert isinstance(result, np.ndarray)
+
+            # Combine the results from all slices
+            combined_results = np.concatenate(results)
+            assert len(combined_results) == len(data)
+            return combined_results
+        else:
+            # Call the original function if no slicing is required
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
+@split_and_combine_data_decorator
 def multi_tree_evaluation(
     func: List[PrimitiveTree],
     pset,
-    data,
+    data: np.ndarray,
     original_features=False,
     sklearn_format=False,
     need_hash=False,
