@@ -207,6 +207,7 @@ def pac_bayesian_estimation(
                 # in some cases, function may return both data and label
                 if len(data) == 3:
                     source_indices: list[int]
+                    # target y may represent mix-up generated label
                     data, target_y, source_indices = data
                 if len(data) == 2:
                     data, target_y = data
@@ -270,6 +271,7 @@ def pac_bayesian_estimation(
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
             mse_scores[i] = gp_predictions.flatten()
         elif sharpness_type == SharpnessType.DataGPSource:
+            # gp_predictions: prediction on clean data
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
             target_value = np.zeros_like(y_pred)
             for index, ratio in source_indices:
@@ -285,7 +287,7 @@ def pac_bayesian_estimation(
             )
         elif sharpness_type == SharpnessType.DataGPHybrid:
             # target_y: the synthesized target
-            # y_pred: prediction on unmodified data
+            # y_pred: prediction on noise data
             target_value = np.zeros_like(y_pred)
             for index, ratio in source_indices:
                 target_value += y_pred[index] * ratio
