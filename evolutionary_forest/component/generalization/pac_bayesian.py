@@ -325,7 +325,7 @@ def pac_bayesian_estimation(
 
         if s == "R2":
             objectives.append((R2, 1 * weight))
-        elif s == "Perturbed-MSE" or s == "MeanSharpness":
+        elif s == "Perturbed-MSE" or s == "MeanSharpness" or s == "MeanVariance":
             # Compute the mean
             perturbed_mse = np.mean(mse_scores)
             # mean-sharpness, which follows PAC-Bayesian

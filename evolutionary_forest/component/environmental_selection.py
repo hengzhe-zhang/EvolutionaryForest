@@ -316,7 +316,7 @@ class NSGA2(EnvironmentalSelection):
                 ind.pipe.fit(concatenate_X, concatenate_y)
             else:
                 first_pareto_front = sortNondominated(population, len(population))[0]
-                if self.knee_point == "SAM":
+                if self.knee_point == "SAM" or self.knee_point == "SUM":
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
                         for ind in first_pareto_front:

@@ -826,6 +826,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.irrelevant_features = 0
 
     def score_function_controller(self, params, score_func):
+        if score_func == "R2-VarianceReduction":
+            score_func = "R2-PAC-Bayesian"
         if isinstance(score_func, str) and score_func == "R2-Rademacher-Complexity":
             self.score_func = RademacherComplexityR2(self, **params)
         elif (
