@@ -49,13 +49,13 @@ est = EvolutionaryForestRegressor(
     number_of_invokes=1,
     constant_type="Float",
     bounded_prediction=True,
-    # PAC-Bayesian parameters
-    score_func="R2-VarianceReduction",
-    sharpness_type="Parameter",
-    objective_normalization=True,
-    perturbation_std=0.25,
     gene_deletion_rate=0.5,
     gene_addition_rate=0.5,
+    sharpness_type="Parameter",
+    # Variance Reduction parameters
+    score_func="R2-VarianceReduction",
+    objective_normalization=True,
+    perturbation_std=0.25,
     environmental_selection="NSGA2",
     objective="R2,MeanVariance",
     knee_point="SUM",
