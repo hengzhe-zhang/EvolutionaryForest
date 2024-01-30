@@ -57,7 +57,7 @@ est = EvolutionaryForestRegressor(
     gene_deletion_rate=0.5,
     gene_addition_rate=0.5,
     environmental_selection="NSGA2",
-    objective="R2,MeanSharpness",
+    objective="R2,MeanVariance",
     knee_point="SUM",
 )
 
