@@ -581,9 +581,12 @@ class R2PACBayesian(Fitness):
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
         alpha_beta = self.algorithm.pac_bayesian.perturbation_std
-        ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
+        if mixup_strategy == "IF-MixUp":
+            ratio = alpha_beta
+        else:
+            ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if mixup_strategy in ["I-MixUp"]:
+        if mixup_strategy in ["I-MixUp", "IF-MixUp"]:
             ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
             distance_matrix = rbf_kernel(
                 algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
