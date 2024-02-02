@@ -581,18 +581,26 @@ class R2PACBayesian(Fitness):
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
         alpha_beta = self.algorithm.pac_bayesian.perturbation_std
-        if mixup_strategy == "IF-MixUp":
+        distance_matrix = rbf_kernel(
+            algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
+        )
+        if alpha_beta == "Adaptive":
+            ratio = None
+        elif mixup_strategy == "IF-MixUp":
             ratio = alpha_beta
         else:
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         if mixup_strategy in ["I-MixUp", "IF-MixUp"]:
-            ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
-            distance_matrix = rbf_kernel(
-                algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
-            )
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
+            if alpha_beta == "Adaptive":
+                ratio = (
+                    0.5
+                    + 0.5
+                    * distance_matrix[indices_a][range(0, len(indices_a)), indices_b]
+                )
+            ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
         elif mixup_strategy == "D-MixUp":
             """
             1. First, determine the high density and low density data
