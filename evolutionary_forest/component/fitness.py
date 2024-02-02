@@ -581,6 +581,7 @@ class R2PACBayesian(Fitness):
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
         alpha_beta = self.algorithm.pac_bayesian.perturbation_std
+        # For this distance matreix, the larger, the near
         distance_matrix = rbf_kernel(
             algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
         )
@@ -596,8 +597,8 @@ class R2PACBayesian(Fitness):
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
             if alpha_beta == "Adaptive":
                 ratio = (
-                    0.5
-                    + 0.5
+                    1
+                    - 0.5
                     * distance_matrix[indices_a][range(0, len(indices_a)), indices_b]
                 )
             ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
