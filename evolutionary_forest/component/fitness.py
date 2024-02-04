@@ -1,3 +1,4 @@
+import random
 import time
 from abc import abstractmethod
 from functools import partial, lru_cache
@@ -572,15 +573,30 @@ class R2PACBayesian(Fitness):
         return indices_b
 
     @lru_cache(maxsize=128)
+    def mixup_gaussian(self, random_seed=0):
+        if random.random() < 0.5:
+            return self.mixup(random_seed=random_seed, mixup_strategy="I-MixUp")
+        else:
+            return self.gaussian_noise(
+                random_seed=random_seed,
+                std=self.algorithm.pac_bayesian.perturbation_std,
+            )
+
+    @lru_cache(maxsize=128)
     def mixup(
         self,
         random_seed=0,
         mixup_strategy="C-MixUp",
+        alpha_beta=10,
     ):
         # MixUp for data augmentation
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
-        alpha_beta = self.algorithm.pac_bayesian.perturbation_std
+        alpha_beta = (
+            self.algorithm.pac_bayesian.perturbation_std
+            if alpha_beta is None
+            else alpha_beta
+        )
         # For this distance matreix, the larger, the near
         distance_matrix = rbf_kernel(
             algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
@@ -688,6 +704,9 @@ class R2PACBayesian(Fitness):
             data_generator = self.uniform_noise
         elif self.sharpness_distribution == "Laplace":
             data_generator = self.laplace_noise
+        elif self.sharpness_distribution == "NormalMixUp":
+            # An ensemble of Gaussian noise and MixUp
+            data_generator = self.mixup_gaussian
         elif (
             self.sharpness_distribution == "MixUp"
             or self.sharpness_distribution.endswith("MixUp")
