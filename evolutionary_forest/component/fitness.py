@@ -587,12 +587,12 @@ class R2PACBayesian(Fitness):
         )
         if alpha_beta == "Adaptive":
             ratio = None
-        elif mixup_strategy == "IF-MixUp":
-            ratio = alpha_beta
+        elif isinstance(alpha_beta, str) and alpha_beta.startswith("Fix"):
+            ratio = float(alpha_beta.split("-")[1])
         else:
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if mixup_strategy in ["I-MixUp", "IF-MixUp"]:
+        if mixup_strategy in ["I-MixUp"]:
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
             if alpha_beta == "Adaptive":
