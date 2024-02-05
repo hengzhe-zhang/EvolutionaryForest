@@ -608,7 +608,7 @@ class R2PACBayesian(Fitness):
         else:
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if mixup_strategy in ["I-MixUp"]:
+        if mixup_strategy in ["I-MixUp", "I-MixUp+"]:
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
             if alpha_beta == "Adaptive":
@@ -617,7 +617,8 @@ class R2PACBayesian(Fitness):
                     - 0.5
                     * distance_matrix[indices_a][range(0, len(indices_a)), indices_b]
                 )
-            ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
+            if mixup_strategy == "I-MixUp":
+                ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
         elif mixup_strategy == "D-MixUp":
             """
             1. First, determine the high density and low density data
