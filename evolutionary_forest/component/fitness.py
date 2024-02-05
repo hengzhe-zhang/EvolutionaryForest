@@ -574,13 +574,14 @@ class R2PACBayesian(Fitness):
 
     @lru_cache(maxsize=128)
     def mixup_gaussian(self, random_seed=0):
-        if random.random() < 0.5:
-            return self.mixup(random_seed=random_seed, mixup_strategy="I-MixUp")
-        else:
-            return self.gaussian_noise(
-                random_seed=random_seed,
-                std=self.algorithm.pac_bayesian.perturbation_std,
-            )
+        data, label, ratio = self.mixup(
+            random_seed=random_seed, mixup_strategy="I-MixUp", alpha_beta=10
+        )
+        data = data + np.random.normal(
+            scale=self.algorithm.pac_bayesian.perturbation_std * data.X.std(axis=0),
+            size=data.X.shape,
+        )
+        return data, label, ratio
 
     @lru_cache(maxsize=128)
     def mixup(
@@ -705,7 +706,7 @@ class R2PACBayesian(Fitness):
             data_generator = self.uniform_noise
         elif self.sharpness_distribution == "Laplace":
             data_generator = self.laplace_noise
-        elif self.sharpness_distribution == "NormalMixUp":
+        elif self.sharpness_distribution == "GaussianMixUp":
             # An ensemble of Gaussian noise and MixUp
             data_generator = self.mixup_gaussian
         elif (
