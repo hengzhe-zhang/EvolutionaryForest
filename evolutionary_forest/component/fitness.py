@@ -587,7 +587,7 @@ class R2PACBayesian(Fitness):
         self,
         random_seed=0,
         mixup_strategy="C-MixUp",
-        alpha_beta=10,
+        alpha_beta=None,
     ):
         # MixUp for data augmentation
         algorithm = self.algorithm
