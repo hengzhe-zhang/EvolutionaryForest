@@ -578,8 +578,8 @@ class R2PACBayesian(Fitness):
             random_seed=random_seed, mixup_strategy="I-MixUp", alpha_beta=10
         )
         data = data + np.random.normal(
-            scale=self.algorithm.pac_bayesian.perturbation_std * data.X.std(axis=0),
-            size=data.X.shape,
+            scale=self.algorithm.pac_bayesian.perturbation_std * data.std(axis=0),
+            size=data.shape,
         )
         return data, label, ratio
 
