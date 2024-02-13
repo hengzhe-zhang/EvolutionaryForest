@@ -29,7 +29,7 @@ class NoiseConfiguration:
         """
         Args:
             noise_type (str, optional): The type of noise to use. Default is 'Normal'.
-            noise_to_terminal (bool, optional): Whether to apply noise to the terminal layer. Default is False.
+            noise_to_terminal (bool, optional): Whether to apply noise to the terminal layer. Default is True.
             noise_normalization (str, optional): The type of noise normalization to use. Default is 'Instance'.
             layer_adaptive (bool, optional): Whether to apply different noise to different layers. Default is False.
         """
