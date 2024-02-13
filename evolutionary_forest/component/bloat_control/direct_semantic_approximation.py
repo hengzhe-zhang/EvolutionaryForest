@@ -1,4 +1,5 @@
 import random
+from typing import TYPE_CHECKING
 
 import numpy as np
 from deap.gp import Terminal
@@ -6,9 +7,12 @@ from deap.gp import Terminal
 from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.multigene_gp import quick_fill, MultipleGeneGP
 
+if TYPE_CHECKING:
+    import evolutionary_forest.forest as forest
+
 
 class DSA:
-    def __init__(self, algorithm: "EvolutionaryForestRegressor", **kwargs):
+    def __init__(self, algorithm: "forest.EvolutionaryForestRegressor", **kwargs):
         self.algorithm = algorithm
 
     def subtree_semantic_approximation(self, *population: MultipleGeneGP):
