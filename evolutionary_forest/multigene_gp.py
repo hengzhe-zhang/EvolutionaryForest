@@ -440,7 +440,7 @@ def gene_mutation(gene, pset, expr, tree_generation, configuration):
     return genes
 
 
-def multiple_gene_evaluation(compiled_genes, x):
+def simple_multi_tree_evaluation(compiled_genes, x):
     result = []
     for gene in compiled_genes:
         result.append(gene(*x))
@@ -1275,7 +1275,7 @@ def staticLimit_multiple_gene(
 
 
 def result_calculation(func, data, original_features):
-    result = multiple_gene_evaluation(func, data.T)
+    result = simple_multi_tree_evaluation(func, data.T)
     result = result_post_process(result, data, original_features)
     return result
 

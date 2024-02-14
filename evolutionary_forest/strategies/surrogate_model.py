@@ -73,24 +73,23 @@ class SurrogateModel:
             KNeighborsClassifier(n_neighbors=5, metric=correlation), data, label, cv=5
         )
 
-    def get_features(self, sample, individuals, flatten=False):
+    def get_sampled_semantics(self, sample, individuals, flatten=False):
         algorithm = self.algorithm
-        all_Yp = []
+        all_features = []
         for individual in individuals:
             func = algorithm.toolbox.compile(individual)
-            Yp = result_calculation(
+            constructed_feature = result_calculation(
                 func, algorithm.X[sample], algorithm.original_features
             )
             if flatten:
-                all_Yp.append(Yp.flatten())
-                # all_Yp.append((cross_val_predict(LinearRegression(), Yp, algorithm.y[sample]) - algorithm.y[sample]) ** 2)
+                all_features.append(constructed_feature.flatten())
             else:
-                all_Yp.append(Yp)
-        return np.array(all_Yp)
+                all_features.append(constructed_feature)
+        return np.array(all_features)
 
     def pre_selection_individuals(self, parents, offspring, pop_size):
         algorithm = self.algorithm
-        predicted_values = algorithm.pre_selection_score(offspring, parents)
+        predicted_values = self.pre_selection_score(offspring, parents)
         final_offspring = []
         if algorithm.pre_selection == "model-size-medium":
             start_index = pop_size // 2
@@ -107,17 +106,15 @@ class SurrogateModel:
         algorithm = self.algorithm
         # larger is better
         if algorithm.pre_selection == "surrogate-model":
-            predicted_values = algorithm.calculate_score_by_surrogate_model(
+            predicted_values = self.calculate_score_by_surrogate_model(
                 offspring, parents
             )
         elif algorithm.pre_selection == "simple-task":
-            predicted_values = algorithm.calculate_score_by_statistical_methods(
+            predicted_values = self.calculate_score_by_statistical_methods(
                 offspring, parents
             )
         elif algorithm.pre_selection in ["model-size", "model-size-medium"]:
-            predicted_values = algorithm.calculate_score_by_model_size(
-                offspring, parents
-            )
+            predicted_values = self.calculate_score_by_model_size(offspring, parents)
         elif algorithm.pre_selection == "diversity":
             plot = False
             # Get the most hard 20 data points
@@ -183,7 +180,7 @@ class SurrogateModel:
         algorithm = self.algorithm
         all_values = np.array([p.case_values for p in parents])
         sample = np.sum(all_values, axis=0).argsort()[-50:]
-        offspring_features = algorithm.get_features(sample, offspring, False)
+        offspring_features = self.get_sampled_semantics(sample, offspring, False)
         all_score = []
         for f in offspring_features:
             pipe = algorithm.get_base_model()
@@ -197,19 +194,15 @@ class SurrogateModel:
 
         sample = np.random.randint(0, len(algorithm.y), size=10)
         # select individuals based on a surrogate model
-        parent_features = algorithm.get_features(
+        parent_features = self.get_sampled_semantics(
             sample, chain(parents, algorithm.hof), True
         )
         target = np.array([p.fitness.wvalues[0] for p in chain(parents, algorithm.hof)])
 
         surrogate_model = XGBRegressor(n_jobs=1, objective="rank:pairwise")
         surrogate_model.fit(parent_features, target)
-        offspring_features = algorithm.get_features(sample, offspring, True)
+        offspring_features = self.get_sampled_semantics(sample, offspring, True)
         predicted_values = surrogate_model.predict(offspring_features)
-
-        # scoring = make_scorer(spearman)
-        # print('CV', np.mean(cross_val_score(surrogate_model, parent_features, target, cv=3, scoring=scoring)))
-        # print('CV', np.mean(cross_val_score(surrogate_model, parent_features, target, cv=3)))
         return predicted_values
 
     def get_genotype_features(self, pop, get_label=False):
@@ -258,7 +251,7 @@ class SurrogateModel:
     def surrogate_model_construction(self, pop):
         algorithm = self.algorithm
         # construct a surrogate model
-        data, label = algorithm.get_genotype_features(pop, get_label=True)
+        data, label = self.get_genotype_features(pop, get_label=True)
         surrogate_model = ExtraTreesRegressor(n_estimators=100, n_jobs=1)
         surrogate_model.fit(data, label)
         return surrogate_model
