@@ -211,6 +211,10 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
+from evolutionary_forest.utility.population_analysis import (
+    statistical_difference_between_populations,
+    check_number_of_unique_tree_semantics,
+)
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -365,7 +369,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         outlier_detection=False,  # Whether to perform outlier detection
         semantic_repair=0,  # Semantic repair method
         dynamic_reduction=0,  # Dynamic reduction strategy
-        active_gene_num=0,  # Number of active genes in MGP
+        num_of_active_trees=0,  # Number of active genes in MGP
         intron_threshold=0,  # Threshold for identifying introns in MGP
         force_sr_tree=False,  # Whether to force to use SR-Tree
         gradient_boosting=False,  # Whether to use gradient boosting
@@ -457,7 +461,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.bloat_control_configuration = BloatControlConfiguration(**params)
         # explicitly to make some genes as introns
         self.intron_threshold = intron_threshold
-        self.active_gene_num = active_gene_num
+        # determine first k trees are active, used for preserving introns
+        self.num_of_active_trees = num_of_active_trees
         self.dynamic_reduction = dynamic_reduction
         self.irrelevant_feature_ratio = irrelevant_feature_ratio
         self.delete_irrelevant = delete_irrelevant
@@ -2859,8 +2864,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def feature_generation(
         self, X, individual, random_noise=0, random_seed=0, noise_configuration=None
     ):
-        if individual.active_gene_num > 0:
-            genes = individual.gene[: individual.active_gene_num]
+        if individual.num_of_active_trees > 0:
+            genes = individual.gene[: individual.num_of_active_trees]
         else:
             genes = individual.gene
         Yp = multi_tree_evaluation(
@@ -3476,7 +3481,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.post_processing_after_evaluation(population, offspring)
 
             if self.verbose:
-                p_value = self.get_p_value(offspring, population)
+                p_value = statistical_difference_between_populations(
+                    offspring, population
+                )
                 print("P value of different population", p_value)
 
             self.gp_simplification(offspring)
@@ -3546,30 +3553,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     np.mean([o.gene_num for o in offspring]),
                 )
                 if self.basic_primitives != "ML":
-                    if self.active_gene_num == 0:
-                        print(
-                            "Unique Hash",
-                            [
-                                len(
-                                    np.unique(
-                                        [
-                                            o.hash_result[i]
-                                            for o in offspring
-                                            if i < len(o.hash_result)
-                                        ]
-                                    )
-                                )
-                                for i in range(self.gene_num)
-                            ],
-                        )
+                    if self.num_of_active_trees == 0:
+                        num_of_trees = self.gene_num
                     else:
-                        print(
-                            "Unique Hash",
-                            [
-                                len(np.unique([o.hash_result[i] for o in offspring]))
-                                for i in range(self.active_gene_num)
-                            ],
-                        )
+                        num_of_trees = self.num_of_active_trees
+                    check_number_of_unique_tree_semantics(offspring, num_of_trees)
                 if self.base_learner == "AdaptiveLasso":
                     lasso_parameter = [o.parameters["Lasso"] for o in offspring]
                     print(
@@ -3601,7 +3589,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.diversity_search != "None":
                 self.diversity_assignment(offspring)
 
-            # multiobjective GP based on fitness-size
+            # multi-objective GP based on fitness-size
             if self.select == "Auto-MCTS":
                 self.aos.store_in_archive(offspring)
 
@@ -3938,25 +3926,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for o in offspring:
                 o.parent_fitness = parent_fitness
                 o.crossover_type = crossover_type
-
-    def get_p_value(self, offspring, population):
-        num_top_individuals = 30
-        # num_top_individuals = self.n_pop
-        p_value = ranksums(
-            [
-                o.fitness.wvalues[0]
-                for o in sorted(
-                    offspring, key=lambda x: x.fitness.wvalues[0], reverse=True
-                )[:num_top_individuals]
-            ],
-            [
-                o.fitness.wvalues[0]
-                for o in sorted(
-                    population, key=lambda x: x.fitness.wvalues[0], reverse=True
-                )[:num_top_individuals]
-            ],
-        )
-        return p_value[1]
 
     def get_validation_score(self, best_individual, force_training=False):
         self.final_model_lazy_training([best_individual], force_training=force_training)
@@ -4797,9 +4766,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             spea2 = True
         if isinstance(self.environmental_selection, EnvironmentalSelection):
             population[:] = self.environmental_selection.select(population, offspring)
-        elif (
-            self.environmental_selection in ["NSGA2"]
-        ):
+        elif self.environmental_selection in ["NSGA2"]:
             population[:] = selNSGA2(offspring + population, len(population))
             self.hof = population
         elif self.check_alpha_dominance_nsga2():
