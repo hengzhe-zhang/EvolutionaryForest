@@ -965,7 +965,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "Balanced-DT-LR",
             "Balanced-RDT-LR",
             "DT-LGBM",
-            "RDT~LightGBM-Stump",
             "Spline-Ridge",
             "Spline-Ridge-DT",
             "Spline-Ridge-DT-KNN",
@@ -3162,11 +3161,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.reduction_ratio >= 1:
             self.population_reduction(population)
 
-        # Evaluate the individuals with an invalid fitness
-        if self.base_learner in ["RDT~LightGBM-Stump"]:
-            invalid_ind = self.multiobjective_evaluation(toolbox, population)
-        else:
-            invalid_ind = self.population_evaluation(toolbox, population)
+        # Evaluate all individuals
+        evaluated_inds = self.population_evaluation(toolbox, population)
 
         if self.pac_bayesian.automatic_std:
             automatic_perturbation_std(self, population)
@@ -3192,7 +3188,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.construct_global_feature_pool(population)
 
         record = stats.compile(population) if stats else {}
-        logbook.record(gen=0, nevals=len(invalid_ind), **record)
+        logbook.record(gen=0, nevals=len(evaluated_inds), **record)
         if verbose:
             print(logbook.stream)
 
@@ -3474,11 +3470,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             if self.stage_flag:
                 print("Start Evaluation")
-            # Evaluate the individuals with an invalid fitness
-            if self.base_learner in ["RDT~LightGBM-Stump"]:
-                invalid_ind = self.multiobjective_evaluation(toolbox, offspring)
-            else:
-                invalid_ind = self.population_evaluation(toolbox, offspring)
+            # Evaluate all individuals
+            evaluated_inds = self.population_evaluation(toolbox, offspring)
 
             self.post_processing_after_evaluation(population, offspring)
 
@@ -3620,7 +3613,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # Append the current generation statistics to the logbook
             record = stats.compile(population) if stats else {}
-            logbook.record(gen=gen, nevals=len(invalid_ind), **record)
+            logbook.record(gen=gen, nevals=len(evaluated_inds), **record)
             if verbose:
                 features = set(
                     chain.from_iterable(
@@ -4806,7 +4799,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             population[:] = self.environmental_selection.select(population, offspring)
         elif (
             self.environmental_selection in ["NSGA2"]
-            and self.base_learner == "RDT~LightGBM-Stump"
         ):
             population[:] = selNSGA2(offspring + population, len(population))
             self.hof = population
@@ -4901,25 +4893,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         trees = [final_trees[r] for r in selected_index]
         assert len(trees) == features.shape[1]
         return trees
-
-    def multiobjective_evaluation(self, toolbox, population):
-        if self.base_learner == "RDT~LightGBM-Stump":
-            second_pop = copy.deepcopy(population)
-            for o in population:
-                o.base_model = "Random-DT"
-            for o in second_pop:
-                o.base_model = "LightGBM-Stump"
-
-        self.population_evaluation(toolbox, population)
-        self.population_evaluation(toolbox, second_pop)
-        population.extend(second_pop)
-
-        for oa, ob in zip(population, second_pop):
-            oa.fitness.weights = (-1, -1)
-            oa.fitness.values = (oa.fitness.values[0], ob.fitness.values[0])
-            ob.fitness.weights = (-1, -1)
-            ob.fitness.values = (oa.fitness.values[0], ob.fitness.values[0])
-        return population
 
     def population_evaluation(self, toolbox, population):
         """
