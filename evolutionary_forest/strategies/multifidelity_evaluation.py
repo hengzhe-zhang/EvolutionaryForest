@@ -1,6 +1,12 @@
 class MultiFidelityEvaluation:
     def __init__(
-        self, base_learner, n_gen, sr_tree_ratio, interleaving_period, verbose, **kwargs
+        self,
+        base_learner,
+        n_gen,
+        interleaving_period,
+        verbose,
+        sr_tree_ratio=0,
+        **kwargs
     ):
         self.base_learner: str = base_learner
         self.n_gen: int = n_gen

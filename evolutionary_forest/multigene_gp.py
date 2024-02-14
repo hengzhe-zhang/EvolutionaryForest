@@ -116,7 +116,7 @@ class MultipleGeneGP:
         tpot_model: TPOTBase = None,
         base_model_list=None,
         number_of_register=0,
-        active_gene_num=0,
+        num_of_active_trees=0,
         intron_probability=0,
         intron_threshold=0,
         initial_max_gene_num=1,
@@ -130,7 +130,7 @@ class MultipleGeneGP:
         self.layer_mgp = False
         self.mgp_scope = 0
         self.max_gene_num = gene_num
-        self.active_gene_num = active_gene_num
+        self.num_of_active_trees = num_of_active_trees
         self.content = content
         if configuration.gene_addition_rate > 0 or configuration.gene_deletion_rate > 0:
             gene_num = random.randint(1, initial_max_gene_num)
@@ -454,9 +454,9 @@ def multiple_gene_initialization(cls, generator, gene_num, **kwargs):
 def multiple_gene_compile(expr: MultipleGeneGP, pset):
     """ """
     gene_compiled = []
-    if hasattr(expr, "active_gene_num") and expr.active_gene_num > 0:
+    if hasattr(expr, "num_of_active_trees") and expr.num_of_active_trees > 0:
         # some genes may not be activated
-        for gene in expr.gene[: expr.active_gene_num]:
+        for gene in expr.gene[: expr.num_of_active_trees]:
             gene_compiled.append(compile(gene, pset))
     else:
         for gene in expr.gene:

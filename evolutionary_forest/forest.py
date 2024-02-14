@@ -111,6 +111,7 @@ from evolutionary_forest.component.evaluation import (
     EvaluationResults,
     select_from_array,
     get_sample_weight,
+    split_and_combine_data_decorator,
 )
 from evolutionary_forest.component.fitness import *
 from evolutionary_forest.component.generalization.pac_bayesian import (
@@ -121,6 +122,7 @@ from evolutionary_forest.component.generalization.pac_bayesian_tool import (
     automatic_perturbation_std,
     sharpness_based_dynamic_depth_limit,
 )
+from evolutionary_forest.component.generalization.wknn import R2WKNN
 from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.initialization import (
     initialize_crossover_operator,
@@ -890,7 +892,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif isinstance(score_func, str) and score_func == "R2-Size-Scaler":
             self.score_func = R2SizeScaler(self, **params)
         elif isinstance(score_func, str) and score_func == "R2-WKNN":
-            self.score_func = R2SizeScaler(self)
+            self.score_func = R2WKNN(self)
         else:
             self.score_func = score_func
 
@@ -996,8 +998,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             pipe.active_gene = individual.active_gene
 
         # send task to the job pool and waiting results
-        if individual.active_gene_num > 0:
-            genes = individual.gene[: individual.active_gene_num]
+        if individual.num_of_active_trees > 0:
+            genes = individual.gene[: individual.num_of_active_trees]
         else:
             genes = individual.gene
 
@@ -1393,10 +1395,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # check the necessity of training
             try:
                 if (
-                    hasattr(individual, "active_gene_num")
-                    and individual.active_gene_num > 0
+                    hasattr(individual, "num_of_active_trees")
+                    and individual.num_of_active_trees > 0
                 ):
-                    input_size = individual.active_gene_num
+                    input_size = individual.num_of_active_trees
                 else:
                     input_size = len(individual.gene)
                 if hasattr(model, "partition_scheme"):
@@ -2862,7 +2864,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.train_final_model(p, Yp, y, force_training=force_training)
 
     def feature_generation(
-        self, X, individual, random_noise=0, random_seed=0, noise_configuration=None
+        self,
+        X,
+        individual: MultipleGeneGP,
+        random_noise=0,
+        random_seed=0,
+        noise_configuration=None,
     ):
         if individual.num_of_active_trees > 0:
             genes = individual.gene[: individual.num_of_active_trees]
@@ -2886,6 +2893,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             Yp = Yp.detach().numpy()
         return Yp
 
+    @split_and_combine_data_decorator(data_arg_position=1, data_arg_name="X")
     def predict(self, X, return_std=False):
         if self.normalize:
             # Scale X data if normalize flag is set
@@ -2897,19 +2905,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.test_data is not None:
             # Concatenate new X data with existing X data in the transductive learning setting
             X = np.concatenate([self.X, X])
-
-        # Prune genes in hall of fame using hoist mutation
-        # if self.intron_gp:
-        #     for h in self.hof:
-        #         for gene in h.gene:
-        #             # Find the best gene and hoist it to the top
-        #             best_id = max(
-        #                 [(k, getattr(g, "corr", 0)) for k, g in enumerate(gene)],
-        #                 key=lambda x: (x[1], x[0]),
-        #             )[0]
-        #             hoistMutation(gene, best_id)
-        #         # Reset the pipeline to the base model
-        #         h.pipe = self.get_base_model()
 
         # Train the final model using lazy training
         self.final_model_lazy_training(self.hof, force_training=self.force_retrain)

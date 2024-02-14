@@ -147,7 +147,7 @@ def calculate_score(args):
             need_hash=True,
             target=Y,
             configuration=configuration,
-            register_array=pipe.register,
+            register_array=register_array,
             similarity_score=intron_calculation,
         )
         hash_result, correlation_results, introns_results = (
@@ -562,47 +562,55 @@ def get_cv_splitter(base_model, cv, random_state=0):
     return cv
 
 
-def split_and_combine_data_decorator(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # Identifying the 'data' argument by its keyword or position
-        data_arg_position = 2  # typically the third argument (indexing from 0)
-        data = kwargs.get(
-            "data", args[data_arg_position] if len(args) > data_arg_position else None
-        )
+def split_and_combine_data_decorator(
+    data_arg_position=2,  # typically the third argument (indexing from 0)
+    data_arg_name="data",
+):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Identifying the 'data' argument by its keyword or position
+            data = kwargs.get(
+                data_arg_name,
+                args[data_arg_position] if len(args) > data_arg_position else None,
+            )
 
-        # Check if data needs to be split
-        step_size = 50000
-        if data is not None and len(data) > step_size:
-            # Split the data into slices of 50000 elements
-            slices = [data[i : i + step_size] for i in range(0, len(data), step_size)]
+            # Check if data needs to be split
+            step_size = 50000
+            if data is not None and len(data) > step_size:
+                # Split the data into slices of 50000 elements
+                slices = [
+                    data[i : i + step_size] for i in range(0, len(data), step_size)
+                ]
 
-            # Process each slice and collect results
-            results = []
-            for slice_data in slices:
-                if "data" in kwargs:
-                    kwargs["data"] = slice_data
-                else:
-                    args = list(args)
-                    args[data_arg_position] = slice_data
-                    args = tuple(args)
+                # Process each slice and collect results
+                results = []
+                for slice_data in slices:
+                    if "data" in kwargs:
+                        kwargs["data"] = slice_data
+                    else:
+                        args = list(args)
+                        args[data_arg_position] = slice_data
+                        args = tuple(args)
 
-                result = func(*args, **kwargs)
-                results.append(result)
-                assert isinstance(result, np.ndarray)
+                    result = func(*args, **kwargs)
+                    results.append(result)
+                    assert isinstance(result, np.ndarray)
 
-            # Combine the results from all slices
-            combined_results = np.concatenate(results)
-            assert len(combined_results) == len(data)
-            return combined_results
-        else:
-            # Call the original function if no slicing is required
-            return func(*args, **kwargs)
+                # Combine the results from all slices
+                combined_results = np.concatenate(results)
+                assert len(combined_results) == len(data)
+                return combined_results
+            else:
+                # Call the original function if no slicing is required
+                return func(*args, **kwargs)
 
-    return wrapper
+        return wrapper
+
+    return decorator
 
 
-@split_and_combine_data_decorator
+@split_and_combine_data_decorator()
 def multi_tree_evaluation(
     gp_trees: List[PrimitiveTree],
     pset,
