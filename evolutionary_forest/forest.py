@@ -4873,27 +4873,34 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     # @timeit
     def population_reduction(self, population):
         for p in population:
-            genes = p.gene
-            # syntactic feature selection
-            gene_str = set()
-            final_genes = []
-            for g in genes:
-                # remove syntactic equivalent  features and constant features
-                if str(g) not in gene_str and not isinstance(g[0], gp.rand101):
-                    gene_str.add(str(g))
-                    final_genes.append(g)
+            final_trees = self.remove_identical_and_constant_trees(p)
+            trees = self.remove_semantically_identical_trees(final_trees)
+            p.gene = trees
 
-            # semantic feature selection
-            gene_compiled = []
-            for gene in final_genes:
-                gene_compiled.append(compile(gene, self.pset))
-            # random sample a subset to perform feature selection
-            x = self.X[np.random.randint(low=0, size=20, high=self.y.shape[0])]
-            features = result_calculation(gene_compiled, x, False)
-            features, selected_index = np.unique(features, return_index=True, axis=1)
-            genes = [final_genes[r] for r in selected_index]
-            assert len(genes) == features.shape[1]
-            p.gene = genes
+    def remove_identical_and_constant_trees(self, p):
+        trees = p.gene
+        # syntactic feature selection
+        tree_str = set()
+        final_trees = []
+        for tree in trees:
+            # remove syntactic equivalent features and constant features
+            if str(tree) not in tree_str and not isinstance(tree[0], gp.rand101):
+                tree_str.add(str(tree))
+                final_trees.append(tree)
+        return final_trees
+
+    def remove_semantically_identical_trees(self, final_trees):
+        # semantic feature selection
+        tree_compiled = []
+        for tree in final_trees:
+            tree_compiled.append(compile(tree, self.pset))
+        # random sample a subset to perform feature selection
+        x = self.X[np.random.randint(low=0, size=20, high=self.y.shape[0])]
+        features = result_calculation(tree_compiled, x, False)
+        features, selected_index = np.unique(features, return_index=True, axis=1)
+        trees = [final_trees[r] for r in selected_index]
+        assert len(trees) == features.shape[1]
+        return trees
 
     def multiobjective_evaluation(self, toolbox, population):
         if self.base_learner == "RDT~LightGBM-Stump":
