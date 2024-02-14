@@ -611,7 +611,7 @@ def split_and_combine_data_decorator(func):
 
 @split_and_combine_data_decorator
 def multi_tree_evaluation(
-    func: List[PrimitiveTree],
+    gp_trees: List[PrimitiveTree],
     pset,
     data: np.ndarray,
     original_features=False,
@@ -642,20 +642,24 @@ def multi_tree_evaluation(
     introns_results = []
     if hasattr(pset, "number_of_register"):
         # This part is useful for modular GP with registers
+        # start with empty registers
         register = np.ones((data.shape[0], pset.number_of_register))
-        for id, gene in enumerate(func):
+        for id, gene in enumerate(gp_trees):
             input_data = np.concatenate([data, register], axis=1)
+            # evaluate GP trees
             quick_result = single_tree_evaluation(gene, pset, input_data)
             quick_result = quick_fill([quick_result], data)[0]
+            # save hash of semantics
             if isinstance(quick_result, np.ndarray):
                 hash_result.append(hash(quick_result.tostring()))
             else:
                 hash_result.append(hash(str(quick_result)))
+            # store to register
             register[:, register_array[id]] = quick_result
         result = register.T
     elif isinstance(pset, MultiplePrimitiveSet):
         # Modular GP
-        for id, gene in enumerate(func):
+        for id, gene in enumerate(gp_trees):
             quick_result = single_tree_evaluation(gene, pset.pset_list[id], data)
             quick_result = quick_fill([quick_result], data)[0]
             add_hash_value(quick_result, hash_result)
@@ -671,7 +675,7 @@ def multi_tree_evaluation(
             data = np.concatenate([data, np.reshape(quick_result, (-1, 1))], axis=1)
     else:
         # ordinary GP evaluation
-        for gene in func:
+        for gene in gp_trees:
             feature, semantic_similarity = single_tree_evaluation(
                 gene,
                 pset,

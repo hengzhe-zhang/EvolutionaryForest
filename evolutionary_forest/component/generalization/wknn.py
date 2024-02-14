@@ -12,8 +12,14 @@ class R2WKNN(Fitness):
         self.algorithm = algorithm
 
     def fitness_value(self, individual, estimators, Y, y_pred):
+        """
+        GKNN for regularization
+        """
         score = r2_score(Y, y_pred)
         predictions = cross_val_predict(
             GaussianKNNRegressor(k=15), self.algorithm.X, Y, cv=5
         )
-        return (-1 * score, mean_squared_error(Y, predictions))
+        loss_on_original_learner = mean_squared_error(Y, y_pred)
+        loss_on_gknn = mean_squared_error(Y, predictions)
+        individual.sam_loss = loss_on_gknn + loss_on_original_learner
+        return (-1 * score, loss_on_gknn)

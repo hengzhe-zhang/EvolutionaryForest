@@ -149,6 +149,7 @@ class MultipleGeneGP:
         # initialize some registers
         self.number_of_register = number_of_register
         if self.number_of_register > 0:
+            # automatically determine which register to save
             self.register = (
                 np.random.randint(0, self.number_of_register, self.gene_num),
             )
