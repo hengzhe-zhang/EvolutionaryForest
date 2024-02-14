@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 from category_encoders import TargetEncoder
 from category_encoders.utils import BaseEncoder
-from sklearn import clone
 from sklearn.base import TransformerMixin, BaseEstimator
 
 

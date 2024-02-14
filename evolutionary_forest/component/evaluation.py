@@ -136,27 +136,20 @@ def calculate_score(args):
     else:
         results: EvaluationResults
         if hasattr(pipe, "register"):
-            Yp, results = multi_tree_evaluation(
-                func,
-                pset,
-                X,
-                original_features,
-                need_hash=True,
-                target=Y,
-                register_array=pipe.register,
-                configuration=configuration,
-            )
+            register_array = pipe.register
         else:
-            Yp, results = multi_tree_evaluation(
-                func,
-                pset,
-                X,
-                original_features,
-                need_hash=True,
-                target=Y,
-                configuration=configuration,
-                similarity_score=intron_calculation,
-            )
+            register_array = None
+        Yp, results = multi_tree_evaluation(
+            func,
+            pset,
+            X,
+            original_features,
+            need_hash=True,
+            target=Y,
+            configuration=configuration,
+            register_array=pipe.register,
+            similarity_score=intron_calculation,
+        )
         hash_result, correlation_results, introns_results = (
             results.hash_result,
             results.correlation_results,
@@ -691,14 +684,13 @@ def multi_tree_evaluation(
             simple_feature = quick_fill([feature], data)[0]
             add_hash_value(simple_feature, hash_result)
             if target is not None and configuration.intron_calculation:
-                correlation_results.append(
-                    np.abs(
-                        cos_sim(
-                            target - target.mean(),
-                            simple_feature - simple_feature.mean(),
-                        )
+                abs_pearson_correlation = np.abs(
+                    cos_sim(
+                        target - target.mean(),
+                        simple_feature - simple_feature.mean(),
                     )
                 )
+                correlation_results.append(abs_pearson_correlation)
             result.append(feature)
     if not sklearn_format and not gradient_descent:
         result = result_post_process(result, data, original_features)
