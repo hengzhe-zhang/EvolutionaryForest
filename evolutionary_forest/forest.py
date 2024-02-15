@@ -3,7 +3,6 @@ import inspect
 from multiprocessing import Pool
 
 import dill
-import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -22,8 +21,8 @@ from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
 from scipy.spatial.distance import cosine
-from scipy.stats import spearmanr, kendalltau, rankdata, ranksums, wilcoxon
-from sklearn.base import ClassifierMixin, TransformerMixin
+from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
+from sklearn.base import TransformerMixin
 from sklearn.ensemble import (
     ExtraTreesRegressor,
     GradientBoostingRegressor,
@@ -391,6 +390,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         racing=False,
         simplification=False,
         validation_ratio=0,
+        post_selection_method=None,
         **params,
     ):
         """
@@ -425,6 +425,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.post_selection_method = post_selection_method
         self.validation_ratio = validation_ratio
         self.simplification = simplification
         self.racing = racing
@@ -3516,6 +3517,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         o.base_model = b
 
                 self.self_adaptive_evolution(offspring)
+                offspring = self.post_selection(offspring)
                 for o in offspring:
                     self.self_adaptive_mutation(o, population)
 
@@ -5119,7 +5121,40 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return X
 
     def post_selection(self, offspring):
-        [o for o in offspring]
+        if self.post_selection_method == None:
+            pass
+        elif self.post_selection_method == "Dominance":
+            assert len(offspring) == 2
+            fitness_a = np.array(offspring[0].fitness_list)
+            fitness_a = fitness_a[:, 0] * fitness_a[:, 1]
+            fitness_b = np.array(offspring[1].fitness_list)
+            fitness_b = fitness_b[:, 0] * fitness_b[:, 1]
+            if np.all(fitness_a > fitness_b):
+                return [offspring[0]]
+            if np.all(fitness_b > fitness_a):
+                return [offspring[1]]
+
+            for a, b in zip(fitness_a, fitness_b):
+                if a > b:
+                    return [offspring[0]]
+                elif b > a:
+                    return [offspring[1]]
+            return [random.choice(offspring)]
+        elif self.post_selection_method == "Sharpness":
+            assert len(offspring) == 2
+            fitness_a = np.array(offspring[0].fitness_list)
+            fitness_a = fitness_a[:, 0] * fitness_a[:, 1]
+            fitness_b = np.array(offspring[1].fitness_list)
+            fitness_b = fitness_b[:, 0] * fitness_b[:, 1]
+            for a, b in zip(fitness_a[::-1], fitness_b[::-1]):
+                if a > b:
+                    return [offspring[0]]
+                elif b > a:
+                    return [offspring[1]]
+            return [random.choice(offspring)]
+        else:
+            raise Exception
+        return offspring
 
 
 def init_worker(function, data):
