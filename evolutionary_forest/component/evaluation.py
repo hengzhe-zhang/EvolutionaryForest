@@ -919,6 +919,11 @@ def local_sensitive_hash(random_matrix: np.ndarray, result):
     return hash_id
 
 
+@lru_cache()
+def random_sample(size_of_noise, random_seed):
+    return np.random.randint(0, size_of_noise, size_of_noise)
+
+
 def inject_noise_to_data(
     result,
     random_noise_magnitude,
@@ -932,9 +937,15 @@ def inject_noise_to_data(
     if noise_vector is not None:
         noise = noise_vector
     else:
-        noise = noise_generation(noise_type, size_of_noise, random_seed)
+        noise = noise_generation(
+            noise_type, size_of_noise, random_noise_magnitude, random_seed
+        )
 
-    if noise_configuration.noise_normalization == "Instance+":
+    if noise_configuration.noise_normalization == "Mix":
+        result = (1 - noise) * result + noise * result[
+            random_sample(len(result), random_seed)
+        ]
+    elif noise_configuration.noise_normalization == "Instance+":
         result = result + noise * random_noise_magnitude * result
     elif noise_configuration.noise_normalization == "Instance":
         result = result + noise * random_noise_magnitude * np.abs(result)
@@ -949,7 +960,7 @@ def inject_noise_to_data(
 
 
 @lru_cache
-def noise_generation(noise_type, size_of_noise, random_seed):
+def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_seed):
     """
     Obviously, it's possible to use cache technique to avoid the expensive sampling process
     """
@@ -960,6 +971,10 @@ def noise_generation(noise_type, size_of_noise, random_seed):
         noise = rng.uniform(-1, 1, size_of_noise)
     elif noise_type == "Laplace":
         noise = rng.laplace(0, 1, size_of_noise)
+    elif noise_type == "Beta":
+        noise = rng.beta(random_noise_magnitude, random_noise_magnitude, size_of_noise)
+        # ensure large part of original samples
+        noise = np.maximum(noise, 1 - noise)
     elif noise_type == "Ensemble":
         choices = [
             rng.normal(0, 1, size_of_noise),
