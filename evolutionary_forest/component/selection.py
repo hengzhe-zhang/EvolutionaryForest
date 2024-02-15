@@ -1138,6 +1138,28 @@ def selLexicaseDCD(individuals, k):
     return chosen
 
 
+def selLexicaseKNN(individuals, k, neighbor=5):
+    chosen = []
+    for i in range(0, k * 2, 2):
+        a: MultipleGeneGP = selAutomaticEpsilonLexicaseFast(individuals, 1)[0]
+
+        # Calculate distances in semantic space
+        distances = []
+        for ind in individuals:
+            dist = np.linalg.norm(a.case_values - ind.case_values)
+            distances.append((dist, ind))
+
+        # Sort individuals based on distance
+        distances.sort(key=lambda x: x[0])
+
+        # Choose the k-nearest neighbors
+        neighbors = [ind for _, ind in distances[:neighbor]]
+
+        # best sharpness
+        chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[1]))
+    return chosen
+
+
 def selLexicaseTournament(individuals, k):
     # First lexicase, then tournament with a size of 2
     individuals_chosen = selAutomaticEpsilonLexicaseFast(individuals, k * 2)
