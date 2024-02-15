@@ -5118,6 +5118,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             X = np.concatenate([X, np.array(data).T], axis=1)
         return X
 
+    def post_selection(self, offspring):
+        [o for o in offspring]
+
 
 def init_worker(function, data):
     function.data = data
