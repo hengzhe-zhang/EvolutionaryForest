@@ -520,6 +520,8 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.MaxMargin
         if sharpness_type == "Parameter":
             sharpness_type = SharpnessType.Parameter
+        if sharpness_type == "ParameterPlus":
+            sharpness_type = SharpnessType.ParameterPlus
         if sharpness_type == "DataRealVariance":
             sharpness_type = SharpnessType.DataRealVariance
         self.sharpness_type = sharpness_type

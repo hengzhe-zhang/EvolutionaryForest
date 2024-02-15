@@ -116,6 +116,7 @@ class SharpnessType(Enum):
     DataGPSource = 7
     MaxMargin = 8
     DataGPHybrid = 9
+    ParameterPlus = 10
 
 
 def pac_bayesian_estimation(
@@ -212,7 +213,7 @@ def pac_bayesian_estimation(
                 if len(data) == 2:
                     data, target_y = data
             X_noise = sc.transform(feature_generator(data, random_seed=i))
-        elif sharpness_type == SharpnessType.Parameter:
+        elif sharpness_type in [SharpnessType.Parameter, SharpnessType.ParameterPlus]:
             if configuration.only_hard_instance > 0:
                 # worst x%
                 input_x = original_X[index]
@@ -263,7 +264,10 @@ def pac_bayesian_estimation(
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         if sharpness_type == SharpnessType.DataLGBM:
             mse_scores[i] = (reference_model.predict(data).flatten() - y_pred) ** 2
-        elif sharpness_type == SharpnessType.DataGP:
+        elif (
+            sharpness_type == SharpnessType.DataGP
+            or sharpness_type == SharpnessType.ParameterPlus
+        ):
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
             mse_scores[i] = (gp_predictions.flatten() - y_pred) ** 2
         elif sharpness_type == SharpnessType.DataRealVariance:
