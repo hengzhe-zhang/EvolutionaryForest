@@ -1138,7 +1138,7 @@ def selLexicaseDCD(individuals, k):
     return chosen
 
 
-def selLexicaseKNN(individuals, k, neighbor=5):
+def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random"):
     chosen = []
     for i in range(0, k, 2):
         a: MultipleGeneGP = selAutomaticEpsilonLexicaseFast(individuals, 1)[0]
@@ -1146,10 +1146,27 @@ def selLexicaseKNN(individuals, k, neighbor=5):
         # Calculate distances in semantic space
         distances = []
         for ind in individuals:
+            if np.all(np.array(a.fitness.wvalues) >= np.array(ind.fitness.wvalues)):
+                # dominating
+                continue
             dist = np.linalg.norm(a.case_values - ind.case_values)
             if dist == 0:
+                # equivalent semantics
                 continue
             distances.append((dist, ind))
+
+        if len(distances) == 0:
+            continue
+        if strategy == "Lexicase":
+            pool = [ind for _, ind in distances]
+            chosen.append(a)
+            chosen.append(selAutomaticEpsilonLexicaseFast(pool, 1)[0])
+            continue
+        if strategy == "Tournament":
+            pool = [ind for _, ind in distances]
+            chosen.append(a)
+            chosen.append(selTournament(pool, 1, 3)[0])
+            continue
 
         # Sort individuals based on distance
         distances.sort(key=lambda x: x[0])
@@ -1159,7 +1176,14 @@ def selLexicaseKNN(individuals, k, neighbor=5):
 
         # best sharpness
         chosen.append(a)
-        chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[1]))
+        if strategy == "Random":
+            chosen.append(random.choice(neighbors))
+        elif strategy == "BestSharpness":
+            chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[1]))
+        elif strategy == "BestAccuracy":
+            chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[0]))
+        else:
+            raise Exception
     return chosen
 
 

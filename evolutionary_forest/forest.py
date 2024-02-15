@@ -1941,15 +1941,26 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicaseDCD)
         elif self.select == "LexicaseTournament":
             toolbox.register("select", selLexicaseTournament)
-
-        elif self.select == "LexicaseKNN-3":
-            toolbox.register("select", partial(selLexicaseKNN, neighbor=3))
-        elif self.select == "LexicaseKNN-5":
-            toolbox.register("select", partial(selLexicaseKNN, neighbor=5))
-        elif self.select == "LexicaseKNN-7":
-            toolbox.register("select", partial(selLexicaseKNN, neighbor=7))
-        elif self.select == "LexicaseKNN-10":
-            toolbox.register("select", partial(selLexicaseKNN, neighbor=10))
+        elif self.select == "LexicaseKNN-3R":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="Random")
+            )
+        elif self.select == "LexicaseKNN-3T":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="Tournament")
+            )
+        elif self.select == "LexicaseKNN-3L":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="Lexicase")
+            )
+        elif self.select == "LexicaseKNN-3BS":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="BestSharpness")
+            )
+        elif self.select == "LexicaseKNN-3BA":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="BestAccuracy")
+            )
         elif self.select == "Tournament":
             toolbox.register(
                 "select", tools.selTournament, tournsize=self.param["tournament_size"]
