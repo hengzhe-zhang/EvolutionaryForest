@@ -1941,10 +1941,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicaseDCD)
         elif self.select == "LexicaseTournament":
             toolbox.register("select", selLexicaseTournament)
-        elif self.select == "LexicaseKNN-3R":
-            toolbox.register(
-                "select", partial(selLexicaseKNN, neighbor=3, strategy="Random")
-            )
         elif self.select == "LexicaseKNN-3T":
             toolbox.register(
                 "select", partial(selLexicaseKNN, neighbor=3, strategy="Tournament")
@@ -1952,6 +1948,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.select == "LexicaseKNN-3L":
             toolbox.register(
                 "select", partial(selLexicaseKNN, neighbor=3, strategy="Lexicase")
+            )
+        elif self.select == "LexicaseKNN-3R":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="Random")
             )
         elif self.select == "LexicaseKNN-3BS":
             toolbox.register(
@@ -1961,22 +1961,75 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register(
                 "select", partial(selLexicaseKNN, neighbor=3, strategy="BestAccuracy")
             )
-        elif self.select == "LexicaseKNN-3R+":
+        elif self.select == "LexicaseKNN-5R":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=5, strategy="Random")
+            )
+        elif self.select == "LexicaseKNN-5BS":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=5, strategy="BestSharpness")
+            )
+        elif self.select == "LexicaseKNN-5BA":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=5, strategy="BestAccuracy")
+            )
+        elif self.select == "LexicaseKNN-3R-E":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="Random-E")
+            )
+        elif self.select == "LexicaseKNN-3BS-E":
             toolbox.register(
                 "select",
-                partial(selLexicaseKNN, neighbor=3, strategy="Random+", y=self.y),
+                partial(selLexicaseKNN, neighbor=3, strategy="BestSharpness-E"),
             )
-        elif self.select == "LexicaseKNN-3BS+":
+        elif self.select == "LexicaseKNN-3BA-E":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=3, strategy="BestAccuracy-E")
+            )
+        elif self.select == "LexicaseKNN-2R-E":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=2, strategy="Random-E")
+            )
+        elif self.select == "LexicaseKNN-2BS-E":
+            toolbox.register(
+                "select",
+                partial(selLexicaseKNN, neighbor=2, strategy="BestSharpness-E"),
+            )
+        elif self.select == "LexicaseKNN-2BA-E":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=2, strategy="BestAccuracy-E")
+            )
+        elif self.select == "LexicaseKNN-5R-E":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=5, strategy="Random-E")
+            )
+        elif self.select == "LexicaseKNN-5BS-E":
+            toolbox.register(
+                "select",
+                partial(selLexicaseKNN, neighbor=5, strategy="BestSharpness-E"),
+            )
+        elif self.select == "LexicaseKNN-5BA-E":
+            toolbox.register(
+                "select", partial(selLexicaseKNN, neighbor=5, strategy="BestAccuracy-E")
+            )
+        elif self.select == "LexicaseKNN-5R-C":
+            toolbox.register(
+                "select",
+                partial(selLexicaseKNN, neighbor=5, strategy="Random-C", y=self.y),
+            )
+        elif self.select == "LexicaseKNN-5BS-C":
             toolbox.register(
                 "select",
                 partial(
-                    selLexicaseKNN, neighbor=3, strategy="BestSharpness+", y=self.y
+                    selLexicaseKNN, neighbor=5, strategy="BestSharpness-C", y=self.y
                 ),
             )
-        elif self.select == "LexicaseKNN-3BA+":
+        elif self.select == "LexicaseKNN-5BA-C":
             toolbox.register(
                 "select",
-                partial(selLexicaseKNN, neighbor=3, strategy="BestAccuracy+", y=self.y),
+                partial(
+                    selLexicaseKNN, neighbor=5, strategy="BestAccuracy-C", y=self.y
+                ),
             )
         elif self.select == "Tournament":
             toolbox.register(

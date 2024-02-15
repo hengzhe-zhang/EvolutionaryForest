@@ -1150,7 +1150,7 @@ def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random", y=None):
             if np.all(np.array(a.fitness.wvalues) >= np.array(ind.fitness.wvalues)):
                 # dominating
                 continue
-            if strategy.endswith("+"):
+            if strategy.endswith("-C"):
                 dist = cos_sim(a.predicted_values - y, ind.predicted_values - y)
             else:
                 dist = np.linalg.norm(a.predicted_values - ind.predicted_values)
@@ -1173,7 +1173,7 @@ def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random", y=None):
             continue
 
         # Sort individuals based on distance
-        if strategy.endswith("+"):
+        if strategy.endswith("-C") or strategy.endswith("-E"):
             distances.sort(key=lambda x: -x[0])
         else:
             distances.sort(key=lambda x: x[0])
@@ -1183,11 +1183,11 @@ def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random", y=None):
 
         # best sharpness
         chosen.append(a)
-        if strategy == "Random" or strategy == "Random+":
+        if strategy.startswith("Random"):
             chosen.append(random.choice(neighbors))
-        elif strategy == "BestSharpness" or strategy == "BestSharpness+":
+        elif strategy.startswith("BestSharpness"):
             chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[1]))
-        elif strategy == "BestAccuracy" or strategy == "BestAccuracy+":
+        elif strategy.startswith("BestAccuracy"):
             chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[0]))
         else:
             raise Exception
