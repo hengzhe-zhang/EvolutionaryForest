@@ -9,12 +9,15 @@ import dill
 import numpy as np
 import shap
 import torch
+from cachetools import cached, LRUCache
+from cachetools.keys import hashkey
 from deap import base
 from deap import creator
 from deap import gp
 from deap import tools
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from numpy.testing import assert_almost_equal
+from onedal.primitives import rbf_kernel
 from scipy.spatial.distance import cdist
 from scipy.stats import wilcoxon
 from sklearn import model_selection
@@ -52,6 +55,10 @@ from evolutionary_forest.multigene_gp import (
 )
 from evolutionary_forest.sklearn_utils import cross_val_predict
 from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
+from evolutionary_forest.utility.sampling_utils import (
+    get_probability_matrix_from_distance_matrix,
+    sample_according_to_distance,
+)
 from evolutionary_forest.utils import (
     reset_random,
     cv_prediction_from_ridge,
@@ -625,6 +632,7 @@ def multi_tree_evaluation(
     random_noise=0,
     random_seed=0,
     noise_configuration: NoiseConfiguration = None,
+    reference_label: np.ndarray = None,
 ):
     if configuration is None:
         configuration = EvaluationConfiguration()
@@ -687,6 +695,7 @@ def multi_tree_evaluation(
                 random_seed=random_seed,
                 evaluation_configuration=configuration,
                 noise_configuration=noise_configuration,
+                reference_label=reference_label,
             )
             introns_results.append(semantic_similarity)
             simple_feature = quick_fill([feature], data)[0]
@@ -743,6 +752,7 @@ def single_tree_evaluation(
     random_seed=0,
     evaluation_configuration: EvaluationConfiguration = None,
     noise_configuration: NoiseConfiguration = None,
+    reference_label=None,
 ) -> Tuple[np.ndarray, dict]:
     if evaluation_configuration is None:
         evaluation_configuration = EvaluationConfiguration()
@@ -825,6 +835,7 @@ def single_tree_evaluation(
                             layer_random_noise,
                             noise_configuration,
                             random_seed=random_seed,
+                            reference_label=reference_label,
                         )
                 else:
                     if isinstance(prim.value, str):
@@ -924,12 +935,26 @@ def random_sample(size_of_noise, random_seed):
     return np.random.randint(0, size_of_noise, size_of_noise)
 
 
+@cached(
+    cache=LRUCache(maxsize=128),
+    key=lambda size_of_noise, random_seed, reference_label: hashkey(
+        size_of_noise, random_seed
+    ),
+)
+def weighted_sampling(size_of_noise, random_seed, reference_label):
+    distance_matrix = rbf_kernel(reference_label.reshape(-1, 1), gamma=1)
+    return sample_according_to_distance(
+        distance_matrix, np.arange(0, len(reference_label))
+    )
+
+
 def inject_noise_to_data(
     result,
     random_noise_magnitude,
     noise_configuration: NoiseConfiguration,
     noise_vector=None,
     random_seed=0,
+    reference_label=None,
 ):
     noise_type = noise_configuration.noise_type
 
@@ -944,6 +969,11 @@ def inject_noise_to_data(
     if noise_configuration.noise_normalization == "Mix":
         result = (1 - noise) * result + noise * result[
             random_sample(len(result), random_seed)
+        ]
+    elif noise_configuration.noise_normalization == "MixT":
+        # For this distance matrix, the larger, the near
+        result = (1 - noise) * result + noise * result[
+            weighted_sampling(len(result), random_seed, reference_label)
         ]
     elif noise_configuration.noise_normalization == "Instance+":
         result = result + noise * random_noise_magnitude * result

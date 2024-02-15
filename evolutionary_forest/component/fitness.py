@@ -39,6 +39,7 @@ from evolutionary_forest.component.generalization.wcrv import (
 from evolutionary_forest.model.ASGAN import ASGAN
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
+from evolutionary_forest.utility.sampling_utils import sample_according_to_distance
 from evolutionary_forest.utils import tuple_to_list, list_to_tuple
 
 if TYPE_CHECKING:
@@ -526,7 +527,7 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.DataRealVariance
         self.sharpness_type = sharpness_type
         self.sharpness_loss_weight = sharpness_loss_weight
-        self.mixup_bandwith = mixup_bandwidth
+        self.mixup_bandwidth = mixup_bandwidth
 
     def lazy_init(self):
         if self.sharpness_distribution.startswith(
@@ -548,31 +549,6 @@ class R2PACBayesian(Fitness):
             gan_verbose = True
             if gan_verbose:
                 print("GAN Training Time ", end - start)
-
-    def sample_according_to_probability(
-        self, distance_matrix, indices_a, inverse_prob=False
-    ):
-        """
-        Sample indices according to the probability distribution given by the distance matrix.
-        """
-        prob_distribution = distance_matrix[
-            indices_a
-        ]  # Extract probabilities for the given indices
-        if inverse_prob:
-            # inverse the probability vector
-            prob_distribution[prob_distribution != 0] = (
-                1 / prob_distribution[prob_distribution != 0]
-            )
-        # Normalize to form a valid probability distribution
-        prob_distribution = prob_distribution / np.sum(
-            prob_distribution, axis=1, keepdims=True
-        )
-        # Sample indices according to the probability distribution
-        indices_b = [
-            np.random.choice(len(distance_matrix), p=prob_distribution[i])
-            for i in range(len(indices_a))
-        ]
-        return indices_b
 
     @lru_cache(maxsize=128)
     def mixup_gaussian(self, random_seed=0):
@@ -600,9 +576,9 @@ class R2PACBayesian(Fitness):
             if alpha_beta is None
             else alpha_beta
         )
-        # For this distance matreix, the larger, the near
+        # For this distance matrix, the larger, the near
         distance_matrix = rbf_kernel(
-            algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
+            algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwidth
         )
         if alpha_beta == "Adaptive":
             ratio = None
@@ -613,7 +589,7 @@ class R2PACBayesian(Fitness):
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         if mixup_strategy in ["I-MixUp", "IN-MixUp"]:
             indices_a = np.arange(0, len(algorithm.X))
-            indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
+            indices_b = sample_according_to_distance(distance_matrix, indices_a)
             if alpha_beta == "Adaptive":
                 ratio = (
                     1
@@ -640,10 +616,10 @@ class R2PACBayesian(Fitness):
         elif mixup_strategy == "C-MixUp":
             # sample indices
             distance_matrix = rbf_kernel(
-                algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwith
+                algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwidth
             )
             # for the distance, the large the near, because it's Gaussian
-            indices_b = self.sample_according_to_probability(distance_matrix, indices_a)
+            indices_b = sample_according_to_distance(distance_matrix, indices_a)
         else:
             indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         data = algorithm.X[indices_a] * ratio.reshape(-1, 1) + algorithm.X[

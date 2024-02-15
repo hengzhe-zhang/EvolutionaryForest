@@ -2890,6 +2890,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             random_noise=random_noise,
             random_seed=random_seed,
             noise_configuration=noise_configuration,
+            reference_label=self.y,
         )
         if isinstance(Yp, torch.Tensor):
             Yp = Yp.detach().numpy()
