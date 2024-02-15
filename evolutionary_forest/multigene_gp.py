@@ -84,6 +84,7 @@ class FitnessMin(base.Fitness):
 class MultipleGeneGP:
     introns_results: List[dict]
     case_values: np.ndarray
+    predicted_values: np.ndarray
     coef: np.ndarray
     hash_result: list
     mgp_mode: bool

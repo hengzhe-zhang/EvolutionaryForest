@@ -25,6 +25,7 @@ from torch import optim
 from torch.nn import MSELoss
 from umap import UMAP
 
+from evolutionary_forest.component.evaluation import cos_sim
 from evolutionary_forest.model.VAE import NeuralNetTransformer, VAE
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import efficient_deepcopy
@@ -1138,7 +1139,7 @@ def selLexicaseDCD(individuals, k):
     return chosen
 
 
-def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random"):
+def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random", y=None):
     chosen = []
     for i in range(0, k, 2):
         a: MultipleGeneGP = selAutomaticEpsilonLexicaseFast(individuals, 1)[0]
@@ -1149,7 +1150,10 @@ def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random"):
             if np.all(np.array(a.fitness.wvalues) >= np.array(ind.fitness.wvalues)):
                 # dominating
                 continue
-            dist = np.linalg.norm(a.case_values - ind.case_values)
+            if strategy.endswith("+"):
+                dist = cos_sim(a.predicted_values - y, ind.predicted_values - y)
+            else:
+                dist = np.linalg.norm(a.predicted_values - ind.predicted_values)
             if dist == 0:
                 # equivalent semantics
                 continue
@@ -1165,22 +1169,25 @@ def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random"):
         if strategy == "Tournament":
             pool = [ind for _, ind in distances]
             chosen.append(a)
-            chosen.append(selTournament(pool, 1, 3)[0])
+            chosen.append(selTournament(pool, 1, neighbor)[0])
             continue
 
         # Sort individuals based on distance
-        distances.sort(key=lambda x: x[0])
+        if strategy.endswith("+"):
+            distances.sort(key=lambda x: -x[0])
+        else:
+            distances.sort(key=lambda x: x[0])
 
         # Choose the k-nearest neighbors
         neighbors = [ind for _, ind in distances[:neighbor]]
 
         # best sharpness
         chosen.append(a)
-        if strategy == "Random":
+        if strategy == "Random" or strategy == "Random+":
             chosen.append(random.choice(neighbors))
-        elif strategy == "BestSharpness":
+        elif strategy == "BestSharpness" or strategy == "BestSharpness+":
             chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[1]))
-        elif strategy == "BestAccuracy":
+        elif strategy == "BestAccuracy" or strategy == "BestAccuracy+":
             chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[0]))
         else:
             raise Exception
