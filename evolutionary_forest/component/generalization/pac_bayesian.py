@@ -20,6 +20,7 @@ from evolutionary_forest.component.configuration import NoiseConfiguration
 from evolutionary_forest.component.evaluation import inject_noise_to_data
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
+from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
@@ -173,16 +174,11 @@ def pac_bayesian_estimation(
     index = None
     if configuration.only_hard_instance != 0:
         mse_scores = np.zeros(
-            (num_iterations, int(len(X) * abs(configuration.only_hard_instance)))
+            (num_iterations, int(configuration.only_hard_instance * len(y)))
         )
-        if configuration.only_hard_instance > 0:
-            index = np.argsort(baseline)[
-                -int(len(baseline) * configuration.only_hard_instance) :
-            ]
-        else:
-            index = np.argsort(baseline)[
-                : int(len(baseline) * -configuration.only_hard_instance)
-            ]
+        index = sample_indices_gaussian_kernel(
+            y.flatten(), int(configuration.only_hard_instance * len(y)), replace=False
+        )
         baseline = baseline[index]
     else:
         mse_scores = np.zeros((num_iterations, len(X)))
@@ -223,12 +219,8 @@ def pac_bayesian_estimation(
                     data, target_y = data
             X_noise = sc.transform(feature_generator(data, random_seed=i))
         elif sharpness_type in [SharpnessType.Parameter, SharpnessType.ParameterPlus]:
-            if configuration.only_hard_instance > 0:
+            if configuration.only_hard_instance != 0:
                 # worst x%
-                input_x = original_X[index]
-                target_y = y[index]
-            elif configuration.only_hard_instance < 0:
-                # best x%
                 input_x = original_X[index]
                 target_y = y[index]
             else:
