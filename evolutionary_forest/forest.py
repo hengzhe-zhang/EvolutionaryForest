@@ -1603,7 +1603,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = KNeighborsRegressor(weights="distance")
         elif self.base_learner.startswith("GKNN"):
             k = int(self.base_learner.split("-")[1])
-            regr = GaussianKNNRegressor(k=k)
+            ridge_model = GaussianKNNRegressor(k=k)
         elif self.base_learner == "HuberRegressor":
             ridge_model = HuberRegressor()
         elif self.base_learner == "PLTree":
