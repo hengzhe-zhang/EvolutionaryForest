@@ -24,6 +24,7 @@ class NoiseConfiguration:
         layer_adaptive=False,
         skip_root=True,
         only_terminal=False,
+        sam_mix_bandwidth=1,
         **params
     ):
         """
@@ -39,6 +40,7 @@ class NoiseConfiguration:
         self.layer_adaptive = layer_adaptive
         self.skip_root = skip_root
         self.only_terminal = only_terminal
+        self.sam_mix_bandwidth = sam_mix_bandwidth
 
 
 class MABConfiguration:
