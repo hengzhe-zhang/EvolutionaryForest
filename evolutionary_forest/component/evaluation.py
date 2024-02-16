@@ -1003,8 +1003,8 @@ def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_s
         noise = rng.laplace(0, 1, size_of_noise)
     elif noise_type == "Beta":
         noise = rng.beta(random_noise_magnitude, random_noise_magnitude, size_of_noise)
-        # ensure large part of original samples
-        noise = np.maximum(noise, 1 - noise)
+        # ensure large part of original samples, and less part is noise
+        noise = np.minimum(noise, 1 - noise)
     elif noise_type == "Ensemble":
         choices = [
             rng.normal(0, 1, size_of_noise),
