@@ -17,11 +17,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from evolutionary_forest.component.configuration import NoiseConfiguration
-from evolutionary_forest.component.evaluation import inject_noise_to_data
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
 from evolutionary_forest.utils import cv_prediction_from_ridge
+from utils.common_utils import timeit
 
 
 @njit
@@ -124,6 +124,7 @@ class SharpnessType(Enum):
     GKNN = 11
 
 
+# @timeit
 def pac_bayesian_estimation(
     X,
     original_X,
