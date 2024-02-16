@@ -188,6 +188,7 @@ from evolutionary_forest.model.PLTree import (
 from evolutionary_forest.model.RBFN import RBFN
 from evolutionary_forest.model.SafeRidgeCV import BoundedRidgeCV, SplineRidgeCV
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
+from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.preprocess_utils import (
     GeneralFeature,
@@ -1600,6 +1601,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = KNeighborsRegressor(n_neighbors=3, weights="uniform")
         elif self.base_learner == "KNN-D":
             ridge_model = KNeighborsRegressor(weights="distance")
+        elif self.base_learner.startswith("GKNN"):
+            k = int(self.base_learner.split("-")[1])
+            regr = GaussianKNNRegressor(k=k)
         elif self.base_learner == "HuberRegressor":
             ridge_model = HuberRegressor()
         elif self.base_learner == "PLTree":
