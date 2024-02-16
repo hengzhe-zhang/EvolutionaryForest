@@ -1,6 +1,7 @@
 import numpy as np
 from cachetools import cached, LRUCache
 from cachetools.keys import hashkey
+from sklearn.metrics.pairwise import rbf_kernel
 
 
 def sample_according_to_distance(distance_matrix, indices_a, inverse_prob=False):
@@ -55,12 +56,13 @@ def sample_indices_gaussian_kernel(data, num_samples, sigma=1.0, replace=True):
     Returns:
     - sampled_indices: np.array, the sampled indices based on the Gaussian kernel distances.
     """
-    # Compute pairwise squared Euclidean distances
-    diff = np.expand_dims(data, 1) - np.expand_dims(data, 0)
-    sq_distances = diff**2
-
-    # Apply the Gaussian function to the squared distances
-    gaussian_kernel = np.exp(-sq_distances / (2 * sigma**2))
+    # # Compute pairwise squared Euclidean distances
+    # diff = np.expand_dims(data, 1) - np.expand_dims(data, 0)
+    # sq_distances = diff**2
+    #
+    # # Apply the Gaussian function to the squared distances
+    # gaussian_kernel = np.exp(-sq_distances / (2 * sigma**2))
+    gaussian_kernel = 1 - rbf_kernel(data.reshape(-1, 1))
 
     # Sum over rows to get the "influence" score of each point
     influence_scores = np.sum(gaussian_kernel, axis=1)
