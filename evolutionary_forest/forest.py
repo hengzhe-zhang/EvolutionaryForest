@@ -949,7 +949,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif hasattr(base_learner, "feature_importances_"):
             coef = base_learner.feature_importances_
         elif isinstance(
-            base_learner, (KNeighborsRegressor, MeanRegressor, MedianRegressor)
+            base_learner,
+            (KNeighborsRegressor, MeanRegressor, MedianRegressor, BaseEstimator),
         ):
             # Temporarily set all features to have equal importance values
             coef = np.ones(self.gene_num)
@@ -1050,7 +1051,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 individual.pipe = pipe
 
-        if self.bootstrap_training or self.eager_training:
+        if (
+            (self.bootstrap_training or self.eager_training)
+            and
+            # save computational resources
+            not isinstance(individual.pipe[1], RidgeCV)
+        ):
             Yp = multi_tree_evaluation(
                 genes,
                 self.pset,

@@ -10,6 +10,8 @@ from sklearn.neighbors import KNeighborsRegressor
 class GaussianKNNRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, k):
         self.k = k
+        self.X_train = None
+        self.y_train = None
 
     def gaussian_kernel(self, distances, sigma=1):
         weights = np.exp(-0.5 * (distances / sigma) ** 2)
@@ -20,6 +22,8 @@ class GaussianKNNRegressor(BaseEstimator, RegressorMixin):
         self.y_train = y_train
 
     def predict(self, X_test):
+        if self.X_train is None or self.y_train is None:
+            raise ValueError("Model has not been trained")
         knn = KNeighborsRegressor(n_neighbors=self.k)
         knn.fit(self.X_train, self.y_train)
         distances, indices = knn.kneighbors(X_test)
