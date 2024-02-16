@@ -1952,6 +1952,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicaseDCD)
         elif self.select == "LexicaseTournament":
             toolbox.register("select", selLexicaseTournament)
+        elif self.select.startswith("KNN"):
+            base_operator, neighbor, strategy = self.select.split("-")[1:]
+            neighbor = int(neighbor)
+            toolbox.register(
+                "select",
+                selLexicaseKNN,
+                base_operator=base_operator,
+                neighbor=neighbor,
+                strategy=strategy,
+                y=self.y,
+            )
         elif self.select == "Tournament":
             toolbox.register(
                 "select", tools.selTournament, tournsize=self.param["tournament_size"]

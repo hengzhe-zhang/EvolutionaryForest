@@ -1139,10 +1139,18 @@ def selLexicaseDCD(individuals, k):
     return chosen
 
 
-def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random", y=None):
+def selLexicaseKNN(
+    individuals, k, base_operator="Lexicase", neighbor=3, strategy="Random", y=None
+):
     chosen = []
     for i in range(0, k, 2):
-        a: MultipleGeneGP = selAutomaticEpsilonLexicaseFast(individuals, 1)[0]
+        if base_operator == "Lexicase":
+            a: MultipleGeneGP = selAutomaticEpsilonLexicaseFast(individuals, 1)[0]
+        elif base_operator.startswith("Tournament"):
+            tournsize = int(base_operator.split("~")[1])
+            a: MultipleGeneGP = selTournament(individuals, 1, tournsize=tournsize)[0]
+        else:
+            raise Exception
 
         # Calculate distances in semantic space
         distances = []
@@ -1150,7 +1158,7 @@ def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random", y=None):
             if np.all(np.array(a.fitness.wvalues) >= np.array(ind.fitness.wvalues)):
                 # dominating
                 continue
-            if strategy.endswith("-C"):
+            if "-C" in strategy:
                 dist = cos_sim(a.predicted_values - y, ind.predicted_values - y)
             else:
                 dist = np.linalg.norm(a.predicted_values - ind.predicted_values)
@@ -1173,22 +1181,31 @@ def selLexicaseKNN(individuals, k, neighbor=3, strategy="Random", y=None):
             continue
 
         # Sort individuals based on distance
-        if strategy.endswith("-C") or strategy.endswith("-E"):
+        if "Max" in strategy:
+            # default prefer near individuals
             distances.sort(key=lambda x: -x[0])
-        else:
+        elif "Min" in strategy:
             distances.sort(key=lambda x: x[0])
+        else:
+            raise Exception
 
         # Choose the k-nearest neighbors
         neighbors = [ind for _, ind in distances[:neighbor]]
 
         # best sharpness
         chosen.append(a)
-        if strategy.startswith("Random"):
+        if "Random" in strategy:
             chosen.append(random.choice(neighbors))
-        elif strategy.startswith("BestSharpness"):
+        elif "BestSharpness" in strategy:
             chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[1]))
-        elif strategy.startswith("BestAccuracy"):
+        elif "BestAccuracy" in strategy:
             chosen.append(max(neighbors, key=lambda x: x.fitness.wvalues[0]))
+        elif "BestSum" in strategy:
+            chosen.append(
+                max(
+                    neighbors, key=lambda x: x.fitness.wvalues[0] + x.fitness.wvalues[1]
+                )
+            )
         else:
             raise Exception
     return chosen
