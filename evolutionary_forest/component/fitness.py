@@ -523,6 +523,8 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.Parameter
         if sharpness_type == "ParameterPlus":
             sharpness_type = SharpnessType.ParameterPlus
+        if sharpness_type == "GKNN":
+            sharpness_type = SharpnessType.GKNN
         if sharpness_type == "DataRealVariance":
             sharpness_type = SharpnessType.DataRealVariance
         self.sharpness_type = sharpness_type

@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsRegressor
 
 
-class GaussianKNNRegressor:
+class GaussianKNNRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, k):
         self.k = k
 
@@ -38,7 +39,7 @@ if __name__ == "__main__":
 
     # Define parameter combinations to compare
     test_sizes = [0.2, 0.5, 0.8]
-    n_neighbors_values = [3, 5, 7, 10, 15, 20, 30, 50]
+    n_neighbors_values = [3, 5, 7, 10, 15, 20, 30]
 
     # Initialize lists to store R-squared scores for both models
     knn_r2_values = []
@@ -57,7 +58,8 @@ if __name__ == "__main__":
 
             # Regular KNeighborsRegressor
             knn_regressor = KNeighborsRegressor(
-                n_neighbors=n_neighbors, weights="distance"
+                n_neighbors=n_neighbors,
+                # weights="distance"
             )
             knn_regressor.fit(X_train, y_train)
             knn_y_pred = knn_regressor.predict(X_test)

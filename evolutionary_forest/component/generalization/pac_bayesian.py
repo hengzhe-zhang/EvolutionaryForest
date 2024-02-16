@@ -18,6 +18,7 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from evolutionary_forest.component.configuration import NoiseConfiguration
 from evolutionary_forest.component.evaluation import inject_noise_to_data
+from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
@@ -61,6 +62,7 @@ class PACBayesianConfiguration:
         structural_sharpness=0,
         adaptive_depth=False,
         classification=False,
+        sam_knn_neighbors=1,
         **params
     ):
         # For VCD
@@ -83,6 +85,7 @@ class PACBayesianConfiguration:
         self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
         self.classification = classification
+        self.sam_knn_neighbors = sam_knn_neighbors
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -117,6 +120,7 @@ class SharpnessType(Enum):
     MaxMargin = 8
     DataGPHybrid = 9
     ParameterPlus = 10
+    GKNN = 11
 
 
 def pac_bayesian_estimation(
@@ -183,6 +187,10 @@ def pac_bayesian_estimation(
     else:
         mse_scores = np.zeros((num_iterations, len(X)))
 
+    if sharpness_type == SharpnessType.GKNN:
+        base_knn = GaussianKNNRegressor(configuration.sam_knn_neighbors)
+        base_knn.fit(X, y)
+
     derivatives = []
     std = configuration.perturbation_std
     # Iterate over the number of iterations
@@ -201,6 +209,7 @@ def pac_bayesian_estimation(
             or sharpness_type == SharpnessType.DataRealVariance
             or sharpness_type == SharpnessType.DataGPSource
             or sharpness_type == SharpnessType.MaxMargin
+            or sharpness_type == SharpnessType.GKNN
         ):
             # Generate some random noise data
             data = data_generator(random_seed=i)
@@ -246,10 +255,12 @@ def pac_bayesian_estimation(
             estimator_noise = copy.deepcopy(estimator)
             # Use the modified Ridge model to predict the outcome variable
             estimator_noise.fit(X_noise, y)
-            y_pred = get_cv_predictions(estimator_noise, X_noise, y)
+            y_pred_on_noise = get_cv_predictions(estimator_noise, X_noise, y)
         else:
             # in most cases, don't need to refit the model
-            y_pred = get_cv_predictions(estimator, X_noise, y, direct_prediction=True)
+            y_pred_on_noise = get_cv_predictions(
+                estimator, X_noise, y, direct_prediction=True
+            )
 
         if (
             isinstance(configuration.objective, str)
@@ -259,17 +270,21 @@ def pac_bayesian_estimation(
             y_pred_plus = get_cv_predictions(
                 estimator, X_noise_plus, y, direct_prediction=True
             )
-            derivatives.append(np.mean(np.abs((y_pred_plus - y_pred))))
+            derivatives.append(np.mean(np.abs((y_pred_plus - y_pred_on_noise))))
 
         # Calculate the R2 score between the predicted outcomes and the true outcomes
         if sharpness_type == SharpnessType.DataLGBM:
-            mse_scores[i] = (reference_model.predict(data).flatten() - y_pred) ** 2
+            mse_scores[i] = (
+                reference_model.predict(data).flatten() - y_pred_on_noise
+            ) ** 2
+        elif sharpness_type == SharpnessType.GKNN:
+            mse_scores[i] = (base_knn.predict(X_noise).flatten() - y_pred_on_noise) ** 2
         elif (
             sharpness_type == SharpnessType.DataGP
             or sharpness_type == SharpnessType.ParameterPlus
         ):
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
-            mse_scores[i] = (gp_predictions.flatten() - y_pred) ** 2
+            mse_scores[i] = (gp_predictions.flatten() - y_pred_on_noise) ** 2
         elif sharpness_type == SharpnessType.DataRealVariance:
             # not recommend
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
@@ -277,24 +292,24 @@ def pac_bayesian_estimation(
         elif sharpness_type == SharpnessType.DataGPSource:
             # gp_predictions: prediction on clean data
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
-            target_value = np.zeros_like(y_pred)
+            target_value = np.zeros_like(y_pred_on_noise)
             for index, ratio in source_indices:
                 target_value += gp_predictions[index] * ratio
-            mse_scores[i] = (target_value - y_pred) ** 2
+            mse_scores[i] = (target_value - y_pred_on_noise) ** 2
         elif sharpness_type == SharpnessType.MaxMargin:
             gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
-            target_value = np.zeros_like(y_pred)
+            target_value = np.zeros_like(y_pred_on_noise)
             for index, ratio in source_indices:
                 target_value += gp_predictions[index] * ratio
-            mse_scores[i] = (target_value - y_pred) ** 2 + 2 * (
-                (target_y - target_value) * (target_value - y_pred)
+            mse_scores[i] = (target_value - y_pred_on_noise) ** 2 + 2 * (
+                (target_y - target_value) * (target_value - y_pred_on_noise)
             )
         elif sharpness_type == SharpnessType.DataGPHybrid:
             # target_y: the synthesized target
             # y_pred: prediction on noise data
-            target_value = np.zeros_like(y_pred)
+            target_value = np.zeros_like(y_pred_on_noise)
             for index, ratio in source_indices:
-                target_value += y_pred[index] * ratio
+                target_value += y_pred_on_noise[index] * ratio
             mse_scores[i] = (target_value - target_y) ** 2
         else:
             if configuration.classification:
@@ -302,17 +317,17 @@ def pac_bayesian_estimation(
                     mse_scores[i] = (
                         calculate_cross_entropy(
                             target_y,
-                            y_pred,
+                            y_pred_on_noise,
                         )
                         * instance_weights
                     )
                 else:
                     mse_scores[i] = calculate_cross_entropy(
                         target_y,
-                        y_pred,
+                        y_pred_on_noise,
                     )
             else:
-                mse_scores[i] = (target_y - y_pred) ** 2
+                mse_scores[i] = (target_y - y_pred_on_noise) ** 2
     if sharpness_type == SharpnessType.DataRealVariance:
         # This is the real variance
         mean_score = np.mean(mse_scores, axis=0)
