@@ -1186,6 +1186,8 @@ def selLexicaseKNN(
             distances.sort(key=lambda x: -x[0])
         elif "Min" in strategy:
             distances.sort(key=lambda x: x[0])
+        elif "Random" in strategy:
+            random.shuffle(distances)
         else:
             raise Exception
 
