@@ -393,6 +393,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         simplification=False,
         validation_ratio=0,
         post_selection_method=None,
+        stochastic_mode=False,
         **params,
     ):
         """
@@ -436,7 +437,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.learner = learner
         self.force_retrain = force_retrain
         self.base_learner_configuration = BaseLearnerConfiguration(**params)
-        self.pac_bayesian = PACBayesianConfiguration(**params)
         self.rmp_ratio = rmp_ratio
         self.columns = None
         self.custom_primitives = custom_primitives
@@ -553,6 +553,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.max_leaf_nodes = max_leaf_nodes
         self.ps_tree_ratio = ps_tree_ratio
         self.semantic_repair = semantic_repair
+        self.stochastic_mode = stochastic_mode
 
         if isinstance(self.ps_tree_ratio, str) and "Interleave" in self.ps_tree_ratio:
             interleaving_period = int(
@@ -734,6 +735,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             self.environmental_selection = environmental_selection
 
+        self.pac_bayesian = PACBayesianConfiguration(**params, **vars(self))
         self.crossover_configuration = CrossoverConfiguration(
             intron_parameters=bloat_control,
             **params,
@@ -3326,8 +3328,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 population, adaptive_hoist_probability, no_improvement_iteration
             )
 
+            # determine the number of individuals to generate
+            if self.stochastic_mode and self.elites_archive is not None:
+                individuals_to_generate = pop_size - len(self.elites_archive)
+            else:
+                individuals_to_generate = pop_size
+
             # offspring generation
-            while len(new_offspring) < pop_size:
+            while len(new_offspring) < individuals_to_generate:
                 if count > pop_size * 100:
                     raise Exception("Error!")
                 count += 1
@@ -3417,7 +3425,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
 
                 self.torch_variable_clone(offspring)
-                self.fix_very_trivial_trees(offspring)
+                # default disabled
+                self.fix_very_trivial_trees_mode(offspring)
 
                 check_mutation = (
                     self.bloat_control is not None
@@ -3466,18 +3475,23 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 for o in offspring:
                     self.self_adaptive_mutation(o, population)
 
-                    if len(new_offspring) < pop_size:
+                    if len(new_offspring) < individuals_to_generate:
                         # checking redundant individuals
                         if (
                             self.allow_revisit
                             or (not individual_to_tuple(o) in self.evaluated_pop)
+                            # for single-tree, may have many chances to repeat,
+                            # so less restrictive
                             or (self.gene_num == 1 and count > pop_size * 10)
                         ):
                             # sometime, when gene num is very small, it is hard to generate a unique individual
                             self.evaluated_pop.add(individual_to_tuple(o))
                             new_offspring.append(o)
 
-            assert len(new_offspring) == pop_size
+            if self.stochastic_mode and self.elites_archive is not None:
+                new_offspring += self.elites_archive
+
+            assert len(new_offspring) == pop_size, f"{len(new_offspring), pop_size}"
             new_offspring = self.semantic_approximation(new_offspring)
             new_offspring = self.tarpeian(new_offspring)
 
@@ -3693,7 +3707,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.post_prune(self.hof)
         return population, logbook
 
-    def fix_very_trivial_trees(self, offspring):
+    def fix_very_trivial_trees_mode(self, offspring):
         """
         Address and rectify trivial trees (specifically zero trees) in the provided offspring list.
 
@@ -4517,8 +4531,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.irrelevant_features_history.append(current_irrelevant_features)
 
     def update_external_archive(self, population, external_archive):
+        if self.stochastic_mode:
+            external_archive = None
         if isinstance(self.external_archive, int):
             if self.check_multi_task_optimization():
+                # multi-task optimization, need to store
                 models = self.base_model_list.split(",")
                 if external_archive is not None:
                     candidate = list(external_archive) + list(population)
@@ -4530,6 +4547,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     parent = list(filter(lambda x: x.base_model == model, candidate))
                     external_archive.extend(selBest(parent, self.external_archive))
             else:
+                # traditional way
                 if external_archive is not None:
                     external_archive = selBest(
                         list(external_archive) + list(population), self.external_archive
@@ -4551,12 +4569,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.external_archive == "ImportantFeatures" or self.semantic_repair > 0:
             if external_archive is None:
                 external_archive = []
+
+            # Iterate over each tree
             for g in range(self.gene_num):
                 if len(external_archive) == self.gene_num:
                     selected_features = {str(o[1]): o for o in external_archive[g]}
                 else:
                     selected_features = {}
+
+                # Iterate over individuals in the population
                 for p in population:
+                    # Calculate score for each tree based on fitness and coefficient
                     score = p.fitness.wvalues[0] * p.coef[g]
                     gene_str = str(p.gene[g])
                     if gene_str in selected_features:

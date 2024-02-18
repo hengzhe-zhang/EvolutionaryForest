@@ -25,6 +25,7 @@ class NoiseConfiguration:
         skip_root=True,
         only_terminal=False,
         sam_mix_bandwidth=1,
+        stochastic_mode=False,
         **params
     ):
         """
@@ -41,6 +42,7 @@ class NoiseConfiguration:
         self.skip_root = skip_root
         self.only_terminal = only_terminal
         self.sam_mix_bandwidth = sam_mix_bandwidth
+        self.stochastic_mode = stochastic_mode
 
 
 class MABConfiguration:

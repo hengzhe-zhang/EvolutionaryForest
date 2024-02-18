@@ -681,7 +681,10 @@ class R2PACBayesian(Fitness):
         X_features = algorithm.feature_generation(algorithm.X, individual)
         # random generate training data
         if self.sharpness_distribution == "Normal":
-            data_generator = self.gaussian_noise
+            if algorithm.stochastic_mode:
+                data_generator = self.gaussian_noise.__wrapped__
+            else:
+                data_generator = self.gaussian_noise
         elif self.sharpness_distribution == "Uniform":
             data_generator = self.uniform_noise
         elif self.sharpness_distribution == "Laplace":

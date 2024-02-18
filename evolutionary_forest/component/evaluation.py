@@ -783,9 +783,10 @@ def single_tree_evaluation(
                         and result.size > 1
                     ):
                         if (
-                            len(stack) == 0 and noise_configuration.skip_root
-                        ) or noise_configuration.only_terminal:
                             # not add noise to the root node
+                            len(stack) == 0
+                            and noise_configuration.skip_root
+                        ) or noise_configuration.only_terminal:
                             pass
                         else:
                             layer_random_noise = get_adaptive_noise(
@@ -824,7 +825,8 @@ def single_tree_evaluation(
                         # not a trivial expression
                         and len(result) > 1
                         and noise_configuration.noise_to_terminal is not False
-                        # not add noise to only a terminal node
+                        # not add noise to only a terminal node, len(stack) == 0 represents only terminal node
+                        # but this restriction only available in skip_root mode
                         and not (len(stack) == 0 and noise_configuration.skip_root)
                     ):
                         layer_random_noise = get_adaptive_noise(
@@ -966,21 +968,24 @@ def inject_noise_to_data(
     if noise_vector is not None:
         noise = noise_vector
     else:
-        noise = noise_generation(
-            noise_type, size_of_noise, random_noise_magnitude, random_seed
-        )
+        if noise_configuration.stochastic_mode:
+            noise = noise_generation.__wrapped__(
+                noise_type, size_of_noise, random_noise_magnitude, random_seed=-1
+            )
+        else:
+            noise = noise_generation(
+                noise_type, size_of_noise, random_noise_magnitude, random_seed
+            )
 
     if noise_configuration.noise_normalization == "Mix":
-        result = (1 - noise) * result + noise * result[
-            random_sample(len(result), random_seed)
-        ]
+        sampled_instances = random_sample(len(result), random_seed)
+        result = (1 - noise) * result + noise * result[sampled_instances]
     elif noise_configuration.noise_normalization == "MixT":
         # For this distance matrix, the larger, the near
-        result = (1 - noise) * result + noise * result[
-            weighted_sampling(
-                len(result), random_seed, reference_label, gamma=sam_mix_bandwidth
-            )
-        ]
+        sampled_instances = weighted_sampling(
+            len(result), random_seed, reference_label, gamma=sam_mix_bandwidth
+        )
+        result = (1 - noise) * result + noise * result[sampled_instances]
     elif noise_configuration.noise_normalization == "Instance+":
         result = result + noise * random_noise_magnitude * result
     elif noise_configuration.noise_normalization == "Instance":
@@ -1000,7 +1005,10 @@ def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_s
     """
     Obviously, it's possible to use cache technique to avoid the expensive sampling process
     """
-    rng = np.random.RandomState(random_seed)
+    if random_seed == -1:
+        rng = np.random
+    else:
+        rng = np.random.RandomState(random_seed)
     if noise_type == "Normal":
         noise = rng.normal(0, 1, size_of_noise)
     elif noise_type == "Uniform":
