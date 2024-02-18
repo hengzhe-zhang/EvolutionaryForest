@@ -31,6 +31,7 @@ from evolutionary_forest.component.decision_making.harmonic_rank import (
     best_harmonic_rank,
 )
 from evolutionary_forest.component.fitness import R2PACBayesian
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
 
 if TYPE_CHECKING:
@@ -138,14 +139,15 @@ class Objective:
         pass
 
 
-def unique(individuals):
+def get_unique_individuals(individuals):
     generated = set()
     result = []
 
     for ind in individuals:
         s = ind
-        if str(s) not in generated:
-            generated.add(str(s))
+        encoded_ind = individual_to_tuple(s)
+        if encoded_ind not in generated:
+            generated.add(encoded_ind)
             result.append(s)
     return result
 
@@ -161,6 +163,7 @@ class NSGA2(EnvironmentalSelection):
         first_objective_weight=1,
         max_cluster_point=True,
         handle_objective_duplication=False,
+        n_pop=0,
         **kwargs
     ):
         self.handle_objective_duplication = handle_objective_duplication
@@ -175,11 +178,13 @@ class NSGA2(EnvironmentalSelection):
         self.selection_operator = selNSGA2
         self.validation_x = None
         self.validation_y = None
+        # golden standard
+        self.n_pop = n_pop
 
     def select(self, population, offspring):
         individuals = population + offspring
         # remove exactly the same individuals
-        individuals = unique(individuals)
+        individuals = get_unique_individuals(individuals)
         # remove individuals with the same objective values
         if self.handle_objective_duplication:
             individuals = self.objective_space_duplication_removal(individuals)
@@ -204,14 +209,14 @@ class NSGA2(EnvironmentalSelection):
                     values.append(normalized_fitness)
                 ind.fitness.values = values
 
-        population[:] = self.selection_operator(individuals, len(population))
+        population[:] = self.selection_operator(individuals, self.n_pop)
 
         if self.knee_point != False:
             if self.knee_point == "Ensemble":
-                first_pareto_front = sortNondominated(population, len(population))[0]
+                first_pareto_front = sortNondominated(population, self.n_pop)[0]
                 self.algorithm.hof = first_pareto_front
             elif self.knee_point == "Top-10":
-                first_pareto_front = sortNondominated(population, len(population))[0]
+                first_pareto_front = sortNondominated(population, self.n_pop)[0]
                 best_individuals = sorted(
                     first_pareto_front, key=lambda x: x.fitness.wvalues
                 )[-10:]
@@ -221,7 +226,7 @@ class NSGA2(EnvironmentalSelection):
                 "Cluster+Ensemble+Euclidian",
                 "Cluster+Ensemble+Fitness",
             ] or self.knee_point.startswith("Cluster+Ensemble"):
-                first_pareto_front = sortNondominated(population, len(population))[0]
+                first_pareto_front = sortNondominated(population, self.n_pop)[0]
                 if "-" in self.knee_point:
                     n_clusters = int(self.knee_point.split("-")[1])
                     knee_point_mode = self.knee_point.split("-")[0]
@@ -296,7 +301,7 @@ class NSGA2(EnvironmentalSelection):
                         best_individuals.append(best_individual)
                     self.algorithm.hof = best_individuals
             elif self.knee_point == "Validation":
-                first_pareto_front = sortNondominated(population, len(population))[0]
+                first_pareto_front = sortNondominated(population, self.n_pop)[0]
                 scores = []
                 for ind in first_pareto_front:
                     features = self.algorithm.feature_generation(self.validation_x, ind)
@@ -315,7 +320,7 @@ class NSGA2(EnvironmentalSelection):
                 concatenate_X = self.algorithm.feature_generation(concatenate_X, ind)
                 ind.pipe.fit(concatenate_X, concatenate_y)
             else:
-                first_pareto_front = sortNondominated(population, len(population))[0]
+                first_pareto_front = sortNondominated(population, self.n_pop)[0]
                 if self.knee_point == "SAM" or self.knee_point == "SUM":
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
@@ -344,7 +349,7 @@ class NSGA2(EnvironmentalSelection):
                     self.algorithm.hof = [first_pareto_front[knee]]
 
         if self.bootstrapping_selection:
-            first_pareto_front: list = sortNondominated(population, len(population))[0]
+            first_pareto_front: list = sortNondominated(population, self.n_pop)[0]
 
             def quick_evaluation(ind):
                 r2_scores = []

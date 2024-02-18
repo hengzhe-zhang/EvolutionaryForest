@@ -137,12 +137,12 @@ def analytical_log_torch(x):
 
 
 def individual_to_tuple(ind):
-    arr = []
-    for x in ind.gene:
-        arr.append(tuple(a.name for a in x))
+    encoded_ind = []
+    for tree in ind.gene:
+        encoded_ind.append(tuple(node.name for node in tree))
     if hasattr(ind, "base_model"):
-        arr.append((ind.base_model,))
-    return tuple(sorted(arr))
+        encoded_ind.append((ind.base_model,))
+    return tuple(sorted(encoded_ind))
 
 
 def protect_loge(x1):

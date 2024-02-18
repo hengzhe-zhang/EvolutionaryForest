@@ -532,18 +532,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.test_fun: List[TestFunction] = test_fun
         self.history_initialization()
         self.early_stop = early_stop
-        if environmental_selection == "NSGA2":
-            self.environmental_selection: NSGA2 = NSGA2(self, None, **self.param)
-        elif environmental_selection == "NSGA3":
-            self.environmental_selection = NSGA3(self, None, **self.param)
-        elif environmental_selection == "SPEA2":
-            self.environmental_selection = SPEA2(self, None, **self.param)
-        elif environmental_selection == "Best":
-            self.environmental_selection = Best()
-        elif environmental_selection == "BestSAM":
-            self.environmental_selection = Best("sam_loss")
-        else:
-            self.environmental_selection = environmental_selection
         self.eager_training = eager_training
         self.useless_feature_ratio = useless_feature_ratio
         self.weighted_coef = weighted_coef
@@ -730,6 +718,21 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 delete_keys.append(k)
         for k in delete_keys:
             del params[k]
+
+        if environmental_selection == "NSGA2":
+            self.environmental_selection: NSGA2 = NSGA2(
+                self, None, **self.param, **vars(self)
+            )
+        elif environmental_selection == "NSGA3":
+            self.environmental_selection = NSGA3(self, None, **self.param)
+        elif environmental_selection == "SPEA2":
+            self.environmental_selection = SPEA2(self, None, **self.param)
+        elif environmental_selection == "Best":
+            self.environmental_selection = Best()
+        elif environmental_selection == "BestSAM":
+            self.environmental_selection = Best("sam_loss")
+        else:
+            self.environmental_selection = environmental_selection
 
         self.crossover_configuration = CrossoverConfiguration(
             intron_parameters=bloat_control,
@@ -3256,6 +3259,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         number_of_evaluations = self.n_pop
         total_evaluations = (self.n_gen + 1) * self.n_pop
         gen = 0
+        # fix at the start of evolution
         pop_size = self.n_pop
         while number_of_evaluations < total_evaluations:
             gen += 1
