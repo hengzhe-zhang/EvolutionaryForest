@@ -140,6 +140,9 @@ class Objective:
 
 
 def get_unique_individuals(individuals):
+    """
+    Old version: Check by string, without considering permutation
+    """
     generated = set()
     result = []
 
@@ -182,6 +185,9 @@ class NSGA2(EnvironmentalSelection):
         self.n_pop = n_pop
 
     def select(self, population, offspring):
+        """
+        Old version: The size of population is limited by the number of unique individuals in the first generation
+        """
         individuals = population + offspring
         # remove exactly the same individuals
         individuals = get_unique_individuals(individuals)
