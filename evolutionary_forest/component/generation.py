@@ -1,4 +1,5 @@
 import copy
+import math
 import random
 from typing import List, TYPE_CHECKING
 
@@ -41,15 +42,18 @@ def varAndPlus(
     @limitation_check
     def mutation_function(*population):
         offspring: List[MultipleGeneGP] = [toolbox.clone(ind) for ind in population]
-        crossed_individual = set()
 
         if crossover_configuration.var_or:
+            # only execute crossover *or* mutation
             return varOr(offspring)
 
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
         while i < len(offspring):
+            # in default, gene_num is the number of trees in each individual
+            gene_num = offspring[i].gene_num
+
             # Execute mutation and selection operator N-times
             if (
                 i % 2 == 0
@@ -57,21 +61,19 @@ def varAndPlus(
                 and random.random() < crossover_configuration.macro_crossover_rate
                 and min(len(offspring[i].gene), len(offspring[i + 1].gene)) > 1
             ):
-                offspring[i].gene, offspring[i + 1].gene = cxTwoPoint(
-                    offspring[i].gene, offspring[i + 1].gene
-                )
-                del offspring[i].fitness.values
-                del offspring[i + 1].fitness.values
+                genetic_algorithm_style_macro_crossover(offspring, i)
                 if crossover_configuration.independent_macro_crossover:
                     # skip micro-crossover after macro-crossover
                     i += 2
                     continue
 
             if isinstance(cxpb, np.ndarray):
+                # MGP crossover
                 if crossover_configuration.number_of_invokes > 0:
                     invokes = crossover_configuration.number_of_invokes
                 else:
-                    invokes = gene_num
+                    # iterate through all trees
+                    invokes = offspring[i].gene_num
                 for c in range(invokes):
                     assert not crossover_configuration.var_or, "Not supported varOr!"
                     if i % 2 == 0 and random.random() < cxpb[c]:
@@ -95,8 +97,9 @@ def varAndPlus(
                         # only reset if not in macro-crossover state
                         offspring[i].parent_fitness = None
                     if offspring[i + 1].crossover_type != "Macro":
+                        # only reset if not in macro-crossover state
                         offspring[i + 1].parent_fitness = None
-
+                    # for crossover, the number of genes the minimum of two
                     gene_num = min(offspring[i].gene_num, offspring[i + 1].gene_num)
 
                 # crossover, using the smallest number of genes for a pair of individuals
@@ -106,9 +109,6 @@ def varAndPlus(
                         offspring[i], offspring[i + 1] = toolbox.mate(
                             offspring[i], offspring[i + 1]
                         )
-                        # del offspring[i].fitness.values, offspring[i + 1].fitness.values
-                        crossed_individual.add(offspring[i])
-                        crossed_individual.add(offspring[i + 1])
 
                         # set parent fitness as the fitness values of two parents
                         if offspring[i].parent_fitness is None:
@@ -123,13 +123,10 @@ def varAndPlus(
                             )
 
                 # mutation, using the number of genes for each individual
-                gene_num = get_number_of_invokes(offspring[i].gene_num)
+                invokes = get_number_of_invokes(offspring[i].gene_num)
                 for c in range(invokes):
                     # If in var_or mode, once crossed, not allowed to be mutated
-                    if random.random() < mutpb and (
-                        not crossover_configuration.var_or
-                        or (i not in crossed_individual)
-                    ):
+                    if random.random() < mutpb:
                         (offspring[i],) = toolbox.mutate(offspring[i])
                         # if crossover already modifies an individual,
                         # then set its parent fitness as the fitness values of two parents
@@ -143,7 +140,23 @@ def varAndPlus(
                     addition_and_deletion(i, offspring)
             del offspring[i].fitness.values
             i += 1
+
+        for o in offspring:
+            # must delete all fitness values
+            assert (
+                not hasattr(o, "fitness")
+                or not hasattr(o.fitness, "values")
+                or len(o.fitness.values) == 0
+            )
         return offspring
+
+    def genetic_algorithm_style_macro_crossover(offspring, i):
+        # two point crossover means crossover operators in GA, not in GP
+        offspring[i].gene, offspring[i + 1].gene = cxTwoPoint(
+            offspring[i].gene, offspring[i + 1].gene
+        )
+        del offspring[i].fitness.values
+        del offspring[i + 1].fitness.values
 
     def addition_or_deletion(i, offspring):
         addition_and_deletion = random.random()
@@ -170,6 +183,7 @@ def varAndPlus(
         for i in range(0, len(offspring), 2):
             r = random.random()
             if r < mutpb:
+                # mutation
                 for k in range(i, i + 2):
                     rr = random.random()
                     if rr < mutation_configuration.gene_addition_rate:
@@ -182,6 +196,7 @@ def varAndPlus(
                         (offspring[k],) = toolbox.mutate(offspring[k])
                         del offspring[k].fitness.values
             elif r < cxpb + mutpb:
+                # crossover
                 (
                     offspring[i],
                     offspring[i + 1],
@@ -189,6 +204,7 @@ def varAndPlus(
                 del offspring[i].fitness.values
                 del offspring[i + 1].fitness.values
             else:
+                # reproduction
                 for k in range(i, i + 2):
                     offspring[k] = [copy.deepcopy(offspring[k])]
                     del offspring[k].fitness.values
@@ -198,7 +214,8 @@ def varAndPlus(
         if crossover_configuration.number_of_invokes > 0:
             invokes = crossover_configuration.number_of_invokes
             if invokes < 1:
-                invokes = int(gene_num * invokes)
+                # based on ratio
+                invokes = math.ceil(gene_num * invokes)
         else:
             invokes = gene_num
         return invokes
