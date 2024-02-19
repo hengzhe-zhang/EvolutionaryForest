@@ -56,7 +56,6 @@ from evolutionary_forest.multigene_gp import (
 from evolutionary_forest.sklearn_utils import cross_val_predict
 from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
 from evolutionary_forest.utility.sampling_utils import (
-    get_probability_matrix_from_distance_matrix,
     sample_according_to_distance,
 )
 from evolutionary_forest.utils import (
@@ -942,11 +941,13 @@ def random_sample(size_of_noise, random_seed):
 
 @cached(
     cache=LRUCache(maxsize=128),
-    key=lambda size_of_noise, random_seed, reference_label, gamma: hashkey(
-        size_of_noise, random_seed, gamma
-    ),
+    key=lambda random_seed, reference_label, gamma: hashkey(random_seed, gamma),
 )
-def weighted_sampling(size_of_noise, random_seed, reference_label, gamma=1):
+def weighted_sampling_cached(random_seed, reference_label, gamma=1):
+    return weighted_sampling(random_seed, reference_label, gamma)
+
+
+def weighted_sampling(random_seed, reference_label, gamma=1):
     distance_matrix = rbf_kernel(reference_label.reshape(-1, 1), gamma=gamma)
     return sample_according_to_distance(
         distance_matrix, np.arange(0, len(reference_label))
@@ -983,12 +984,12 @@ def inject_noise_to_data(
     elif noise_configuration.noise_normalization == "MixT":
         # For this distance matrix, the larger, the near
         if noise_configuration.stochastic_mode:
-            sampled_instances = weighted_sampling.__wrapped__(
-                len(result), random_seed, reference_label, gamma=sam_mix_bandwidth
+            sampled_instances = weighted_sampling(
+                random_seed, reference_label, gamma=sam_mix_bandwidth
             )
         else:
-            sampled_instances = weighted_sampling(
-                len(result), random_seed, reference_label, gamma=sam_mix_bandwidth
+            sampled_instances = weighted_sampling_cached(
+                random_seed, reference_label, gamma=sam_mix_bandwidth
             )
         result = (1 - noise) * result + noise * result[sampled_instances]
     elif noise_configuration.noise_normalization == "Instance+":
