@@ -982,9 +982,14 @@ def inject_noise_to_data(
         result = (1 - noise) * result + noise * result[sampled_instances]
     elif noise_configuration.noise_normalization == "MixT":
         # For this distance matrix, the larger, the near
-        sampled_instances = weighted_sampling(
-            len(result), random_seed, reference_label, gamma=sam_mix_bandwidth
-        )
+        if noise_configuration.stochastic_mode:
+            sampled_instances = weighted_sampling.__wrapped__(
+                len(result), random_seed, reference_label, gamma=sam_mix_bandwidth
+            )
+        else:
+            sampled_instances = weighted_sampling(
+                len(result), random_seed, reference_label, gamma=sam_mix_bandwidth
+            )
         result = (1 - noise) * result + noise * result[sampled_instances]
     elif noise_configuration.noise_normalization == "Instance+":
         result = result + noise * random_noise_magnitude * result
@@ -1016,7 +1021,7 @@ def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_s
     elif noise_type == "Laplace":
         noise = rng.laplace(0, 1, size_of_noise)
     elif noise_type == "Beta":
-        noise = rng.beta(random_noise_magnitude, random_noise_magnitude, size_of_noise)
+        noise = rng.beta(1, random_noise_magnitude, size_of_noise)
         # ensure large part of original samples, and less part is noise
         noise = np.minimum(noise, 1 - noise)
     elif noise_type == "Ensemble":
