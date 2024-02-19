@@ -205,7 +205,7 @@ from evolutionary_forest.strategies.adaptive_operator_selection import (
     MultiArmBandit,
     MCTS,
 )
-from evolutionary_forest.strategies.auto_sam import auto_tune_sam
+from evolutionary_forest.strategies.auto_sam import auto_tune_sam, auto_sam_scaling
 from evolutionary_forest.strategies.estimation_of_distribution import (
     EstimationOfDistribution,
     eda_operators,
@@ -1920,6 +1920,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             and "Auto" in self.pac_bayesian.perturbation_std
         ):
             self.pac_bayesian.perturbation_std = auto_tune_sam(
+                self.X, self.y, self.pac_bayesian.perturbation_std
+            )
+
+        if (
+            isinstance(self.pac_bayesian.perturbation_std, str)
+            and "Scaling" in self.pac_bayesian.perturbation_std
+        ):
+            self.pac_bayesian.perturbation_std = auto_sam_scaling(
                 self.X, self.y, self.pac_bayesian.perturbation_std
             )
 

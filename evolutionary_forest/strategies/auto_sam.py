@@ -29,20 +29,7 @@ def auto_tune_sam(X, y, std):
     ub = float(ub)
     lb = float(lb)
 
-    model = DecisionTreeRegressor()
-    test_scores = []
-    generalization_gap = []
-
-    kf = KFold(n_splits=5, random_state=0, shuffle=True)
-    for train_index, test_index in kf.split(X):
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
-
-        model.fit(X_train, y_train)
-        test_score = r2_score(y_test, model.predict(X_test))
-        train_score = r2_score(y_train, model.predict(X_train))
-        generalization_gap.append(train_score - test_score)
-        test_scores.append(test_score)
+    generalization_gap, test_scores = get_error_based_on_decision_tree(X, y)
     if criterion == "GAP":
         # more gap, more penalty
         return lb + (ub - lb) * np.clip(np.mean(generalization_gap), 0, 1)
@@ -59,3 +46,44 @@ def auto_tune_sam(X, y, std):
         )
     else:
         raise Exception
+
+
+def get_error_based_on_decision_tree(X, y):
+    model = DecisionTreeRegressor()
+    test_scores = []
+    generalization_gap = []
+    kf = KFold(n_splits=5, random_state=0, shuffle=True)
+    for train_index, test_index in kf.split(X):
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+
+        model.fit(X_train, y_train)
+        test_score = r2_score(y_test, model.predict(X_test))
+        train_score = r2_score(y_train, model.predict(X_train))
+        generalization_gap.append(train_score - test_score)
+        test_scores.append(test_score)
+    return generalization_gap, test_scores
+
+
+def auto_sam_scaling(X, y, strategy):
+    # base_sam_std = 0.25
+    _, base_sam_std, criterion = strategy.split("-")
+    base_sam_std = float(base_sam_std)
+    base_size = 100
+    if criterion == "Size" or len(X) < base_size:
+        return base_size / len(X) * base_sam_std
+    generalization_gap, test_scores = get_error_based_on_decision_tree(X, y)
+    index = np.arange(0, len(X))
+    np.random.shuffle(index)
+    index = index[:100]
+    generalization_gap_mini, test_scores_mini = get_error_based_on_decision_tree(
+        X[index], y[index]
+    )
+    generalization_gap = np.mean(generalization_gap)
+    generalization_gap_mini = np.mean(generalization_gap_mini)
+    if criterion == "GAP":
+        return generalization_gap / generalization_gap_mini * base_sam_std
+    test_scores = np.mean(test_scores)
+    test_scores_mini = np.mean(test_scores_mini)
+    if criterion == "Test":
+        return test_scores_mini / test_scores * base_sam_std
