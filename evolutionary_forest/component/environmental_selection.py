@@ -325,6 +325,22 @@ class NSGA2(EnvironmentalSelection):
                 )
                 concatenate_X = self.algorithm.feature_generation(concatenate_X, ind)
                 ind.pipe.fit(concatenate_X, concatenate_y)
+            elif (
+                self.knee_point == "SelfDistillation"
+                or self.knee_point == "SelfDistillation-SAM"
+            ):
+                if self.knee_point == "SelfDistillation-SAM":
+                    inds = sorted(individuals, key=lambda x: x.sam_loss)[:30]
+                else:
+                    inds = selBest(population, 30)
+                target = np.mean([ind.predicted_values for ind in inds], axis=0)
+                knee = np.argmin(
+                    [
+                        np.mean((ind.predicted_values - target) ** 2)
+                        for ind in population
+                    ]
+                )
+                self.algorithm.hof = [population[knee]]
             else:
                 first_pareto_front = sortNondominated(population, self.n_pop)[0]
                 if self.knee_point == "SAM" or self.knee_point == "SUM":
