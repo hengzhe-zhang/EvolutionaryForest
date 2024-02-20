@@ -326,15 +326,6 @@ class NSGA2(EnvironmentalSelection):
                 )
                 concatenate_X = self.algorithm.feature_generation(concatenate_X, ind)
                 ind.pipe.fit(concatenate_X, concatenate_y)
-            elif self.knee_point == "Spearman":
-                first_pareto_front = sortNondominated(population, self.n_pop)[0]
-                best = np.argmax(
-                    [
-                        spearman(ind.predicted_values, self.algorithm.y)
-                        for ind in first_pareto_front
-                    ]
-                )
-                self.algorithm.hof = [first_pareto_front[best]]
             elif (
                 self.knee_point == "SelfDistillation"
                 or self.knee_point == "SelfDistillation-SAM"
@@ -359,7 +350,7 @@ class NSGA2(EnvironmentalSelection):
                         for ind in first_pareto_front:
                             if not hasattr(ind, "sam_loss"):
                                 pac.assign_complexity(ind, ind.pipe)
-                    knee = np.argmin([[p.sam_loss for p in first_pareto_front]])
+                    knee = np.argmin([p.sam_loss for p in first_pareto_front])
                 elif "+" in self.knee_point:
                     knee = []
                     for strategy in self.knee_point.split("+"):
