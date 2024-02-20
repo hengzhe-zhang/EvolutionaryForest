@@ -64,6 +64,7 @@ class PACBayesianConfiguration:
         adaptive_depth=False,
         classification=False,
         sam_knn_neighbors=1,
+        weighted_sam=False,
         **params
     ):
         # For VCD
@@ -87,6 +88,7 @@ class PACBayesianConfiguration:
         self.reference_model = reference_model
         self.classification = classification
         self.sam_knn_neighbors = sam_knn_neighbors
+        self.weighted_sam = weighted_sam
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -399,6 +401,8 @@ def pac_bayesian_estimation(
             # max for each sample
             max_sharp = np.max(mse_scores, axis=0)
             max_sharp -= baseline
+            if configuration.weighted_sam != False:
+                individual.sharpness_vector = max_sharp
             if s == "MaxSharpness-1-Base+":
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)

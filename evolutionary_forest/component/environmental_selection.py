@@ -34,6 +34,7 @@ from evolutionary_forest.component.decision_making.harmonic_rank import (
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
+from evolutionary_forest.strategies.instance_weighting import calculate_instance_weights
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -190,6 +191,16 @@ class NSGA2(EnvironmentalSelection):
         Old version: The size of population is limited by the number of unique individuals in the first generation
         """
         individuals = population + offspring
+        if self.algorithm.pac_bayesian.weighted_sam != False:
+            weights = calculate_instance_weights(
+                self.algorithm.y, individuals, self.algorithm.pac_bayesian.weighted_sam
+            )
+            for ind in individuals:
+                sam_loss = np.sum(ind.sharpness_vector * weights)
+                ind.fitness.values = (ind.fitness.values[0], sam_loss)
+                mse = np.mean((ind.predicted_values - self.algorithm.y) ** 2)
+                # np.mean(ind.sharpness_vector) + mse
+                ind.sam_loss = sam_loss + mse
         # remove exactly the same individuals
         individuals = get_unique_individuals(individuals)
         # remove individuals with the same objective values
