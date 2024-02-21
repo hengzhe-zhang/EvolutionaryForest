@@ -2997,7 +2997,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 weight_list.append(
                     self.hof.ensemble_weight[individual_to_tuple(individual)]
                 )
-            if len(weight_list) > 0 and not return_std:
+            if len(weight_list) > 0 or return_std:
+                # need to store all predictions
                 predictions.append(predicted)
             else:
                 if len(predictions) == 0:
