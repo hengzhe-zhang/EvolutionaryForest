@@ -1611,7 +1611,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = KNeighborsRegressor(weights="uniform")
         elif self.base_learner == "KNN-3":
             ridge_model = KNeighborsRegressor(n_neighbors=3, weights="uniform")
-        elif self.base_learner == "KNN-D":
+        elif self.base_learner == "WKNN":
             ridge_model = KNeighborsRegressor(weights="distance")
         elif self.base_learner.startswith("GKNN"):
             k = int(self.base_learner.split("-")[1])
