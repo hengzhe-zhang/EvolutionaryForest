@@ -205,9 +205,7 @@ def pac_bayesian_estimation(
             sharpness_type == SharpnessType.Data
             or sharpness_type == SharpnessType.DataGP
             or sharpness_type == SharpnessType.DataLGBM
-            or sharpness_type == SharpnessType.DataRealVariance
             or sharpness_type == SharpnessType.DataGPSource
-            or sharpness_type == SharpnessType.MaxMargin
             or sharpness_type == SharpnessType.GKNN
         ):
             # Generate some random noise data
@@ -278,49 +276,29 @@ def pac_bayesian_estimation(
             sharpness_type == SharpnessType.DataGP
             or sharpness_type == SharpnessType.ParameterPlus
         ):
-            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
-            mse_scores[i] = (gp_predictions.flatten() - y_pred_on_noise) ** 2
-        elif sharpness_type == SharpnessType.DataRealVariance:
-            # not recommend
-            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
-            mse_scores[i] = gp_predictions.flatten()
-        elif sharpness_type == SharpnessType.DataGPSource:
-            # gp_predictions: prediction on clean data
-            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
-            target_value = np.zeros_like(y_pred_on_noise)
-            for index, ratio in source_indices:
-                target_value += gp_predictions[index] * ratio
-            mse_scores[i] = (target_value - y_pred_on_noise) ** 2
-        elif sharpness_type == SharpnessType.MaxMargin:
-            gp_predictions = get_cv_predictions(estimator, X, y, direct_prediction=True)
-            target_value = np.zeros_like(y_pred_on_noise)
-            for index, ratio in source_indices:
-                target_value += gp_predictions[index] * ratio
-            mse_scores[i] = (target_value - y_pred_on_noise) ** 2 + 2 * (
-                (target_y - target_value) * (target_value - y_pred_on_noise)
+            gp_original_predictions = get_cv_predictions(
+                estimator, X, y, direct_prediction=True
             )
-        elif sharpness_type == SharpnessType.DataGPHybrid:
-            # target_y: the synthesized target
-            # y_pred: prediction on noise data
-            target_value = np.zeros_like(y_pred_on_noise)
+            mse_scores[i] = (gp_original_predictions.flatten() - y_pred_on_noise) ** 2
+        elif sharpness_type == SharpnessType.DataGPSource:
+            # gp_original_predictions: prediction on clean data
+            gp_original_predictions = get_cv_predictions(
+                estimator, X, y, direct_prediction=True
+            )
+            mix_target = np.zeros_like(y_pred_on_noise)
             for index, ratio in source_indices:
-                target_value += y_pred_on_noise[index] * ratio
-            mse_scores[i] = (target_value - target_y) ** 2
+                mix_target += gp_original_predictions[index] * ratio
+            mse_scores[i] = (mix_target - y_pred_on_noise) ** 2
         else:
             if configuration.classification:
+                cross_entropy = calculate_cross_entropy(
+                    target_y,
+                    y_pred_on_noise,
+                )
                 if instance_weights is not None:
-                    mse_scores[i] = (
-                        calculate_cross_entropy(
-                            target_y,
-                            y_pred_on_noise,
-                        )
-                        * instance_weights
-                    )
+                    mse_scores[i] = cross_entropy * instance_weights
                 else:
-                    mse_scores[i] = calculate_cross_entropy(
-                        target_y,
-                        y_pred_on_noise,
-                    )
+                    mse_scores[i] = cross_entropy
             else:
                 mse_scores[i] = (target_y - y_pred_on_noise) ** 2
     if sharpness_type == SharpnessType.DataRealVariance:
