@@ -37,6 +37,7 @@ from sklearn.model_selection import (
     KFold,
 )
 from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.preprocessing import StandardScaler
 from sklearn.tree import BaseDecisionTree
 from torch import optim
 
@@ -52,6 +53,7 @@ from evolutionary_forest.multigene_gp import (
     MultiplePrimitiveSet,
     quick_fill,
     GPPipeline,
+    IndividualConfiguration,
 )
 from evolutionary_forest.sklearn_utils import cross_val_predict
 from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
@@ -125,7 +127,8 @@ def calculate_score(args):
         )
 
     pipe: GPPipeline
-    pipe, func = args
+    individual_configuration: IndividualConfiguration
+    pipe, func, individual_configuration = args
     if not isinstance(func, list):
         func = dill.loads(func)
 
@@ -155,6 +158,7 @@ def calculate_score(args):
             configuration=configuration,
             register_array=register_array,
             similarity_score=intron_calculation,
+            individual_configuration=individual_configuration,
         )
         hash_result, correlation_results, introns_results = (
             results.hash_result,
@@ -632,9 +636,16 @@ def multi_tree_evaluation(
     random_seed=0,
     noise_configuration: NoiseConfiguration = None,
     reference_label: np.ndarray = None,
+    individual_configuration: IndividualConfiguration = None,
 ):
     if configuration is None:
         configuration = EvaluationConfiguration()
+
+    if isinstance(individual_configuration.dynamic_standardization, StandardScaler):
+        if not hasattr(individual_configuration.dynamic_standardization, "mean_"):
+            data = individual_configuration.dynamic_standardization.fit_transform(data)
+        else:
+            data = individual_configuration.dynamic_standardization.transform(data)
 
     gradient_descent = configuration.gradient_descent
     if gradient_descent and isinstance(data, np.ndarray):

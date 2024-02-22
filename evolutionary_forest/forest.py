@@ -3,6 +3,7 @@ import inspect
 from multiprocessing import Pool
 
 import dill
+import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -1014,10 +1015,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             genes = individual.gene
 
         information: EvaluationResults
+        y_pred: np.ndarray
         if self.n_process > 1:
-            y_pred, estimators, information = yield pipe, dill.dumps(genes, protocol=-1)
+            y_pred, estimators, information = (
+                yield pipe,
+                dill.dumps(genes, protocol=-1),
+                individual.individual_configuration,
+            )
         else:
-            y_pred, estimators, information = yield pipe, genes
+            y_pred, estimators, information = (
+                yield pipe,
+                genes,
+                individual.individual_configuration,
+            )
 
         if len(y_pred.shape) == 2 and y_pred.shape[1] == 1:
             y_pred = y_pred.flatten()
@@ -1072,6 +1082,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 register_array=individual.parameters["Register"]
                 if self.mgp_mode == "Register"
                 else None,
+                individual_configuration=individual.individual_configuration,
             )
             self.train_final_model(individual, Yp, Y)
 
@@ -2898,6 +2909,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else None,
             configuration=self.evaluation_configuration,
             noise_configuration=self.pac_bayesian.noise_configuration,
+            individual_configuration=individual.individual_configuration,
         )
         return Yp
 
@@ -2938,6 +2950,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             random_seed=random_seed,
             noise_configuration=noise_configuration,
             reference_label=self.y,
+            individual_configuration=individual.individual_configuration,
         )
         if isinstance(Yp, torch.Tensor):
             Yp = Yp.detach().numpy()

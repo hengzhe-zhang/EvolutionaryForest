@@ -675,7 +675,7 @@ class R2PACBayesian(Fitness):
             size=algorithm.X.shape,
         )
 
-    def assign_complexity(self, individual, estimator):
+    def assign_complexity(self, individual: MultipleGeneGP, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
         X_features = algorithm.feature_generation(algorithm.X, individual)
@@ -745,6 +745,7 @@ class R2PACBayesian(Fitness):
                     self.algorithm.X,
                     self.algorithm.original_features,
                     configuration=self.algorithm.evaluation_configuration,
+                    individual_configuration=individual.individual_configuration,
                 )
                 if torch.any(torch.isnan(features)):
                     sharpness = np.inf
@@ -779,6 +780,7 @@ class R2PACBayesian(Fitness):
                         self.algorithm.X,
                         self.algorithm.original_features,
                         configuration=self.algorithm.evaluation_configuration,
+                        individual_configuration=individual.individual_configuration,
                     )
                     mean = features.mean(dim=0)
                     std = features.std(dim=0)

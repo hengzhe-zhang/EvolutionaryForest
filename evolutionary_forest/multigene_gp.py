@@ -81,6 +81,18 @@ class FitnessMin(base.Fitness):
     weights = (-1.0,)
 
 
+class IndividualConfiguration:
+    def __init__(self, dynamic_standardization=None, **kwargs):
+        if dynamic_standardization is not None:
+            choice = random.choice(["StandardScaler", None])
+            if choice == "StandardScaler":
+                self.dynamic_standardization = StandardScaler()
+            else:
+                self.dynamic_standardization = None
+        else:
+            self.dynamic_standardization = dynamic_standardization
+
+
 class MultipleGeneGP:
     introns_results: List[dict]
     case_values: np.ndarray
@@ -161,6 +173,7 @@ class MultipleGeneGP:
         self.parameters = {"Lasso": np.random.uniform(-5, -2, 1)[0]}
         self.parent_fitness: tuple[float] = None
         self.crossover_type = None
+        self.individual_configuration = IndividualConfiguration(**kwargs)
 
     def tree_initialization(self, content, gene_num):
         # This flag is only used for controlling the mutation and crossover
