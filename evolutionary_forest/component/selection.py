@@ -5,7 +5,7 @@ from abc import abstractmethod
 from collections import Counter, defaultdict
 from operator import attrgetter
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import numpy as np
 import seaborn as sns
@@ -1120,7 +1120,7 @@ def tourn(ind1, ind2):
     return ind2
 
 
-def selLexicaseDCD(individuals, k):
+def selLexicaseDCD(individuals: List[MultipleGeneGP], k):
     if k > len(individuals):
         raise ValueError(
             "selTournamentDCD: k must be less than or equal to individuals length"
@@ -1130,6 +1130,21 @@ def selLexicaseDCD(individuals, k):
         raise ValueError(
             "selTournamentDCD: k must be divisible by four if k == len(individuals)"
         )
+
+    if any(
+        [
+            p.individual_configuration.dynamic_standardization is not None
+            for p in individuals
+        ]
+    ):
+        base = np.random.choice(
+            [p.individual_configuration.dynamic_standardization for p in individuals]
+        )
+        individuals = [
+            p
+            for p in individuals
+            if type(p.individual_configuration.dynamic_standardization) == type(base)
+        ]
 
     individuals_chosen = selAutomaticEpsilonLexicaseFast(individuals, k * 2)
 
