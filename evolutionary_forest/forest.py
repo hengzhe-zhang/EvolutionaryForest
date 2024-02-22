@@ -3154,6 +3154,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     "Ratio of Introns",
                     self.intron_nodes_counter / self.all_nodes_counter,
                 )
+            if (
+                "dynamic_standardization" in self.param
+                and self.param["dynamic_standardization"]
+            ):
+                # Define a dictionary to store counts
+                scaler_counts = defaultdict(int)
+
+                # Iterate through each element in the pop list
+                for p in pop:
+                    # Get the type of dynamic_standardization attribute
+                    scaler_type = type(
+                        p.individual_configuration.dynamic_standardization
+                    ).__name__
+                    # Increment the count for the respective scaler type
+                    scaler_counts[scaler_type] += 1
+
+                # Print the counts for each scaler type
+                for scaler_type, count in scaler_counts.items():
+                    print(f"{scaler_type} count: {count}")
             # print(parameters)
 
         if self.pac_bayesian.automatic_std and (

@@ -27,7 +27,7 @@ from scipy.stats import pearsonr
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import pairwise_distances
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from tpot.base import TPOTBase
 
 from evolutionary_forest.component.bloat_control.depth_limit import (
@@ -84,9 +84,16 @@ class FitnessMin(base.Fitness):
 class IndividualConfiguration:
     def __init__(self, dynamic_standardization=None, **kwargs):
         if dynamic_standardization is not None:
-            choice = random.choice(["StandardScaler", None])
+            if dynamic_standardization is True:
+                choice = random.choice(["StandardScaler", None])
+            else:
+                choice = random.choice(dynamic_standardization.split(","))
             if choice == "StandardScaler":
                 self.dynamic_standardization = StandardScaler()
+            elif choice == "MinMaxScaler":
+                self.dynamic_standardization = MinMaxScaler(feature_range=(-1, 1))
+            elif choice == "RobustScaler":
+                self.dynamic_standardization = RobustScaler()
             else:
                 self.dynamic_standardization = None
         else:
