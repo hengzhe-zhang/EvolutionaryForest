@@ -185,10 +185,12 @@ class MutationConfiguration:
         gene_deletion_rate=0,
         weighted_deletion=False,
         addition_or_deletion=True,
+        gene_addition_mode="Random",
         **params
     ):
         self.gene_addition_rate = gene_addition_rate
         self.gene_deletion_rate = gene_deletion_rate
+        self.gene_addition_mode = gene_addition_mode
         self.weighted_deletion = weighted_deletion
         self.safe_mutation = safe_mutation
         self.mutation_expr_height: str = mutation_expr_height

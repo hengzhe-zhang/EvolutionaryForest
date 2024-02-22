@@ -22,8 +22,8 @@ def gene_addition(
 
         # not add the same gene
         existing_genes = set([str(g) for g in individual.gene])
-        mode = "Random"
-        tree = tree_generation(individual, mode, algorithm)
+        gene_addition_mode = algorithm.mutation_configuration.gene_addition_mode
+        tree = tree_generation(individual, gene_addition_mode, algorithm)
         iteration = 0
         while str(tree) in existing_genes:
             if iteration >= 100:
@@ -37,18 +37,17 @@ def gene_addition(
 def tree_generation(
     individual: MultipleGeneGP, mode, algorithm: "EvolutionaryForestRegressor"
 ) -> PrimitiveTree:
-    if mode == "Crossover":
-        gene_a, gene_b = individual.random_select(), individual.random_select()
-        tree, _ = cxOnePoint(copy.deepcopy(gene_a), copy.deepcopy(gene_b))
+    if algorithm.estimation_of_distribution.turn_on:
+        # probability matching for terminal variables
+        min_height, max_height = algorithm.initial_tree_size.split("-")
+        min_height, max_height = int(min_height), int(max_height)
+        expression = genHalfAndHalf_with_prob(
+            algorithm.pset, min_height, max_height, algorithm
+        )
+        tree = PrimitiveTree(expression)
     else:
-        if algorithm.estimation_of_distribution.turn_on:
-            # probability matching for terminal variables
-            min_height, max_height = algorithm.initial_tree_size.split("-")
-            min_height, max_height = int(min_height), int(max_height)
-            expression = genHalfAndHalf_with_prob(
-                algorithm.pset, min_height, max_height, algorithm
-            )
-            tree = PrimitiveTree(expression)
-        else:
-            tree = PrimitiveTree(algorithm.toolbox.expr())
+        tree = PrimitiveTree(algorithm.toolbox.expr())
+    if mode == "Crossover":
+        # crossover with the randomly generated tree to preserve diversity
+        tree, _ = cxOnePoint(tree, individual.random_select())
     return tree
