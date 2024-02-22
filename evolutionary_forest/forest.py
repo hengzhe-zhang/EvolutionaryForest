@@ -3544,7 +3544,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 p_value = statistical_difference_between_populations(
                     offspring, population
                 )
-                print("P value of different population", p_value)
+                print("P value of two consecutive population", p_value)
 
             self.gp_simplification(offspring)
 

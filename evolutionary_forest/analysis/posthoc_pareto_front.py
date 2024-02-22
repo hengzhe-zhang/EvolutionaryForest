@@ -110,8 +110,12 @@ class ParetoFrontTool:
             normalization_factor_test = np.mean((test_y - np.mean(test_y)) ** 2)
             normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
             # Get scaled test data
-            test_X_scaled = self.x_scaler.transform(test_x)
-            test_y_scaled = self.y_scaler.transform(test_y.reshape(-1, 1)).reshape(-1)
+            if self.x_scaler is not None:
+                test_X_scaled = self.x_scaler.transform(test_x)
+                test_y_scaled = self.y_scaler.transform(test_y.reshape(-1, 1)).flatten()
+            else:
+                test_X_scaled = test_x
+                test_y_scaled = test_y
             normalization_factor_test_scaled = np.mean(
                 (test_y_scaled - np.mean(test_y_scaled)) ** 2
             )
