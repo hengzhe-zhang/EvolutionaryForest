@@ -596,8 +596,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
             self.y_scaler = StandardScaler()
         elif normalize == "MinMax":
-            self.x_scaler = MinMaxScaler()
-            self.y_scaler = MinMaxScaler()
+            self.x_scaler = MinMaxScaler(feature_range=(-1, 1))
+            self.y_scaler = MinMaxScaler(feature_range=(-1, 1))
         elif normalize == "Robust":
             self.x_scaler = RobustScaler()
             self.y_scaler = RobustScaler()
@@ -2873,18 +2873,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         for individual in individuals:
             if len(individual.gene) == 0:
                 continue
-            Yp = multi_tree_evaluation(
-                individual.gene,
-                self.pset,
-                X,
-                self.original_features,
-                sklearn_format=self.basic_primitives == "ML",
-                register_array=individual.parameters["Register"]
-                if self.mgp_mode == "Register"
-                else None,
-                configuration=self.evaluation_configuration,
-                noise_configuration=self.pac_bayesian.noise_configuration,
-            )
+            Yp = self.feature_construction(X, individual)
             if isinstance(Yp, torch.Tensor):
                 Yp = Yp.detach().numpy()
             predicted = individual.pipe.predict(Yp)
@@ -2896,6 +2885,21 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 predictions.reshape(-1, 1)
             ).reshape(len(individuals), -1)
         return predictions
+
+    def feature_construction(self, X, individual):
+        Yp = multi_tree_evaluation(
+            individual.gene,
+            self.pset,
+            X,
+            self.original_features,
+            sklearn_format=self.basic_primitives == "ML",
+            register_array=individual.parameters["Register"]
+            if self.mgp_mode == "Register"
+            else None,
+            configuration=self.evaluation_configuration,
+            noise_configuration=self.pac_bayesian.noise_configuration,
+        )
+        return Yp
 
     def final_model_lazy_training(self, pop, X=None, y=None, force_training=False):
         if X is None:
