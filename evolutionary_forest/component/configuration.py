@@ -235,9 +235,11 @@ class EvaluationConfiguration:
         classification=False,
         max_height=None,
         ood_split=None,
+        loss_discretization=None,
         **params
     ):
         # prediction results of the neural network
+        self.loss_discretization = loss_discretization
         self.ood_split = ood_split
         self.gradient_optimizer = gradient_optimizer
         # random generate cross-validation scheme

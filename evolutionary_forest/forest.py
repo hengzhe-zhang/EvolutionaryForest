@@ -211,6 +211,7 @@ from evolutionary_forest.strategies.estimation_of_distribution import (
     EstimationOfDistribution,
     eda_operators,
 )
+from evolutionary_forest.strategies.hist_loss import discretize_and_replace
 from evolutionary_forest.strategies.multifidelity_evaluation import (
     MultiFidelityEvaluation,
 )
@@ -1354,6 +1355,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ) ** 2
             else:
                 individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
+            if self.evaluation_configuration.loss_discretization != None:
+                bin, strategy = self.evaluation_configuration.loss_discretization.split(
+                    "-"
+                )
+                bin = int(bin)
+                individual.case_values = discretize_and_replace(
+                    individual.case_values, bin, strategy
+                )
         elif self.score_func == "MAE":
             individual.case_values = np.abs(((y_pred - Y.flatten()).flatten()))
         elif self.score_func == "Bounded" or self.score_func.startswith("Bounded"):
