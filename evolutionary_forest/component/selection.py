@@ -1131,6 +1131,17 @@ def selLexicaseDCD(individuals: List[MultipleGeneGP], k):
             "selTournamentDCD: k must be divisible by four if k == len(individuals)"
         )
 
+    # individuals = adaptive_factors_elimination(individuals)
+
+    individuals_chosen = selAutomaticEpsilonLexicaseFast(individuals, k * 2)
+
+    chosen = []
+    for i in range(0, k * 2, 2):
+        chosen.append(tourn(individuals_chosen[i], individuals_chosen[i + 1]))
+    return chosen
+
+
+def adaptive_factors_elimination(individuals):
     if any(
         [
             p.individual_configuration.dynamic_standardization is not None
@@ -1145,13 +1156,7 @@ def selLexicaseDCD(individuals: List[MultipleGeneGP], k):
             for p in individuals
             if type(p.individual_configuration.dynamic_standardization) == type(base)
         ]
-
-    individuals_chosen = selAutomaticEpsilonLexicaseFast(individuals, k * 2)
-
-    chosen = []
-    for i in range(0, k * 2, 2):
-        chosen.append(tourn(individuals_chosen[i], individuals_chosen[i + 1]))
-    return chosen
+    return individuals
 
 
 def selLexicaseKNN(

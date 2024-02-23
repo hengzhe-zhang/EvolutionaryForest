@@ -641,7 +641,9 @@ def multi_tree_evaluation(
     if configuration is None:
         configuration = EvaluationConfiguration()
 
-    if isinstance(individual_configuration.dynamic_standardization, StandardScaler):
+    if individual_configuration != None and isinstance(
+        individual_configuration.dynamic_standardization, StandardScaler
+    ):
         if not hasattr(individual_configuration.dynamic_standardization, "mean_"):
             data = individual_configuration.dynamic_standardization.fit_transform(data)
         else:
