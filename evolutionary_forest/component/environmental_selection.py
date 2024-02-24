@@ -13,6 +13,7 @@ from deap.tools import (
     uniform_reference_points,
 )
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
+from sklearn.base import ClassifierMixin
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import r2_score
@@ -220,8 +221,17 @@ class NSGA2(EnvironmentalSelection):
             for ind in individuals:
                 values = []
                 for d in range(dims):
+                    fitness_value = ind.fitness.values[d]
+                    if isinstance(self.algorithm, ClassifierMixin):
+                        # for cross-entropy, need exponential normalization
+                        if d == 0:
+                            """
+                            Original problem: Improve prediction probability
+                            Minimization Problem: Negative 1 * Probability
+                            """
+                            fitness_value = -1 * np.mean(np.exp(-ind.case_values))
                     min_val, max_val = min_max[d]
-                    normalized_fitness = ind.fitness.values[d] - min_val
+                    normalized_fitness = fitness_value - min_val
                     if (max_val - min_val) > 0:
                         normalized_fitness = normalized_fitness / (max_val - min_val)
                     values.append(normalized_fitness)
