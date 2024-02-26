@@ -3,7 +3,6 @@ import inspect
 from multiprocessing import Pool
 
 import dill
-import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -39,8 +38,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.preprocessing import (
-    MinMaxScaler,
-    RobustScaler,
     MaxAbsScaler,
     QuantileTransformer,
     SplineTransformer,
@@ -1480,7 +1477,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # convert sample index to weight
             n_samples = len(Y)
-            curr_sample_weight = np.ones((n_samples,), dtype=np.float64)
+            curr_sample_weight = np.ones((n_samples,), dtype=np.float32)
             sample_counts = np.bincount(sample, minlength=n_samples)
             curr_sample_weight *= sample_counts
 
@@ -1558,7 +1555,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     ridge = [1e-1, 3e-3, 1e0, 3e0, 1e1]
             else:
                 ridge = eval(self.ridge_alphas)
-            ridge_model = RidgeCV(
+            ridge_model = RidgeGCV(
                 alphas=ridge, store_cv_values=True, scoring=make_scorer(r2_score)
             )
         elif self.base_learner == "SplineRidgeCV" or base_model == "SplineRidgeCV":
@@ -2845,7 +2842,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             elif self.pac_bayesian.reference_model == "LR":
                 self.reference_lgbm = LinearRegression()
             elif self.pac_bayesian.reference_model == "Ridge":
-                self.reference_lgbm = RidgeCV()
+                self.reference_lgbm = RidgeGCV()
             elif self.pac_bayesian.reference_model == "KNN":
                 self.reference_lgbm = KNeighborsRegressor(n_neighbors=3, n_jobs=1)
             elif self.pac_bayesian.reference_model == "D-KNN":

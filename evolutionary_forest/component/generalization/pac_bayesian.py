@@ -185,6 +185,7 @@ def pac_bayesian_estimation(
         baseline = baseline[index]
     else:
         mse_scores = np.zeros((num_iterations, len(X)))
+    mse_scores = mse_scores.astype(np.float32)
 
     if sharpness_type == SharpnessType.GKNN:
         base_knn = GaussianKNNRegressor(configuration.sam_knn_neighbors)

@@ -48,6 +48,7 @@ from evolutionary_forest.component.configuration import (
 )
 from evolutionary_forest.component.tree_utils import node_depths
 from evolutionary_forest.model.MTL import MTLRidgeCV
+from evolutionary_forest.model.RidgeGCV import RidgeGCV
 from evolutionary_forest.multigene_gp import (
     result_post_process,
     MultiplePrimitiveSet,
@@ -286,7 +287,7 @@ def calculate_score(args):
                 Y,
                 cv=cv,
             )
-        elif isinstance(base_model, RidgeCV):
+        elif isinstance(base_model, (RidgeCV, RidgeGCV)):
             if time_flag:
                 cv_st = time.time()
             else:
@@ -1049,7 +1050,7 @@ def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_s
         noise = rng.choice([-1, 1], size_of_noise)
     else:
         raise Exception("Invalid noise type")
-    return noise
+    return noise.astype(np.float32)
 
 
 def minimal_task():

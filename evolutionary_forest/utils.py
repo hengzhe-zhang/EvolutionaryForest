@@ -19,6 +19,7 @@ from sklearn.linear_model import RidgeCV
 from sympy import latex, parse_expr
 
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
+from evolutionary_forest.model.RidgeGCV import RidgeGCV
 
 
 class MeanRegressor(BaseEstimator, RegressorMixin):
@@ -453,7 +454,7 @@ def pickle_deepcopy(a):
     return cPickle.loads(cPickle.dumps(a, -1))
 
 
-def cv_prediction_from_ridge(Y, base_model: RidgeCV):
+def cv_prediction_from_ridge(Y, base_model: (RidgeCV, RidgeGCV)):
     """
     Scikit-learn _preprocess_data function will center Y, so we need to add the mean back
     """
@@ -462,7 +463,7 @@ def cv_prediction_from_ridge(Y, base_model: RidgeCV):
     # assert errors.size == Y.size * len(base_model.alphas)
     # error_list = errors.sum(axis=0)
     # new_best_index = np.argmin(error_list)
-    new_best_index = base_model.alphas.index(base_model.alpha_)
+    new_best_index = tuple(base_model.alphas).index(base_model.alpha_)
     real_prediction = base_model.cv_values_[:, new_best_index]
     real_prediction = real_prediction + Y.mean()
     return real_prediction
