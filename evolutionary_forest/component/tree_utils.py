@@ -2,6 +2,7 @@ from typing import List
 
 import numpy as np
 from deap import gp
+from deap.gp import PrimitiveTree
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -92,46 +93,39 @@ class StringDecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         return y_encoded
 
 
-def node_depths(tree, current_index=0, current_depth=1) -> (List[int], int):
-    """
-    Computes the depth of each node in a DEAP GP tree.
-
-    Parameters:
-    - tree: The DEAP GP tree.
-    - current_index: The current node's index. Default is 0 for the tree root.
-    - current_depth: The depth of the current node. Default is 1 for the tree root.
-
-    Returns:
-    - A list of depths for each node in the tree.
-    """
+def node_depths(tree, current_index=0) -> (List[int], int):
     if current_index >= len(tree):
-        return []
+        return [], 0  # No depths and no length if outside the bounds of the tree
 
-    depths = [current_depth]
     node = tree[current_index]
-
-    # If the current node is a function (i.e., not a leaf), recurse into its children.
-    if isinstance(node, gp.Primitive):
-        offset = 1
+    if isinstance(node, gp.Primitive):  # If it's a non-leaf node
+        max_child_depth = 0  # Keep track of the maximum depth of the children
+        offset = 1  # Starting offset for the first child
+        all_child_depths = []
         for _ in range(node.arity):
-            child_depths, child_length = node_depths(
-                tree, current_index + offset, current_depth + 1
-            )
-            depths.extend(child_depths)
-            offset += child_length
+            child_depths, child_length = node_depths(tree, current_index + offset)
+            max_child_depth = max(
+                max_child_depth, max(child_depths)
+            )  # Update max depth based on children
+            offset += child_length  # Move to the next child
+            all_child_depths.extend(child_depths)
+        depths = [
+            max_child_depth + 1
+        ] + all_child_depths  # Parent depth is 1 more than max child depth
         return depths, offset
-    else:
-        return depths, 1
+    else:  # If it's a leaf node
+        return [1], 1  # Leaf nodes have depth 1
 
 
 # Example usage:
 if __name__ == "__main__":
     pset = gp.PrimitiveSet("MAIN", 1)
     pset.addPrimitive(max, 2)
+    pset.addPrimitive(np.add, 2)
     pset.addTerminal(1)
 
-    tree = gp.genFull(pset, min_=1, max_=3)
+    tree = gp.genGrow(pset, min_=2, max_=4)
     print([str(n.name) for n in tree])
-    depths, _ = node_depths(tree)
+    depths, _ = node_depths(PrimitiveTree(tree))
     print(depths)
     assert len(depths) == len(tree)
