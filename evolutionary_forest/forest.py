@@ -4393,17 +4393,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.test_data_history.append(testing_loss)
                 if verbose:
                     print("Test Loss", testing_loss)
-            self.pop_avg_fitness_history.append(
-                np.mean([ind.fitness.wvalues[0] for ind in population])
-            )
             self.pop_diversity_history.append(self.diversity_calculation(population))
             if not isinstance(self, ClassifierMixin):
                 self.pop_cos_distance_history.append(
                     self.cos_distance_calculation(population)
                 )
-                self.archive_cos_distance_history.append(
-                    self.cos_distance_calculation(self.hof)
-                )
+                if len(self.hof) > 0:
+                    self.archive_cos_distance_history.append(
+                        self.cos_distance_calculation(self.hof)
+                    )
             (
                 genotype_sum_entropy,
                 phenotype_sum_entropy,
@@ -4413,10 +4411,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.avg_tree_size_history.append(
                 np.mean([np.mean([len(g) for g in p.gene]) for p in population])
             )
-            self.archive_fitness_history.append(
-                np.mean([ind.fitness.wvalues[0] for ind in self.hof])
-            )
-            self.archive_diversity_history.append(self.diversity_calculation())
+            if len(self.hof) > 0:
+                # average fitness of archive
+                self.archive_fitness_history.append(
+                    np.mean([ind.fitness.wvalues[0] for ind in self.hof])
+                )
+                # average diversity of archive
+                self.archive_diversity_history.append(self.diversity_calculation())
 
     def training_with_validation_set(self):
         # Train the final model with the validation set if data combination is enabled and validation set is provided
