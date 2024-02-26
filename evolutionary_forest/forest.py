@@ -221,6 +221,7 @@ from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
     check_number_of_unique_tree_semantics,
 )
+from evolutionary_forest.utility.skew_transformer import SkewnessCorrector
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -575,6 +576,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if normalize is True:
             self.x_scaler = StandardScaler()
             self.y_scaler = StandardScaler()
+        elif normalize == "StandardizationSkew":
+            self.x_scaler = StandardScaler()
+            self.y_scaler = SkewnessCorrector()
+        elif normalize == "Skew":
+            self.x_scaler = SkewnessCorrector()
+            self.y_scaler = SkewnessCorrector()
         elif normalize == "Spline":
             self.x_scaler = Pipeline(
                 [

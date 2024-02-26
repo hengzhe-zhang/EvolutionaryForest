@@ -1269,13 +1269,16 @@ def staticLimit_multiple_gene(
 
                     if key(x) > height_limitation or key(x) < min_value:
                         failure_counter.value += 1
-                        # replace an unreasonable gene with a parent gene
+                        # replace a tree that exceeds depth limit with a parent gene
                         if random_fix:
+                            # not must be same as the parent
                             parent: List[PrimitiveTree] = random.choice(keep_inds)
                         else:
+                            # must be same as the parent
                             parent: List[PrimitiveTree] = keep_inds[i]
 
                         if random_replace:
+                            # randomly choose one tree in parent for replacement
                             gene = get_replacement_tree(ind, parent)
                         else:
                             # Note: When having deletion or addition operators,
