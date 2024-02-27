@@ -79,6 +79,8 @@ def get_functions(p):
         "Exp2": (protected_exp2, 1),
         "Exp": (protected_exp, 1),
         "Inv": (protected_inverse, 1),
+        "Equal": (np.equal, 2),
+        "NotEqual": (np.not_equal, 2),
         # Comparison operations
         "GE": (greater_or_equal_than, 2),  # Greater than or equal to comparison
         "LE": (less_or_equal_than, 2),  # Less than or equal to comparison

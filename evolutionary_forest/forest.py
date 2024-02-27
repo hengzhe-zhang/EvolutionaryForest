@@ -218,6 +218,7 @@ from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
     check_number_of_unique_tree_semantics,
 )
+from evolutionary_forest.utility.scaler.OneHotStandardScaler import OneHotStandardScaler
 from evolutionary_forest.utility.scaler.StandardScaler import StandardScaler1D2D
 from evolutionary_forest.utility.skew_transformer import SkewnessCorrector
 from evolutionary_forest.utils import *
@@ -573,6 +574,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.normalize = normalize
         if normalize is True:
             self.x_scaler = StandardScaler()
+            self.y_scaler = StandardScaler()
+        elif normalize == "OneHotStandard":
+            self.x_scaler = OneHotStandardScaler()
             self.y_scaler = StandardScaler()
         elif normalize == "TargetNormalization":
             self.x_scaler = DummyScaler()
