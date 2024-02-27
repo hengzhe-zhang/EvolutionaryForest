@@ -574,29 +574,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if normalize is True:
             self.x_scaler = StandardScaler()
             self.y_scaler = StandardScaler()
-        elif normalize == "StandardizationSkew":
-            self.x_scaler = Pipeline(
-                [
-                    ("SkewnessCorrector", SkewnessCorrector()),
-                    ("StandardScaler", StandardScaler1D2D()),
-                ]
-            )
-            self.y_scaler = Pipeline(
-                [
-                    ("SkewnessCorrector", SkewnessCorrector()),
-                    ("StandardScaler", StandardScaler1D2D()),
-                ]
-            )
-        elif normalize == "LabelStandardizationSkew":
-            self.x_scaler = SkewnessCorrector()
-            self.y_scaler = Pipeline(
-                [
-                    ("SkewnessCorrector", SkewnessCorrector()),
-                    ("StandardScaler", StandardScaler1D2D()),
-                ]
-            )
+        elif normalize == "TargetNormalization":
+            self.x_scaler = DummyScaler()
+            self.y_scaler = StandardScaler()
         elif normalize == "Skew":
-            self.x_scaler = SkewnessCorrector()
+            self.x_scaler = DummyScaler()
             self.y_scaler = SkewnessCorrector()
         elif normalize == "Spline":
             self.x_scaler = Pipeline(
