@@ -1555,7 +1555,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     ridge = [1e-1, 3e-3, 1e0, 3e0, 1e1]
             else:
-                ridge = eval(self.ridge_alphas)
+                if isinstance(self.ridge_alphas, (float, int)):
+                    ridge = [self.ridge_alphas]
+                else:
+                    ridge = eval(self.ridge_alphas)
             ridge_model = RidgeGCV(
                 alphas=ridge, store_cv_values=True, scoring=make_scorer(r2_score)
             )
