@@ -158,6 +158,14 @@ def analytical_log10(x):
     return np.log10(np.sqrt(1 + x**2))
 
 
+def equal(x1, x2):
+    return np.equal(x1, x2).astype(np.float32)
+
+
+def not_equal(x1, x2):
+    return np.not_equal(x1, x2).astype(np.float32)
+
+
 def cube(x):
     return x**3
 
