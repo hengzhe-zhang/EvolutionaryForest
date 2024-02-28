@@ -13,6 +13,7 @@ from deap.tools import (
     uniform_reference_points,
 )
 from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
+from scipy.stats import wilcoxon
 from sklearn.base import ClassifierMixin
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
@@ -365,13 +366,33 @@ class NSGA2(EnvironmentalSelection):
                 self.algorithm.hof = [population[knee]]
             else:
                 first_pareto_front = sortNondominated(population, self.n_pop)[0]
-                if self.knee_point == "SAM" or self.knee_point == "SUM":
+                if (
+                    self.knee_point == "SAM"
+                    or self.knee_point == "SUM"
+                    or self.knee_point == "Duel-SAM"
+                ):
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
                         for ind in first_pareto_front:
                             if not hasattr(ind, "sam_loss"):
                                 pac.assign_complexity(ind, ind.pipe)
                     knee = np.argmin([p.sam_loss for p in first_pareto_front])
+                    if self.knee_point == "Duel-SAM":
+                        best_ind_id = np.argmax(
+                            [p.fitness.wvalues[0] for p in first_pareto_front]
+                        )
+                        best_ind = first_pareto_front[best_ind_id]
+                        knee_ind = first_pareto_front[knee]
+                        p_value_threshold = 0.05
+                        if np.any(best_ind.case_values != knee_ind.case_values):
+                            signed_test_score = wilcoxon(
+                                best_ind.case_values / knee_ind.case_values,
+                                np.ones_like(best_ind.case_values),
+                                alternative="less",
+                            )[1]
+                            if signed_test_score < p_value_threshold:
+                                knee = best_ind_id
+
                 elif "+" in self.knee_point:
                     knee = []
                     for strategy in self.knee_point.split("+"):

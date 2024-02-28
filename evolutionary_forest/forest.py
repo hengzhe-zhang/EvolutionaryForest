@@ -3,6 +3,7 @@ import inspect
 from multiprocessing import Pool
 
 import dill
+import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -21,7 +22,7 @@ from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
 from scipy.spatial.distance import cosine
-from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
+from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon, ranksums
 from sklearn.base import TransformerMixin
 from sklearn.ensemble import (
     ExtraTreesRegressor,
@@ -396,6 +397,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         validation_ratio=0,
         post_selection_method=None,
         stochastic_mode=False,
+        log_item="",
         **params,
     ):
         """
@@ -430,6 +432,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.init_some_logs()
+        self.log_item = log_item
         self.post_selection_method = post_selection_method
         self.validation_ratio = validation_ratio
         self.simplification = simplification
@@ -785,6 +789,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.elites_archive = None
         self.stacking_strategy = StackingStrategy(self)
         self.reference_lgbm = None
+
+    def init_some_logs(self):
+        self.duel_logs = []
+        self.sharpness_logs = []
+        self.loocv_logs = []
+        self.training_r2_logs = []
+        self.sharpness_ratio_logs = []
+        self.generalization_gap_logs = []
 
     def history_initialization(self):
         self.train_data_history = []
@@ -3163,6 +3175,45 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # callback function after each generation
         if self.verbose:
             pop = self.pop
+            if self.log_item != "":
+                best_ind: MultipleGeneGP = sorted(
+                    pop, key=lambda x: x.fitness.wvalues[0]
+                )[-1]
+                features = self.feature_generation(self.X, best_ind)
+                training_r2 = r2_score(self.y, best_ind.pipe.predict(features))
+                gap = training_r2 - best_ind.fitness.wvalues[0]
+
+                if "GeneralizationGap" in self.log_item:
+                    self.generalization_gap_logs.append(gap)
+
+                if "TrainingLoss" in self.log_item:
+                    self.training_r2_logs.append(training_r2)
+
+                if "LOOCV" in self.log_item:
+                    self.loocv_logs.append(best_ind.fitness.wvalues[0])
+
+                if "SharpnessRatio" in self.log_item:
+                    self.sharpness_ratio_logs.append(
+                        best_ind.fitness.values[1] / best_ind.sam_loss
+                    )
+
+                if "SAM" in self.log_item:
+                    self.sharpness_logs.append(best_ind.fitness.values[1])
+
+                if "Duel" in self.log_item:
+                    if not np.all(
+                        np.equal(best_ind.case_values, self.hof[0].case_values)
+                    ):
+                        self.duel_logs.append(
+                            wilcoxon(
+                                best_ind.case_values / self.hof[0].case_values,
+                                np.ones_like(best_ind.case_values),
+                                alternative="less",
+                            )[1]
+                        )
+                    else:
+                        self.duel_logs.append(0)
+
             dt = defaultdict(int)
             # parameters = np.zeros(2)
             for p in pop:
@@ -4401,7 +4452,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.test_data_history.append(testing_loss)
                 if verbose:
                     print("Test Loss", testing_loss)
-            self.pop_diversity_history.append(self.diversity_calculation(population))
+            if "PopulationAverageDiversity" in self.log_item:
+                self.pop_diversity_history.append(
+                    self.diversity_calculation(population)
+                )
             if not isinstance(self, ClassifierMixin):
                 self.pop_cos_distance_history.append(
                     self.cos_distance_calculation(population)
@@ -4420,12 +4474,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 np.mean([np.mean([len(g) for g in p.gene]) for p in population])
             )
             if len(self.hof) > 0:
-                # average fitness of archive
-                self.archive_fitness_history.append(
-                    np.mean([ind.fitness.wvalues[0] for ind in self.hof])
-                )
-                # average diversity of archive
-                self.archive_diversity_history.append(self.diversity_calculation())
+                if "ArchiveAverageFitness" in self.log_item:
+                    # average fitness of archive
+                    self.archive_fitness_history.append(
+                        np.mean([ind.fitness.wvalues[0] for ind in self.hof])
+                    )
+                if "ArchiveAverageDiversity" in self.log_item:
+                    # average diversity of archive
+                    self.archive_diversity_history.append(self.diversity_calculation())
 
     def training_with_validation_set(self):
         # Train the final model with the validation set if data combination is enabled and validation set is provided

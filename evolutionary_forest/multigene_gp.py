@@ -110,6 +110,8 @@ class MultipleGeneGP:
     semantics: np.ndarray
     pipe: GPPipeline
     fitness_list: List
+    # for sharpness estimation
+    sam_loss: float
 
     @property
     def gene_num(self):
