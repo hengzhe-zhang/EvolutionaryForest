@@ -26,6 +26,7 @@ class NoiseConfiguration:
         only_terminal=False,
         sam_mix_bandwidth=1,
         stochastic_mode=False,
+        random_layer_mode=False,
         **params
     ):
         """
@@ -43,6 +44,7 @@ class NoiseConfiguration:
         self.only_terminal = only_terminal
         self.sam_mix_bandwidth = sam_mix_bandwidth
         self.stochastic_mode = stochastic_mode
+        self.random_layer_mode = random_layer_mode
 
 
 class MABConfiguration:

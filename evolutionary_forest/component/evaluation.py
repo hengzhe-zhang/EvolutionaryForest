@@ -782,6 +782,14 @@ def single_tree_evaluation(
     best_score = None
     # save the semantics of the best subtree
     best_subtree_semantics = None
+    if noise_configuration is not None and noise_configuration.random_layer_mode:
+        if expr.height < 1:
+            random_layer = -1
+        else:
+            random_layer = random.randint(1, expr.height)
+    else:
+        # default value
+        random_layer = -1
     for id, node in enumerate(expr):
         stack.append((node, [], id))
         while len(stack[-1][1]) == stack[-1][0].arity:
@@ -807,6 +815,11 @@ def single_tree_evaluation(
                                 depth_information[id],
                                 random_noise,
                             )
+                            if (
+                                noise_configuration.random_layer_mode
+                                and random_layer != depth_information[id]
+                            ):
+                                layer_random_noise = 0
                             result = inject_noise_to_data(
                                 result,
                                 layer_random_noise,
@@ -847,6 +860,11 @@ def single_tree_evaluation(
                             depth_information[id],
                             random_noise,
                         )
+                        if (
+                            noise_configuration.random_layer_mode
+                            and random_layer != depth_information[id]
+                        ):
+                            layer_random_noise = 0
                         result = inject_noise_to_data(
                             result,
                             layer_random_noise,
@@ -970,13 +988,15 @@ def weighted_sampling(random_seed, reference_label, gamma=1):
 
 def inject_noise_to_data(
     result,
-    random_noise_magnitude,
+    random_noise_magnitude: float,
     noise_configuration: NoiseConfiguration,
-    noise_vector=None,
+    noise_vector: np.ndarray = None,
     random_seed=0,
     reference_label=None,
     sam_mix_bandwidth=None,
 ):
+    if random_noise_magnitude == 0:
+        return result
     noise_type = noise_configuration.noise_type
 
     size_of_noise = len(result)
