@@ -46,6 +46,16 @@ def varAndPlus(
         if crossover_configuration.var_or:
             # only execute crossover *or* mutation
             return varOr(offspring)
+        # if mutation_configuration.addition_or_deletion:
+        #     # remove redundant
+        #     for x in offspring:
+        #         ele = set()
+        #         indicies = []
+        #         for k, v in enumerate(x.hash_result):
+        #             if v not in ele:
+        #                 ele.add(v)
+        #                 indicies.append(k)
+        #         x.gene: list = [x.gene[i] for i in indicies]
 
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
