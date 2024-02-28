@@ -58,7 +58,7 @@ def gaussian_torch(x):
     return torch.exp(-torch.multiply(x, x) / 2.0)
 
 
-def protected_division(x1, *x2):
+def protected_division(x1, *x2, threshold=1e-10):
     with np.errstate(divide="ignore", invalid="ignore"):
         x2 = reduce(operator.mul, x2)
         # threshold from GEPPY
