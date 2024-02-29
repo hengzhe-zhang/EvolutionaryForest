@@ -221,7 +221,10 @@ from evolutionary_forest.utility.population_analysis import (
 )
 from evolutionary_forest.utility.scaler.OneHotStandardScaler import OneHotStandardScaler
 from evolutionary_forest.utility.scaler.StandardScaler import StandardScaler1D2D
-from evolutionary_forest.utility.skew_transformer import SkewnessCorrector
+from evolutionary_forest.utility.skew_transformer import (
+    SkewnessCorrector,
+    CubeSkewnessCorrector,
+)
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -588,6 +591,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif normalize == "Skew":
             self.x_scaler = StandardScaler()
             self.y_scaler = SkewnessCorrector()
+        elif normalize == "CubeSkew":
+            self.x_scaler = StandardScaler()
+            self.y_scaler = CubeSkewnessCorrector()
         elif normalize == "Spline":
             self.x_scaler = Pipeline(
                 [
