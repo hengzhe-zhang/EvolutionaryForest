@@ -4457,19 +4457,23 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.diversity_calculation(population)
                 )
             if not isinstance(self, ClassifierMixin):
-                self.pop_cos_distance_history.append(
-                    self.cos_distance_calculation(population)
-                )
-                if len(self.hof) > 0:
-                    self.archive_cos_distance_history.append(
-                        self.cos_distance_calculation(self.hof)
+                if "PopulationAverageCosineDistance" in self.log_item:
+                    self.pop_cos_distance_history.append(
+                        self.cos_distance_calculation(population)
                     )
+                if len(self.hof) > 0:
+                    if "ArchiveAverageCosineDistance" in self.log_item:
+                        self.archive_cos_distance_history.append(
+                            self.cos_distance_calculation(self.hof)
+                        )
             (
                 genotype_sum_entropy,
                 phenotype_sum_entropy,
             ) = self.gp_tree_entropy_calculation(population)
-            self.tree_genotypic_diversity.append(genotype_sum_entropy)
-            self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
+            if "GenotypicDiversity" in self.log_item:
+                self.tree_genotypic_diversity.append(genotype_sum_entropy)
+            if "PhenotypicDiversity" in self.log_item:
+                self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
             self.avg_tree_size_history.append(
                 np.mean([np.mean([len(g) for g in p.gene]) for p in population])
             )
