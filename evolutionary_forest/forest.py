@@ -586,7 +586,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.x_scaler = DummyScaler()
             self.y_scaler = StandardScaler()
         elif normalize == "Skew":
-            self.x_scaler = DummyScaler()
+            self.x_scaler = StandardScaler()
             self.y_scaler = SkewnessCorrector()
         elif normalize == "Spline":
             self.x_scaler = Pipeline(
@@ -4454,7 +4454,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     print("Test Loss", testing_loss)
             if "PopulationAverageDiversity" in self.log_item:
                 self.pop_diversity_history.append(
-                    self.diversity_calculation(population)
+                    self.euclidian_diversity_calculation(population)
                 )
             if not isinstance(self, ClassifierMixin):
                 if "PopulationAverageCosineDistance" in self.log_item:
@@ -4485,7 +4485,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     )
                 if "ArchiveAverageDiversity" in self.log_item:
                     # average diversity of archive
-                    self.archive_diversity_history.append(self.diversity_calculation())
+                    self.archive_diversity_history.append(
+                        self.euclidian_diversity_calculation()
+                    )
 
     def training_with_validation_set(self):
         # Train the final model with the validation set if data combination is enabled and validation set is provided
@@ -4898,7 +4900,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 )[: len(elite_map) // 2]
             if self.param.get("record_training_data", False):
                 self.elite_grid_avg_diversity_history.append(
-                    self.diversity_calculation(elite_map.values())
+                    self.euclidian_diversity_calculation(elite_map.values())
                 )
                 self.elite_grid_avg_fitness_history.append(
                     np.mean([ind.fitness.wvalues[0] for ind in elite_map.values()])
@@ -5087,7 +5089,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         used_terminals.add(x.name)
         return len(used_terminals)
 
-    def diversity_calculation(self, individuals=None):
+    def euclidian_diversity_calculation(self, individuals=None):
         """
         Calculate the diversity between individuals
         """

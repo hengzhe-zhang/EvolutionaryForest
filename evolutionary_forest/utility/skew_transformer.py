@@ -4,8 +4,9 @@ from sklearn.base import BaseEstimator, TransformerMixin
 
 
 class SkewnessCorrector(BaseEstimator, TransformerMixin):
-    def __init__(self):
-        pass
+    def __init__(self, skewness_mode="both"):
+        # Add a parameter to specify which skewness to handle ('left', 'right', 'both')
+        self.skewness_mode = skewness_mode
 
     def fit(self, X, y=None):
         X = X.reshape(-1, 1) if X.ndim == 1 else X
@@ -20,9 +21,9 @@ class SkewnessCorrector(BaseEstimator, TransformerMixin):
             signs = np.sign(X[:, i])
             abs_values = np.abs(X[:, i])
 
-            if self.skewness_[i] > 0.5:
+            if self.skewness_[i] > 0.5 and self.skewness_mode in ["right", "both"]:
                 transformed = np.sqrt(abs_values)
-            elif self.skewness_[i] < -0.5:
+            elif self.skewness_[i] < -0.5 and self.skewness_mode in ["left", "both"]:
                 transformed = abs_values**2
             else:
                 transformed = abs_values
@@ -39,9 +40,9 @@ class SkewnessCorrector(BaseEstimator, TransformerMixin):
             signs = np.sign(X[:, i])
             abs_values = np.abs(X[:, i])
 
-            if self.skewness_[i] > 0.5:
+            if self.skewness_[i] > 0.5 and self.skewness_mode in ["right", "both"]:
                 inv_transformed = abs_values**2
-            elif self.skewness_[i] < -0.5:
+            elif self.skewness_[i] < -0.5 and self.skewness_mode in ["left", "both"]:
                 inv_transformed = np.sqrt(abs_values)
             else:
                 inv_transformed = abs_values
