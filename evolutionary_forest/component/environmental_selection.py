@@ -394,10 +394,9 @@ class NSGA2(EnvironmentalSelection):
                             if signed_test_score < p_value_threshold:
                                 knee = best_ind_id
                     if self.knee_point == "Duel-SAM+":
-                        for ind_id, ind in enumerate(
-                            sorted(
-                                first_pareto_front, key=lambda x: -x.fitness.wvalues[0]
-                            )
+                        for ind_id, ind in sorted(
+                            enumerate(first_pareto_front),
+                            key=lambda x: -x[1].fitness.wvalues[0],
                         ):
                             knee_ind = first_pareto_front[knee]
                             if knee_ind.fitness.wvalues[0] >= ind.fitness.wvalues[0]:
