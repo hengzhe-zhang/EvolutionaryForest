@@ -3,7 +3,6 @@ import inspect
 from multiprocessing import Pool
 
 import dill
-import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -22,7 +21,7 @@ from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
 from scipy.spatial.distance import cosine
-from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon, ranksums
+from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
 from sklearn.base import TransformerMixin
 from sklearn.ensemble import (
     ExtraTreesRegressor,
@@ -220,7 +219,6 @@ from evolutionary_forest.utility.population_analysis import (
     check_number_of_unique_tree_semantics,
 )
 from evolutionary_forest.utility.scaler.OneHotStandardScaler import OneHotStandardScaler
-from evolutionary_forest.utility.scaler.StandardScaler import StandardScaler1D2D
 from evolutionary_forest.utility.skew_transformer import (
     SkewnessCorrector,
     CubeSkewnessCorrector,
@@ -3208,18 +3206,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                 if "Duel" in self.log_item:
                     best_p_value = 1
-                    for ind in sorted(pop, key=lambda x: -x.fitness.wvalues[0]):
-                        if self.hof[0].fitness.wvalues[0] >= ind.fitness.wvalues[0]:
-                            break
-                        if not np.all(
-                            np.equal(best_ind.case_values, self.hof[0].case_values)
-                        ):
-                            p_value = wilcoxon(
-                                ind.case_values / self.hof[0].case_values,
-                                np.ones_like(best_ind.case_values),
-                                alternative="less",
-                            )[1]
-                            best_p_value = min(p_value, best_p_value)
+                    ind = sorted(pop, key=lambda x: -x.fitness.wvalues[0])[0]
+                    if not np.all(
+                        np.equal(best_ind.case_values, self.hof[0].case_values)
+                    ):
+                        p_value = wilcoxon(
+                            sorted(ind.case_values / self.hof[0].case_values)[:-5],
+                            np.ones_like(best_ind.case_values)[:-5],
+                            alternative="less",
+                        )[1]
+                        best_p_value = p_value
                     self.duel_logs.append(best_p_value)
 
             dt = defaultdict(int)
