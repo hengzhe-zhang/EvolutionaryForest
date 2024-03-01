@@ -370,6 +370,7 @@ class NSGA2(EnvironmentalSelection):
                     self.knee_point == "SAM"
                     or self.knee_point == "SUM"
                     or self.knee_point == "Duel-SAM"
+                    or self.knee_point == "Duel-SAM+"
                 ):
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
@@ -392,6 +393,27 @@ class NSGA2(EnvironmentalSelection):
                             )[1]
                             if signed_test_score < p_value_threshold:
                                 knee = best_ind_id
+                    if self.knee_point == "Duel-SAM+":
+                        for ind_id, ind in enumerate(
+                            sorted(
+                                first_pareto_front, key=lambda x: -x.fitness.wvalues[0]
+                            )
+                        ):
+                            knee_ind = first_pareto_front[knee]
+                            if knee_ind.fitness.wvalues[0] >= ind.fitness.wvalues[0]:
+                                break
+                            if not np.all(
+                                np.equal(ind.case_values, knee_ind.case_values)
+                            ):
+                                p_value = wilcoxon(
+                                    ind.case_values / knee_ind.case_values,
+                                    np.ones_like(ind.case_values),
+                                    alternative="less",
+                                )[1]
+                                p_value_threshold = 0.05
+                                if p_value < p_value_threshold:
+                                    knee = ind_id
+                                    break
 
                 elif "+" in self.knee_point:
                     knee = []

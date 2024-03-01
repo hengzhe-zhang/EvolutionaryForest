@@ -3207,18 +3207,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.sharpness_logs.append(best_ind.fitness.values[1])
 
                 if "Duel" in self.log_item:
-                    if not np.all(
-                        np.equal(best_ind.case_values, self.hof[0].case_values)
-                    ):
-                        self.duel_logs.append(
-                            wilcoxon(
-                                best_ind.case_values / self.hof[0].case_values,
+                    best_p_value = 1
+                    for ind in sorted(pop, key=lambda x: -x.fitness.wvalues[0]):
+                        if self.hof[0].fitness.wvalues[0] >= ind.fitness.wvalues[0]:
+                            break
+                        if not np.all(
+                            np.equal(best_ind.case_values, self.hof[0].case_values)
+                        ):
+                            p_value = wilcoxon(
+                                ind.case_values / self.hof[0].case_values,
                                 np.ones_like(best_ind.case_values),
                                 alternative="less",
                             )[1]
-                        )
-                    else:
-                        self.duel_logs.append(0)
+                            best_p_value = min(p_value, best_p_value)
+                    self.duel_logs.append(best_p_value)
 
             dt = defaultdict(int)
             # parameters = np.zeros(2)
