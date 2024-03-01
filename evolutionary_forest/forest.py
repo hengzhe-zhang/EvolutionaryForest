@@ -3211,8 +3211,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         np.equal(best_ind.case_values, self.hof[0].case_values)
                     ):
                         p_value = wilcoxon(
-                            sorted(ind.case_values / self.hof[0].case_values)[:-5],
-                            np.ones_like(best_ind.case_values)[:-5],
+                            sorted(ind.case_values / self.hof[0].case_values)[:-3],
+                            np.ones_like(best_ind.case_values)[:-3],
                             alternative="less",
                         )[1]
                         best_p_value = p_value
