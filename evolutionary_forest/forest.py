@@ -35,7 +35,7 @@ from sklearn.linear_model import Ridge, HuberRegressor, Lasso, LassoCV, ElasticN
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
 from sklearn.neighbors import KNeighborsRegressor, KDTree
 from sklearn.preprocessing import (
     MaxAbsScaler,
@@ -3205,17 +3205,30 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.sharpness_logs.append(best_ind.fitness.values[1])
 
                 if "Duel" in self.log_item:
-                    best_p_value = 1
-                    ind = sorted(pop, key=lambda x: -x.fitness.wvalues[0])[0]
-                    if not np.all(
-                        np.equal(best_ind.case_values, self.hof[0].case_values)
-                    ):
-                        p_value = wilcoxon(
-                            sorted(ind.case_values / self.hof[0].case_values)[:-3],
-                            np.ones_like(best_ind.case_values)[:-3],
-                            alternative="less",
-                        )[1]
-                        best_p_value = p_value
+                    hof_features = self.feature_generation(self.X, self.hof[0])
+                    pipe = Pipeline(
+                        [
+                            ("scaler", StandardScaler()),
+                            ("model", KNeighborsRegressor(weights="distance")),
+                        ]
+                    )
+                    hof_score = np.mean(
+                        cross_val_score(pipe, hof_features, self.y, cv=3)
+                    )
+                    best_score = np.mean(cross_val_score(pipe, features, self.y, cv=3))
+
+                    # best_p_value = 1
+                    # ind = sorted(pop, key=lambda x: -x.fitness.wvalues[0])[0]
+                    # if not np.all(
+                    #     np.equal(best_ind.case_values, self.hof[0].case_values)
+                    # ):
+                    #     p_value = wilcoxon(
+                    #         sorted(ind.case_values / self.hof[0].case_values),
+                    #         np.ones_like(best_ind.case_values),
+                    #         alternative="less",
+                    #     )[1]
+                    #     best_p_value = p_value
+                    best_p_value = best_score - hof_score
                     self.duel_logs.append(best_p_value)
 
             dt = defaultdict(int)

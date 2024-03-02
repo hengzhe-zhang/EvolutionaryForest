@@ -17,8 +17,11 @@ from scipy.stats import wilcoxon
 from sklearn.base import ClassifierMixin
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, cross_val_score
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from analysis.knee_point_eurogp.utility_function import knee_point_by_utility
@@ -35,7 +38,11 @@ from evolutionary_forest.component.decision_making.harmonic_rank import (
 )
 from evolutionary_forest.component.fitness import R2PACBayesian
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
-from evolutionary_forest.multigene_gp import multiple_gene_compile, result_calculation
+from evolutionary_forest.multigene_gp import (
+    multiple_gene_compile,
+    result_calculation,
+    MultipleGeneGP,
+)
 from evolutionary_forest.strategies.instance_weighting import calculate_instance_weights
 
 if TYPE_CHECKING:
@@ -370,7 +377,7 @@ class NSGA2(EnvironmentalSelection):
                     self.knee_point == "SAM"
                     or self.knee_point == "SUM"
                     or self.knee_point == "Duel-SAM"
-                    or self.knee_point.startswith("Duel-SAM")
+                    or self.knee_point in ["KNN-SAM", "LR-SAM", "WKNN-SAM"]
                 ):
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
@@ -378,6 +385,39 @@ class NSGA2(EnvironmentalSelection):
                             if not hasattr(ind, "sam_loss"):
                                 pac.assign_complexity(ind, ind.pipe)
                     knee = np.argmin([p.sam_loss for p in first_pareto_front])
+                    if self.knee_point in ["KNN-SAM", "LR-SAM", "WKNN-SAM"]:
+                        best_ind_id = np.argmax(
+                            [p.fitness.wvalues[0] for p in first_pareto_front]
+                        )
+                        best_ind: MultipleGeneGP = first_pareto_front[best_ind_id]
+                        best_features = self.algorithm.feature_generation(
+                            self.algorithm.X, best_ind
+                        )
+                        hof_features = self.algorithm.feature_generation(
+                            self.algorithm.X, first_pareto_front[knee]
+                        )
+                        if self.knee_point == "KNN-SAM":
+                            regressor = KNeighborsRegressor()
+                        elif self.knee_point == "LR-SAM":
+                            regressor = LinearRegression()
+                        elif self.knee_point == "WKNN-SAM":
+                            regressor = KNeighborsRegressor(weights="distance")
+                        else:
+                            raise Exception("Unknown Knee Point Strategy")
+                        pipe = Pipeline(
+                            [
+                                ("scaler", StandardScaler()),
+                                ("model", regressor),
+                            ]
+                        )
+                        hof_score = np.mean(
+                            cross_val_score(pipe, hof_features, self.algorithm.y, cv=3)
+                        )
+                        best_score = np.mean(
+                            cross_val_score(pipe, best_features, self.algorithm.y, cv=3)
+                        )
+                        if hof_score < best_score:
+                            knee = best_ind_id
                     if self.knee_point == "Duel-SAM":
                         best_ind_id = np.argmax(
                             [p.fitness.wvalues[0] for p in first_pareto_front]
@@ -385,15 +425,9 @@ class NSGA2(EnvironmentalSelection):
                         best_ind = first_pareto_front[best_ind_id]
                         knee_ind = first_pareto_front[knee]
                         p_value_threshold = 0.05
-                        if "~" in self.knee_point:
-                            k = -int(self.knee_point.split("~")[1])
-                        else:
-                            k = len(knee_ind.case_values)
                         if np.any(best_ind.case_values != knee_ind.case_values):
                             signed_test_score = wilcoxon(
-                                sorted(best_ind.case_values / knee_ind.case_values)[
-                                    :-k
-                                ],
+                                best_ind.case_values / knee_ind.case_values,
                                 np.ones_like(best_ind.case_values),
                                 alternative="less",
                             )[1]
