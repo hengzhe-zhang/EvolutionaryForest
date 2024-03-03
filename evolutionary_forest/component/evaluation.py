@@ -25,7 +25,7 @@ from sklearn.base import RegressorMixin, ClassifierMixin
 from sklearn.datasets import make_regression
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.inspection import permutation_importance
-from sklearn.linear_model import RidgeCV, LogisticRegression
+from sklearn.linear_model import RidgeCV, LogisticRegression, Ridge
 from sklearn.linear_model._base import LinearModel
 from sklearn.metrics import (
     accuracy_score,
@@ -136,6 +136,14 @@ def calculate_score(args):
     # GP evaluation
     start_time = time.time()
     semantic_results = None
+
+    # used for LGP-like mode
+    results: EvaluationResults
+    if hasattr(pipe, "register"):
+        register_array = pipe.register
+    else:
+        register_array = None
+
     if sklearn_format:
         Yp = multi_tree_evaluation(func, pset, X, original_features, sklearn_format)
         pipe = pipe_combine(Yp, pipe)
@@ -144,11 +152,6 @@ def calculate_score(args):
         correlation_results = None
         introns_results = None
     else:
-        results: EvaluationResults
-        if hasattr(pipe, "register"):
-            register_array = pipe.register
-        else:
-            register_array = None
         Yp, results = multi_tree_evaluation(
             func,
             pset,
@@ -186,92 +189,24 @@ def calculate_score(args):
 
     gp_evaluation_time = time.time() - start_time
 
+    if configuration.gradient_descent:
+        gradient_optimization(Yp, Y, configuration, func)
+        # evaluate again
+        Yp = multi_tree_evaluation(
+            func,
+            pset,
+            X,
+            original_features,
+            configuration=configuration,
+            individual_configuration=individual_configuration,
+        )
+        Yp = Yp.detach().numpy()
+
     # ML evaluation
     start_time = time.time()
     if not configuration.cross_validation:
-        if configuration.gradient_descent:
-            pipe.fit(Yp.detach().numpy(), Y)
-            ridge: LinearModel = pipe["Ridge"]
-            assert isinstance(
-                ridge, LinearModel
-            ), "Only linear models support gradient descent"
-
-            # Use the pipeline for prediction
-            Y_pred_pipe = pipe.predict(Yp.detach().numpy())
-
-            # extract coefficients from linear model
-            weights = ridge.coef_
-            bias = ridge.intercept_
-            optimize_lr_weights = True
-            if not optimize_lr_weights:
-                weights_torch = torch.tensor(
-                    weights, dtype=torch.float32, requires_grad=False
-                )
-                bias_torch = torch.tensor(
-                    bias, dtype=torch.float32, requires_grad=False
-                )
-            else:
-                weights_torch = torch.tensor(
-                    weights, dtype=torch.float32, requires_grad=True
-                )
-                bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
-
-            mean = Yp.mean(dim=0)
-            std = Yp.std(dim=0)
-            epsilon = 1e-5
-            Yp = (Yp - mean) / (std + epsilon)
-            Y_pred = torch.mm(Yp, weights_torch.view(-1, 1)) + bias_torch
-
-            # gradient descent
-            criterion = torch.nn.MSELoss()
-            variables = [
-                f.value
-                for tree in func
-                for f in tree
-                if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)
-            ]
-
-            # Use PyTorch for prediction
-            Y_pred_torch = Y_pred.detach().numpy()
-
-            # Add an assertion to ensure that the two MSE scores are very close, for validation
-            # check = pearsonr(Y_pred_torch.flatten(), Y_pred_pipe)
-            # assert np.all(np.isnan(check)) or check[0] > 0.99, \
-            #     f"Predictions do not match, {check}"
-
-            if optimize_lr_weights:
-                torch_variables = [weights_torch, bias_torch] + variables
-            else:
-                torch_variables = variables
-            for v in torch_variables:
-                assert v.requires_grad is True
-            if len(variables) >= 1:
-                if configuration.gradient_optimizer == "GD":
-                    optimizer = optim.SGD(
-                        torch_variables,
-                        lr=0.1,
-                        weight_decay=1e-5,
-                    )
-                elif configuration.gradient_optimizer == "GD-1":
-                    optimizer = optim.SGD(torch_variables, lr=1, weight_decay=1e-5)
-                else:
-                    raise Exception()
-                loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-
-                # get results based on new parameters
-                Yp = multi_tree_evaluation(
-                    func, pset, X, original_features, configuration=configuration
-                )
-
-                # re-fit a linear model
-                pipe.fit(Yp.detach().numpy(), Y)
-            y_pred = pipe.predict(Yp.detach().numpy())
-        else:
-            pipe.fit(Yp, Y)
-            y_pred = pipe.predict(Yp)
+        pipe.fit(Yp, Y)
+        y_pred = pipe.predict(Yp)
         estimators = [pipe]
     else:
         if sklearn_format:
@@ -422,6 +357,74 @@ def calculate_score(args):
             semantic_results=semantic_results,
         ),
     )
+
+
+def gradient_optimization(constructed_features, Y, configuration, func):
+    constructed_features_normalized = feature_standardization_torch(
+        constructed_features
+    )
+    # fit a ridge model
+    ridge: LinearModel = Ridge()
+    ridge.fit(constructed_features_normalized.detach().numpy(), Y)
+    assert isinstance(ridge, LinearModel), "Only linear models support gradient descent"
+    # extract coefficients from linear model
+    weights = ridge.coef_
+    bias = ridge.intercept_
+    if np.all(ridge.coef_) == 0:
+        # if all zero, do not need to optimize
+        return
+    optimize_lr_weights = True
+    if not optimize_lr_weights:
+        weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=False)
+        bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=False)
+    else:
+        weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=True)
+        bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
+    Y_pred = (
+        torch.mm(constructed_features_normalized, weights_torch.view(-1, 1))
+        + bias_torch
+    )
+    # gradient descent
+    criterion = torch.nn.MSELoss()
+    free_variables = [
+        f.value
+        for tree in func
+        for f in tree
+        if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)
+    ]
+    # Add an assertion to ensure that the two MSE scores are very close, for validation
+    # check = pearsonr(Y_pred_torch.flatten(), Y_pred_pipe)
+    # assert np.all(np.isnan(check)) or check[0] > 0.99, \
+    #     f"Predictions do not match, {check}"
+    if optimize_lr_weights:
+        torch_variables = [weights_torch, bias_torch] + free_variables
+    else:
+        torch_variables = free_variables
+    for v in torch_variables:
+        assert v.requires_grad is True
+    if len(free_variables) >= 1:
+        if configuration.gradient_optimizer in ["GD", "GD+"]:
+            optimizer = optim.SGD(
+                torch_variables,
+                lr=0.1,
+                weight_decay=1e-5,
+            )
+        else:
+            raise Exception()
+        # optimize
+        loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+
+
+def feature_standardization_torch(constructed_features):
+    # normalize before ridge regression
+    mean = constructed_features.mean(dim=0)
+    std = constructed_features.std(dim=0)
+    epsilon = 1e-10
+    constructed_features_normalized = (constructed_features - mean) / (std + epsilon)
+    return constructed_features_normalized
 
 
 def calculate_permutation_importance(estimators, Yp, Y):

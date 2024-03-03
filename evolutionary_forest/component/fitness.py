@@ -13,7 +13,10 @@ from sklearn.metrics import r2_score, pairwise_distances
 from sklearn.metrics.pairwise import rbf_kernel
 from torch import optim
 
-from evolutionary_forest.component.evaluation import multi_tree_evaluation
+from evolutionary_forest.component.evaluation import (
+    multi_tree_evaluation,
+    feature_standardization_torch,
+)
 from evolutionary_forest.component.generalization.iodc import (
     create_z,
     create_w,
@@ -720,9 +723,9 @@ class R2PACBayesian(Fitness):
         sharpness_vector = []
         # PAC-Bayesian estimation
         # return a tuple
-        if self.algorithm.constant_type == "GD":
+        if self.algorithm.constant_type == "GD+":
             torch.set_grad_enabled(True)
-            torch_variables, trees = self.transform_gene(individual)
+            torch_variables, trees = self.transform_gp_tree_with_tensors(individual)
 
             if all(
                 (
@@ -750,6 +753,8 @@ class R2PACBayesian(Fitness):
                 if torch.any(torch.isnan(features)):
                     sharpness = np.inf
                 else:
+                    features = feature_standardization_torch(features)
+
                     ridge = estimator["Ridge"]
                     # extract coefficients from linear model
                     weights = ridge.coef_
@@ -760,11 +765,6 @@ class R2PACBayesian(Fitness):
                     bias_torch = torch.tensor(
                         bias, dtype=torch.float32, requires_grad=False
                     )
-
-                    mean = features.mean(dim=0)
-                    std = features.std(dim=0)
-                    epsilon = 1e-5
-                    features = (features - mean) / (std + epsilon)
                     Y_pred = torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
 
                     criterion = torch.nn.MSELoss()
@@ -782,11 +782,8 @@ class R2PACBayesian(Fitness):
                         configuration=self.algorithm.evaluation_configuration,
                         individual_configuration=individual.individual_configuration,
                     )
-                    mean = features.mean(dim=0)
-                    std = features.std(dim=0)
-                    features = (features - mean) / (std + epsilon)
+                    features = feature_standardization_torch(features)
                     Y_pred = torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
-                    # mse_new = criterion(Y_pred, torch.from_numpy(y).detach().float()).item()
                     mse_new = (Y_pred.detach().numpy().flatten() - y) ** 2
                     sharpness = np.maximum(mse_new - mse_old, 0).mean()
                     # print('R2 After', r2_score(y, Y_pred.detach().numpy()))
@@ -862,9 +859,7 @@ class R2PACBayesian(Fitness):
             False,
         ]:
             # Compute the norm of the gradient
-            gradient_norm = torch.norm(
-                torch.stack([v.grad.norm() for v in torch_variables])
-            )
+            gradient_norm = torch.norm(torch.stack([v.grad for v in torch_variables]))
             # Scale the gradients to have a norm of 1
             for v in torch_variables:
                 v.grad /= gradient_norm
@@ -877,7 +872,7 @@ class R2PACBayesian(Fitness):
         optimizer.step()
         optimizer.zero_grad()
 
-    def transform_gene(self, individual):
+    def transform_gp_tree_with_tensors(self, individual):
         """
         Convert genes into a format with gradient-enabled tensors.
         """
@@ -887,21 +882,28 @@ class R2PACBayesian(Fitness):
         for gene in individual.gene:
             new_gene: PrimitiveTree = PrimitiveTree([])
             for i in range(len(gene)):
-                if isinstance(gene[i], Primitive):
-                    new_gene.append(self.algorithm.pset.mapping["Add"])
-                    v = torch.zeros(1, requires_grad=True, dtype=torch.float32)
-                    gp_v = Terminal(v, False, object)
-                    new_gene.append(gp_v)
-                    torch_variables.append(v)
-                    new_gene.append(gene[i])
-                elif isinstance(gene[i], Terminal) and isinstance(
+                if isinstance(gene[i], Terminal) and isinstance(
                     gene[i].value, torch.Tensor
                 ):
                     # avoid gradient interference
                     node = torch.tensor(
                         [gene[i].value.item()], dtype=torch.float32
                     ).requires_grad_(False)
+                    # save it a constant
                     new_gene.append(Terminal(node, False, object))
+                elif (
+                    i != 0
+                    and isinstance(gene[i], Primitive)
+                    or isinstance(gene[i], Terminal)
+                ):
+                    # unless the root node, add a noise term
+                    # including both terminal and non-terminal nodes
+                    new_gene.append(self.algorithm.pset.mapping["Add"])
+                    v = torch.zeros(1, requires_grad=True, dtype=torch.float32)
+                    gp_v = Terminal(v, False, object)
+                    new_gene.append(gp_v)
+                    torch_variables.append(v)
+                    new_gene.append(gene[i])
                 else:
                     new_gene.append(gene[i])
             trees.append(new_gene)

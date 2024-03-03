@@ -3,6 +3,7 @@ import inspect
 from multiprocessing import Pool
 
 import dill
+import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -23,6 +24,7 @@ from numpy.linalg import norm
 from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
 from sklearn.base import TransformerMixin
+from sklearn.decomposition import PCA
 from sklearn.ensemble import (
     ExtraTreesRegressor,
     GradientBoostingRegressor,
@@ -219,6 +221,7 @@ from evolutionary_forest.utility.population_analysis import (
     check_number_of_unique_tree_semantics,
 )
 from evolutionary_forest.utility.scaler.OneHotStandardScaler import OneHotStandardScaler
+from evolutionary_forest.utility.scaler.StandardPCA import StandardScalerPCA
 from evolutionary_forest.utility.skew_transformer import (
     SkewnessCorrector,
     CubeSkewnessCorrector,
@@ -767,7 +770,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.evaluation_configuration = EvaluationConfiguration(
             **params, **vars(self), classification=isinstance(self, ClassifierMixin)
         )
-        if self.constant_type == "GD":
+        if self.constant_type in ["GD", "GD+"]:
             self.evaluation_configuration.gradient_descent = True
         self.archive_configuration = ArchiveConfiguration(
             **params,
@@ -1696,12 +1699,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = efficient_deepcopy(self.base_learner)
         else:
             raise Exception
-        pipe = GPPipeline(
-            [
-                ("Scaler", SafetyScaler()),
-                ("Ridge", ridge_model),
-            ]
-        )
+        scaler = SafetyScaler()
+        if "PCA" in self.base_learner:
+            scaler = StandardScalerPCA(n_components=0.99)
+
+        components = [
+            ("Scaler", scaler),
+            ("Ridge", ridge_model),
+        ]
+        pipe = GPPipeline(components)
         if isinstance(pipe["Ridge"], BaseDecisionTree) and self.max_tree_depth != None:
             assert pipe["Ridge"].max_depth == self.max_tree_depth
         return pipe
@@ -2344,7 +2350,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.constant_type == "Float":
             pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
-        elif self.constant_type == "GD":
+        elif self.constant_type in ["GD", "GD+"]:
 
             def random_variable():
                 return torch.randn(1, requires_grad=True, dtype=torch.float32)
@@ -2435,7 +2441,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 number_of_parameters = len(inspect.signature(primitive).parameters)
                 primitive = (primitive, number_of_parameters)
             else:
-                if self.constant_type == "GD":
+                if self.constant_type in ["GD", "GD+"]:
                     primitive = get_differentiable_functions(p)
                 else:
                     primitive = get_functions(p)
@@ -3205,31 +3211,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.sharpness_logs.append(best_ind.fitness.values[1])
 
                 if "Duel" in self.log_item:
-                    hof_features = self.feature_generation(self.X, self.hof[0])
-                    pipe = Pipeline(
-                        [
-                            ("scaler", StandardScaler()),
-                            ("model", KNeighborsRegressor(weights="distance")),
-                        ]
-                    )
-                    hof_score = np.mean(
-                        cross_val_score(pipe, hof_features, self.y, cv=3)
-                    )
-                    best_score = np.mean(cross_val_score(pipe, features, self.y, cv=3))
-
-                    # best_p_value = 1
-                    # ind = sorted(pop, key=lambda x: -x.fitness.wvalues[0])[0]
-                    # if not np.all(
-                    #     np.equal(best_ind.case_values, self.hof[0].case_values)
-                    # ):
-                    #     p_value = wilcoxon(
-                    #         sorted(ind.case_values / self.hof[0].case_values),
-                    #         np.ones_like(best_ind.case_values),
-                    #         alternative="less",
-                    #     )[1]
-                    #     best_p_value = p_value
-                    best_p_value = best_score - hof_score
-                    self.duel_logs.append(best_p_value)
+                    if not np.all(
+                        np.equal(best_ind.case_values, self.hof[0].case_values)
+                    ):
+                        p_value = wilcoxon(
+                            best_ind.case_values / self.hof[0].case_values,
+                            np.ones(len(best_ind.case_values)),
+                            alternative="less",
+                        )[1]
+                        self.duel_logs.append(p_value)
+                    else:
+                        self.duel_logs.append(0)
 
             dt = defaultdict(int)
             # parameters = np.zeros(2)
@@ -3710,18 +3702,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 halloffame.clear()
             if self.lasso_hof is not None:
                 self.lasso_hof.update(population)
-            if halloffame is not None and worse_iterations == 0:
-                halloffame.update(offspring)
-                if self.verbose:
-
-                    def replace(ss):
-                        for s in range(
-                            self.gene_num + self.X.shape[1], self.X.shape[1] - 1, -1
-                        ):
-                            ss = ss.replace(f"ARG{s}", f"INS{s - self.X.shape[1]}")
-                        return ss
-
-                    print("\n".join([replace(str(g)) for g in halloffame[0].gene]))
             if self.verbose:
                 if self.semantic_repair > 0:
                     print(
@@ -3783,6 +3763,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Append the current generation statistics to the logbook
             record = stats.compile(population) if stats else {}
             logbook.record(gen=gen, nevals=len(evaluated_inds), **record)
+
+            if self.verbose and self.hof is not None:
+                print("Print model:")
+
+                def replace(ss):
+                    # MMTGP
+                    for s in range(
+                        self.gene_num + self.X.shape[1], self.X.shape[1] - 1, -1
+                    ):
+                        ss = ss.replace(f"ARG{s}", f"INS{s - self.X.shape[1]}")
+                    return ss
+
+                print("\n".join([replace(str(g)) for g in self.hof[0].gene]))
+
             if verbose:
                 features = set(
                     chain.from_iterable(
@@ -4033,7 +4027,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def torch_variable_clone(self, offspring):
         if self.evaluation_configuration.gradient_descent:
-            # clone all variables
+            # clone all variables to non-tensor
             for ind in offspring:
                 for tree in ind.gene:
                     for id, f in enumerate(tree):
