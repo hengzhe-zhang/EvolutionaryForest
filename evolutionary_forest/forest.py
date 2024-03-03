@@ -1560,6 +1560,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = LinearTreeRegressor(base_estimator=LinearRegression())
         elif (
             self.base_learner == "RidgeCV"
+            or "PCA-RidgeCV" in self.base_learner
             or self.base_learner == "RidgeCV-ENet"
             or base_model == "RidgeCV"
         ):
@@ -1701,7 +1702,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
         scaler = SafetyScaler()
         if "PCA" in self.base_learner:
-            scaler = StandardScalerPCA(n_components=0.99)
+            n_components = 0.99
+            if "~" in self.base_learner:
+                n_components = float(self.base_learner.split("~")[1])
+            scaler = StandardScalerPCA(n_components=n_components)
 
         components = [
             ("Scaler", scaler),
