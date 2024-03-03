@@ -197,7 +197,7 @@ class NSGA2(EnvironmentalSelection):
 
     def select(self, population, offspring):
         """
-        Old version: The size of population is limited by the number of unique individuals in the first generation
+        Old version: The size of the population is limited by the number of unique individuals in the first generation
         """
         individuals = population + offspring
         if self.algorithm.pac_bayesian.weighted_sam != False:
@@ -376,7 +376,7 @@ class NSGA2(EnvironmentalSelection):
                 if (
                     self.knee_point == "SAM"
                     or self.knee_point == "SUM"
-                    or self.knee_point == "Duel-SAM"
+                    or self.knee_point in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++"]
                     or self.knee_point in ["KNN-SAM", "LR-SAM", "WKNN-SAM"]
                 ):
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
@@ -386,53 +386,35 @@ class NSGA2(EnvironmentalSelection):
                                 pac.assign_complexity(ind, ind.pipe)
                     knee = np.argmin([p.sam_loss for p in first_pareto_front])
                     if self.knee_point in ["KNN-SAM", "LR-SAM", "WKNN-SAM"]:
-                        best_ind_id = np.argmax(
-                            [p.fitness.wvalues[0] for p in first_pareto_front]
+                        knee = self.external_regressor_based_duel_selection(
+                            first_pareto_front, knee
                         )
-                        best_ind: MultipleGeneGP = first_pareto_front[best_ind_id]
-                        best_features = self.algorithm.feature_generation(
-                            self.algorithm.X, best_ind
-                        )
-                        hof_features = self.algorithm.feature_generation(
-                            self.algorithm.X, first_pareto_front[knee]
-                        )
-                        if self.knee_point == "KNN-SAM":
-                            regressor = KNeighborsRegressor()
-                        elif self.knee_point == "LR-SAM":
-                            regressor = LinearRegression()
-                        elif self.knee_point == "WKNN-SAM":
-                            regressor = KNeighborsRegressor(weights="distance")
-                        else:
-                            raise Exception("Unknown Knee Point Strategy")
-                        pipe = Pipeline(
-                            [
-                                ("scaler", StandardScaler()),
-                                ("model", regressor),
-                            ]
-                        )
-                        hof_score = np.mean(
-                            cross_val_score(pipe, hof_features, self.algorithm.y, cv=3)
-                        )
-                        best_score = np.mean(
-                            cross_val_score(pipe, best_features, self.algorithm.y, cv=3)
-                        )
-                        if hof_score < best_score:
-                            knee = best_ind_id
-                    if self.knee_point == "Duel-SAM":
+                    if self.knee_point in ["Duel-SAM+", "Duel-SAM++"]:
                         best_ind_id = np.argmax(
                             [p.fitness.wvalues[0] for p in first_pareto_front]
                         )
                         best_ind = first_pareto_front[best_ind_id]
-                        knee_ind = first_pareto_front[knee]
+                        useful_models = []
                         p_value_threshold = 0.05
-                        if np.any(best_ind.case_values != knee_ind.case_values):
-                            signed_test_score = wilcoxon(
-                                best_ind.case_values / knee_ind.case_values,
-                                np.ones_like(best_ind.case_values),
-                                alternative="less",
-                            )[1]
-                            if signed_test_score < p_value_threshold:
-                                knee = best_ind_id
+                        for model in first_pareto_front:
+                            if np.any(best_ind.case_values != model.case_values):
+                                # within safety individual
+                                signed_test_score = wilcoxon(
+                                    best_ind.case_values / model.case_values,
+                                    np.ones_like(best_ind.case_values),
+                                    alternative="less",
+                                )[1]
+                                if signed_test_score >= p_value_threshold:
+                                    useful_models.append(model)
+                        if self.knee_point == "Duel-SAM+":
+                            knee = np.argmax([p.sam_loss for p in useful_models])
+                        elif self.knee_point == "Duel-SAM++":
+                            # worst accuracy
+                            knee = np.argmin(
+                                [p.fitness.wvalues[0] for p in useful_models]
+                            )
+                    if self.knee_point == "Duel-SAM":
+                        knee = self.duel_model_selection(first_pareto_front, knee)
 
                 elif "+" in self.knee_point:
                     knee = []
@@ -481,6 +463,50 @@ class NSGA2(EnvironmentalSelection):
             for ind in individuals:
                 ind.fitness.values = ind.unnormalized_fitness
         return population
+
+    def external_regressor_based_duel_selection(self, first_pareto_front, knee):
+        best_ind_id = np.argmax([p.fitness.wvalues[0] for p in first_pareto_front])
+        best_ind: MultipleGeneGP = first_pareto_front[best_ind_id]
+        best_features = self.algorithm.feature_generation(self.algorithm.X, best_ind)
+        hof_features = self.algorithm.feature_generation(
+            self.algorithm.X, first_pareto_front[knee]
+        )
+        if self.knee_point == "KNN-SAM":
+            regressor = KNeighborsRegressor()
+        elif self.knee_point == "LR-SAM":
+            regressor = LinearRegression()
+        elif self.knee_point == "WKNN-SAM":
+            regressor = KNeighborsRegressor(weights="distance")
+        else:
+            raise Exception("Unknown Knee Point Strategy")
+        pipe = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("model", regressor),
+            ]
+        )
+        hof_score = np.mean(cross_val_score(pipe, hof_features, self.algorithm.y, cv=3))
+        best_score = np.mean(
+            cross_val_score(pipe, best_features, self.algorithm.y, cv=3)
+        )
+        if hof_score < best_score:
+            knee = best_ind_id
+        return knee
+
+    def duel_model_selection(self, first_pareto_front, knee):
+        best_ind_id = np.argmax([p.fitness.wvalues[0] for p in first_pareto_front])
+        best_ind = first_pareto_front[best_ind_id]
+        knee_ind = first_pareto_front[knee]
+        p_value_threshold = 0.05
+        if np.any(best_ind.case_values != knee_ind.case_values):
+            signed_test_score = wilcoxon(
+                best_ind.case_values / knee_ind.case_values,
+                np.ones_like(best_ind.case_values),
+                alternative="less",
+            )[1]
+            if signed_test_score < p_value_threshold:
+                knee = best_ind_id
+        return knee
 
     def objective_space_duplication_removal(self, combined_population):
         # Remove duplicates based on fitness values
