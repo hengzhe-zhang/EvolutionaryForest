@@ -3373,9 +3373,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elite_map, pop_pool = self.map_elite_generation(population, elite_map, pop_pool)
 
         fitness_improvement = 0
-        # fitness decrease on validation set
-        worse_iterations = 0
-        # iterations of no fitness improvement on training set
+        # iterations of no fitness improvement on the training set
+        # used for early stopping
         no_improvement_iteration = 0
         adaptive_hoist_probability = None
         historical_best_fitness = self.get_current_best_fitness()
@@ -3706,6 +3705,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 halloffame.clear()
             if self.lasso_hof is not None:
                 self.lasso_hof.update(population)
+
+            if halloffame is not None:
+                # update the hall of fame with the generated individuals
+                halloffame.update(offspring)
+
             if self.verbose:
                 if self.semantic_repair > 0:
                     print(
@@ -3803,6 +3807,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # statistical information for adaptive GP
             current_best_fitness = self.get_current_best_fitness()
 
+            # check iterations of non-fitness improvement
             if historical_best_fitness < current_best_fitness:
                 historical_best_fitness = current_best_fitness
                 no_improvement_iteration = 0
