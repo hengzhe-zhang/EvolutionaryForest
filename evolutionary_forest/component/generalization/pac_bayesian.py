@@ -276,11 +276,15 @@ def pac_bayesian_estimation(
             sharpness_type == SharpnessType.DataGP
             or sharpness_type == SharpnessType.ParameterPlus
         ):
+            # The squared error between GP predictions and the predictions on noisy data
+            # This is the traditional VRM framework
             gp_original_predictions = get_cv_predictions(
                 estimator, X, y, direct_prediction=True
             )
             mse_scores[i] = (gp_original_predictions.flatten() - y_pred_on_noise) ** 2
         elif sharpness_type == SharpnessType.DataGPSource:
+            # The squared error between GP predictions and interpolated targets
+            # This is the mode in VRM decomposition
             # gp_original_predictions: prediction on clean data
             gp_original_predictions = get_cv_predictions(
                 estimator, X, y, direct_prediction=True
