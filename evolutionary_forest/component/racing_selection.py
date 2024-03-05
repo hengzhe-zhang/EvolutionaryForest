@@ -11,6 +11,7 @@ from sklearn.ensemble import RandomForestRegressor
 from statsmodels.tsa.arima.model import ARIMA
 
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
+import evolutionary_forest.forest as forest
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.priority_queue import MinPriorityQueue
 
@@ -34,6 +35,7 @@ class RacingFunctionSelector:
         priority_queue=False,
         remove_significant_worse=False,
         remove_insignificant=True,
+        algorithm: "forest.EvolutionaryForestRegressor" = None,
         **kwargs
     ):
         self.ts_num_predictions = ts_num_predictions
@@ -64,6 +66,10 @@ class RacingFunctionSelector:
         self.remove_significant_worse = remove_significant_worse
         # remove insignificant primitives
         self.remove_insignificant = remove_insignificant
+
+        self.algorithm = algorithm
+        self.log_item = algorithm.log_item
+        self.number_of_deleted_functions = []
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -219,6 +225,13 @@ class RacingFunctionSelector:
             sensitivity = None
 
         self.eliminate_functions(sensitivity)
+
+        if "FunctionElimination" in self.log_item:
+            self.number_of_deleted_functions.append(
+                1
+                - len(self.pset.primitives[object])
+                / len(self.backup_pset.primitives[object])
+            )
 
     def eliminate_functions(self, sensitivity: np.ndarray):
         """

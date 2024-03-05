@@ -441,7 +441,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.post_selection_method = post_selection_method
         self.validation_ratio = validation_ratio
         self.simplification = simplification
-        self.racing = racing
+        self.racing: RacingFunctionSelector = racing
         self.bounded_prediction = bounded_prediction
         self.constant_ratio = constant_ratio
         self.learner = learner
