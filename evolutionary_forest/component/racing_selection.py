@@ -32,7 +32,8 @@ class RacingFunctionSelector:
         p_threshold=5e-2,
         ts_num_predictions=0,
         priority_queue=False,
-        only_better=False,
+        remove_significant_worse=False,
+        remove_insignificant=True,
         **kwargs
     ):
         self.ts_num_predictions = ts_num_predictions
@@ -59,7 +60,10 @@ class RacingFunctionSelector:
         self.use_sensitivity_analysis = use_sensitivity_analysis
         # Racing based on priority_queue
         self.priority_queue = priority_queue
-        self.only_better = only_better
+        # remove much worse primitives
+        self.remove_significant_worse = remove_significant_worse
+        # remove insignificant primitives
+        self.remove_insignificant = remove_insignificant
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -209,7 +213,10 @@ class RacingFunctionSelector:
         """
         Using a decision tree to learn which primitives/terminals are important
         """
-        sensitivity = self.sensitivity_analysis(individuals)
+        if self.use_sensitivity_analysis:
+            sensitivity = self.sensitivity_analysis(individuals)
+        else:
+            sensitivity = None
 
         self.eliminate_functions(sensitivity)
 
@@ -283,6 +290,9 @@ class RacingFunctionSelector:
                         break
 
     def remove_by_sensitivity_analysis(self, elements_to_remove, sensitivity):
+        """
+        Based on random forest, to remove the less important primitives and terminals.
+        """
         terminal_sensitivity = sensitivity[: len(self.pset.terminals[object])]
         primitive_sensitivity = sensitivity[len(self.pset.terminals[object]) :]
         good_terminal = [
@@ -373,12 +383,15 @@ class RacingFunctionSelector:
             best_primitive_key: Don't remove this. Because we need to ensure at least one primitive is available.
             """
             if (
-                p_value > p_threshold and element != best_primitive_key
+                self.remove_insignificant
+                and p_value > p_threshold
+                and element != best_primitive_key
             ):  # Ensure we don't remove the best one itself
                 elements_to_remove.append(element)
             elif (
-                self.only_better
+                self.remove_significant_worse
                 # significantly worse
+                and p_value <= p_threshold
                 and np.median(fitness_list) < np.median(best_primitive_fitness_list)
                 and element != best_primitive_key
             ):

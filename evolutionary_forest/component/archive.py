@@ -551,28 +551,15 @@ class MultiTaskHallOfFame(HallOfFame):
 class ValidationHallOfFame(HallOfFame):
     def __init__(
         self,
-        maxsize,
         validation_function,
-        archive_configuration: ArchiveConfiguration,
         similar=eq,
     ):
-        # Currently, only supports size of one
         self.validation_function = validation_function
-        self.archive_configuration = archive_configuration
-        assert maxsize == 1
-        super().__init__(maxsize, similar)
+        super().__init__(1, similar)
 
     def update(self, population):
-        if self.archive_configuration.dynamic_validation and len(self) > 0:
-            # update the fitness of individuals in the hall of fame
-            self[0].fitness.values = (
-                -1 * self.validation_function(self[0], force_training=True),
-            )
-        best_individual = max(population, key=lambda x: x.fitness.wvalues)
-        best_individual = copy.deepcopy(best_individual)
-        best_individual.fitness.values = (
-            -1 * self.validation_function(best_individual),
-        )
+        best_individual = max(population, key=lambda x: self.validation_function(x))
+        self.clear()
         super().update([best_individual])
 
 
