@@ -2839,6 +2839,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.final_model_lazy_training(self.hof)
             self.stacking_strategy.stacking_layer_generation(X, y)
         self.training_with_validation_set()
+        if self.validation_size > 0:
+            self.hof = self.validation_hof
         return self
 
     def pretrain(self, X, y):
