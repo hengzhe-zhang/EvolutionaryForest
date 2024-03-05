@@ -1,6 +1,6 @@
 import copy
 from collections import defaultdict
-from typing import List
+from typing import List, Set
 
 import numpy as np
 import pandas as pd
@@ -10,6 +10,7 @@ from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from statsmodels.tsa.arima.model import ARIMA
 
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.priority_queue import MinPriorityQueue
 
@@ -28,7 +29,7 @@ class RacingFunctionSelector:
         use_sensitivity_analysis=False,
         verbose=False,
         racing_environmental_selection=True,
-        p_threshold=1e-2,
+        p_threshold=5e-2,
         ts_num_predictions=0,
         priority_queue=False,
         only_better=False,
@@ -47,22 +48,25 @@ class RacingFunctionSelector:
             self.best_individuals_fitness_list = MinPriorityQueue()
         else:
             self.best_individuals_fitness_list = []
+        # size of candidates for statistical comparison
         self.racing_list_size = racing_list_size
         self.pset = pset
+        # each round restore to the original pset
         self.backup_pset = copy.deepcopy(pset)
         self.content = content
         self.function_importance_list = {}
         self.use_global_fitness = use_global_fitness
         self.use_sensitivity_analysis = use_sensitivity_analysis
+        # Racing based on priority_queue
         self.priority_queue = priority_queue
         self.only_better = only_better
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
-        num_features = len(self.pset.terminals[object]) + len(
+        num_primitives_and_terminals = len(self.pset.terminals[object]) + len(
             self.pset.primitives[object]
         )
-        X = np.zeros((len(pop), num_features))  # Feature matrix
+        X = np.zeros((len(pop), num_primitives_and_terminals))  # Feature matrix
         y = np.zeros(len(pop))  # Target vector
 
         for ind_idx, ind in enumerate(pop):
@@ -101,6 +105,9 @@ class RacingFunctionSelector:
         coefs = abs(individual.coef)
         coefs = coefs / np.sum(coefs)
         for tree, coef in zip(individual.gene, coefs):
+            """
+            Some trees could be filtered because they are less important.
+            """
             if self.importance_level == "Square" and coef < 1 / (
                 np.sqrt(len(individual.gene)) ** 2
             ):
@@ -188,6 +195,10 @@ class RacingFunctionSelector:
         """
         Updates function fitness lists and the best individuals' list for a given population.
         """
+
+        """
+        The removal is not permanent. So, removed primitives can come back again.
+        """
         self.pset.primitives = copy.deepcopy(self.backup_pset.primitives)
         self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
         for individual in individuals:
@@ -195,6 +206,9 @@ class RacingFunctionSelector:
         for individual in individuals:
             self.update_best_individuals_list(individual)
 
+        """
+        Using a decision tree to learn which primitives/terminals are important
+        """
         sensitivity = self.sensitivity_analysis(individuals)
 
         self.eliminate_functions(sensitivity)
@@ -226,7 +240,7 @@ class RacingFunctionSelector:
                 best_primitive_key,
             ) = self.get_reference_element(primitive_fitness_lists)
 
-            self.elminate_elements(
+            self.eliminate_elements(
                 best_primitive_fitness_list,
                 best_primitive_key,
                 elements_to_remove,
@@ -237,7 +251,7 @@ class RacingFunctionSelector:
             best_terminal_fitness_list, best_terminal_key = self.get_reference_element(
                 terminal_fitness_lists
             )
-            self.elminate_elements(
+            self.eliminate_elements(
                 best_terminal_fitness_list,
                 best_terminal_key,
                 elements_to_remove,
@@ -333,7 +347,7 @@ class RacingFunctionSelector:
         else:
             return fitness_list
 
-    def elminate_elements(
+    def eliminate_elements(
         self,
         best_primitive_fitness_list: list,
         best_primitive_key: str,
@@ -346,27 +360,49 @@ class RacingFunctionSelector:
             if self.priority_queue:
                 best_primitive_fitness_list = list(best_primitive_fitness_list)
                 fitness_list = list(fitness_list)
+            # remove elements based on statistical test
             _, p_value = stats.mannwhitneyu(
                 best_primitive_fitness_list,
                 fitness_list,
             )
             p_threshold = self.p_threshold
+            """
+            If the primitive is not significantly better than the reference, then remove it.
+            In other words, remove those mediocre primitives.
+
+            best_primitive_key: Don't remove this. Because we need to ensure at least one primitive is available.
+            """
             if (
                 p_value > p_threshold and element != best_primitive_key
             ):  # Ensure we don't remove the best one itself
                 elements_to_remove.append(element)
+            elif (
+                self.only_better
+                # significantly worse
+                and np.median(fitness_list) < np.median(best_primitive_fitness_list)
+                and element != best_primitive_key
+            ):
+                elements_to_remove.append(element)
 
-    def get_reference_element(self, terminal_fitness_lists) -> [list, str]:
+    def get_reference_element(self, primitive_or_terminal_fitness_lists) -> [list, str]:
         # Identify the list with the best average fitness from terminal_fitness_lists
         best_terminal_key = max(
-            terminal_fitness_lists,
-            key=lambda k: sum(terminal_fitness_lists[k])
-            / len(terminal_fitness_lists[k]),
+            primitive_or_terminal_fitness_lists,
+            key=lambda k: sum(primitive_or_terminal_fitness_lists[k])
+            / len(primitive_or_terminal_fitness_lists[k]),
         )
         if self.use_global_fitness:
+            """
+            If use global fitness, then use the best individuals' fitness list as the reference list.
+            """
             best_terminal_fitness_list = self.best_individuals_fitness_list
         else:
-            best_terminal_fitness_list = terminal_fitness_lists[best_terminal_key]
+            """
+            Otherwise, consider the best terminal's fitness list for each primitive/terminal as the reference list.
+            """
+            best_terminal_fitness_list = primitive_or_terminal_fitness_lists[
+                best_terminal_key
+            ]
         return best_terminal_fitness_list, best_terminal_key
 
     def is_primitive(self, element_key: str) -> bool:
@@ -402,11 +438,15 @@ class RacingFunctionSelector:
         return True
 
     def remove_duplicates(self, combined_population):
+        """
+        Remove duplicated individuals from the combined population.
+        """
         unique_population = []
-        encountered_keys = set()
+        encountered_keys: Set[str] = set()
 
         for individual in combined_population:
-            key = tuple(str(gene) for gene in individual.gene)
+            individual: MultipleGeneGP
+            key = individual_to_tuple(individual)
             if key not in encountered_keys:
                 unique_population.append(individual)
                 encountered_keys.add(key)
