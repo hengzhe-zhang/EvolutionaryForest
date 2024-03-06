@@ -251,7 +251,7 @@ class NSGA2(EnvironmentalSelection):
             When have validation data, the knee point is selected using the validation data.
             """
             first_pareto_front = sortNondominated(population, self.n_pop)[0]
-            self.hof = first_pareto_front
+            self.algorithm.hof = first_pareto_front
         elif self.knee_point != False:
             if self.knee_point == "Ensemble":
                 first_pareto_front = sortNondominated(population, self.n_pop)[0]
