@@ -7,7 +7,6 @@ from sklearn.model_selection._validation import _check_is_permutation, _enforce_
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import (indexable)
 from sklearn.utils.metaestimators import _safe_split
-from sklearn.utils.validation import _check_fit_params
 from sklearn.utils.validation import _deprecate_positional_args
 from sklearn.utils.validation import _num_samples
 
@@ -237,7 +236,6 @@ def _fit_and_predict(estimator, X, y, train, test, verbose, fit_params,
     """
     # Adjust length of sample weights
     fit_params = fit_params if fit_params is not None else {}
-    fit_params = _check_fit_params(X, fit_params, train)
 
     X_train, y_train = _safe_split(estimator, X, y, train)
     X_test, _ = _safe_split(estimator, X, y, test, train)
