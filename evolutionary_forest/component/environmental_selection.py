@@ -183,7 +183,7 @@ class NSGA2(EnvironmentalSelection):
         self.handle_objective_duplication = handle_objective_duplication
         self.first_objective_weight = first_objective_weight
         self.bootstrapping_selection = bootstrapping_selection
-        self.algorithm = algorithm
+        self.algorithm: "EvolutionaryForestRegressor" = algorithm
         self.objective_function = objective_function
         self.objective_normalization = objective_normalization
         self.knee_point: Union[str, bool] = knee_point
@@ -246,8 +246,13 @@ class NSGA2(EnvironmentalSelection):
                 ind.fitness.values = values
 
         population[:] = self.selection_operator(individuals, self.n_pop)
-
-        if self.knee_point != False:
+        if self.algorithm.validation_size > 0:
+            """
+            When have validation data, the knee point is selected using the validation data.
+            """
+            first_pareto_front = sortNondominated(population, self.n_pop)[0]
+            self.hof = first_pareto_front
+        elif self.knee_point != False:
             if self.knee_point == "Ensemble":
                 first_pareto_front = sortNondominated(population, self.n_pop)[0]
                 self.algorithm.hof = first_pareto_front

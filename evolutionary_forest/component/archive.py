@@ -560,7 +560,7 @@ class ValidationHallOfFame(HallOfFame):
     def update(self, population):
         best_individual = max(population, key=lambda x: self.validation_function(x))
         self.clear()
-        super().update([copy.deepcopy(best_individual)])
+        super().update([best_individual])
 
 
 class NoveltyHallOfFame(EnsembleSelectionHallOfFame):

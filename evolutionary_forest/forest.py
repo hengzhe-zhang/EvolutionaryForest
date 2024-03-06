@@ -4526,6 +4526,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     )
 
     def training_with_validation_set(self):
+        """
+        This is also applicable to multi-objective.
+        The only difference is in multi-objective case, the best model is selected from the Pareto front.
+        """
         self.validation_hof.update(self.hof)
         # Train the final model with the validation set if data combination is enabled and validation set is provided
         if self.archive_configuration.data_combination and self.validation_size > 0:
