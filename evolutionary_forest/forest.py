@@ -4537,7 +4537,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             X = np.concatenate((self.X, self.valid_x), axis=0)
             y = np.concatenate((self.y, self.valid_y), axis=0)
             # Train the final model using the combined set
-            self.final_model_lazy_training(self.hof, X, y, force_training=True)
+            self.final_model_lazy_training(
+                self.validation_hof, X, y, force_training=True
+            )
 
     def gp_tree_entropy_calculation(self, population):
         # Calculate the entropy of the genotype and phenotype distributions in the population
