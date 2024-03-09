@@ -10,8 +10,12 @@ from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from statsmodels.tsa.arima.model import ARIMA
 
-from evolutionary_forest.component.primitive_functions import individual_to_tuple
 import evolutionary_forest.forest as forest
+from evolutionary_forest.component.function_selection.community_detection import (
+    merge_trees_to_graph,
+    get_important_nodes_labels,
+)
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.priority_queue import MinPriorityQueue
 
@@ -29,13 +33,17 @@ class RacingFunctionSelector:
         frequency_threshold=0,
         use_sensitivity_analysis=False,
         verbose=False,
-        racing_environmental_selection=True,
+        racing_environmental_selection=False,
         p_threshold=5e-2,
         ts_num_predictions=0,
         priority_queue=False,
+        # significant worse primitives
         remove_significant_worse=False,
         remove_insignificant=True,
         algorithm: "forest.EvolutionaryForestRegressor" = None,
+        central_node_detection=False,
+        important_node_threshold=0.02,
+        racing_top_individuals=0,
         **kwargs
     ):
         self.ts_num_predictions = ts_num_predictions
@@ -66,6 +74,9 @@ class RacingFunctionSelector:
         self.remove_significant_worse = remove_significant_worse
         # remove insignificant primitives
         self.remove_insignificant = remove_insignificant
+
+        self.important_node_threshold = important_node_threshold
+        self.central_node_detection = central_node_detection
 
         self.algorithm = algorithm
         self.log_item = algorithm.log_item
@@ -211,6 +222,22 @@ class RacingFunctionSelector:
         """
         self.pset.primitives = copy.deepcopy(self.backup_pset.primitives)
         self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
+        if self.central_node_detection:
+            top_individuals = sorted(
+                individuals, key=lambda x: x.fitness.wvalues[0], reverse=True
+            )[:20]
+            graph = merge_trees_to_graph(top_individuals)
+            # partition, communities_list = detect_communities_louvain(graph)
+            # plot_graph_with_communities(graph, communities_list)
+            # plot_graph_with_centrality(graph)
+
+            # only preserve a few elements
+            threshold = self.important_node_threshold
+            nodes = get_important_nodes_labels(graph, threshold=threshold)
+            self.preserve_functions_and_terminals(nodes)
+            # len(self.pset.primitives[object])+len(self.pset.terminals[object])
+            return
+
         for individual in individuals:
             self.update_function_fitness_list(individual)
         for individual in individuals:
@@ -287,6 +314,9 @@ class RacingFunctionSelector:
         if self.verbose:
             print("Removed elements:", len(elements_to_remove), elements_to_remove)
 
+        self.remove_functions_and_terminals(elements_to_remove)
+
+    def remove_functions_and_terminals(self, elements_to_remove):
         for element_name in elements_to_remove:
             # Check and remove from pset.primitives
             for return_type, primitives in list(self.pset.primitives.items()):
@@ -301,6 +331,21 @@ class RacingFunctionSelector:
                     if t.name == element_name:
                         self.pset.terminals[return_type].remove(t)
                         break
+
+    def preserve_functions_and_terminals(self, elements_to_preserve):
+        # Check and remove from pset.primitives
+        for return_type, primitives in list(self.pset.primitives.items()):
+            self.pset.primitives[return_type] = [
+                p for p in primitives if p.name in elements_to_preserve
+            ]
+
+        # Check and remove from pset.terminals
+        for return_type, terminals in list(self.pset.terminals.items()):
+            self.pset.terminals[return_type] = [
+                t
+                for t in terminals
+                if t.name in elements_to_preserve or isinstance(t, gp.MetaEphemeral)
+            ]
 
     def remove_by_sensitivity_analysis(self, elements_to_remove, sensitivity):
         """
