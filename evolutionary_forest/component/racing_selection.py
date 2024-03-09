@@ -6,15 +6,13 @@ import numpy as np
 import pandas as pd
 from deap import gp
 from deap.gp import Primitive, PrimitiveTree
+from deap.tools import HallOfFame
 from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from statsmodels.tsa.arima.model import ARIMA
 
 import evolutionary_forest.forest as forest
-from evolutionary_forest.component.function_selection.community_detection import (
-    merge_trees_to_graph,
-    get_important_nodes_labels,
-)
+from evolutionary_forest.component.function_selection.community_detection import *
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.priority_queue import MinPriorityQueue
@@ -43,7 +41,8 @@ class RacingFunctionSelector:
         algorithm: "forest.EvolutionaryForestRegressor" = None,
         central_node_detection=False,
         important_node_threshold=0.02,
-        racing_top_individuals=0,
+        racing_top_individuals=100,
+        exploitation_stage=1,
         **kwargs
     ):
         self.ts_num_predictions = ts_num_predictions
@@ -81,6 +80,8 @@ class RacingFunctionSelector:
         self.algorithm = algorithm
         self.log_item = algorithm.log_item
         self.number_of_deleted_functions = []
+        self.racing_hof = HallOfFame(racing_top_individuals)
+        self.exploitation_stage = exploitation_stage
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -223,18 +224,22 @@ class RacingFunctionSelector:
         self.pset.primitives = copy.deepcopy(self.backup_pset.primitives)
         self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
         if self.central_node_detection:
-            top_individuals = sorted(
-                individuals, key=lambda x: x.fitness.wvalues[0], reverse=True
-            )[:20]
-            graph = merge_trees_to_graph(top_individuals)
+            exploitation_mode = (
+                self.algorithm.current_gen
+                >= self.exploitation_stage * self.algorithm.n_gen
+            )
+            self.racing_hof.update(individuals)
+            graph = merge_trees_to_graph(list(self.racing_hof))
             # partition, communities_list = detect_communities_louvain(graph)
             # plot_graph_with_communities(graph, communities_list)
             # plot_graph_with_centrality(graph)
 
             # only preserve a few elements
-            threshold = self.important_node_threshold
-            nodes = get_important_nodes_labels(graph, threshold=threshold)
-            self.preserve_functions_and_terminals(nodes)
+            all_nodes = get_all_node_labels(graph)
+            nodes = get_important_nodes_labels(
+                graph, threshold=self.important_node_threshold
+            )
+            self.preserve_functions_and_terminals(nodes, exploitation_mode)
             # len(self.pset.primitives[object])+len(self.pset.terminals[object])
             return
 
@@ -332,20 +337,42 @@ class RacingFunctionSelector:
                         self.pset.terminals[return_type].remove(t)
                         break
 
-    def preserve_functions_and_terminals(self, elements_to_preserve):
+    def preserve_functions_and_terminals(
+        self, elements_to_preserve, exploitation_mode=False
+    ):
         # Check and remove from pset.primitives
         for return_type, primitives in list(self.pset.primitives.items()):
-            self.pset.primitives[return_type] = [
-                p for p in primitives if p.name in elements_to_preserve
+            nodes = [
+                p
+                for p in primitives
+                # novelty/exploration
+                if (p.name not in elements_to_preserve and not exploitation_mode)
+                # exploitation
+                or (p.name in elements_to_preserve and exploitation_mode)
             ]
+            if len(nodes) > 0:
+                self.pset.primitives[return_type] = nodes
 
         # Check and remove from pset.terminals
         for return_type, terminals in list(self.pset.terminals.items()):
-            self.pset.terminals[return_type] = [
+            nodes = [
                 t
                 for t in terminals
-                if t.name in elements_to_preserve or isinstance(t, gp.MetaEphemeral)
+                if (
+                    # novelty/exploration
+                    t.name not in elements_to_preserve
+                    or isinstance(t, gp.MetaEphemeral)
+                    and not exploitation_mode
+                )
+                or (
+                    # exploitation
+                    t.name in elements_to_preserve
+                    or isinstance(t, gp.MetaEphemeral)
+                    and exploitation_mode
+                )
             ]
+            if len(nodes) > 0:
+                self.pset.terminals[return_type] = nodes
 
     def remove_by_sensitivity_analysis(self, elements_to_remove, sensitivity):
         """

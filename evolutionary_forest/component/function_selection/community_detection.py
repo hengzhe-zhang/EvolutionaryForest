@@ -4,7 +4,7 @@ import community as community_louvain
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from deap.gp import PrimitiveTree, graph
+from deap.gp import PrimitiveTree, Primitive
 import seaborn as sns
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
@@ -110,6 +110,28 @@ def is_constant_terminal(node, labels):
         return False  # Conversion failed, so it's not a numeric constant
 
 
+def graph(expr):
+    nodes = list(range(len(expr)))
+    edges = list()
+    labels = dict()
+    types = dict()  # Dictionary to hold the type of each node
+
+    stack = []
+    for i, node in enumerate(expr):
+        if stack:
+            edges.append((stack[-1][0], i))
+            stack[-1][1] -= 1
+        labels[i] = node.name if isinstance(node, Primitive) else node.value
+        types[i] = (
+            "primitive" if isinstance(node, Primitive) else "terminal"
+        )  # Determine the type of the node
+        stack.append([i, node.arity])
+        while stack and stack[-1][1] == 0:
+            stack.pop()
+
+    return nodes, edges, labels, types
+
+
 def merge_trees_to_graph(inds: List[MultipleGeneGP]):
     # Initialize an empty weighted graph using NetworkX
     G = nx.Graph()
@@ -123,8 +145,8 @@ def merge_trees_to_graph(inds: List[MultipleGeneGP]):
                 tree, PrimitiveTree
             ), "Tree is not an instance of PrimitiveTree"
 
-            # Extract nodes, edges, and labels from the tree
-            nodes, edges, labels = graph(tree)
+            # Extract nodes, edges, labels, and types from the tree
+            nodes, edges, labels, types = graph(tree)
 
             # Add nodes to the graph using labels as identifiers to merge duplicate nodes
             for node in nodes:
@@ -133,7 +155,8 @@ def merge_trees_to_graph(inds: List[MultipleGeneGP]):
                 ):  # Check if the node is not a constant terminal
                     label = labels[node]
                     if label not in G:
-                        G.add_node(label)
+                        # Add node with its type ('primitive' or 'terminal')
+                        G.add_node(label, type=types[node])
 
             # Add or update edges with weights
             for edge in edges:
@@ -237,3 +260,26 @@ def get_important_nodes_labels(graph, centrality_type="betweenness", threshold=0
     ]
 
     return important_nodes_labels
+
+
+def get_all_node_labels(graph):
+    """
+    Retrieve all node labels from a NetworkX graph.
+
+    Parameters:
+    - graph: A NetworkX graph object.
+
+    Returns:
+    - node_labels: A dictionary where keys are node identifiers and values are their labels.
+    """
+
+    # Initialize an empty dictionary to hold node labels
+    node_labels = {}
+
+    # Iterate through all nodes in the graph
+    for node in graph.nodes(data=True):
+        node_id, attributes = node
+        # Retrieve the 'label' attribute for each node, default to node_id if 'label' is not found
+        node_labels[node_id] = attributes.get("label", node_id)
+
+    return node_labels
