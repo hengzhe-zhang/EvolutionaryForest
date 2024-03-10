@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from deap import gp
 from deap.gp import Primitive, PrimitiveTree
-from deap.tools import HallOfFame
+from deap.tools import HallOfFame, selNSGA2
 from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from statsmodels.tsa.arima.model import ARIMA
@@ -660,13 +660,21 @@ class RacingFunctionSelector:
         """
         if not self.racing_environmental_selection:
             return offspring
+        if (
+            self.racing_environmental_selection == True
+            or self.racing_environmental_selection == "HardConstraint"
+        ):
+            return self.hard_constriant(n, offspring, parents)
+        elif self.racing_environmental_selection == "SoftConstraint":
+            return self.soft_constraint(n, offspring, parents)
+
+    def hard_constriant(self, n, offspring, parents):
         combined_population = parents + offspring
         combined_population = self.remove_duplicates(combined_population)
         valid_individuals = [ind for ind in combined_population if self.isValid(ind)]
         invalid_individuals = [
             ind for ind in combined_population if not self.isValid(ind)
         ]
-
         # Sort valid individuals by their fitness values in descending order
         top_valid_individuals = sorted(
             valid_individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
@@ -674,7 +682,6 @@ class RacingFunctionSelector:
         top_invalid_individuals = sorted(
             invalid_individuals, key=lambda ind: ind.fitness.wvalues[0], reverse=True
         )
-
         # If there are not enough valid individuals to fill 'n' slots, add some of the top invalid individuals
         if len(top_valid_individuals) >= n:
             return top_valid_individuals[:n]
@@ -683,6 +690,58 @@ class RacingFunctionSelector:
                 top_valid_individuals[:n]
                 + top_invalid_individuals[: n - len(top_valid_individuals)]
             )
+
+    def evaluate_constraint_violation(self, individual):
+        violation_count = 0
+        terminal_names = [t.name for t in self.pset.terminals[object]]
+        primitive_names = [p.name for p in self.pset.primitives[object]]
+
+        for tree in individual.gene:
+            for element in tree:
+                if isinstance(element, gp.Primitive):
+                    if element.name not in primitive_names:
+                        violation_count += 1
+                elif isinstance(element, gp.Terminal):
+                    if not isinstance(element, gp.MetaEphemeral):
+                        if element.name not in terminal_names:
+                            violation_count += 1
+
+        return violation_count
+
+    def soft_constraint(self, n, offspring, parents):
+        """
+        Temporarily treats the problem as a multi-objective optimization for selection,
+        combining fitness and constraint violation, and then restores the original fitness values.
+        """
+        # Combine parent and offspring populations
+        combined_population = parents + offspring
+        combined_population = self.remove_duplicates(combined_population)
+
+        # Backup original single-objective fitness values
+        original_fitnesses = [ind.fitness.wvalues[0] for ind in combined_population]
+        assert combined_population[0].fitness.weights[0] == -1
+
+        # Temporarily set to multi-objective for selection
+        for ind, original_fitness in zip(combined_population, original_fitnesses):
+            constraint_violation = self.evaluate_constraint_violation(ind)
+            # Set the fitness values to include the original fitness and the negative of the constraint violation count
+            ind.fitness.weights = (1, 1)
+            ind.fitness.values = (original_fitness, -constraint_violation)
+
+        # Perform selection using NSGA-II
+        selected_individuals = selNSGA2(combined_population, n)
+
+        # Restore original single-objective fitness values to all individuals
+        for ind, original_fitness in zip(combined_population, original_fitnesses):
+            ind.fitness.weights = (-1,)
+            ind.fitness.values = (-original_fitness,)
+
+        return selected_individuals
+
+
+"""
+DEAP is maximization. Thus, the weight of violation is negative.
+"""
 
 
 def valid_individual(individual: MultipleGeneGP, valid_functions):
