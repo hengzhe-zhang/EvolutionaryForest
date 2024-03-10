@@ -253,11 +253,11 @@ class RacingFunctionSelector:
                     chain.from_iterable([ind.gene for ind in good_individuals])
                 )
                 unique_good_trees = []
-                unique_good_trees_str = []
+                unique_good_trees_str = set()
                 for tree in good_trees:
-                    if tree not in unique_good_trees_str:
+                    if str(tree) not in unique_good_trees_str:
                         unique_good_trees.append(tree)
-                        unique_good_trees_str.append(str(tree))
+                        unique_good_trees_str.add(str(tree))
                 good_graph = merge_trees_list_to_graph(unique_good_trees)
             # partition, communities_list = detect_communities_louvain(graph)
             # plot_graph_with_communities(graph, communities_list)

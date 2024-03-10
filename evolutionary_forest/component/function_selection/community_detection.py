@@ -229,7 +229,7 @@ def plot_graph_with_centrality(G):
     - G: A NetworkX graph object.
     """
     # Calculate betweenness centrality for each node
-    centrality = nx.betweenness_centrality(G)
+    centrality = nx.betweenness_centrality(G, weight="weight")
 
     # Normalize the centrality values to use for node size
     # Multiply by a constant to scale the sizes to your preference
@@ -347,7 +347,7 @@ def get_centrality_ratios(good_graph, bad_graph, centrality_type="betweenness"):
         if type == "degree":
             return nx.degree_centrality(graph)
         elif type == "betweenness":
-            return nx.betweenness_centrality(graph)
+            return nx.betweenness_centrality(graph, weight="weight")
         elif type == "closeness":
             return nx.closeness_centrality(graph)
         elif type == "eigenvector":
