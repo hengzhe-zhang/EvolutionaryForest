@@ -4980,7 +4980,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def survival_selection(self, gen, population, offspring):
         # Using NSGA-II or other operators to select parent individuals
         if isinstance(self.racing, RacingFunctionSelector):
-            self.racing.update(offspring)
+            self.racing.update(population + offspring)
             population[:] = self.racing.environmental_selection(
                 population, offspring, self.n_pop
             )

@@ -41,9 +41,10 @@ class RacingFunctionSelector:
         algorithm: "forest.EvolutionaryForestRegressor" = None,
         central_node_detection=False,
         important_node_threshold=0.02,
-        racing_top_individuals=100,
-        exploitation_stage=1,
-        **kwargs
+        racing_top_individuals=20,
+        exploitation_stage=0,
+        global_graph=False,
+        **kwargs,
     ):
         self.ts_num_predictions = ts_num_predictions
         self.p_threshold = p_threshold
@@ -82,6 +83,7 @@ class RacingFunctionSelector:
         self.number_of_deleted_functions = []
         self.racing_hof = HallOfFame(racing_top_individuals)
         self.exploitation_stage = exploitation_stage
+        self.global_graph = global_graph
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -228,19 +230,53 @@ class RacingFunctionSelector:
                 self.algorithm.current_gen
                 >= self.exploitation_stage * self.algorithm.n_gen
             )
-            self.racing_hof.update(individuals)
-            graph = merge_trees_to_graph(list(self.racing_hof))
+            # self.racing_hof.update(individuals)
+            # graph = merge_trees_to_graph(list(self.racing_hof))
+            bad_graph = merge_trees_to_graph(
+                sorted(individuals, key=lambda x: x.fitness, reverse=True)[-100:]
+            )
+            good_graph = merge_trees_to_graph(
+                sorted(individuals, key=lambda x: x.fitness, reverse=True)[:50]
+            )
             # partition, communities_list = detect_communities_louvain(graph)
             # plot_graph_with_communities(graph, communities_list)
             # plot_graph_with_centrality(graph)
 
             # only preserve a few elements
-            all_nodes = get_all_node_labels(graph)
-            nodes = get_important_nodes_labels(
-                graph, threshold=self.important_node_threshold
-            )
+            # all_nodes = get_all_node_labels(graph)
+
+            if self.global_graph:
+                bad_nodes = get_important_nodes_labels(
+                    bad_graph, threshold=self.important_node_threshold
+                )
+                good_nodes = get_important_nodes_labels(
+                    good_graph, threshold=self.important_node_threshold
+                )
+                nodes = set(list(bad_nodes)) - set(list(good_nodes))
+            else:
+                threshold = self.important_node_threshold
+                good_primitive_nodes = get_important_nodes_labels_by_type(
+                    good_graph, "primitive", threshold=threshold
+                )
+                good_terminal_nodes = get_important_nodes_labels_by_type(
+                    good_graph, "terminal", threshold=threshold
+                )
+                bad_primitive_nodes = get_important_nodes_labels_by_type(
+                    bad_graph, "primitive", threshold=threshold
+                )
+                bad_terminal_nodes = get_important_nodes_labels_by_type(
+                    bad_graph, "terminal", threshold=threshold
+                )
+                primitive_nodes = list(
+                    set(list(bad_terminal_nodes)) - set(list(good_terminal_nodes))
+                )
+                terminal_nodes = list(
+                    set(list(bad_primitive_nodes)) - set(list(good_primitive_nodes))
+                )
+                nodes = primitive_nodes + terminal_nodes
             self.preserve_functions_and_terminals(nodes, exploitation_mode)
             # len(self.pset.primitives[object])+len(self.pset.terminals[object])
+            self.callback()
             return
 
         for individual in individuals:
@@ -258,6 +294,9 @@ class RacingFunctionSelector:
 
         self.eliminate_functions(sensitivity)
 
+        self.callback()
+
+    def callback(self):
         if "FunctionElimination" in self.log_item:
             self.number_of_deleted_functions.append(
                 1
@@ -340,39 +379,41 @@ class RacingFunctionSelector:
     def preserve_functions_and_terminals(
         self, elements_to_preserve, exploitation_mode=False
     ):
-        # Check and remove from pset.primitives
-        for return_type, primitives in list(self.pset.primitives.items()):
-            nodes = [
-                p
-                for p in primitives
-                # novelty/exploration
-                if (p.name not in elements_to_preserve and not exploitation_mode)
-                # exploitation
-                or (p.name in elements_to_preserve and exploitation_mode)
-            ]
-            if len(nodes) > 0:
-                self.pset.primitives[return_type] = nodes
-
-        # Check and remove from pset.terminals
-        for return_type, terminals in list(self.pset.terminals.items()):
-            nodes = [
-                t
-                for t in terminals
-                if (
+        if self.remove_primitives:
+            # Check and remove from pset.primitives
+            for return_type, primitives in list(self.pset.primitives.items()):
+                nodes = [
+                    p
+                    for p in primitives
                     # novelty/exploration
-                    t.name not in elements_to_preserve
-                    or isinstance(t, gp.MetaEphemeral)
-                    and not exploitation_mode
-                )
-                or (
+                    if (p.name not in elements_to_preserve and not exploitation_mode)
                     # exploitation
-                    t.name in elements_to_preserve
-                    or isinstance(t, gp.MetaEphemeral)
-                    and exploitation_mode
-                )
-            ]
-            if len(nodes) > 0:
-                self.pset.terminals[return_type] = nodes
+                    or (p.name in elements_to_preserve and exploitation_mode)
+                ]
+                if len(nodes) > 0:
+                    self.pset.primitives[return_type] = nodes
+
+        if self.remove_terminals:
+            # Check and remove from pset.terminals
+            for return_type, terminals in list(self.pset.terminals.items()):
+                nodes = [
+                    t
+                    for t in terminals
+                    if (
+                        # novelty/exploration
+                        t.name not in elements_to_preserve
+                        or isinstance(t, gp.MetaEphemeral)
+                        and not exploitation_mode
+                    )
+                    or (
+                        # exploitation
+                        t.name in elements_to_preserve
+                        or isinstance(t, gp.MetaEphemeral)
+                        and exploitation_mode
+                    )
+                ]
+                if len(nodes) > 0:
+                    self.pset.terminals[return_type] = nodes
 
     def remove_by_sensitivity_analysis(self, elements_to_remove, sensitivity):
         """
@@ -594,3 +635,58 @@ def valid_individual(individual: MultipleGeneGP, valid_functions):
             if isinstance(function, gp.Primitive) and function not in valid_functions:
                 return False
     return True
+
+
+def get_important_nodes_labels_by_type(
+    graph, node_type, centrality_type="betweenness", threshold=0.1
+):
+    """
+    Identify and get the labels of important nodes of a specific type in a graph based on a specified centrality measure,
+    considering the entire graph structure for centrality calculation.
+
+    Parameters:
+    - graph: A NetworkX graph object.
+    - node_type: Type of nodes to consider ('primitive' or 'terminal').
+    - centrality_type: Type of centrality measure to use ('degree', 'betweenness', 'closeness', 'eigenvector').
+    - threshold: Centrality threshold to consider a node as important (range: 0 to 1, after normalization).
+
+    Returns:
+    - important_nodes_labels: A list of labels of the important nodes of the specified type.
+    """
+
+    # Calculate centrality for all nodes in the graph based on the specified centrality type
+    if centrality_type == "degree":
+        centrality = nx.degree_centrality(graph)
+    elif centrality_type == "betweenness":
+        centrality = nx.betweenness_centrality(graph)
+    elif centrality_type == "closeness":
+        centrality = nx.closeness_centrality(graph)
+    elif centrality_type == "eigenvector":
+        centrality = nx.eigenvector_centrality(
+            graph, max_iter=1000
+        )  # max_iter may need adjustment
+    else:
+        raise ValueError(f"Unsupported centrality type: {centrality_type}")
+
+    # Normalize centrality values for nodes of the specified type
+    type_centrality = {
+        node: val
+        for node, val in centrality.items()
+        if graph.nodes[node].get("type") == node_type
+    }
+    max_centrality = max(type_centrality.values(), default=1)
+    normalized_centrality = {
+        node: val / max_centrality for node, val in type_centrality.items()
+    }
+
+    # Identify important nodes of the specified type based on the normalized centrality threshold
+    important_nodes = [
+        node for node, val in normalized_centrality.items() if val >= threshold
+    ]
+
+    # Get the labels of important nodes
+    important_nodes_labels = [
+        graph.nodes[node].get("label", node) for node in important_nodes
+    ]
+
+    return important_nodes_labels
