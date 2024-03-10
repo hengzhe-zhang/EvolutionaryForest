@@ -42,7 +42,7 @@ class RacingFunctionSelector:
         algorithm: "forest.EvolutionaryForestRegressor" = None,
         central_node_detection=False,
         important_node_threshold=0.02,
-        racing_top_individuals=20,
+        racing_top_individuals=0,
         exploitation_stage=0,
         global_graph=False,
         starting_point=0,
@@ -85,7 +85,10 @@ class RacingFunctionSelector:
         self.algorithm = algorithm
         self.log_item = algorithm.log_item
         self.number_of_deleted_functions = []
-        self.racing_hof = HallOfFame(racing_top_individuals)
+        if racing_top_individuals == 0:
+            self.racing_hof = None
+        else:
+            self.racing_hof = HallOfFame(racing_top_individuals)
         self.starting_point = starting_point
         self.exploitation_stage = exploitation_stage
         self.global_graph = global_graph
@@ -233,31 +236,33 @@ class RacingFunctionSelector:
         self.pset.primitives = copy.deepcopy(self.backup_pset.primitives)
         self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
         if self.central_node_detection:
+            # after some generations, the exploitation mode start
             exploitation_mode = (
                 self.algorithm.current_gen
                 >= self.exploitation_stage * self.algorithm.n_gen
             )
-            # self.racing_hof.update(individuals)
-            # graph = merge_trees_to_graph(list(self.racing_hof))
+
+            # construct a graph of bad individuals
             bad_individuals = sorted(
                 individuals, key=lambda x: x.fitness, reverse=True
             )[-100:]
             bad_graph = merge_trees_to_graph(bad_individuals)
-            good_individuals = sorted(
-                individuals, key=lambda x: x.fitness, reverse=True
-            )[:50]
+
+            # construct a graph of good individual
+            if self.racing_hof != None:
+                self.racing_hof.update(individuals)
+                good_individuals = list(self.racing_hof)
+            else:
+                good_individuals = sorted(
+                    individuals, key=lambda x: x.fitness, reverse=True
+                )[:50]
+
             good_graph = merge_trees_to_graph(good_individuals)
             unique_trees = self.unique_trees_racing
             if unique_trees:
-                good_trees = list(
-                    chain.from_iterable([ind.gene for ind in good_individuals])
+                unique_good_trees = self.extract_unique_gp_trees_from_population(
+                    good_individuals
                 )
-                unique_good_trees = []
-                unique_good_trees_str = set()
-                for tree in good_trees:
-                    if str(tree) not in unique_good_trees_str:
-                        unique_good_trees.append(tree)
-                        unique_good_trees_str.add(str(tree))
                 good_graph = merge_trees_list_to_graph(unique_good_trees)
             # partition, communities_list = detect_communities_louvain(graph)
             # plot_graph_with_communities(graph, communities_list)
@@ -268,6 +273,9 @@ class RacingFunctionSelector:
             # all_nodes = get_all_node_labels(graph)
 
             if self.global_graph:
+                """
+                One idea: Bad node-Good nodes
+                """
                 # bad_nodes = get_important_nodes_labels(
                 #     bad_graph, threshold=self.important_node_threshold
                 # )
@@ -336,6 +344,17 @@ class RacingFunctionSelector:
         self.eliminate_functions(sensitivity)
 
         self.callback()
+
+    def extract_unique_gp_trees_from_population(self, good_individuals):
+        # if unique_trees is True, then we only consider unique GP trees
+        good_trees = list(chain.from_iterable([ind.gene for ind in good_individuals]))
+        unique_good_trees = []
+        unique_good_trees_str = set()
+        for tree in good_trees:
+            if str(tree) not in unique_good_trees_str:
+                unique_good_trees.append(tree)
+                unique_good_trees_str.add(str(tree))
+        return unique_good_trees
 
     def callback(self):
         if "FunctionElimination" in self.log_item:
