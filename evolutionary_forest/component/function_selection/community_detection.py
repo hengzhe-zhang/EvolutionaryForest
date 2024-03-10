@@ -4,8 +4,9 @@ import community as community_louvain
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from deap.gp import PrimitiveTree, Primitive
 import seaborn as sns
+from deap.gp import PrimitiveTree, Primitive
+
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
@@ -177,6 +178,49 @@ def merge_trees_to_graph(inds: List[MultipleGeneGP]):
     return G
 
 
+def merge_trees_list_to_graph(inds: List[MultipleGeneGP]):
+    # Initialize an empty weighted graph using NetworkX
+    G = nx.Graph()
+
+    # Iterate over each individual in the population
+    for tree in inds:
+        # Ensure the tree is treated as a PrimitiveTree
+        assert isinstance(
+            tree, PrimitiveTree
+        ), "Tree is not an instance of PrimitiveTree"
+
+        # Extract nodes, edges, labels, and types from the tree
+        nodes, edges, labels, types = graph(tree)
+
+        # Add nodes to the graph using labels as identifiers to merge duplicate nodes
+        for node in nodes:
+            if not is_constant_terminal(
+                node, labels
+            ):  # Check if the node is not a constant terminal
+                label = labels[node]
+                if label not in G:
+                    # Add node with its type ('primitive' or 'terminal')
+                    G.add_node(label, type=types[node])
+
+        # Add or update edges with weights
+        for edge in edges:
+            if not is_constant_terminal(edge[0], labels) and not is_constant_terminal(
+                edge[1], labels
+            ):
+                node1_label = labels[edge[0]]
+                node2_label = labels[edge[1]]
+
+                if G.has_edge(node1_label, node2_label):
+                    # If the edge already exists, increase its weight
+                    G[node1_label][node2_label]["weight"] += 1
+                else:
+                    # Add new edge with a weight of 1
+                    G.add_edge(node1_label, node2_label, weight=1)
+
+    # Return the combined graph
+    return G
+
+
 def plot_graph_with_centrality(G):
     """
     Plots the graph with nodes sized by their betweenness centrality.
@@ -283,3 +327,102 @@ def get_all_node_labels(graph):
         node_labels[node_id] = attributes.get("label", node_id)
 
     return node_labels
+
+
+def get_centrality_ratios(good_graph, bad_graph, centrality_type="betweenness"):
+    """
+    Calculate the ratio of centrality values for nodes with the same labels in good_graph and bad_graph.
+
+    Parameters:
+    - good_graph: A NetworkX graph object considered as the "good" graph.
+    - bad_graph: A NetworkX graph object considered as the "bad" graph.
+    - centrality_type: Type of centrality measure to use ('degree', 'betweenness', 'closeness', 'eigenvector').
+
+    Returns:
+    - centrality_ratios: A dictionary mapping node labels to their centrality ratio (good_graph / bad_graph).
+    """
+
+    # Function to calculate centrality based on type
+    def calculate_centrality(graph, type):
+        if type == "degree":
+            return nx.degree_centrality(graph)
+        elif type == "betweenness":
+            return nx.betweenness_centrality(graph)
+        elif type == "closeness":
+            return nx.closeness_centrality(graph)
+        elif type == "eigenvector":
+            return nx.eigenvector_centrality(graph, max_iter=1000)
+        else:
+            raise ValueError(f"Unsupported centrality type: {type}")
+
+    # Calculate centrality for all nodes in both graphs
+    good_centrality = calculate_centrality(good_graph, centrality_type)
+    bad_centrality = calculate_centrality(bad_graph, centrality_type)
+
+    # Compute the ratio of centrality values for nodes with the same label
+    centrality_ratios = {}
+    for node in good_graph.nodes():
+        label = good_graph.nodes[node].get("label", node)
+        # if (
+        #     label in good_centrality
+        #     and label in bad_centrality
+        #     and bad_centrality[label] != 0
+        # ):
+        #     centrality_ratios[label] = good_centrality[label] / bad_centrality[label]
+        centrality_ratios[label] = good_centrality[label]
+        # centrality_ratios[label] = bad_centrality[label]
+
+    return centrality_ratios
+
+
+def select_important_nodes_by_ratio(centrality_ratios, threshold=2.0):
+    """
+    Select important nodes based on the ratio of their centrality values in good_graph to bad_graph.
+
+    Parameters:
+    - centrality_ratios: A dictionary mapping node labels to their centrality ratios.
+    - threshold: The minimum ratio to consider a node as important.
+
+    Returns:
+    - important_nodes: A list of labels of the important nodes based on the centrality ratio.
+    """
+    important_nodes = [
+        label for label, ratio in centrality_ratios.items() if ratio >= threshold
+    ]
+    return important_nodes
+
+
+def get_top_nodes_by_centrality_ratios(graph, centrality_ratios, node_type):
+    """
+    Get the top log K nodes of a specific type (primitive or terminal) based on centrality ratios.
+
+    Parameters:
+    - graph: A NetworkX graph object.
+    - centrality_ratios: A dictionary mapping node labels to their centrality ratios.
+    - node_type: The type of node to consider ('primitive' or 'terminal').
+
+    Returns:
+    - top_nodes: A list of labels of the top log K nodes of the specified type.
+    """
+    # Filter nodes by the specified type and their presence in the centrality_ratios
+    filtered_nodes = {
+        label: ratio
+        for label, ratio in centrality_ratios.items()
+        if graph.nodes[label].get("type") == node_type and label in graph
+    }
+
+    # Calculate log K, where K is the number of nodes of the specified type
+    K = len(filtered_nodes)
+    if K == 0:
+        return []  # Return an empty list if there are no nodes of the specified type
+    # top_k = math.ceil(math.log(K, 2))
+    top_k = 10
+    top_k = max(top_k, 1)  # Ensure at least one node is selected
+
+    # Sort the filtered nodes by their centrality ratio in descending order
+    sorted_nodes = sorted(filtered_nodes.items(), key=lambda x: x[1], reverse=True)
+
+    # Select the top log K nodes
+    top_nodes = [node[0] for node in sorted_nodes[:top_k]]
+
+    return top_nodes

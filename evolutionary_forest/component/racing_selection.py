@@ -1,5 +1,6 @@
 import copy
 from collections import defaultdict
+from itertools import chain
 from typing import List, Set
 
 import numpy as np
@@ -44,8 +45,11 @@ class RacingFunctionSelector:
         racing_top_individuals=20,
         exploitation_stage=0,
         global_graph=False,
+        starting_point=0,
+        unique_trees_racing=False,
         **kwargs,
     ):
+        self.unique_trees_racing = unique_trees_racing
         self.ts_num_predictions = ts_num_predictions
         self.p_threshold = p_threshold
         self.racing_environmental_selection = racing_environmental_selection
@@ -82,6 +86,7 @@ class RacingFunctionSelector:
         self.log_item = algorithm.log_item
         self.number_of_deleted_functions = []
         self.racing_hof = HallOfFame(racing_top_individuals)
+        self.starting_point = starting_point
         self.exploitation_stage = exploitation_stage
         self.global_graph = global_graph
 
@@ -219,6 +224,8 @@ class RacingFunctionSelector:
         """
         Updates function fitness lists and the best individuals' list for a given population.
         """
+        if self.algorithm.current_gen < self.starting_point * self.algorithm.n_gen:
+            return
 
         """
         The removal is not permanent. So, removed primitives can come back again.
@@ -232,15 +239,30 @@ class RacingFunctionSelector:
             )
             # self.racing_hof.update(individuals)
             # graph = merge_trees_to_graph(list(self.racing_hof))
-            bad_graph = merge_trees_to_graph(
-                sorted(individuals, key=lambda x: x.fitness, reverse=True)[-100:]
-            )
-            good_graph = merge_trees_to_graph(
-                sorted(individuals, key=lambda x: x.fitness, reverse=True)[:50]
-            )
+            bad_individuals = sorted(
+                individuals, key=lambda x: x.fitness, reverse=True
+            )[-100:]
+            bad_graph = merge_trees_to_graph(bad_individuals)
+            good_individuals = sorted(
+                individuals, key=lambda x: x.fitness, reverse=True
+            )[:50]
+            good_graph = merge_trees_to_graph(good_individuals)
+            unique_trees = self.unique_trees_racing
+            if unique_trees:
+                good_trees = list(
+                    chain.from_iterable([ind.gene for ind in good_individuals])
+                )
+                unique_good_trees = []
+                unique_good_trees_str = []
+                for tree in good_trees:
+                    if tree not in unique_good_trees_str:
+                        unique_good_trees.append(tree)
+                        unique_good_trees_str.append(str(tree))
+                good_graph = merge_trees_list_to_graph(unique_good_trees)
             # partition, communities_list = detect_communities_louvain(graph)
             # plot_graph_with_communities(graph, communities_list)
-            # plot_graph_with_centrality(graph)
+            # plot_graph_with_centrality(good_graph)
+            # plot_graph_with_centrality(bad_graph)
 
             # only preserve a few elements
             # all_nodes = get_all_node_labels(graph)
@@ -252,7 +274,20 @@ class RacingFunctionSelector:
                 good_nodes = get_important_nodes_labels(
                     good_graph, threshold=self.important_node_threshold
                 )
-                nodes = set(list(bad_nodes)) - set(list(good_nodes))
+                # nodes = set(list(bad_nodes)) - set(list(good_nodes))
+                centrality_ratios = get_centrality_ratios(
+                    good_graph, bad_graph, centrality_type="betweenness"
+                )
+                nodes = select_important_nodes_by_ratio(
+                    centrality_ratios, threshold=2.0
+                )
+                top_primitives = get_top_nodes_by_centrality_ratios(
+                    good_graph, centrality_ratios, node_type="primitive"
+                )
+                top_terminals = get_top_nodes_by_centrality_ratios(
+                    good_graph, centrality_ratios, node_type="terminal"
+                )
+                nodes = top_primitives + top_terminals
             else:
                 threshold = self.important_node_threshold
                 good_primitive_nodes = get_important_nodes_labels_by_type(
@@ -400,17 +435,17 @@ class RacingFunctionSelector:
                     t
                     for t in terminals
                     if (
-                        # novelty/exploration
-                        t.name not in elements_to_preserve
-                        or isinstance(t, gp.MetaEphemeral)
-                        and not exploitation_mode
-                    )
-                    or (
                         # exploitation
                         t.name in elements_to_preserve
                         or isinstance(t, gp.MetaEphemeral)
-                        and exploitation_mode
+                        # and exploitation_mode
                     )
+                    # or (
+                    #     # novelty/exploration
+                    #     t.name not in elements_to_preserve
+                    #     or isinstance(t, gp.MetaEphemeral)
+                    #     and not exploitation_mode
+                    # )
                 ]
                 if len(nodes) > 0:
                     self.pset.terminals[return_type] = nodes
