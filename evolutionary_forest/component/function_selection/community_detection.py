@@ -392,7 +392,7 @@ def select_important_nodes_by_ratio(centrality_ratios, threshold=2.0):
     return important_nodes
 
 
-def get_top_nodes_by_centrality_ratios(graph, centrality_ratios, node_type):
+def get_top_nodes_by_centrality_ratios(graph, centrality_ratios, node_type, top_k=10):
     """
     Get the top log K nodes of a specific type (primitive or terminal) based on centrality ratios.
 
@@ -416,7 +416,6 @@ def get_top_nodes_by_centrality_ratios(graph, centrality_ratios, node_type):
     if K == 0:
         return []  # Return an empty list if there are no nodes of the specified type
     # top_k = math.ceil(math.log(K, 2))
-    top_k = 10
     top_k = max(top_k, 1)  # Ensure at least one node is selected
 
     # Sort the filtered nodes by their centrality ratio in descending order

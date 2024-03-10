@@ -268,12 +268,12 @@ class RacingFunctionSelector:
             # all_nodes = get_all_node_labels(graph)
 
             if self.global_graph:
-                bad_nodes = get_important_nodes_labels(
-                    bad_graph, threshold=self.important_node_threshold
-                )
-                good_nodes = get_important_nodes_labels(
-                    good_graph, threshold=self.important_node_threshold
-                )
+                # bad_nodes = get_important_nodes_labels(
+                #     bad_graph, threshold=self.important_node_threshold
+                # )
+                # good_nodes = get_important_nodes_labels(
+                #     good_graph, threshold=self.important_node_threshold
+                # )
                 # nodes = set(list(bad_nodes)) - set(list(good_nodes))
                 centrality_ratios = get_centrality_ratios(
                     good_graph, bad_graph, centrality_type="betweenness"
@@ -282,10 +282,16 @@ class RacingFunctionSelector:
                     centrality_ratios, threshold=2.0
                 )
                 top_primitives = get_top_nodes_by_centrality_ratios(
-                    good_graph, centrality_ratios, node_type="primitive"
+                    good_graph,
+                    centrality_ratios,
+                    node_type="primitive",
+                    top_k=self.important_node_threshold,
                 )
                 top_terminals = get_top_nodes_by_centrality_ratios(
-                    good_graph, centrality_ratios, node_type="terminal"
+                    good_graph,
+                    centrality_ratios,
+                    node_type="terminal",
+                    top_k=self.important_node_threshold,
                 )
                 nodes = top_primitives + top_terminals
             else:
