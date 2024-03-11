@@ -2,7 +2,8 @@ import copy
 from collections import defaultdict
 from itertools import chain
 from typing import List, Set
-
+import seaborn as sns
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from deap import gp
@@ -702,7 +703,7 @@ class RacingFunctionSelector:
                     if element.name not in primitive_names:
                         violation_count += 1
                 elif isinstance(element, gp.Terminal):
-                    if not isinstance(element, gp.MetaEphemeral):
+                    if not isinstance(element.value, (float, int)):
                         if element.name not in terminal_names:
                             violation_count += 1
 
@@ -728,6 +729,8 @@ class RacingFunctionSelector:
             ind.fitness.weights = (1, 1)
             ind.fitness.values = (original_fitness, -constraint_violation)
 
+        self.plot_constraint_violation_front(combined_population)
+
         # Perform selection using NSGA-II
         selected_individuals = selNSGA2(combined_population, n)
 
@@ -737,6 +740,33 @@ class RacingFunctionSelector:
             ind.fitness.values = (-original_fitness,)
 
         return selected_individuals
+
+    def plot_constraint_violation_front(self, combined_population):
+        sns.set(style="whitegrid")
+
+        # Assuming 'combined_population' is a list of individuals and each individual has 'fitness.values' attribute
+        data = {"Original Fitness": [], "Constraint Violation": []}
+        for ind in combined_population:
+            original_fitness, constraint_violation = ind.fitness.wvalues
+            data["Original Fitness"].append(original_fitness)
+            data["Constraint Violation"].append(constraint_violation)
+        # Convert collected data into a pandas DataFrame
+        df = pd.DataFrame(data)
+        # Create a scatter plot
+        plt.figure(figsize=(10, 6))
+        sns.scatterplot(
+            data=df,
+            x="Original Fitness",
+            y="Constraint Violation",
+            s=60,
+            alpha=0.7,
+            edgecolor="w",
+            linewidth=0.5,
+        )
+        plt.title("Objective Values of Individuals")
+        plt.xlabel("Original Fitness")
+        plt.ylabel("Constraint Violation")
+        plt.show()
 
 
 """
