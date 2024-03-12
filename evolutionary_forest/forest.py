@@ -25,6 +25,8 @@ from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
 from sklearn.base import TransformerMixin
 from sklearn.decomposition import PCA
+from sklearn.neural_network import MLPRegressor
+
 from sklearn.ensemble import (
     ExtraTreesRegressor,
     GradientBoostingRegressor,
