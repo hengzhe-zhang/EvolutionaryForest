@@ -1560,6 +1560,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 max_depth=self.max_tree_depth,
                 min_samples_leaf=self.min_samples_leaf,
             )
+        elif isinstance(self.base_learner, str) and self.base_learner.startswith("MLP"):
+            hidden_layer_sizes = int(self.base_learner.split("-")[1])
+            ridge_model = MLPRegressor(
+                hidden_layer_sizes=(hidden_layer_sizes,),
+                max_iter=1000,
+                learning_rate_init=0.1,
+            )
         elif self.base_learner == "PL-Tree":
             ridge_model = LinearTreeRegressor(base_estimator=LinearRegression())
         elif (
