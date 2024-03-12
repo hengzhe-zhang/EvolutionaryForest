@@ -1544,6 +1544,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 max_leaf_nodes=self.max_leaf_nodes,
                 min_samples_leaf=self.min_samples_leaf,
             )
+        elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
+            ridge_model = DecisionTreeRegressor(
+                min_samples_leaf=int(self.base_learner.split("-")[1])
+            )
         elif self.base_learner == "SimpleDT-RandomDT":
             ridge_model = DecisionTreeRegressor(max_depth=3)
         elif self.base_learner in [
