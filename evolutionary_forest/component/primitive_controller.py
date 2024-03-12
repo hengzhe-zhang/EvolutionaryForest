@@ -72,6 +72,8 @@ def get_functions(p):
         "Cbrt": (np.cbrt, 1),  # Cube root function
         "Square": (np.square, 1),  # Square function
         "Cube": (cube, 1),  # Cube function
+        "FourthPower": (fourth_power, 1),  # Square function
+        "FifthPower": (fifth_power, 1),  # Cube function
         "LogXY": (protected_log_xy, 2),
         "Log": (protected_log, 1),
         "Log2": (protected_log2, 1),

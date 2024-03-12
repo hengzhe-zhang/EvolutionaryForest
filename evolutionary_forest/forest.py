@@ -3782,7 +3782,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         ss = ss.replace(f"ARG{s}", f"INS{s - self.X.shape[1]}")
                     return ss
 
-                print("\n".join([replace(str(g)) for g in self.hof[0].gene]))
+                if self.validation_size > 0:
+                    best_model = self.validation_hof[0]
+                else:
+                    best_model = self.hof[0]
+
+                print("\n".join([replace(str(g)) for g in best_model.gene]))
 
             if verbose:
                 features = set(
