@@ -48,6 +48,7 @@ class RacingFunctionSelector:
         global_graph=False,
         starting_point=0,
         unique_trees_racing=False,
+        centrality_type="betweenness",
         **kwargs,
     ):
         self.unique_trees_racing = unique_trees_racing
@@ -93,6 +94,7 @@ class RacingFunctionSelector:
         self.starting_point = starting_point
         self.exploitation_stage = exploitation_stage
         self.global_graph = global_graph
+        self.centrality_type = centrality_type
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -284,12 +286,13 @@ class RacingFunctionSelector:
                 #     good_graph, threshold=self.important_node_threshold
                 # )
                 # nodes = set(list(bad_nodes)) - set(list(good_nodes))
+                centrality_type = self.centrality_type
                 centrality_ratios = get_centrality_ratios(
-                    good_graph, bad_graph, centrality_type="betweenness"
+                    good_graph, bad_graph, centrality_type=centrality_type
                 )
-                nodes = select_important_nodes_by_ratio(
-                    centrality_ratios, threshold=2.0
-                )
+                # nodes = select_important_nodes_by_ratio(
+                #     centrality_ratios, threshold=2.0
+                # )
                 top_primitives = get_top_nodes_by_centrality_ratios(
                     good_graph,
                     centrality_ratios,
@@ -464,14 +467,14 @@ class RacingFunctionSelector:
                         # exploitation
                         t.name in elements_to_preserve
                         or isinstance(t, gp.MetaEphemeral)
-                        # and exploitation_mode
+                        and exploitation_mode
                     )
-                    # or (
-                    #     # novelty/exploration
-                    #     t.name not in elements_to_preserve
-                    #     or isinstance(t, gp.MetaEphemeral)
-                    #     and not exploitation_mode
-                    # )
+                    or (
+                        # novelty/exploration
+                        t.name not in elements_to_preserve
+                        or isinstance(t, gp.MetaEphemeral)
+                        and not exploitation_mode
+                    )
                 ]
                 if len(nodes) > 0:
                     self.pset.terminals[return_type] = nodes
