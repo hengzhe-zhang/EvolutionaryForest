@@ -228,6 +228,7 @@ from evolutionary_forest.utility.skew_transformer import (
     SkewnessCorrector,
     CubeSkewnessCorrector,
 )
+from evolutionary_forest.utility.tree_pool import TreePool
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -438,6 +439,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+
         self.init_some_logs()
         self.log_item = log_item
         self.post_selection_method = post_selection_method
@@ -798,6 +800,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.elites_archive = None
         self.stacking_strategy = StackingStrategy(self)
         self.reference_lgbm = None
+        if self.mutation_configuration.pool_based_addition:
+            self.evaluation_configuration.save_semantics = True
 
     def init_some_logs(self):
         self.duel_logs = []
@@ -1756,6 +1760,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def lazy_init(self, x):
         self.reference_copy()
+        if self.mutation_configuration.pool_based_addition:
+            self.tree_pool = TreePool()
+        else:
+            self.tree_pool = None
+
         if isinstance(self.gene_num, str) and "Max" in self.gene_num:
             self.gene_num = min(int(self.gene_num.replace("Max-", "")), x.shape[1])
         if isinstance(self.n_pop, str) and "N" in self.n_pop:
@@ -3194,6 +3203,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return False
 
     def callback(self):
+        if self.mutation_configuration.pool_based_addition:
+            self.tree_pool: TreePool
+            self.tree_pool.update_kd_tree(self.pop)
         self.validation_set_generation()
         gc.collect()
         if isinstance(self.mutation_scheme, MutationOperator):

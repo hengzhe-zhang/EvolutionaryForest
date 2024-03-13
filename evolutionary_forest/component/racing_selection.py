@@ -269,7 +269,8 @@ class RacingFunctionSelector:
                 good_graph = merge_trees_list_to_graph(unique_good_trees)
             # partition, communities_list = detect_communities_louvain(graph)
             # plot_graph_with_communities(graph, communities_list)
-            # plot_graph_with_centrality(good_graph)
+            if self.algorithm.current_gen % 10 == 0:
+                plot_graph_with_centrality(good_graph, self.algorithm.current_gen)
             # plot_graph_with_centrality(bad_graph)
 
             # only preserve a few elements
@@ -732,7 +733,7 @@ class RacingFunctionSelector:
             ind.fitness.weights = (1, 1)
             ind.fitness.values = (original_fitness, -constraint_violation)
 
-        self.plot_constraint_violation_front(combined_population)
+        # self.plot_constraint_violation_front(combined_population)
 
         # Perform selection using NSGA-II
         selected_individuals = selNSGA2(combined_population, n)

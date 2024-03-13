@@ -11,6 +11,7 @@ from evolutionary_forest.component.configuration import (
     MutationConfiguration,
 )
 from evolutionary_forest.component.toolbox import TypedToolbox
+from evolutionary_forest.utility.deletion_utils import find_most_redundant_feature
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -41,6 +42,9 @@ def varAndPlus(
 
     @limitation_check
     def mutation_function(*population):
+        if mutation_configuration.pool_based_addition:
+            for ind in population:
+                ind.individual_semantics = ind.predicted_values
         offspring: List[MultipleGeneGP] = [toolbox.clone(ind) for ind in population]
 
         if crossover_configuration.var_or:
@@ -177,7 +181,11 @@ def varAndPlus(
             < mutation_configuration.gene_addition_rate
             + mutation_configuration.gene_deletion_rate
         ):
-            if mutation_configuration.weighted_deletion:
+            if mutation_configuration.redundant_based_deletion:
+                if len(offspring[i].gene) > 1:
+                    worst_one = find_most_redundant_feature(offspring[i].semantics)
+                    del offspring[i].gene[worst_one]
+            elif mutation_configuration.weighted_deletion:
                 offspring[i].gene_deletion(weighted=True)
             else:
                 offspring[i].gene_deletion()

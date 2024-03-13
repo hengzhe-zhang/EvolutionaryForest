@@ -221,7 +221,7 @@ def merge_trees_list_to_graph(inds: List[MultipleGeneGP]):
     return G
 
 
-def plot_graph_with_centrality(G):
+def plot_graph_with_centrality(G, current_gen):
     """
     Plots the graph with nodes sized by their betweenness centrality.
 
@@ -255,7 +255,7 @@ def plot_graph_with_centrality(G):
     # Draw node labels
     nx.draw_networkx_labels(G, pos, font_size=8, font_color="black", ax=ax)
 
-    plt.title("Graph with Nodes Sized by Betweenness Centrality")
+    plt.title(f"Graph with Nodes Sized by Betweenness Centrality, Gen {current_gen}")
     plt.axis("off")  # Turn off the axis
 
     # Fix: Provide the `ax` argument to `plt.colorbar()`

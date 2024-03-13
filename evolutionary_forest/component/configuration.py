@@ -188,6 +188,8 @@ class MutationConfiguration:
         weighted_deletion=False,
         addition_or_deletion=True,
         gene_addition_mode="Random",
+        pool_based_addition=False,
+        redundant_based_deletion=False,
         **params
     ):
         self.gene_addition_rate = gene_addition_rate
@@ -198,6 +200,8 @@ class MutationConfiguration:
         self.mutation_expr_height: str = mutation_expr_height
         self.max_height = max_height
         self.addition_or_deletion = addition_or_deletion
+        self.pool_based_addition = pool_based_addition
+        self.redundant_based_deletion = redundant_based_deletion
 
 
 class ImbalancedConfiguration:
