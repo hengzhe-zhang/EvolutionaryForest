@@ -1761,7 +1761,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def lazy_init(self, x):
         self.reference_copy()
         if self.mutation_configuration.pool_based_addition:
-            self.tree_pool = TreePool()
+            self.tree_pool = TreePool(**self.param)
         else:
             self.tree_pool = None
 
@@ -3205,7 +3205,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def callback(self):
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool: TreePool
-            self.tree_pool.update_kd_tree(self.pop)
+            self.tree_pool.update_kd_tree(self.pop, self.y)
         self.validation_set_generation()
         gc.collect()
         if isinstance(self.mutation_scheme, MutationOperator):

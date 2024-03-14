@@ -1032,7 +1032,7 @@ def map_elites_selection(data, scores, k, map_elites_configuration, bins=10):
         The indices of the selected elite data.
     """
     # Create an empty grid of bins to store elites in each bin
-    elite_bins = np.empty((bins, bins), dtype=np.object)
+    elite_bins = np.empty((bins, bins), dtype=np.object_)
     for i in range(bins):
         for j in range(bins):
             elite_bins[i, j] = []
