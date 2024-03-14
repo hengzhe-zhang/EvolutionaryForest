@@ -11,7 +11,7 @@ from evolutionary_forest.component.configuration import (
     MutationConfiguration,
 )
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.utility.deletion_utils import find_most_redundant_feature
+from evolutionary_forest.utility.deletion_utils import *
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -183,7 +183,44 @@ def varAndPlus(
         ):
             if mutation_configuration.redundant_based_deletion:
                 if len(offspring[i].gene) > 1:
-                    worst_one = find_most_redundant_feature(offspring[i].semantics)
+                    if mutation_configuration.deletion_strategy == "Redundancy":
+                        worst_one = find_most_redundant_feature(offspring[i].semantics)
+                    elif mutation_configuration.deletion_strategy == "Redundancy+":
+                        worst_one = find_most_redundant_feature(
+                            offspring[i].semantics, inverse=True
+                        )
+                    elif mutation_configuration.deletion_strategy == "Importance":
+                        worst_one = np.argmin(abs(offspring[i].coef))
+                    elif mutation_configuration.deletion_strategy == "Importance+":
+                        worst_one = np.argmax(abs(offspring[i].coef))
+                    elif mutation_configuration.deletion_strategy == "Backward":
+                        worst_one = find_least_useful_feature(
+                            offspring[i].semantics, algorithm.y
+                        )
+                    elif mutation_configuration.deletion_strategy == "Backward+":
+                        worst_one = find_least_useful_feature(
+                            offspring[i].semantics, algorithm.y, inverse=True
+                        )
+                    elif mutation_configuration.deletion_strategy == "P-Value":
+                        worst_one = find_largest_p_value_feature(
+                            offspring[i].semantics, algorithm.y
+                        )
+                    elif mutation_configuration.deletion_strategy == "P-Value+":
+                        worst_one = find_largest_p_value_feature(
+                            offspring[i].semantics, algorithm.y, inverse=True
+                        )
+                    elif mutation_configuration.deletion_strategy == "Correlation":
+                        worst_one = find_least_correlation_to_target(
+                            offspring[i].semantics, algorithm.y
+                        )
+                    elif mutation_configuration.deletion_strategy == "Correlation+":
+                        worst_one = find_least_correlation_to_target(
+                            offspring[i].semantics, algorithm.y, inverse=True
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unknown deletion strategy: {mutation_configuration.deletion_strategy}"
+                        )
                     del offspring[i].gene[worst_one]
             elif mutation_configuration.weighted_deletion:
                 offspring[i].gene_deletion(weighted=True)

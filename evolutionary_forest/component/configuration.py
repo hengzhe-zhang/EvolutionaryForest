@@ -190,6 +190,7 @@ class MutationConfiguration:
         gene_addition_mode="Random",
         pool_based_addition=False,
         redundant_based_deletion=False,
+        deletion_strategy="Redundancy",
         **params
     ):
         self.gene_addition_rate = gene_addition_rate
@@ -202,6 +203,7 @@ class MutationConfiguration:
         self.addition_or_deletion = addition_or_deletion
         self.pool_based_addition = pool_based_addition
         self.redundant_based_deletion = redundant_based_deletion
+        self.deletion_strategy = deletion_strategy
 
 
 class ImbalancedConfiguration:
