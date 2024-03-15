@@ -960,7 +960,12 @@ def lsh_matrix_initialization(lsh, data):
 
 
 def local_sensitive_hash(random_matrix: np.ndarray, result):
-    # locality sensitive hash
+    """
+    LSH works by projecting data points into a lower-dimensional space using random projection matrices,
+    and then quantizing these projections into hash codes.
+    Similar data points are likely to be mapped to the same or nearby hash codes.
+    """
+    # locality-sensitive hash
     hash_id = 0
     final_sign = (result - result.mean()) @ random_matrix
     for s_id, s in enumerate(final_sign):

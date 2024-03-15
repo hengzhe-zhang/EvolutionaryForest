@@ -2,7 +2,8 @@ import math
 from typing import List
 
 import numpy as np
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree, KDTree
+from scipy.special import softmax
 from scipy.stats import pearsonr
 from sklearn.decomposition import KernelPCA
 from sklearn.pipeline import Pipeline
@@ -21,10 +22,10 @@ class TreePool:
         semantics_length=5,
         **params
     ):
+        self.plot_mismatch = False
         self.library_updating_mode = library_updating_mode
-        self.kd_tree = None  # This will be a cKDTree instance
+        self.kd_tree: KDTree = None  # This will be a cKDTree instance
         self.trees = []  # List to store PrimitiveTree objects
-        self.tree_map = {}  # Maps tree indices to PrimitiveTree objects
         self.normalized_semantics_list = []  # List to store normalized semantics
         self.seen_semantics = (
             set()
@@ -33,6 +34,7 @@ class TreePool:
         self.semantics_length = (
             semantics_length  # Length of semantics to use for KD-Tree
         )
+        self.mismatch_times = []
 
     def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
         target_semantics = target_semantics[: self.semantics_length]
@@ -61,7 +63,6 @@ class TreePool:
                 self.normalized_semantics_list.append(
                     normalized_semantics
                 )  # Store the normalized semantics
-                self.tree_map[len(self.trees) - 1] = tree
                 points.append(normalized_semantics)
 
         # Handle excess trees
@@ -82,7 +83,6 @@ class TreePool:
             self.normalized_semantics_list = [
                 self.normalized_semantics_list[idx] for idx in indexes
             ]
-            self.tree_map = {i: tree for i, tree in enumerate(self.trees)}
             # Recreate seen_semantics based on the current normalized_semantics_list
             self.seen_semantics = {
                 tuple(semantics) for semantics in self.normalized_semantics_list
@@ -129,4 +129,47 @@ class TreePool:
 
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics)
-        return self.tree_map[index]  # Return the corresponding tree
+        return self.trees[index]  # Return the corresponding tree
+
+    def retrieve_nearest_trees_weighted(self, semantics: np.ndarray, top_k=10, std=1):
+        if self.kd_tree is None:
+            raise ValueError("KD-Tree is empty. Please add some trees first.")
+
+        semantics = semantics[: self.semantics_length]
+
+        # Normalize the query semantics
+        norm = np.linalg.norm(semantics)
+        if norm > 0:
+            semantics = semantics / norm
+        else:
+            raise ValueError("Query semantics norm is 0, cannot normalize.")
+
+        # Query the KDTree for the nearest points
+        distances, indices = self.kd_tree.query(semantics, k=top_k)
+
+        # Generate random weight vector
+        weight_vector = np.random.normal(loc=0, scale=std, size=semantics.shape)
+        weight_vector = softmax(weight_vector)
+
+        # Initialize variables for storing the best match
+        best_distance = np.inf
+        best_tree_index = None
+
+        # Iterate over the top-k trees and compare based on weighted Euclidean distance
+        for dist, index in zip(distances, indices):
+            tree_semantics = self.normalized_semantics_list[index]
+            weighted_euclidean_distance = np.sqrt(
+                np.sum(weight_vector * (semantics - tree_semantics) ** 2)
+            )
+            if weighted_euclidean_distance < best_distance:
+                best_distance = weighted_euclidean_distance
+                best_tree_index = index
+        if self.plot_mismatch:
+            # Determine the index with the smallest unweighted distance for comparison
+            unweighted_best_index = indices[np.argmin(distances)]
+
+            # Check if the best weighted index is different from the best unweighted index
+            if best_tree_index != unweighted_best_index:
+                self.mismatch_times.append(1)
+
+        return self.trees[best_tree_index]  # Return the corresponding tree

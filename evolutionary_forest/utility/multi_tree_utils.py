@@ -30,7 +30,27 @@ def gene_addition(
         ):
             residual = algorithm.y - individual.individual_semantics
             residual = normalize_vector(residual)
-            tree = copy.deepcopy(algorithm.tree_pool.retrieve_nearest_tree(residual))
+            if algorithm.mutation_configuration.pool_addition_mode == "Best":
+                tree = copy.deepcopy(
+                    algorithm.tree_pool.retrieve_nearest_tree(residual)
+                )
+            elif algorithm.mutation_configuration.pool_addition_mode.startswith(
+                "Weighted"
+            ):
+                top_k = int(
+                    algorithm.mutation_configuration.pool_addition_mode.split("-")[1]
+                )
+                std = float(
+                    algorithm.mutation_configuration.pool_addition_mode.split("-")[2]
+                )
+                tree = copy.deepcopy(
+                    algorithm.tree_pool.retrieve_nearest_trees_weighted(
+                        residual, top_k, std
+                    )
+                )
+            else:
+                raise ValueError("Invalid pool addition mode")
+
         else:
             tree = tree_generation(individual, gene_addition_mode, algorithm)
         iteration = 0

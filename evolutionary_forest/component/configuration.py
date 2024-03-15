@@ -191,6 +191,7 @@ class MutationConfiguration:
         pool_based_addition=False,
         redundant_based_deletion=False,
         deletion_strategy="Redundancy",
+        pool_addition_mode="Best",
         **params
     ):
         self.gene_addition_rate = gene_addition_rate
@@ -202,6 +203,7 @@ class MutationConfiguration:
         self.max_height = max_height
         self.addition_or_deletion = addition_or_deletion
         self.pool_based_addition = pool_based_addition
+        self.pool_addition_mode = pool_addition_mode
         self.redundant_based_deletion = redundant_based_deletion
         self.deletion_strategy = deletion_strategy
 
