@@ -228,10 +228,10 @@ def varAndPlus(
                 offspring[i].gene_deletion()
 
     def addition_and_deletion(i, offspring):
-        if random.random() < mutation_configuration.gene_addition_rate:
-            gene_addition(offspring[i], algorithm)
         if random.random() < mutation_configuration.gene_deletion_rate:
             offspring[i].gene_deletion()
+        if random.random() < mutation_configuration.gene_addition_rate:
+            gene_addition(offspring[i], algorithm)
 
     def varOr(offspring):
         # Allocate indexes for genetic operators

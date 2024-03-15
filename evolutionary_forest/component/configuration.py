@@ -190,7 +190,7 @@ class MutationConfiguration:
         gene_addition_mode="Random",
         pool_based_addition=False,
         redundant_based_deletion=False,
-        deletion_strategy="Redundancy",
+        deletion_strategy="Importance",
         pool_addition_mode="Best",
         **params
     ):

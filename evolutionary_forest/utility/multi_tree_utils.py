@@ -48,6 +48,9 @@ def gene_addition(
                         residual, top_k, std
                     )
                 )
+                if tree is None:
+                    # fall back to random generation
+                    tree = tree_generation(individual, gene_addition_mode, algorithm)
             else:
                 raise ValueError("Invalid pool addition mode")
 

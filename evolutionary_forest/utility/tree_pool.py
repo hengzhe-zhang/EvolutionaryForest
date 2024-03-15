@@ -1,6 +1,8 @@
 import math
+from collections import defaultdict
 from typing import List
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
@@ -18,23 +20,28 @@ class TreePool:
     def __init__(
         self,
         max_trees=1000,
-        library_updating_mode="Recent",
+        library_updating_mode="LeastFrequentUsed",
         semantics_length=5,
         **params
     ):
+        self.frequency = defaultdict(int)
         self.plot_mismatch = False
+        self.plot_distance = False
         self.library_updating_mode = library_updating_mode
         self.kd_tree: KDTree = None  # This will be a cKDTree instance
         self.trees = []  # List to store PrimitiveTree objects
         self.normalized_semantics_list = []  # List to store normalized semantics
-        self.seen_semantics = (
-            set()
-        )  # Set to store hashes of seen semantics for uniqueness
+        # Set to store hashes of seen semantics for uniqueness
+        self.seen_semantics = set()
         self.max_trees = max_trees  # Maximum number of trees to store
-        self.semantics_length = (
-            semantics_length  # Length of semantics to use for KD-Tree
-        )
+        # Length of semantics to use for KD-Tree
+        self.semantics_length = semantics_length
+
+        self.log_initialization()
+
+    def log_initialization(self):
         self.mismatch_times = []
+        self.distance_distribution = []
 
     def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
         target_semantics = target_semantics[: self.semantics_length]
@@ -76,6 +83,10 @@ class TreePool:
             elif self.library_updating_mode == "Recent":
                 excess = len(self.trees) - self.max_trees
                 indexes = indexes[excess:]
+            elif self.library_updating_mode == "LeastFrequentUsed":
+                indexes = sorted(
+                    indexes, key=lambda x: (self.frequency.get(x, 0), x), reverse=True
+                )[: self.max_trees]
             else:
                 raise ValueError("Invalid updating mode")
             # Remove the oldest trees
@@ -129,6 +140,8 @@ class TreePool:
 
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics)
+        if self.library_updating_mode == "LeastFrequentUsed":
+            self.frequency[index] += 1
         return self.trees[index]  # Return the corresponding tree
 
     def retrieve_nearest_trees_weighted(self, semantics: np.ndarray, top_k=10, std=1):
@@ -171,5 +184,18 @@ class TreePool:
             # Check if the best weighted index is different from the best unweighted index
             if best_tree_index != unweighted_best_index:
                 self.mismatch_times.append(1)
-
+        if self.plot_distance:
+            self.distance_distribution.append(best_distance)
+            if (
+                len(self.distance_distribution) > 0
+                and len(self.distance_distribution) % 100 == 0
+            ):
+                plt.hist(self.distance_distribution, bins=10, color="blue", alpha=0.7)
+                plt.title("Distance Distribution")
+                plt.xlabel("Distance")
+                plt.ylabel("Frequency")
+                plt.grid(True)
+                plt.show()
+        if self.library_updating_mode == "LeastFrequentUsed":
+            self.frequency[best_tree_index] += 1
         return self.trees[best_tree_index]  # Return the corresponding tree
