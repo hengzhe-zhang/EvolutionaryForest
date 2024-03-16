@@ -192,8 +192,10 @@ class MutationConfiguration:
         redundant_based_deletion=False,
         deletion_strategy="Importance",
         pool_addition_mode="Best",
+        clustering_based_semantics=False,
         **params
     ):
+        self.clustering_based_semantics = clustering_based_semantics
         self.gene_addition_rate = gene_addition_rate
         self.gene_deletion_rate = gene_deletion_rate
         self.gene_addition_mode = gene_addition_mode

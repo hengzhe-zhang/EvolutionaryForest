@@ -1762,6 +1762,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.reference_copy()
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = TreePool(**self.param)
+            if self.mutation_configuration.clustering_based_semantics is not False:
+                self.tree_pool.set_clustering_based_semantics(
+                    self.y, self.mutation_configuration.clustering_based_semantics
+                )
         else:
             self.tree_pool = None
 

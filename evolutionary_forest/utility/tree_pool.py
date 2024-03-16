@@ -4,16 +4,54 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
 from scipy.stats import pearsonr
+from sklearn.cluster import KMeans
 from sklearn.decomposition import KernelPCA
+from sklearn.metrics import pairwise_distances_argmin_min
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 from evolutionary_forest.component.configuration import MAPElitesConfiguration
 from evolutionary_forest.multigene_gp import MultipleGeneGP, map_elites_selection
 from evolutionary_forest.utility.normalization_tool import normalize_vector
+
+
+def plot_distribution(nearest_samples):
+    sns.set(style="whitegrid")
+    plt.hist(nearest_samples, edgecolor="black")
+    plt.xlabel("Sample")
+    plt.ylabel("Frequency")
+    plt.title("Distribution of Samples")
+    plt.show()
+
+
+def select_samples_via_quantiles(y: np.ndarray, n_bins=100):
+    # Reshape y to a column vector
+    y_reshaped = y.reshape(-1, 1)
+
+    # Initialize KBinsDiscretizer
+    kbd = KBinsDiscretizer(n_bins=n_bins, encode="ordinal", strategy="quantile")
+
+    # Fit KBinsDiscretizer and transform y to clusters
+    clusters = kbd.fit_transform(y_reshaped)
+
+    # Convert cluster indices to integer
+    cluster_indices = clusters.astype(int).reshape(-1)
+
+    # Initialize an array to hold the index of one sample per cluster
+    selected_indexes = []
+
+    # Iterate over unique cluster indices
+    for cluster_index in np.unique(cluster_indices):
+        # Find indices of samples belonging to the current cluster
+        cluster_samples_indices = np.where(cluster_indices == cluster_index)[0]
+
+        # Select the first sample index from the current cluster
+        selected_indexes.append(cluster_samples_indices[0])
+    return selected_indexes
 
 
 class TreePool:
@@ -24,6 +62,7 @@ class TreePool:
         semantics_length=5,
         **params
     ):
+        self.clustering_indexes = None
         self.frequency = defaultdict(int)
         self.plot_mismatch = False
         self.plot_distance = False
@@ -44,7 +83,7 @@ class TreePool:
         self.distance_distribution = []
 
     def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
-        target_semantics = target_semantics[: self.semantics_length]
+        target_semantics = self.index_semantics(target_semantics)
         normalized_target_semantics = normalize_vector(target_semantics)
 
         points = (
@@ -52,9 +91,7 @@ class TreePool:
         )  # This will store all unique and normalized semantics for the KD-Tree
         for ind in inds:
             for semantics, tree in zip(ind.semantics.T, ind.gene):
-                semantics = semantics[
-                    : self.semantics_length
-                ]  # Assuming you want to use the first semantics_length elements
+                semantics = self.index_semantics(semantics)
                 # Normalize semantics and skip if norm is 0
                 norm = np.linalg.norm(semantics)
                 if norm == 0:
@@ -87,6 +124,7 @@ class TreePool:
                 indexes = sorted(
                     indexes, key=lambda x: (self.frequency.get(x, 0), x), reverse=True
                 )[: self.max_trees]
+                self.frequency.clear()
             else:
                 raise ValueError("Invalid updating mode")
             # Remove the oldest trees
@@ -129,7 +167,7 @@ class TreePool:
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
 
-        semantics = semantics[: self.semantics_length]
+        semantics = self.index_semantics(semantics)
 
         # Normalize the query semantics
         norm = np.linalg.norm(semantics)
@@ -144,11 +182,18 @@ class TreePool:
             self.frequency[index] += 1
         return self.trees[index]  # Return the corresponding tree
 
+    def index_semantics(self, semantics):
+        if self.clustering_indexes is None:
+            semantics = semantics[: self.semantics_length]
+        else:
+            semantics = semantics[self.clustering_indexes]
+        return semantics
+
     def retrieve_nearest_trees_weighted(self, semantics: np.ndarray, top_k=10, std=1):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
 
-        semantics = semantics[: self.semantics_length]
+        semantics = self.index_semantics(semantics)
 
         # Normalize the query semantics
         norm = np.linalg.norm(semantics)
@@ -199,3 +244,28 @@ class TreePool:
         if self.library_updating_mode == "LeastFrequentUsed":
             self.frequency[best_tree_index] += 1
         return self.trees[best_tree_index]  # Return the corresponding tree
+
+    def set_clustering_based_semantics(self, y, mode: str):
+        if len(y) <= self.semantics_length:
+            # no need to do clustering
+            return None
+        if mode == "Quantiles":
+            nearest_indexes = select_samples_via_quantiles(
+                y, n_bins=self.semantics_length
+            )
+            self.clustering_indexes = nearest_indexes
+            # plot_distribution(y[nearest_indexes])
+            # plot_distribution(y)
+        elif mode == "K-Means":
+            k_means = KMeans(n_clusters=self.semantics_length)
+            k_means.fit_transform(y.reshape(-1, 1))
+            centroids = k_means.cluster_centers_  # Get centroids of each cluster
+
+            # Find the index of the nearest sample to each centroid
+            nearest_indexes, _ = pairwise_distances_argmin_min(
+                centroids, y.reshape(-1, 1)
+            )
+
+            self.clustering_indexes = nearest_indexes
+        else:
+            raise ValueError("Invalid mode")
