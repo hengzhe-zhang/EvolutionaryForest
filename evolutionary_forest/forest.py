@@ -1762,10 +1762,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.reference_copy()
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = TreePool(**self.param)
-            if self.mutation_configuration.clustering_based_semantics is not False:
-                self.tree_pool.set_clustering_based_semantics(
-                    self.y, self.mutation_configuration.clustering_based_semantics
-                )
+            interval = self.mutation_configuration.pool_hard_instance_interval
+            mode = self.mutation_configuration.library_clustering_mode
+            if interval == 0 and mode is not False:
+                self.tree_pool.set_clustering_based_semantics(self.y, mode)
         else:
             self.tree_pool = None
 
@@ -3209,6 +3209,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def callback(self):
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool: TreePool
+            interval = self.mutation_configuration.pool_hard_instance_interval
+            mode = self.mutation_configuration.library_clustering_mode
+            if interval > 0 and self.current_gen % interval == 0:
+                case_fitness = np.array([ind.case_values for ind in self.pop])
+                self.tree_pool.update_hard_instance(case_fitness, mode)
             self.tree_pool.update_kd_tree(self.pop, self.y)
         self.validation_set_generation()
         gc.collect()

@@ -178,6 +178,7 @@ class TreePool:
 
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics)
+        self.plot_distance_function(dist)
         if self.library_updating_mode == "LeastFrequentUsed":
             self.frequency[index] += 1
         return self.trees[index]  # Return the corresponding tree
@@ -229,11 +230,17 @@ class TreePool:
             # Check if the best weighted index is different from the best unweighted index
             if best_tree_index != unweighted_best_index:
                 self.mismatch_times.append(1)
+        self.plot_distance_function(best_distance)
+        if self.library_updating_mode == "LeastFrequentUsed":
+            self.frequency[best_tree_index] += 1
+        return self.trees[best_tree_index]  # Return the corresponding tree
+
+    def plot_distance_function(self, best_distance):
         if self.plot_distance:
             self.distance_distribution.append(best_distance)
             if (
                 len(self.distance_distribution) > 0
-                and len(self.distance_distribution) % 100 == 0
+                and len(self.distance_distribution) % 200 == 0
             ):
                 plt.hist(self.distance_distribution, bins=10, color="blue", alpha=0.7)
                 plt.title("Distance Distribution")
@@ -241,9 +248,35 @@ class TreePool:
                 plt.ylabel("Frequency")
                 plt.grid(True)
                 plt.show()
-        if self.library_updating_mode == "LeastFrequentUsed":
-            self.frequency[best_tree_index] += 1
-        return self.trees[best_tree_index]  # Return the corresponding tree
+                self.distance_distribution.clear()
+
+    def update_hard_instance(self, error: np.ndarray, mode: str):
+        if mode == "K-Means":
+            k_means = KMeans(n_clusters=self.semantics_length)
+            k_means.fit_transform(error.T)
+            centroids = k_means.cluster_centers_  # Get centroids of each cluster
+
+            # Find the index of the nearest sample to each centroid
+            nearest_indexes, _ = pairwise_distances_argmin_min(centroids, error.T)
+            self.clustering_indexes = nearest_indexes
+        elif mode == "Worst":
+            errors = np.median(error, axis=0)
+            self.clustering_indexes = np.argsort(errors)[-self.semantics_length :]
+        elif mode == "Random":
+            self.clustering_indexes = np.random.choice(
+                np.arange(error.shape[1]), self.semantics_length, replace=False
+            )
+        else:
+            raise Exception("Invalid mode")
+        self.clear_all()
+
+    def clear_all(self):
+        self.frequency.clear()
+        self.trees.clear()
+        self.normalized_semantics_list.clear()
+        self.seen_semantics.clear()
+        self.kd_tree = None
+        self.log_initialization()
 
     def set_clustering_based_semantics(self, y, mode: str):
         if len(y) <= self.semantics_length:
@@ -265,7 +298,6 @@ class TreePool:
             nearest_indexes, _ = pairwise_distances_argmin_min(
                 centroids, y.reshape(-1, 1)
             )
-
             self.clustering_indexes = nearest_indexes
         else:
             raise ValueError("Invalid mode")
