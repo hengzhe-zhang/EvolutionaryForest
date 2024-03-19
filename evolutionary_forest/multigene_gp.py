@@ -131,6 +131,8 @@ class MultipleGeneGP:
                 # can delete anyone, including randomly generated
                 random_index = random.randrange(self.gene_num)
             del self.gene[random_index]
+            return random_index
+        return None
 
     def __init__(
         self,

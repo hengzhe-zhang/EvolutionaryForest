@@ -229,7 +229,16 @@ def varAndPlus(
 
     def addition_and_deletion(i, offspring):
         if random.random() < mutation_configuration.gene_deletion_rate:
-            offspring[i].gene_deletion()
+            random_index = offspring[i].gene_deletion()
+            if (
+                random_index is not None
+                and mutation_configuration.pool_based_addition
+                and mutation_configuration.change_semantic_after_deletion
+            ):
+                offspring[i].individual_semantics -= (
+                    offspring[i].coef[random_index]
+                    * offspring[i].semantics[:, random_index]
+                )
         if random.random() < mutation_configuration.gene_addition_rate:
             gene_addition(offspring[i], algorithm)
 

@@ -194,6 +194,7 @@ class MutationConfiguration:
         pool_addition_mode="Best",
         library_clustering_mode=False,
         pool_hard_instance_interval=0,
+        change_semantic_after_deletion=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -210,6 +211,7 @@ class MutationConfiguration:
         self.pool_addition_mode = pool_addition_mode
         self.redundant_based_deletion = redundant_based_deletion
         self.deletion_strategy = deletion_strategy
+        self.change_semantic_after_deletion = change_semantic_after_deletion
 
 
 class ImbalancedConfiguration:
