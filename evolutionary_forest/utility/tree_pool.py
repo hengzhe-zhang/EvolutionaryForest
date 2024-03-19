@@ -251,7 +251,7 @@ class TreePool:
                 self.distance_distribution.clear()
 
     def update_hard_instance(self, error: np.ndarray, mode: str):
-        if len(error) <= self.semantics_length:
+        if len(error.T) <= self.semantics_length:
             # no need to do clustering
             return None
         if mode == "K-Means":
