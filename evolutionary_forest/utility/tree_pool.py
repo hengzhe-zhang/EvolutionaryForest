@@ -201,7 +201,7 @@ class TreePool:
         if norm > 0:
             semantics = semantics / norm
         else:
-            raise None
+            return None
 
         # Query the KDTree for the nearest points
         distances, indices = self.kd_tree.query(semantics, k=top_k)
