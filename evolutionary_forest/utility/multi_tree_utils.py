@@ -48,13 +48,14 @@ def gene_addition(
                         residual, top_k, std
                     )
                 )
-                if tree is None:
-                    return
             else:
                 raise ValueError("Invalid pool addition mode")
-
         else:
             tree = tree_generation(individual, gene_addition_mode, algorithm)
+
+        if tree is None:
+            return
+
         iteration = 0
         while str(tree) in existing_genes:
             if iteration >= 100:
