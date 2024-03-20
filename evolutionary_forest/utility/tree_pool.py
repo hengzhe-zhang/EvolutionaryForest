@@ -174,7 +174,7 @@ class TreePool:
         if norm > 0:
             semantics = semantics / norm
         else:
-            raise ValueError("Query semantics norm is 0, cannot normalize.")
+            return None
 
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics)
@@ -201,7 +201,7 @@ class TreePool:
         if norm > 0:
             semantics = semantics / norm
         else:
-            raise ValueError("Query semantics norm is 0, cannot normalize.")
+            raise None
 
         # Query the KDTree for the nearest points
         distances, indices = self.kd_tree.query(semantics, k=top_k)
