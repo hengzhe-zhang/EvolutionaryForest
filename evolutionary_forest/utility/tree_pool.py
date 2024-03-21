@@ -96,6 +96,12 @@ class SemanticLibrary:
                     continue  # Skip this semantics as its norm is 0
 
                 normalized_semantics = normalize_vector(semantics)
+                if (
+                    np.isnan(normalized_semantics).any()
+                    or np.isinf(normalized_semantics).any()
+                ):
+                    continue
+
                 semantics_hash = tuple(normalized_semantics)
                 if semantics_hash in self.seen_semantics:
                     continue
@@ -118,6 +124,8 @@ class SemanticLibrary:
             return  # Skip this semantics as its norm is 0
 
         normalized_semantics = normalize_vector(semantics)
+        if np.isnan(normalized_semantics).any() or np.isinf(normalized_semantics).any():
+            return
         semantics_hash = tuple(normalized_semantics)
         if semantics_hash in self.seen_semantics:
             return
