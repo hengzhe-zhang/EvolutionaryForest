@@ -60,7 +60,9 @@ def varAndPlus(
         #                 ele.add(v)
         #                 indicies.append(k)
         #         x.gene: list = [x.gene[i] for i in indicies]
-
+        if not mutation_configuration.addition_or_deletion:
+            for i in range(len(offspring)):
+                addition_and_deletion(i, offspring)
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -150,8 +152,8 @@ def varAndPlus(
 
                 if mutation_configuration.addition_or_deletion:
                     addition_or_deletion(i, offspring)
-                else:
-                    addition_and_deletion(i, offspring)
+                # else:
+                #     addition_and_deletion(i, offspring)
             del offspring[i].fitness.values
             i += 1
 

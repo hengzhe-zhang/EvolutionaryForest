@@ -105,6 +105,7 @@ class EvaluationResults:
 def calculate_score(args):
     (X, Y, score_func, cv, configuration) = calculate_score.data
     configuration: EvaluationConfiguration
+    configuration.enable_library = True
     dynamic_target = configuration.dynamic_target
     original_features = configuration.original_features
     pset = configuration.pset
@@ -345,6 +346,7 @@ def calculate_score(args):
                 np.save("error_data_y.npy", Y)
                 raise Exception
     ml_evaluation_time = time.time() - start_time
+    configuration.enable_library = False
     return (
         y_pred,
         estimators,
@@ -801,6 +803,14 @@ def single_tree_evaluation(
             if isinstance(prim, Primitive):
                 try:
                     result = pset.context[prim.name](*args)
+                    if (
+                        evaluation_configuration.enable_library
+                        and evaluation_configuration.semantic_library is not None
+                    ):
+                        if isinstance(result, np.ndarray) and result.size > 1:
+                            evaluation_configuration.semantic_library.append_semantics(
+                                result, PrimitiveTree(expr[expr.searchSubtree(id)])
+                            )
                     if (
                         random_noise > 0
                         and isinstance(result, np.ndarray)

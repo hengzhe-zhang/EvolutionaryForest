@@ -195,6 +195,7 @@ class MutationConfiguration:
         library_clustering_mode=False,
         pool_hard_instance_interval=0,
         change_semantic_after_deletion=False,
+        include_subtree_to_lib=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -208,6 +209,7 @@ class MutationConfiguration:
         self.max_height = max_height
         self.addition_or_deletion = addition_or_deletion
         self.pool_based_addition = pool_based_addition
+        self.include_subtree_to_lib = include_subtree_to_lib
         self.pool_addition_mode = pool_addition_mode
         self.redundant_based_deletion = redundant_based_deletion
         self.deletion_strategy = deletion_strategy
@@ -252,6 +254,7 @@ class EvaluationConfiguration:
         max_height=None,
         ood_split=None,
         loss_discretization=None,
+        semantic_library=None,
         **params
     ):
         # prediction results of the neural network
@@ -306,6 +309,9 @@ class EvaluationConfiguration:
 
         # max height, maybe useful for some evaluation stages
         self.max_height = max_height
+
+        self.semantic_library = semantic_library
+        self.enable_library = False
 
 
 class BloatControlConfiguration:

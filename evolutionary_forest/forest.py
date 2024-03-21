@@ -228,7 +228,7 @@ from evolutionary_forest.utility.skew_transformer import (
     SkewnessCorrector,
     CubeSkewnessCorrector,
 )
-from evolutionary_forest.utility.tree_pool import TreePool
+from evolutionary_forest.utility.tree_pool import SemanticLibrary
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -1761,11 +1761,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def lazy_init(self, x):
         self.reference_copy()
         if self.mutation_configuration.pool_based_addition:
-            self.tree_pool = TreePool(**self.param)
+            self.tree_pool = SemanticLibrary(**self.param)
             interval = self.mutation_configuration.pool_hard_instance_interval
             mode = self.mutation_configuration.library_clustering_mode
             if interval == 0 and mode is not False:
                 self.tree_pool.set_clustering_based_semantics(self.y, mode)
+            if self.mutation_configuration.include_subtree_to_lib:
+                self.evaluation_configuration.semantic_library = self.tree_pool
         else:
             self.tree_pool = None
 
@@ -3208,7 +3210,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def callback(self):
         if self.mutation_configuration.pool_based_addition:
-            self.tree_pool: TreePool
+            self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval
             mode = self.mutation_configuration.library_clustering_mode
             if interval > 0 and self.current_gen % interval == 0:

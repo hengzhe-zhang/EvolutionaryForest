@@ -5,6 +5,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from deap.gp import PrimitiveTree
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
 from scipy.stats import pearsonr
@@ -54,7 +55,7 @@ def select_samples_via_quantiles(y: np.ndarray, n_bins=100):
     return selected_indexes
 
 
-class TreePool:
+class SemanticLibrary:
     def __init__(
         self,
         max_trees=1000,
@@ -86,9 +87,6 @@ class TreePool:
         target_semantics = self.index_semantics(target_semantics)
         normalized_target_semantics = normalize_vector(target_semantics)
 
-        points = (
-            []
-        )  # This will store all unique and normalized semantics for the KD-Tree
         for ind in inds:
             for semantics, tree in zip(ind.semantics.T, ind.gene):
                 semantics = self.index_semantics(semantics)
@@ -107,8 +105,30 @@ class TreePool:
                 self.normalized_semantics_list.append(
                     normalized_semantics
                 )  # Store the normalized semantics
-                points.append(normalized_semantics)
 
+        self.clean_when_full(normalized_target_semantics)
+        # Create the KDTree with all collected points
+        self.kd_tree = cKDTree(self.normalized_semantics_list)
+
+    def append_semantics(self, semantics: np.ndarray, tree: PrimitiveTree):
+        semantics = self.index_semantics(semantics)
+        # Normalize semantics and skip if norm is 0
+        norm = np.linalg.norm(semantics)
+        if norm == 0:
+            return  # Skip this semantics as its norm is 0
+
+        normalized_semantics = normalize_vector(semantics)
+        semantics_hash = tuple(normalized_semantics)
+        if semantics_hash in self.seen_semantics:
+            return
+
+        self.seen_semantics.add(semantics_hash)
+        self.trees.append(tree)
+        self.normalized_semantics_list.append(
+            normalized_semantics
+        )  # Store the normalized semantics
+
+    def clean_when_full(self, normalized_target_semantics):
         # Handle excess trees
         if len(self.trees) > self.max_trees:
             indexes = np.arange(len(self.trees))
@@ -136,10 +156,6 @@ class TreePool:
             self.seen_semantics = {
                 tuple(semantics) for semantics in self.normalized_semantics_list
             }
-
-        # Create the KDTree with all collected points
-        if points:
-            self.kd_tree = cKDTree(self.normalized_semantics_list)
 
     def update_by_map_elites(
         self,
