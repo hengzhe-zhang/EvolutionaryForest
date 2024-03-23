@@ -12,6 +12,7 @@ from evolutionary_forest.component.configuration import (
 )
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.utility.deletion_utils import *
+from evolutionary_forest.utility.normalization_tool import normalize_vector
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -45,6 +46,7 @@ def varAndPlus(
         if mutation_configuration.pool_based_addition:
             for ind in population:
                 ind.individual_semantics = ind.predicted_values
+                ind.scaler = ind.pipe.named_steps["Scaler"]
         offspring: List[MultipleGeneGP] = [toolbox.clone(ind) for ind in population]
 
         if crossover_configuration.var_or:
@@ -63,6 +65,8 @@ def varAndPlus(
         if not mutation_configuration.addition_or_deletion:
             for i in range(len(offspring)):
                 addition_and_deletion(i, offspring)
+        if mutation_configuration.pool_based_addition:
+            tree_replacement(offspring, i)
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -228,6 +232,42 @@ def varAndPlus(
                 offspring[i].gene_deletion(weighted=True)
             else:
                 offspring[i].gene_deletion()
+
+    def tree_replacement(offspring, i):
+        ind = offspring[i]
+        indexes = algorithm.tree_pool.clustering_indexes
+        current_semantics = ind.individual_semantics[indexes]
+        target = algorithm.y[indexes]
+        for id in range(len(ind.gene)):
+            temp_semantics = current_semantics - (
+                ind.coef[id]
+                * (
+                    (ind.semantics[indexes, id] - ind.scaler.scale_[id])
+                    / ind.scaler.var_[id]
+                )
+            )
+            residual = target - temp_semantics
+            value = algorithm.tree_pool.retrieve_nearest_tree(
+                normalize_vector(residual), return_semantics=True
+            )
+            if value is None:
+                continue
+            tree, proposed_semantics = value
+            if np.all(
+                normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
+            ):
+                continue
+            factor = np.dot(proposed_semantics, residual) / (
+                np.linalg.norm(proposed_semantics) ** 2
+            )
+            trail_semantics = temp_semantics + factor * proposed_semantics
+            trial_mse = np.mean((trail_semantics - target) ** 2)
+            current_mse = np.mean((current_semantics - target) ** 2)
+            if trial_mse < current_mse:
+                # replacement
+                ind.gene[id] = copy.deepcopy(tree)
+                current_semantics = trail_semantics
+        return
 
     def addition_and_deletion(i, offspring):
         if random.random() < mutation_configuration.gene_deletion_rate:
