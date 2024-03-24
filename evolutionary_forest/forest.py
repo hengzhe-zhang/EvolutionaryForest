@@ -860,6 +860,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         # Pareto front of training error and test error
         self.pareto_front = []
+        self.noise_pareto_front_1 = []
+        self.noise_pareto_front_2 = []
+        self.data_pareto_front_50 = []
+        self.data_pareto_front_200 = []
+        self.data_pareto_front_500 = []
         self.knn_pareto_front = []
         self.wknn_pareto_front = []
         self.dt_pareto_front = []

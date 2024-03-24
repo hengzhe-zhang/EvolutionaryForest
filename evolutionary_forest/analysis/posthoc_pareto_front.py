@@ -3,6 +3,7 @@ import seaborn as sns
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from sklearn.base import ClassifierMixin
+from sklearn.linear_model import RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
 
@@ -62,6 +63,11 @@ class ParetoFrontTool:
             plt.grid(True)
             plt.show()
 
+        noise_pareto_front = True
+        less_sample_front = True
+        more_sample_front = False
+        transfer_model_front = False
+
         # Compute normalized prediction error for each individual
         for ind in self.pop:
             prediction = self.individual_prediction(test_x, [ind])[0]
@@ -88,62 +94,254 @@ class ParetoFrontTool:
             constructed_test_x = np.nan_to_num(
                 constructed_test_x.astype(np.float32), posinf=0, neginf=0
             )
+            if less_sample_front:
+                loss_on_more_data = ParetoFrontTool.get_loss_on_less_data(
+                    self, ind, train_x, self.y, test_x, test_y, less_sample=0.5
+                )
+                self.data_pareto_front_50.append(
+                    (
+                        float(test_error_normalized_by_test),
+                        float(loss_on_more_data / normalization_factor_test),
+                    )
+                )
 
-            test_error_normalized_knn = ParetoFrontTool.model_transfer(
-                self,
-                normalization_factor_test,
-                constructed_train_x,
-                constructed_test_x,
-                test_y,
-                model_name="KNN",
-            )
-            test_error_normalized_wknn = ParetoFrontTool.model_transfer(
-                self,
-                normalization_factor_test,
-                constructed_train_x,
-                constructed_test_x,
-                test_y,
-                model_name="WKNN",
-            )
-            test_error_normalized_dt = ParetoFrontTool.model_transfer(
-                self,
-                normalization_factor_test,
-                constructed_train_x,
-                constructed_test_x,
-                test_y,
-                model_name="DT",
-            )
-            self.knn_pareto_front.append(
-                (
-                    float(test_error_normalized_by_test),
-                    float(test_error_normalized_knn),
+            if more_sample_front:
+                loss_on_more_data = ParetoFrontTool.get_loss_on_more_data(
+                    self,
+                    ind,
+                    train_x,
+                    self.y,
+                    test_x,
+                    test_y,
+                    more_samples=100,
                 )
-            )
-            self.wknn_pareto_front.append(
-                (
-                    float(test_error_normalized_by_test),
-                    float(test_error_normalized_wknn),
+                if loss_on_more_data == None:
+                    self.data_pareto_front_200.append(
+                        (
+                            float(test_error_normalized_by_test),
+                            float(test_error_normalized_by_test),
+                        )
+                    )
+                else:
+                    self.data_pareto_front_200.append(
+                        (
+                            float(test_error_normalized_by_test),
+                            float(loss_on_more_data / normalization_factor_test),
+                        )
+                    )
+                loss_on_more_data = ParetoFrontTool.get_loss_on_more_data(
+                    self,
+                    ind,
+                    train_x,
+                    self.y,
+                    test_x,
+                    test_y,
+                    more_samples=400,
                 )
-            )
-            self.dt_pareto_front.append(
-                (
-                    float(test_error_normalized_by_test),
-                    float(test_error_normalized_dt),
+                if loss_on_more_data is None:
+                    self.data_pareto_front_500.append(
+                        (
+                            float(test_error_normalized_by_test),
+                            float(test_error_normalized_by_test),
+                        )
+                    )
+                else:
+                    self.data_pareto_front_500.append(
+                        (
+                            float(test_error_normalized_by_test),
+                            float(loss_on_more_data / normalization_factor_test),
+                        )
+                    )
+
+            if noise_pareto_front:
+                # std=0.1
+                loss_on_noisy_target = ParetoFrontTool.get_loss_on_noisy_target(
+                    self, constructed_test_x, constructed_train_x, test_y, std=0.1
                 )
-            )
+                self.noise_pareto_front_1.append(
+                    (
+                        # original test error
+                        float(test_error_normalized_by_test),
+                        # noise test error
+                        float(loss_on_noisy_target / normalization_factor_test),
+                    )
+                )
+                # std=0.2
+                loss_on_noisy_target = ParetoFrontTool.get_loss_on_noisy_target(
+                    self, constructed_test_x, constructed_train_x, test_y, std=2
+                )
+                self.noise_pareto_front_2.append(
+                    (
+                        # original test error
+                        float(test_error_normalized_by_test),
+                        # noise test error
+                        float(loss_on_noisy_target / normalization_factor_test),
+                    )
+                )
+            if transfer_model_front:
+                test_error_normalized_knn = ParetoFrontTool.model_transfer(
+                    self,
+                    normalization_factor_test,
+                    constructed_train_x,
+                    constructed_test_x,
+                    test_y,
+                    model_name="KNN",
+                )
+                test_error_normalized_wknn = ParetoFrontTool.model_transfer(
+                    self,
+                    normalization_factor_test,
+                    constructed_train_x,
+                    constructed_test_x,
+                    test_y,
+                    model_name="WKNN",
+                )
+                test_error_normalized_dt = ParetoFrontTool.model_transfer(
+                    self,
+                    normalization_factor_test,
+                    constructed_train_x,
+                    constructed_test_x,
+                    test_y,
+                    model_name="DT",
+                )
+                self.knn_pareto_front.append(
+                    (
+                        float(test_error_normalized_by_test),
+                        float(test_error_normalized_knn),
+                    )
+                )
+                self.wknn_pareto_front.append(
+                    (
+                        float(test_error_normalized_by_test),
+                        float(test_error_normalized_wknn),
+                    )
+                )
+                self.dt_pareto_front.append(
+                    (
+                        float(test_error_normalized_by_test),
+                        float(test_error_normalized_dt),
+                    )
+                )
             del prediction
             del errors
         self.pareto_front, _ = pareto_front_2d(self.pareto_front)
         self.pareto_front = self.pareto_front.tolist()
 
-        self.knn_pareto_front, _ = pareto_front_2d(self.knn_pareto_front)
-        self.knn_pareto_front = self.knn_pareto_front.tolist()
+        if len(self.data_pareto_front_50) > 0:
+            self.data_pareto_front_50, _ = pareto_front_2d(self.data_pareto_front_50)
+            self.data_pareto_front_50 = self.data_pareto_front_50.tolist()
 
-        self.wknn_pareto_front, _ = pareto_front_2d(self.wknn_pareto_front)
-        self.wknn_pareto_front = self.wknn_pareto_front.tolist()
+        if len(self.data_pareto_front_200) > 0:
+            self.data_pareto_front_200, _ = pareto_front_2d(self.data_pareto_front_200)
+            self.data_pareto_front_200 = self.data_pareto_front_200.tolist()
+        if len(self.data_pareto_front_500) > 0:
+            self.data_pareto_front_500, _ = pareto_front_2d(self.data_pareto_front_500)
+            self.data_pareto_front_500 = self.data_pareto_front_500.tolist()
 
-        self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
-        self.dt_pareto_front = self.dt_pareto_front.tolist()
+        if len(self.noise_pareto_front_1) > 0:
+            self.noise_pareto_front_1, _ = pareto_front_2d(self.noise_pareto_front_1)
+            self.noise_pareto_front_1 = self.noise_pareto_front_1.tolist()
+        if len(self.noise_pareto_front_2) > 0:
+            self.noise_pareto_front_2, _ = pareto_front_2d(self.noise_pareto_front_2)
+            self.noise_pareto_front_2 = self.noise_pareto_front_2.tolist()
+        if len(self.knn_pareto_front) > 0:
+            self.knn_pareto_front, _ = pareto_front_2d(self.knn_pareto_front)
+            self.knn_pareto_front = self.knn_pareto_front.tolist()
+        if len(self.wknn_pareto_front) > 0:
+            self.wknn_pareto_front, _ = pareto_front_2d(self.wknn_pareto_front)
+            self.wknn_pareto_front = self.wknn_pareto_front.tolist()
+        if len(self.dt_pareto_front) > 0:
+            self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
+            self.dt_pareto_front = self.dt_pareto_front.tolist()
+
+    @staticmethod
+    def get_loss_on_less_data(
+        self, ind, train_x, train_y, test_x, test_y, less_sample=0.5
+    ):
+        test_x = self.x_scaler.transform(test_x)
+        constructed_test_x = self.feature_generation(test_x, ind)
+
+        # sample less data
+        sample_index = np.random.choice(len(train_x), int(less_sample * len(train_x)))
+        train_x = train_x[sample_index]
+        constructed_train_x = self.feature_generation(train_x, ind)
+        train_y = train_y[sample_index]
+
+        model = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("model", SlicedPredictor(RidgeCV())),
+            ]
+        )
+        model.fit(constructed_train_x, train_y)
+
+        # make prediction
+        prediction = model.predict(constructed_test_x)
+        prediction = self.y_scaler.inverse_transform(
+            prediction.reshape(-1, 1)
+        ).flatten()
+        loss_on_more_data = (test_y - prediction) ** 2
+        return np.mean(loss_on_more_data)
+
+    @staticmethod
+    def get_loss_on_more_data(
+        self, ind, train_x, train_y, test_x, test_y, more_samples=100
+    ):
+        if len(train_x) + more_samples > 0.8 * (len(train_x) + len(test_x)):
+            # invalid
+            return None
+
+        test_x = self.x_scaler.transform(test_x)
+        # sample more data
+        sample_index = np.random.choice(len(test_x), more_samples, replace=False)
+        train_x = np.concatenate([train_x, test_x[sample_index]])
+        constructed_train_x = self.feature_generation(train_x, ind)
+        # y need to be scaled
+        sampled_y = test_y[sample_index]
+        sampled_y = self.y_scaler.transform(sampled_y.reshape(-1, 1)).flatten()
+        train_y = np.concatenate([train_y, sampled_y])
+
+        # remove the sample data
+        test_x = np.delete(test_x, sample_index, axis=0)
+        test_y = np.delete(test_y, sample_index, axis=0)
+        constructed_test_x = self.feature_generation(test_x, ind)
+
+        model = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("model", SlicedPredictor(RidgeCV())),
+            ]
+        )
+        model.fit(constructed_train_x, train_y)
+        # make prediction
+        prediction = model.predict(constructed_test_x)
+        prediction = self.y_scaler.inverse_transform(
+            prediction.reshape(-1, 1)
+        ).flatten()
+        loss_on_more_data = (test_y - prediction) ** 2
+        return np.mean(loss_on_more_data)
+
+    @staticmethod
+    def get_loss_on_noisy_target(
+        self, constructed_test_x, constructed_train_x, test_y, std=0.1
+    ):
+        train_y = self.y
+        noisy_train_y = train_y + np.random.normal(
+            0, std * train_y.std(), train_y.shape
+        )
+        model = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("model", SlicedPredictor(RidgeCV())),
+            ]
+        )
+        model.fit(constructed_train_x, noisy_train_y)
+        # make prediction
+        prediction = model.predict(constructed_test_x)
+        prediction = self.y_scaler.inverse_transform(
+            prediction.reshape(-1, 1)
+        ).flatten()
+        loss_on_noisy_target = (test_y - prediction) ** 2
+        return np.mean(loss_on_noisy_target)
 
     @staticmethod
     def model_transfer(
