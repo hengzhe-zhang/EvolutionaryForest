@@ -3,6 +3,8 @@ import seaborn as sns
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from sklearn.base import ClassifierMixin
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
 
 from evolutionary_forest.component.decision_making.bend_angle_knee import (
     find_knee_based_on_bend_angle,
@@ -10,6 +12,7 @@ from evolutionary_forest.component.decision_making.bend_angle_knee import (
 from evolutionary_forest.component.environmental_selection import EnvironmentalSelection
 from evolutionary_forest.component.fitness import RademacherComplexityR2, R2PACBayesian
 from evolutionary_forest.multigene_gp import *
+from evolutionary_forest.utility.sliced_predictor import SlicedPredictor
 from evolutionary_forest.utils import pareto_front_2d
 
 if TYPE_CHECKING:
@@ -37,6 +40,28 @@ class ParetoFrontTool:
         normalization_factor_scaled = np.mean((self.y - np.mean(self.y)) ** 2)
         normalization_factor_test = np.mean((test_y - np.mean(test_y)) ** 2)
 
+        multiobjective_plot = False
+        if multiobjective_plot:
+            fitness_values = [ind.fitness.wvalues for ind in self.pop]
+            # Extract x and y coordinates from fitness values
+            x = np.array([fitness[0] for fitness in fitness_values])
+            y = np.array([fitness[1] for fitness in fitness_values])
+            knee_index = np.argmax(x + y)
+
+            # Create scatter plot
+            plt.scatter(x / (x.max() - x.min()), y / (y.max() - y.min()))
+            plt.scatter(
+                x[knee_index] / (x.max() - x.min()),
+                y[knee_index] / (y.max() - y.min()),
+                color="red",
+                label="Knee Point",
+            )
+            plt.title("Fitness Scatter Plot")
+            plt.xlabel("Fitness Value 1")
+            plt.ylabel("Fitness Value 2")
+            plt.grid(True)
+            plt.show()
+
         # Compute normalized prediction error for each individual
         for ind in self.pop:
             prediction = self.individual_prediction(test_x, [ind])[0]
@@ -48,10 +73,114 @@ class ParetoFrontTool:
                     float(test_error_normalized_by_test),
                 )
             )
+
+            # feature construction
+            train_x = self.X
+            constructed_train_x = self.feature_generation(train_x, ind)
+            # scaling test data
+            scaled_test_x = self.x_scaler.transform(test_x)
+            constructed_test_x = self.feature_generation(scaled_test_x, ind)
+
+            test_error_normalized_knn = ParetoFrontTool.model_transfer(
+                self,
+                normalization_factor_test,
+                constructed_train_x,
+                constructed_test_x,
+                test_y,
+                model_name="KNN",
+            )
+            test_error_normalized_wknn = ParetoFrontTool.model_transfer(
+                self,
+                normalization_factor_test,
+                constructed_train_x,
+                constructed_test_x,
+                test_y,
+                model_name="WKNN",
+            )
+            test_error_normalized_dt = ParetoFrontTool.model_transfer(
+                self,
+                normalization_factor_test,
+                constructed_train_x,
+                constructed_test_x,
+                test_y,
+                model_name="DT",
+            )
+            self.knn_pareto_front.append(
+                (
+                    float(test_error_normalized_by_test),
+                    float(test_error_normalized_knn),
+                )
+            )
+            self.wknn_pareto_front.append(
+                (
+                    float(test_error_normalized_by_test),
+                    float(test_error_normalized_wknn),
+                )
+            )
+            self.dt_pareto_front.append(
+                (
+                    float(test_error_normalized_by_test),
+                    float(test_error_normalized_dt),
+                )
+            )
             del prediction
             del errors
         self.pareto_front, _ = pareto_front_2d(self.pareto_front)
         self.pareto_front = self.pareto_front.tolist()
+
+        self.knn_pareto_front, _ = pareto_front_2d(self.knn_pareto_front)
+        self.knn_pareto_front = self.knn_pareto_front.tolist()
+
+        self.wknn_pareto_front, _ = pareto_front_2d(self.wknn_pareto_front)
+        self.wknn_pareto_front = self.wknn_pareto_front.tolist()
+
+        self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
+        self.dt_pareto_front = self.dt_pareto_front.tolist()
+
+    @staticmethod
+    def model_transfer(
+        self,
+        normalization_factor_test,
+        constructed_train_x,
+        constructed_test_x,
+        test_y,
+        model_name="KNN",
+    ):
+        train_y = self.y
+        if model_name == "KNN":
+            model = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("model", SlicedPredictor(KNeighborsRegressor(n_neighbors=5))),
+                ]
+            )
+        elif model_name == "WKNN":
+            model = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "model",
+                        SlicedPredictor(
+                            KNeighborsRegressor(n_neighbors=5, weights="distance")
+                        ),
+                    ),
+                ]
+            )
+        elif model_name == "DT":
+            model = SlicedPredictor(DecisionTreeRegressor())
+        else:
+            raise Exception("Model name is not supported")
+        model.fit(constructed_train_x, train_y)
+
+        prediction = model.predict(constructed_test_x)
+        prediction = self.y_scaler.inverse_transform(
+            prediction.reshape(-1, 1)
+        ).flatten()
+        errors = (test_y - prediction) ** 2
+        test_error_normalized_transfer_model = (
+            np.mean(errors) / normalization_factor_test
+        )
+        return test_error_normalized_transfer_model
 
     @staticmethod
     def calculate_sharpness_pareto_front(self: "EvolutionaryForestRegressor", x_train):
