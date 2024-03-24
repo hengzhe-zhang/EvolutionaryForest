@@ -77,9 +77,17 @@ class ParetoFrontTool:
             # feature construction
             train_x = self.X
             constructed_train_x = self.feature_generation(train_x, ind)
+            # fix too large values
+            constructed_train_x = np.nan_to_num(
+                constructed_train_x.astype(np.float32), posinf=0, neginf=0
+            )
             # scaling test data
             scaled_test_x = self.x_scaler.transform(test_x)
             constructed_test_x = self.feature_generation(scaled_test_x, ind)
+            # fix too large values
+            constructed_test_x = np.nan_to_num(
+                constructed_test_x.astype(np.float32), posinf=0, neginf=0
+            )
 
             test_error_normalized_knn = ParetoFrontTool.model_transfer(
                 self,
