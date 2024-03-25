@@ -862,6 +862,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.pareto_front = []
         self.noise_pareto_front_1 = []
         self.noise_pareto_front_2 = []
+        self.noise_sample_pareto_front_1 = []
+        self.noise_sample_pareto_front_5 = []
         self.data_pareto_front_50 = []
         self.data_pareto_front_200 = []
         self.data_pareto_front_500 = []

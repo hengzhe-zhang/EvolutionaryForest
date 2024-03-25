@@ -63,8 +63,9 @@ class ParetoFrontTool:
             plt.grid(True)
             plt.show()
 
-        noise_pareto_front = True
-        less_sample_front = True
+        noise_pareto_front = False
+        noise_sample_pareto_front = True
+        less_sample_front = False
         more_sample_front = False
         transfer_model_front = False
 
@@ -79,6 +80,28 @@ class ParetoFrontTool:
                     float(test_error_normalized_by_test),
                 )
             )
+
+            if noise_sample_pareto_front:
+                std = 0.1
+                noisy_test_error_normalized_by_test = ParetoFrontTool.nosiy_prediction(
+                    ind, self, std, normalization_factor_test, test_x, test_y
+                )
+                self.noise_sample_pareto_front_1.append(
+                    (
+                        float(test_error_normalized_by_test),
+                        float(noisy_test_error_normalized_by_test),
+                    )
+                )
+                std = 0.5
+                noisy_test_error_normalized_by_test = ParetoFrontTool.nosiy_prediction(
+                    ind, self, std, normalization_factor_test, test_x, test_y
+                )
+                self.noise_sample_pareto_front_5.append(
+                    (
+                        float(test_error_normalized_by_test),
+                        float(noisy_test_error_normalized_by_test),
+                    )
+                )
 
             # feature construction
             train_x = self.X
@@ -229,20 +252,28 @@ class ParetoFrontTool:
         if len(self.data_pareto_front_50) > 0:
             self.data_pareto_front_50, _ = pareto_front_2d(self.data_pareto_front_50)
             self.data_pareto_front_50 = self.data_pareto_front_50.tolist()
-
         if len(self.data_pareto_front_200) > 0:
             self.data_pareto_front_200, _ = pareto_front_2d(self.data_pareto_front_200)
             self.data_pareto_front_200 = self.data_pareto_front_200.tolist()
         if len(self.data_pareto_front_500) > 0:
             self.data_pareto_front_500, _ = pareto_front_2d(self.data_pareto_front_500)
             self.data_pareto_front_500 = self.data_pareto_front_500.tolist()
-
         if len(self.noise_pareto_front_1) > 0:
             self.noise_pareto_front_1, _ = pareto_front_2d(self.noise_pareto_front_1)
             self.noise_pareto_front_1 = self.noise_pareto_front_1.tolist()
         if len(self.noise_pareto_front_2) > 0:
             self.noise_pareto_front_2, _ = pareto_front_2d(self.noise_pareto_front_2)
             self.noise_pareto_front_2 = self.noise_pareto_front_2.tolist()
+        if len(self.noise_sample_pareto_front_1) > 0:
+            self.noise_sample_pareto_front_1, _ = pareto_front_2d(
+                self.noise_sample_pareto_front_1
+            )
+            self.noise_sample_pareto_front_1 = self.noise_sample_pareto_front_1.tolist()
+        if len(self.noise_sample_pareto_front_5) > 0:
+            self.noise_sample_pareto_front_5, _ = pareto_front_2d(
+                self.noise_sample_pareto_front_5
+            )
+            self.noise_sample_pareto_front_5 = self.noise_sample_pareto_front_5.tolist()
         if len(self.knn_pareto_front) > 0:
             self.knn_pareto_front, _ = pareto_front_2d(self.knn_pareto_front)
             self.knn_pareto_front = self.knn_pareto_front.tolist()
@@ -252,6 +283,16 @@ class ParetoFrontTool:
         if len(self.dt_pareto_front) > 0:
             self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
             self.dt_pareto_front = self.dt_pareto_front.tolist()
+
+    @staticmethod
+    def nosiy_prediction(ind, self, std, normalization_factor_test, test_x, test_y):
+        noise = np.random.normal(0, std * test_x.std(axis=0), test_x.shape)
+        noisy_prediction = self.individual_prediction(test_x + noise, [ind])[0]
+        noisy_errors = (test_y - noisy_prediction) ** 2
+        noisy_test_error_normalized_by_test = (
+            np.mean(noisy_errors) / normalization_factor_test
+        )
+        return noisy_test_error_normalized_by_test
 
     @staticmethod
     def get_loss_on_less_data(
