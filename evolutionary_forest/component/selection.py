@@ -23,7 +23,6 @@ from sklearn.preprocessing import StandardScaler
 from skorch.callbacks import EarlyStopping
 from torch import optim
 from torch.nn import MSELoss
-from umap import UMAP
 
 from evolutionary_forest.component.evaluation import cos_sim
 from evolutionary_forest.model.VAE import NeuralNetTransformer, VAE
@@ -720,6 +719,8 @@ def selMAPElites(
                 [("PCA-Preprocess", PCA(n_components=0.99)), ("PCA", common_tsne())]
             )
         elif reduction_method == "UMAP":
+            from umap import UMAP
+
             pca = UMAP(n_components=pca_dimension)
         elif reduction_method == "SpectralEmbedding":
             pca = SpectralEmbedding(n_components=pca_dimension)

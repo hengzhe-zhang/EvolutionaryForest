@@ -82,11 +82,11 @@ class ParetoFrontTool:
             )
 
             if noise_sample_pareto_front:
-                std = 0.1
+                std = 1
                 noisy_test_error_normalized_by_test = ParetoFrontTool.nosiy_prediction(
                     ind, self, std, normalization_factor_test, test_x, test_y
                 )
-                self.noise_sample_pareto_front_1.append(
+                self.noise_sample_pareto_front_10.append(
                     (
                         float(test_error_normalized_by_test),
                         float(noisy_test_error_normalized_by_test),
@@ -264,11 +264,13 @@ class ParetoFrontTool:
         if len(self.noise_pareto_front_2) > 0:
             self.noise_pareto_front_2, _ = pareto_front_2d(self.noise_pareto_front_2)
             self.noise_pareto_front_2 = self.noise_pareto_front_2.tolist()
-        if len(self.noise_sample_pareto_front_1) > 0:
-            self.noise_sample_pareto_front_1, _ = pareto_front_2d(
-                self.noise_sample_pareto_front_1
+        if len(self.noise_sample_pareto_front_10) > 0:
+            self.noise_sample_pareto_front_10, _ = pareto_front_2d(
+                self.noise_sample_pareto_front_10
             )
-            self.noise_sample_pareto_front_1 = self.noise_sample_pareto_front_1.tolist()
+            self.noise_sample_pareto_front_10 = (
+                self.noise_sample_pareto_front_10.tolist()
+            )
         if len(self.noise_sample_pareto_front_5) > 0:
             self.noise_sample_pareto_front_5, _ = pareto_front_2d(
                 self.noise_sample_pareto_front_5
