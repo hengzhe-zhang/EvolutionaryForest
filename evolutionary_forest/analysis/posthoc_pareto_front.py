@@ -365,8 +365,13 @@ class ParetoFrontTool:
         ind, self, std, normalization_factor_test, test_x, test_y
     ):
         worst_loss = np.zeros(test_x.shape[0])
-        for _ in range(10):
-            noise = np.random.normal(0, std * test_x.std(axis=0), test_x.shape)
+        for t in range(10):
+            rng = np.random.RandomState(100 + t)
+            noise = rng.normal(
+                0,
+                std * test_x.std(axis=0),
+                test_x.shape,
+            )
             noisy_prediction = self.individual_prediction(test_x + noise, [ind])[0]
             noisy_errors = (test_y - noisy_prediction) ** 2
             worst_loss = np.maximum(worst_loss, noisy_errors)
