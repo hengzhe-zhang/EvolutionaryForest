@@ -2726,7 +2726,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
         if isinstance(self.hof, EnsembleSelectionHallOfFame):
             self.hof.verbose = self.verbose
-        self.model_size_archive = ModelSizeArchive(self.n_pop)
+        self.model_size_archive = ModelSizeArchive(self.n_pop, self.score_func)
         if self.bloat_control is not None and self.bloat_control.get(
             "lasso_prune", False
         ):

@@ -5,7 +5,7 @@ from deap.tools import selNSGA2
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from sklearn.base import ClassifierMixin
-from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
 from sklearn.linear_model import RidgeCV, LassoCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
@@ -85,7 +85,8 @@ class ParetoFrontTool:
             noise_input_pareto_front = True
 
         if flag in ["SAM", "Mixup"]:
-            adversarial_front = True
+            noise_target_pareto_front = True
+            transfer_model_front = True
 
         # Compute normalized prediction error for each individual
         individual_list = self.pop
@@ -99,21 +100,24 @@ class ParetoFrontTool:
             else:
                 individual_list = selNSGA2(individual_list, 10)
             fitness_restore_back(individual_list)
-        for ind in individual_list:
+        for ind in self.hof:
             prediction = self.individual_prediction(test_x, [ind])[0]
             errors = (test_y - prediction) ** 2
             test_error_normalized_by_test = np.mean(errors) / normalization_factor_test
+            # self.pareto_front.append(
+            #     (
+            #         float(np.mean(ind.case_values) / normalization_factor_scaled),
+            #         float(test_error_normalized_by_test),
+            #     )
+            # )
+            # self.size_pareto_front.append(
+            #     (
+            #         test_error_normalized_by_test,
+            #         sum([len(gene) for gene in ind.gene]),
+            #     )
+            # )
             self.pareto_front.append(
-                (
-                    float(np.mean(ind.case_values) / normalization_factor_scaled),
-                    float(test_error_normalized_by_test),
-                )
-            )
-            self.size_pareto_front.append(
-                (
-                    test_error_normalized_by_test,
-                    sum([len(gene) for gene in ind.gene]),
-                )
+                test_error_normalized_by_test,
             )
 
             if adversarial_front:
@@ -123,11 +127,14 @@ class ParetoFrontTool:
                         ind, self, std, normalization_factor_test, test_x, test_y
                     )
                 )
-                self.adversarial_pareto_front_10.append(
-                    (
-                        float(test_error_normalized_by_test),
-                        float(noisy_test_error_normalized_by_test),
-                    )
+                # self.adversarial_pareto_front_10.append(
+                #     (
+                #         float(test_error_normalized_by_test),
+                #         float(noisy_test_error_normalized_by_test),
+                #     )
+                # )
+                self.pareto_front.append(
+                    noisy_test_error_normalized_by_test,
                 )
 
             if noise_input_pareto_front:
@@ -135,21 +142,27 @@ class ParetoFrontTool:
                 noisy_test_error_normalized_by_test = ParetoFrontTool.noisy_prediction(
                     ind, self, std, normalization_factor_test, test_x, test_y
                 )
-                self.noise_sample_pareto_front_10.append(
-                    (
-                        float(test_error_normalized_by_test),
-                        float(noisy_test_error_normalized_by_test),
-                    )
+                # self.noise_sample_pareto_front_10.append(
+                #     (
+                #         float(test_error_normalized_by_test),
+                #         float(noisy_test_error_normalized_by_test),
+                #     )
+                # )
+                self.pareto_front.append(
+                    noisy_test_error_normalized_by_test,
                 )
                 std = 0.5
                 noisy_test_error_normalized_by_test = ParetoFrontTool.noisy_prediction(
                     ind, self, std, normalization_factor_test, test_x, test_y
                 )
-                self.noise_sample_pareto_front_5.append(
-                    (
-                        float(test_error_normalized_by_test),
-                        float(noisy_test_error_normalized_by_test),
-                    )
+                # self.noise_sample_pareto_front_5.append(
+                #     (
+                #         float(test_error_normalized_by_test),
+                #         float(noisy_test_error_normalized_by_test),
+                #     )
+                # )
+                self.pareto_front.append(
+                    noisy_test_error_normalized_by_test,
                 )
 
             # feature construction
@@ -170,12 +183,12 @@ class ParetoFrontTool:
                 loss_on_more_data = ParetoFrontTool.get_loss_on_less_data(
                     self, ind, train_x, self.y, test_x, test_y, less_sample=0.5
                 )
-                self.data_pareto_front_50.append(
-                    (
-                        float(test_error_normalized_by_test),
-                        float(loss_on_more_data / normalization_factor_test),
-                    )
-                )
+                # self.data_pareto_front_50.append(
+                #     (
+                #         float(test_error_normalized_by_test),
+                #         float(loss_on_more_data),
+                #     )
+                # )
 
             if more_sample_front:
                 loss_on_more_data = ParetoFrontTool.get_loss_on_more_data(
@@ -187,20 +200,20 @@ class ParetoFrontTool:
                     test_y,
                     more_samples=100,
                 )
-                if loss_on_more_data == None:
-                    self.data_pareto_front_200.append(
-                        (
-                            float(test_error_normalized_by_test),
-                            float(test_error_normalized_by_test),
-                        )
-                    )
-                else:
-                    self.data_pareto_front_200.append(
-                        (
-                            float(test_error_normalized_by_test),
-                            float(loss_on_more_data / normalization_factor_test),
-                        )
-                    )
+                # if loss_on_more_data == None:
+                #     self.data_pareto_front_200.append(
+                #         (
+                #             float(test_error_normalized_by_test),
+                #             float(test_error_normalized_by_test),
+                #         )
+                #     )
+                # else:
+                #     self.data_pareto_front_200.append(
+                #         (
+                #             float(test_error_normalized_by_test),
+                #             float(loss_on_more_data),
+                #         )
+                #     )
                 loss_on_more_data = ParetoFrontTool.get_loss_on_more_data(
                     self,
                     ind,
@@ -210,46 +223,62 @@ class ParetoFrontTool:
                     test_y,
                     more_samples=400,
                 )
-                if loss_on_more_data is None:
-                    self.data_pareto_front_500.append(
-                        (
-                            float(test_error_normalized_by_test),
-                            float(test_error_normalized_by_test),
-                        )
-                    )
-                else:
-                    self.data_pareto_front_500.append(
-                        (
-                            float(test_error_normalized_by_test),
-                            float(loss_on_more_data / normalization_factor_test),
-                        )
-                    )
+                # if loss_on_more_data is None:
+                #     self.data_pareto_front_500.append(
+                #         (
+                #             float(test_error_normalized_by_test),
+                #             float(test_error_normalized_by_test),
+                #         )
+                #     )
+                # else:
+                #     self.data_pareto_front_500.append(
+                #         (
+                #             float(test_error_normalized_by_test),
+                #             float(loss_on_more_data / normalization_factor_test),
+                #         )
+                #     )
 
             if noise_target_pareto_front:
                 # std=0.1
                 loss_on_noisy_target = ParetoFrontTool.get_loss_on_noisy_target(
-                    self, constructed_test_x, constructed_train_x, test_y, std=0.1
+                    self,
+                    constructed_test_x,
+                    constructed_train_x,
+                    test_y,
+                    normalization_factor_test,
+                    std=0.1,
                 )
-                self.noise_pareto_front_1.append(
-                    (
-                        # original test error
-                        float(test_error_normalized_by_test),
-                        # noise test error
-                        float(loss_on_noisy_target / normalization_factor_test),
-                    )
+                self.pareto_front.append(
+                    loss_on_noisy_target,
                 )
+                # self.noise_pareto_front_1.append(
+                #     (
+                #         # original test error
+                #         float(test_error_normalized_by_test),
+                #         # noise test error
+                #         float(loss_on_noisy_target / normalization_factor_test),
+                #     )
+                # )
                 # std=1
                 loss_on_noisy_target = ParetoFrontTool.get_loss_on_noisy_target(
-                    self, constructed_test_x, constructed_train_x, test_y, std=1
+                    self,
+                    constructed_test_x,
+                    constructed_train_x,
+                    test_y,
+                    normalization_factor_test,
+                    std=1,
                 )
-                self.noise_pareto_front_10.append(
-                    (
-                        # original test error
-                        float(test_error_normalized_by_test),
-                        # noise test error
-                        float(loss_on_noisy_target / normalization_factor_test),
-                    )
+                self.pareto_front.append(
+                    loss_on_noisy_target,
                 )
+                # self.noise_pareto_front_10.append(
+                #     (
+                #         # original test error
+                #         float(test_error_normalized_by_test),
+                #         # noise test error
+                #         float(loss_on_noisy_target / normalization_factor_test),
+                #     )
+                # )
             if transfer_model_front:
                 test_error_normalized_knn = ParetoFrontTool.model_transfer(
                     self,
@@ -259,6 +288,9 @@ class ParetoFrontTool:
                     test_y,
                     model_name="KNN",
                 )
+                self.pareto_front.append(
+                    test_error_normalized_knn,
+                )
                 test_error_normalized_wknn = ParetoFrontTool.model_transfer(
                     self,
                     normalization_factor_test,
@@ -266,6 +298,9 @@ class ParetoFrontTool:
                     constructed_test_x,
                     test_y,
                     model_name="WKNN",
+                )
+                self.pareto_front.append(
+                    test_error_normalized_wknn,
                 )
                 test_error_normalized_lasso = ParetoFrontTool.model_transfer(
                     self,
@@ -275,6 +310,9 @@ class ParetoFrontTool:
                     test_y,
                     model_name="Lasso",
                 )
+                self.pareto_front.append(
+                    test_error_normalized_lasso,
+                )
                 test_error_normalized_dt = ParetoFrontTool.model_transfer(
                     self,
                     normalization_factor_test,
@@ -283,72 +321,86 @@ class ParetoFrontTool:
                     test_y,
                     model_name="DT",
                 )
-                self.knn_pareto_front.append(
-                    (
-                        float(test_error_normalized_by_test),
-                        float(test_error_normalized_knn),
-                    )
+                self.pareto_front.append(
+                    test_error_normalized_dt,
                 )
-                self.wknn_pareto_front.append(
-                    (
-                        float(test_error_normalized_by_test),
-                        float(test_error_normalized_wknn),
-                    )
+                test_error_normalized_rf = ParetoFrontTool.model_transfer(
+                    self,
+                    normalization_factor_test,
+                    constructed_train_x,
+                    constructed_test_x,
+                    test_y,
+                    model_name="RF",
                 )
-                self.dt_pareto_front.append(
-                    (
-                        float(test_error_normalized_by_test),
-                        float(test_error_normalized_dt),
-                    )
+                self.pareto_front.append(
+                    test_error_normalized_rf,
                 )
+                # self.knn_pareto_front.append(
+                #     (
+                #         float(test_error_normalized_by_test),
+                #         float(test_error_normalized_knn),
+                #     )
+                # )
+                # self.wknn_pareto_front.append(
+                #     (
+                #         float(test_error_normalized_by_test),
+                #         float(test_error_normalized_wknn),
+                #     )
+                # )
+                # self.dt_pareto_front.append(
+                #     (
+                #         float(test_error_normalized_by_test),
+                #         float(test_error_normalized_dt),
+                #     )
+                # )
             del prediction
             del errors
-        self.pareto_front, _ = pareto_front_2d(self.pareto_front)
-        self.pareto_front = self.pareto_front.tolist()
-        self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
-        self.size_pareto_front = self.size_pareto_front.tolist()
+        # self.pareto_front, _ = pareto_front_2d(self.pareto_front)
+        # self.pareto_front = self.pareto_front.tolist()
+        # self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
+        # self.size_pareto_front = self.size_pareto_front.tolist()
 
-        if len(self.data_pareto_front_50) > 0:
-            self.data_pareto_front_50, _ = pareto_front_2d(self.data_pareto_front_50)
-            self.data_pareto_front_50 = self.data_pareto_front_50.tolist()
-        if len(self.data_pareto_front_200) > 0:
-            self.data_pareto_front_200, _ = pareto_front_2d(self.data_pareto_front_200)
-            self.data_pareto_front_200 = self.data_pareto_front_200.tolist()
-        if len(self.data_pareto_front_500) > 0:
-            self.data_pareto_front_500, _ = pareto_front_2d(self.data_pareto_front_500)
-            self.data_pareto_front_500 = self.data_pareto_front_500.tolist()
-        if len(self.adversarial_pareto_front_10) > 0:
-            self.adversarial_pareto_front_10, _ = pareto_front_2d(
-                self.adversarial_pareto_front_10
-            )
-            self.adversarial_pareto_front_10 = self.adversarial_pareto_front_10.tolist()
-        if len(self.noise_pareto_front_1) > 0:
-            self.noise_pareto_front_1, _ = pareto_front_2d(self.noise_pareto_front_1)
-            self.noise_pareto_front_1 = self.noise_pareto_front_1.tolist()
-        if len(self.noise_pareto_front_10) > 0:
-            self.noise_pareto_front_10, _ = pareto_front_2d(self.noise_pareto_front_10)
-            self.noise_pareto_front_10 = self.noise_pareto_front_10.tolist()
-        if len(self.noise_sample_pareto_front_10) > 0:
-            self.noise_sample_pareto_front_10, _ = pareto_front_2d(
-                self.noise_sample_pareto_front_10
-            )
-            self.noise_sample_pareto_front_10 = (
-                self.noise_sample_pareto_front_10.tolist()
-            )
-        if len(self.noise_sample_pareto_front_5) > 0:
-            self.noise_sample_pareto_front_5, _ = pareto_front_2d(
-                self.noise_sample_pareto_front_5
-            )
-            self.noise_sample_pareto_front_5 = self.noise_sample_pareto_front_5.tolist()
-        if len(self.knn_pareto_front) > 0:
-            self.knn_pareto_front, _ = pareto_front_2d(self.knn_pareto_front)
-            self.knn_pareto_front = self.knn_pareto_front.tolist()
-        if len(self.wknn_pareto_front) > 0:
-            self.wknn_pareto_front, _ = pareto_front_2d(self.wknn_pareto_front)
-            self.wknn_pareto_front = self.wknn_pareto_front.tolist()
-        if len(self.dt_pareto_front) > 0:
-            self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
-            self.dt_pareto_front = self.dt_pareto_front.tolist()
+        # if len(self.data_pareto_front_50) > 0:
+        #     self.data_pareto_front_50, _ = pareto_front_2d(self.data_pareto_front_50)
+        #     self.data_pareto_front_50 = self.data_pareto_front_50.tolist()
+        # if len(self.data_pareto_front_200) > 0:
+        #     self.data_pareto_front_200, _ = pareto_front_2d(self.data_pareto_front_200)
+        #     self.data_pareto_front_200 = self.data_pareto_front_200.tolist()
+        # if len(self.data_pareto_front_500) > 0:
+        #     self.data_pareto_front_500, _ = pareto_front_2d(self.data_pareto_front_500)
+        #     self.data_pareto_front_500 = self.data_pareto_front_500.tolist()
+        # if len(self.adversarial_pareto_front_10) > 0:
+        #     self.adversarial_pareto_front_10, _ = pareto_front_2d(
+        #         self.adversarial_pareto_front_10
+        #     )
+        #     self.adversarial_pareto_front_10 = self.adversarial_pareto_front_10.tolist()
+        # if len(self.noise_pareto_front_1) > 0:
+        #     self.noise_pareto_front_1, _ = pareto_front_2d(self.noise_pareto_front_1)
+        #     self.noise_pareto_front_1 = self.noise_pareto_front_1.tolist()
+        # if len(self.noise_pareto_front_10) > 0:
+        #     self.noise_pareto_front_10, _ = pareto_front_2d(self.noise_pareto_front_10)
+        #     self.noise_pareto_front_10 = self.noise_pareto_front_10.tolist()
+        # if len(self.noise_sample_pareto_front_10) > 0:
+        #     self.noise_sample_pareto_front_10, _ = pareto_front_2d(
+        #         self.noise_sample_pareto_front_10
+        #     )
+        #     self.noise_sample_pareto_front_10 = (
+        #         self.noise_sample_pareto_front_10.tolist()
+        #     )
+        # if len(self.noise_sample_pareto_front_5) > 0:
+        #     self.noise_sample_pareto_front_5, _ = pareto_front_2d(
+        #         self.noise_sample_pareto_front_5
+        #     )
+        #     self.noise_sample_pareto_front_5 = self.noise_sample_pareto_front_5.tolist()
+        # if len(self.knn_pareto_front) > 0:
+        #     self.knn_pareto_front, _ = pareto_front_2d(self.knn_pareto_front)
+        #     self.knn_pareto_front = self.knn_pareto_front.tolist()
+        # if len(self.wknn_pareto_front) > 0:
+        #     self.wknn_pareto_front, _ = pareto_front_2d(self.wknn_pareto_front)
+        #     self.wknn_pareto_front = self.wknn_pareto_front.tolist()
+        # if len(self.dt_pareto_front) > 0:
+        #     self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
+        #     self.dt_pareto_front = self.dt_pareto_front.tolist()
 
         if parameters is not None and isinstance(parameters.get("log_item"), str):
             save_pareto_front = (
@@ -462,7 +514,12 @@ class ParetoFrontTool:
 
     @staticmethod
     def get_loss_on_noisy_target(
-        self, constructed_test_x, constructed_train_x, test_y, std=0.1
+        self,
+        constructed_test_x,
+        constructed_train_x,
+        test_y,
+        normalization_factor_test,
+        std=0.1,
     ):
         train_y = self.y
         noisy_train_y = train_y + np.random.normal(
@@ -481,7 +538,7 @@ class ParetoFrontTool:
             prediction.reshape(-1, 1)
         ).flatten()
         loss_on_noisy_target = (test_y - prediction) ** 2
-        return np.mean(loss_on_noisy_target)
+        return np.mean(loss_on_noisy_target) / normalization_factor_test
 
     @staticmethod
     def model_transfer(
@@ -520,7 +577,9 @@ class ParetoFrontTool:
                 ]
             )
         elif model_name == "DT":
-            model = SlicedPredictor(ExtraTreesRegressor())
+            model = SlicedPredictor(DecisionTreeRegressor())
+        elif model_name == "RF":
+            model = SlicedPredictor(RandomForestRegressor())
         else:
             raise Exception("Model name is not supported")
         model.fit(constructed_train_x, train_y)
