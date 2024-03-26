@@ -8,7 +8,7 @@ def simple_simplification(ind: MultipleGeneGP):
     all_genes = []
     for gene in ind.gene:
         # check constant tree
-        constant = False
+        constant = True
         for node in gene:
             if isinstance(node, Terminal) and isinstance(node.value, str):
                 constant = False

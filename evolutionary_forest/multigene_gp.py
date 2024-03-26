@@ -115,6 +115,7 @@ class MultipleGeneGP:
     fitness_list: List
     # for sharpness estimation
     sam_loss: float
+    scaler: StandardScaler
 
     @property
     def gene_num(self):

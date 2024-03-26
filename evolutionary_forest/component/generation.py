@@ -69,7 +69,8 @@ def varAndPlus(
             for i in range(len(offspring)):
                 addition_and_deletion(i, offspring)
         if mutation_configuration.pool_based_addition:
-            tree_replacement(offspring, i)
+            for i in range(len(offspring)):
+                tree_replacement(offspring[i])
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -237,8 +238,7 @@ def varAndPlus(
             else:
                 offspring[i].gene_deletion()
 
-    def tree_replacement(offspring, i):
-        ind = offspring[i]
+    def tree_replacement(ind: MultipleGeneGP):
         indexes = algorithm.tree_pool.clustering_indexes
         current_semantics = ind.individual_semantics[indexes]
         target = algorithm.y[indexes]
