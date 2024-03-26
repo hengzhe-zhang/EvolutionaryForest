@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from matplotlib import cm
 from matplotlib.colors import Normalize
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 class ParetoFrontTool:
     @staticmethod
     def calculate_test_pareto_front(
-        self: "EvolutionaryForestRegressor", test_x, test_y
+        self: "EvolutionaryForestRegressor", test_x, test_y, flag=None
     ):
         """
         Calculate the Pareto front for test data based on the evolutionary forest regressor.
@@ -64,10 +65,17 @@ class ParetoFrontTool:
             plt.show()
 
         noise_pareto_front = False
-        noise_sample_pareto_front = True
+        noise_sample_pareto_front = False
         less_sample_front = False
         more_sample_front = False
         transfer_model_front = False
+        adversarial_front = False
+
+        if flag == "Bias-Variance":
+            noise_sample_pareto_front = True
+
+        if flag in ["SAM", "Mixup"]:
+            adversarial_front = True
 
         # Compute normalized prediction error for each individual
         for ind in self.pop:
@@ -81,9 +89,23 @@ class ParetoFrontTool:
                 )
             )
 
+            if adversarial_front:
+                std = 0.1
+                noisy_test_error_normalized_by_test = (
+                    ParetoFrontTool.adversarial_prediction(
+                        ind, self, std, normalization_factor_test, test_x, test_y
+                    )
+                )
+                self.adversarial_pareto_front_10.append(
+                    (
+                        float(test_error_normalized_by_test),
+                        float(noisy_test_error_normalized_by_test),
+                    )
+                )
+
             if noise_sample_pareto_front:
                 std = 1
-                noisy_test_error_normalized_by_test = ParetoFrontTool.nosiy_prediction(
+                noisy_test_error_normalized_by_test = ParetoFrontTool.noisy_prediction(
                     ind, self, std, normalization_factor_test, test_x, test_y
                 )
                 self.noise_sample_pareto_front_10.append(
@@ -93,7 +115,7 @@ class ParetoFrontTool:
                     )
                 )
                 std = 0.5
-                noisy_test_error_normalized_by_test = ParetoFrontTool.nosiy_prediction(
+                noisy_test_error_normalized_by_test = ParetoFrontTool.noisy_prediction(
                     ind, self, std, normalization_factor_test, test_x, test_y
                 )
                 self.noise_sample_pareto_front_5.append(
@@ -258,6 +280,11 @@ class ParetoFrontTool:
         if len(self.data_pareto_front_500) > 0:
             self.data_pareto_front_500, _ = pareto_front_2d(self.data_pareto_front_500)
             self.data_pareto_front_500 = self.data_pareto_front_500.tolist()
+        if len(self.adversarial_pareto_front_10) > 0:
+            self.adversarial_pareto_front_10, _ = pareto_front_2d(
+                self.adversarial_pareto_front_10
+            )
+            self.adversarial_pareto_front_10 = self.adversarial_pareto_front_10.tolist()
         if len(self.noise_pareto_front_1) > 0:
             self.noise_pareto_front_1, _ = pareto_front_2d(self.noise_pareto_front_1)
             self.noise_pareto_front_1 = self.noise_pareto_front_1.tolist()
@@ -287,7 +314,7 @@ class ParetoFrontTool:
             self.dt_pareto_front = self.dt_pareto_front.tolist()
 
     @staticmethod
-    def nosiy_prediction(ind, self, std, normalization_factor_test, test_x, test_y):
+    def noisy_prediction(ind, self, std, normalization_factor_test, test_x, test_y):
         noise = np.random.normal(0, std * test_x.std(axis=0), test_x.shape)
         noisy_prediction = self.individual_prediction(test_x + noise, [ind])[0]
         noisy_errors = (test_y - noisy_prediction) ** 2
@@ -295,6 +322,19 @@ class ParetoFrontTool:
             np.mean(noisy_errors) / normalization_factor_test
         )
         return noisy_test_error_normalized_by_test
+
+    @staticmethod
+    def adversarial_prediction(
+        ind, self, std, normalization_factor_test, test_x, test_y
+    ):
+        worst_loss = np.zeros(test_x.shape[0])
+        for _ in range(10):
+            noise = np.random.normal(0, std * test_x.std(axis=0), test_x.shape)
+            noisy_prediction = self.individual_prediction(test_x + noise, [ind])[0]
+            noisy_errors = (test_y - noisy_prediction) ** 2
+            worst_loss = np.maximum(worst_loss, noisy_errors)
+        worst_error_normalized_by_test = np.mean(worst_loss) / normalization_factor_test
+        return worst_error_normalized_by_test
 
     @staticmethod
     def get_loss_on_less_data(

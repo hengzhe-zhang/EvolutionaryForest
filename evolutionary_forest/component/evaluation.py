@@ -592,7 +592,7 @@ def split_and_combine_data_decorator(
             )
 
             # Check if data needs to be split
-            step_size = 50000
+            step_size = 20000
             if data is not None and len(data) > step_size:
                 # Split the data into slices of 50000 elements
                 slices = [
