@@ -61,6 +61,7 @@ class SemanticLibrary:
         max_trees=1000,
         library_updating_mode="LeastFrequentUsed",
         semantics_length=5,
+        random_order_replacement=True,
         **params
     ):
         self.plain_semantics_list = []
@@ -78,6 +79,7 @@ class SemanticLibrary:
         self.max_trees = max_trees  # Maximum number of trees to store
         # Length of semantics to use for KD-Tree
         self.semantics_length = semantics_length
+        self.random_order_replacement = random_order_replacement
 
         self.log_initialization()
 

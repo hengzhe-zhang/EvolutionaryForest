@@ -5,7 +5,8 @@ from deap.tools import selNSGA2
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from sklearn.base import ClassifierMixin
-from sklearn.linear_model import RidgeCV
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.linear_model import RidgeCV, LassoCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
 
@@ -29,7 +30,11 @@ if TYPE_CHECKING:
 class ParetoFrontTool:
     @staticmethod
     def calculate_test_pareto_front(
-        self: "EvolutionaryForestRegressor", test_x, test_y, flag=None
+        self: "EvolutionaryForestRegressor",
+        test_x,
+        test_y,
+        flag=None,
+        parameters: dict = None,
     ):
         """
         Calculate the Pareto front for test data based on the evolutionary forest regressor.
@@ -81,17 +86,17 @@ class ParetoFrontTool:
 
         if flag in ["SAM", "Mixup"]:
             adversarial_front = True
-            transfer_model_front = True
-            noise_target_pareto_front = True
-            noise_input_pareto_front = True
 
         # Compute normalized prediction error for each individual
         individual_list = self.pop
-        only_top_individuals = True
+        only_top_individuals = False
         if only_top_individuals:
             # normalize all fitness values based on max and min
             fitness_normalization(individual_list, False)
-            individual_list = selNSGA2(individual_list, 10)
+            if hasattr(individual_list[0], "sam_loss"):
+                individual_list = sorted(individual_list, key=lambda x: x.sam_loss)[:10]
+            else:
+                individual_list = selNSGA2(individual_list, 10)
             fitness_restore_back(individual_list)
         for ind in individual_list:
             prediction = self.individual_prediction(test_x, [ind])[0]
@@ -255,6 +260,14 @@ class ParetoFrontTool:
                     test_y,
                     model_name="WKNN",
                 )
+                test_error_normalized_lasso = ParetoFrontTool.model_transfer(
+                    self,
+                    normalization_factor_test,
+                    constructed_train_x,
+                    constructed_test_x,
+                    test_y,
+                    model_name="Lasso",
+                )
                 test_error_normalized_dt = ParetoFrontTool.model_transfer(
                     self,
                     normalization_factor_test,
@@ -327,6 +340,15 @@ class ParetoFrontTool:
         if len(self.dt_pareto_front) > 0:
             self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
             self.dt_pareto_front = self.dt_pareto_front.tolist()
+
+        save_pareto_front = (
+            True if "ParetoFront" in parameters.get("log_item") else False
+        )
+        if save_pareto_front:
+            np.save(
+                f"result/{parameters.get('score_func')}_adversarial_pareto_front_10.npy",
+                self.adversarial_pareto_front_10,
+            )
 
     @staticmethod
     def noisy_prediction(ind, self, std, normalization_factor_test, test_x, test_y):
@@ -458,6 +480,13 @@ class ParetoFrontTool:
                     ("model", SlicedPredictor(KNeighborsRegressor(n_neighbors=5))),
                 ]
             )
+        elif model_name == "Lasso":
+            model = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("model", SlicedPredictor(LassoCV())),
+                ]
+            )
         elif model_name == "WKNN":
             model = Pipeline(
                 [
@@ -471,7 +500,7 @@ class ParetoFrontTool:
                 ]
             )
         elif model_name == "DT":
-            model = SlicedPredictor(DecisionTreeRegressor())
+            model = SlicedPredictor(ExtraTreesRegressor())
         else:
             raise Exception("Model name is not supported")
         model.fit(constructed_train_x, train_y)

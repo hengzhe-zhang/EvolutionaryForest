@@ -238,7 +238,11 @@ def varAndPlus(
         indexes = algorithm.tree_pool.clustering_indexes
         current_semantics = ind.individual_semantics[indexes]
         target = algorithm.y[indexes]
-        for id in range(len(ind.gene)):
+
+        orders = list(range(len(ind.gene)))
+        if algorithm.tree_pool.random_order_replacement:
+            random.shuffle(orders)
+        for id in orders:
             temp_semantics = current_semantics - (
                 ind.coef[id]
                 * (
