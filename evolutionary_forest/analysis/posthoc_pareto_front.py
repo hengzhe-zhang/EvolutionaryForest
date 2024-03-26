@@ -341,14 +341,14 @@ class ParetoFrontTool:
             self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
             self.dt_pareto_front = self.dt_pareto_front.tolist()
 
-        save_pareto_front = (
-            True if "ParetoFront" in parameters.get("log_item") else False
-        )
-        if save_pareto_front:
-            np.save(
-                f"result/{parameters.get('score_func')}_adversarial_pareto_front_10.npy",
-                self.adversarial_pareto_front_10,
-            )
+        # save_pareto_front = (
+        #     True if "ParetoFront" in parameters.get("log_item") else False
+        # )
+        # if save_pareto_front:
+        #     np.save(
+        #         f"result/{parameters.get('score_func')}_adversarial_pareto_front_10.npy",
+        #         self.adversarial_pareto_front_10,
+        #     )
 
     @staticmethod
     def noisy_prediction(ind, self, std, normalization_factor_test, test_x, test_y):
