@@ -763,6 +763,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.environmental_selection = Best("sam_loss")
         else:
             self.environmental_selection = environmental_selection
+        # if isinstance(self.environmental_selection, R2PACBayesian):
+        #     # These two objectives are meaningful, not normalize them
+        #     self.environmental_selection.objective_normalization = False
 
         self.pac_bayesian = PACBayesianConfiguration(**params, **vars(self))
         self.crossover_configuration = CrossoverConfiguration(
@@ -913,6 +916,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = RademacherComplexityFeatureCountR2(self, **params)
         elif isinstance(score_func, str) and score_func == "R2-PAC-Bayesian":
             self.score_func = R2PACBayesian(self, **params)
+
         elif isinstance(score_func, str) and score_func == "R2-PAC-Bayesian-Scaler":
             self.score_func = PACBayesianR2Scaler(self, **params)
         elif (

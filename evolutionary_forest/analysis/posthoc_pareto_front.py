@@ -89,7 +89,7 @@ class ParetoFrontTool:
 
         # Compute normalized prediction error for each individual
         individual_list = self.pop
-        individual_list = self.model_size_archive
+        # individual_list = self.model_size_archive
         only_top_individuals = False
         if only_top_individuals:
             # normalize all fitness values based on max and min
@@ -99,7 +99,7 @@ class ParetoFrontTool:
             else:
                 individual_list = selNSGA2(individual_list, 10)
             fitness_restore_back(individual_list)
-        for ind in self.pop:
+        for ind in individual_list:
             prediction = self.individual_prediction(test_x, [ind])[0]
             errors = (test_y - prediction) ** 2
             test_error_normalized_by_test = np.mean(errors) / normalization_factor_test
