@@ -420,19 +420,24 @@ class NSGA2(EnvironmentalSelection):
                 if isinstance(knee, list):
                     self.algorithm.hof = [first_pareto_front[k] for k in knee]
                 else:
-                    # if self.knee_point == "SAM":
-                    #     current_best = self.algorithm.hof[0]
-                    #     if current_best.sam_loss > first_pareto_front[knee].sam_loss:
-                    #         self.algorithm.hof = [first_pareto_front[knee]]
-                    #     else:
-                    #         print(
-                    #             "Not good enough",
-                    #             current_best.sam_loss,
-                    #             first_pareto_front[knee].sam_loss,
-                    #         )
-                    # else:
-                    # Select the knee point as the final model
-                    self.algorithm.hof = [first_pareto_front[knee]]
+                    if self.knee_point == "SAM":
+                        current_best = self.algorithm.hof[0]
+                        if current_best.sam_loss > first_pareto_front[knee].sam_loss:
+                            self.algorithm.hof = [first_pareto_front[knee]]
+                        else:
+                            if (
+                                self.algorithm.verbose
+                                and current_best.sam_loss
+                                < first_pareto_front[knee].sam_loss
+                            ):
+                                print(
+                                    "Bad!",
+                                    current_best.sam_loss,
+                                    first_pareto_front[knee].sam_loss,
+                                )
+                    else:
+                        # Select the knee point as the final model
+                        self.algorithm.hof = [first_pareto_front[knee]]
 
         if self.bootstrapping_selection:
             first_pareto_front: list = sortNondominated(population, self.n_pop)[0]
