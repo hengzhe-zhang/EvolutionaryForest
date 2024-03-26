@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from deap.tools import selNSGA2
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from sklearn.base import ClassifierMixin
@@ -14,6 +15,10 @@ from evolutionary_forest.component.decision_making.bend_angle_knee import (
 from evolutionary_forest.component.environmental_selection import EnvironmentalSelection
 from evolutionary_forest.component.fitness import RademacherComplexityR2, R2PACBayesian
 from evolutionary_forest.multigene_gp import *
+from evolutionary_forest.utility.multiobjective.fitness_normalization import (
+    fitness_normalization,
+    fitness_restore_back,
+)
 from evolutionary_forest.utility.sliced_predictor import SlicedPredictor
 from evolutionary_forest.utils import pareto_front_2d
 
@@ -64,21 +69,31 @@ class ParetoFrontTool:
             plt.grid(True)
             plt.show()
 
-        noise_pareto_front = False
-        noise_sample_pareto_front = False
+        noise_target_pareto_front = False
+        noise_input_pareto_front = False
         less_sample_front = False
         more_sample_front = False
         transfer_model_front = False
         adversarial_front = False
 
         if flag == "Bias-Variance":
-            noise_sample_pareto_front = True
+            noise_input_pareto_front = True
 
         if flag in ["SAM", "Mixup"]:
             adversarial_front = True
+            transfer_model_front = True
+            noise_target_pareto_front = True
+            noise_input_pareto_front = True
 
         # Compute normalized prediction error for each individual
-        for ind in self.pop:
+        individual_list = self.pop
+        only_top_individuals = True
+        if only_top_individuals:
+            # normalize all fitness values based on max and min
+            fitness_normalization(individual_list, False)
+            individual_list = selNSGA2(individual_list, 10)
+            fitness_restore_back(individual_list)
+        for ind in individual_list:
             prediction = self.individual_prediction(test_x, [ind])[0]
             errors = (test_y - prediction) ** 2
             test_error_normalized_by_test = np.mean(errors) / normalization_factor_test
@@ -103,7 +118,7 @@ class ParetoFrontTool:
                     )
                 )
 
-            if noise_sample_pareto_front:
+            if noise_input_pareto_front:
                 std = 1
                 noisy_test_error_normalized_by_test = ParetoFrontTool.noisy_prediction(
                     ind, self, std, normalization_factor_test, test_x, test_y
@@ -198,7 +213,7 @@ class ParetoFrontTool:
                         )
                     )
 
-            if noise_pareto_front:
+            if noise_target_pareto_front:
                 # std=0.1
                 loss_on_noisy_target = ParetoFrontTool.get_loss_on_noisy_target(
                     self, constructed_test_x, constructed_train_x, test_y, std=0.1
@@ -211,11 +226,11 @@ class ParetoFrontTool:
                         float(loss_on_noisy_target / normalization_factor_test),
                     )
                 )
-                # std=0.2
+                # std=1
                 loss_on_noisy_target = ParetoFrontTool.get_loss_on_noisy_target(
-                    self, constructed_test_x, constructed_train_x, test_y, std=2
+                    self, constructed_test_x, constructed_train_x, test_y, std=1
                 )
-                self.noise_pareto_front_2.append(
+                self.noise_pareto_front_10.append(
                     (
                         # original test error
                         float(test_error_normalized_by_test),
@@ -288,9 +303,9 @@ class ParetoFrontTool:
         if len(self.noise_pareto_front_1) > 0:
             self.noise_pareto_front_1, _ = pareto_front_2d(self.noise_pareto_front_1)
             self.noise_pareto_front_1 = self.noise_pareto_front_1.tolist()
-        if len(self.noise_pareto_front_2) > 0:
-            self.noise_pareto_front_2, _ = pareto_front_2d(self.noise_pareto_front_2)
-            self.noise_pareto_front_2 = self.noise_pareto_front_2.tolist()
+        if len(self.noise_pareto_front_10) > 0:
+            self.noise_pareto_front_10, _ = pareto_front_2d(self.noise_pareto_front_10)
+            self.noise_pareto_front_10 = self.noise_pareto_front_10.tolist()
         if len(self.noise_sample_pareto_front_10) > 0:
             self.noise_sample_pareto_front_10, _ = pareto_front_2d(
                 self.noise_sample_pareto_front_10

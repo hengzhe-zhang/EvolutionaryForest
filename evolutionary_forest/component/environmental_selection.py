@@ -44,6 +44,10 @@ from evolutionary_forest.multigene_gp import (
     MultipleGeneGP,
 )
 from evolutionary_forest.strategies.instance_weighting import calculate_instance_weights
+from evolutionary_forest.utility.multiobjective.fitness_normalization import (
+    fitness_normalization,
+    fitness_restore_back,
+)
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -217,33 +221,8 @@ class NSGA2(EnvironmentalSelection):
             individuals = self.objective_space_duplication_removal(individuals)
 
         if self.objective_normalization:
-            for ind in individuals:
-                ind.unnormalized_fitness = ind.fitness.values
-            dims = len(individuals[0].fitness.values)
-            min_max = []
-            for d in range(dims):
-                values = [ind.fitness.values[d] for ind in individuals]
-                min_val = min(values)
-                max_val = max(values)
-                min_max.append((min_val, max_val))
-            for ind in individuals:
-                values = []
-                for d in range(dims):
-                    fitness_value = ind.fitness.values[d]
-                    if isinstance(self.algorithm, ClassifierMixin):
-                        # for cross-entropy, need exponential normalization
-                        if d == 0:
-                            """
-                            Original problem: Improve prediction probability
-                            Minimization Problem: Negative 1 * Probability
-                            """
-                            fitness_value = -1 * np.mean(np.exp(-ind.case_values))
-                    min_val, max_val = min_max[d]
-                    normalized_fitness = fitness_value - min_val
-                    if (max_val - min_val) > 0:
-                        normalized_fitness = normalized_fitness / (max_val - min_val)
-                    values.append(normalized_fitness)
-                ind.fitness.values = values
+            classification_task = isinstance(self.algorithm, ClassifierMixin)
+            fitness_normalization(individuals, classification_task)
 
         population[:] = self.selection_operator(individuals, self.n_pop)
         if self.algorithm.validation_size > 0:
@@ -475,9 +454,8 @@ class NSGA2(EnvironmentalSelection):
             self.algorithm.hof = [max(first_pareto_front, key=quick_evaluation)]
 
         if self.objective_normalization:
-            # must change back to original fitness to avoid any potential error
-            for ind in individuals:
-                ind.fitness.values = ind.unnormalized_fitness
+            # must-change back to original fitness to avoid any potential error
+            fitness_restore_back(individuals)
         return population
 
     def external_regressor_based_duel_selection(self, first_pareto_front, knee):
