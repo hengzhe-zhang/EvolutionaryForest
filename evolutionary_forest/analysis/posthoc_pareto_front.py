@@ -108,6 +108,12 @@ class ParetoFrontTool:
                     float(test_error_normalized_by_test),
                 )
             )
+            self.size_pareto_front.append(
+                (
+                    test_error_normalized_by_test,
+                    sum([len(gene) for gene in ind.gene]),
+                )
+            )
 
             if adversarial_front:
                 std = 0.1
@@ -298,6 +304,8 @@ class ParetoFrontTool:
             del errors
         self.pareto_front, _ = pareto_front_2d(self.pareto_front)
         self.pareto_front = self.pareto_front.tolist()
+        self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
+        self.size_pareto_front = self.size_pareto_front.tolist()
 
         if len(self.data_pareto_front_50) > 0:
             self.data_pareto_front_50, _ = pareto_front_2d(self.data_pareto_front_50)
@@ -341,14 +349,20 @@ class ParetoFrontTool:
             self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
             self.dt_pareto_front = self.dt_pareto_front.tolist()
 
-        # save_pareto_front = (
-        #     True if "ParetoFront" in parameters.get("log_item") else False
-        # )
-        # if save_pareto_front:
-        #     np.save(
-        #         f"result/{parameters.get('score_func')}_adversarial_pareto_front_10.npy",
-        #         self.adversarial_pareto_front_10,
-        #     )
+        if parameters is not None:
+            save_pareto_front = (
+                True if "ParetoFront" in parameters.get("log_item") else False
+            )
+            if save_pareto_front:
+                scoring_function = parameters.get("score_func")
+                np.save(
+                    f"result/{scoring_function}_adversarial_pareto_front_10.npy",
+                    self.adversarial_pareto_front_10,
+                )
+                np.save(
+                    f"result/{scoring_function}_size_pareto_front_10.npy",
+                    self.size_pareto_front,
+                )
 
     @staticmethod
     def noisy_prediction(ind, self, std, normalization_factor_test, test_x, test_y):
@@ -640,12 +654,6 @@ class ParetoFrontTool:
                         sharpness_normalized,
                     )
                 )
-                self.size_pareto_front.append(
-                    (
-                        test_error_normalized_by_test,
-                        sum([len(gene) for gene in ind.gene]),
-                    )
-                )
                 training_fitness_normalized = float(
                     np.mean(ind.case_values) / normalization_factor_scaled
                 )
@@ -660,9 +668,7 @@ class ParetoFrontTool:
                 del errors
 
             self.test_pareto_front, _ = pareto_front_2d(self.test_pareto_front)
-            self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
             self.test_pareto_front = self.test_pareto_front.tolist()
-            self.size_pareto_front = self.size_pareto_front.tolist()
 
             # the information of Pareto front
             self.training_test_pareto_front = np.array(self.training_test_pareto_front)

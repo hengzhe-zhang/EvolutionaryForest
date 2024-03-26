@@ -6,6 +6,9 @@ from typing import List, TYPE_CHECKING
 import numpy as np
 from deap.tools import cxTwoPoint
 
+from evolutionary_forest.component.bloat_control.simple_simplification import (
+    simple_simplification,
+)
 from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
@@ -156,6 +159,7 @@ def varAndPlus(
 
                 if mutation_configuration.addition_or_deletion:
                     addition_or_deletion(i, offspring)
+                    simple_simplification(offspring[i])
                 # else:
                 #     addition_and_deletion(i, offspring)
             del offspring[i].fitness.values

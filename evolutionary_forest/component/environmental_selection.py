@@ -26,6 +26,9 @@ from sklearn.preprocessing import StandardScaler
 
 from analysis.knee_point_eurogp.utility_function import knee_point_by_utility
 from evolutionary_forest.application.baes_class import spearman
+from evolutionary_forest.component.bloat_control.simple_simplification import (
+    simple_simplification,
+)
 from evolutionary_forest.component.decision_making.bend_angle_knee import (
     find_knee_based_on_bend_angle,
 )
@@ -503,17 +506,44 @@ class NSGA2(EnvironmentalSelection):
         return knee
 
     def objective_space_duplication_removal(self, combined_population):
-        # Remove duplicates based on fitness values
+        # Remove duplicates based on semantics/fitness values
+        hash_library = {}
+        for individual in combined_population:
+            for tree, tree_hash in zip(individual.gene, individual.hash_result):
+                if tree_hash not in hash_library:
+                    hash_library[tree_hash] = individual
+                else:
+                    # maintain a minimal sized tree library
+                    if len(tree) < len(hash_library[tree_hash]):
+                        hash_library[tree_hash] = individual
+
+        for individual in combined_population:
+            for idx, tree in enumerate(individual.gene):
+                # replace with a smaller tree
+                if len(tree) > len(hash_library[individual.hash_result[idx]]):
+                    hash_library[individual.hash_result[idx]] = tree
+
+        for individual in combined_population:
+            # perform simplification
+            simple_simplification(individual)
+
         # Create a dictionary to hold unique individuals
         unique_individuals = {}
 
         for individual in combined_population:
             # Convert fitness values to a hashable type (tuple)
             fitness = tuple(individual.fitness.values)
+            tree_size = np.sum([len(tree) for tree in individual.gene])
 
             # If this fitness value hasn't been added yet, add the individual to the dictionary
             if fitness not in unique_individuals:
                 unique_individuals[fitness] = individual
+            else:
+                historical_tree_size = np.sum(
+                    [len(tree) for tree in unique_individuals[fitness].gene]
+                )
+                if tree_size < historical_tree_size:
+                    unique_individuals[fitness] = individual
 
         # Extract the individuals from the dictionary to form a new population without duplicates
         return list(unique_individuals.values())

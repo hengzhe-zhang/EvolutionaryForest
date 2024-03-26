@@ -6,6 +6,7 @@ from functools import lru_cache, wraps
 from typing import List, Tuple
 
 import dill
+import joblib
 import numpy as np
 import shap
 import torch
@@ -750,7 +751,7 @@ def add_hash_value(quick_result, hash_result):
     else:
         hash_value = quick_result - quick_result.mean()
     if isinstance(quick_result, np.ndarray):
-        hash_result.append(hash(hash_value.tostring()))
+        hash_result.append(joblib.hash(hash_value))
     else:
         hash_result.append(hash(str(hash_value)))
 
