@@ -114,6 +114,9 @@ from evolutionary_forest.component.evaluation import (
     get_sample_weight,
     split_and_combine_data_decorator,
 )
+from evolutionary_forest.component.external_archive.mutliobjective_archive import (
+    ModelSizeArchive,
+)
 from evolutionary_forest.component.fitness import *
 from evolutionary_forest.component.generalization.pac_bayesian import (
     PACBayesianConfiguration,
@@ -2719,7 +2722,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
         if isinstance(self.hof, EnsembleSelectionHallOfFame):
             self.hof.verbose = self.verbose
-
+        self.model_size_archive = ModelSizeArchive(self.n_pop)
         if self.bloat_control is not None and self.bloat_control.get(
             "lasso_prune", False
         ):
@@ -3230,6 +3233,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 case_fitness = np.array([ind.case_values for ind in self.pop])
                 self.tree_pool.update_hard_instance(case_fitness, mode)
             self.tree_pool.update_kd_tree(self.pop, self.y)
+        # self.model_size_archive.update(self.pop)
         self.validation_set_generation()
         gc.collect()
         if isinstance(self.mutation_scheme, MutationOperator):

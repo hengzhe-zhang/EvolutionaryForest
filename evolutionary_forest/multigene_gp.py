@@ -78,7 +78,9 @@ def selTournamentFeature(individuals, k, tournsize):
 
 
 class FitnessMin(base.Fitness):
-    weights = (-1.0,)
+    def __init__(self, objectives=1, values=()):
+        self.weights = (-1.0,) * objectives
+        super().__init__(values)
 
 
 class IndividualConfiguration:
