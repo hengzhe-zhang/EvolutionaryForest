@@ -531,8 +531,11 @@ class NSGA2(EnvironmentalSelection):
         unique_individuals = {}
 
         for individual in combined_population:
+            """
+            The fitness duplication purely based on the first objective, i.e., training loss.
+            """
             # Convert fitness values to a hashable type (tuple)
-            fitness = tuple(individual.fitness.values)
+            fitness = individual.fitness.values[0]
             tree_size = np.sum([len(tree) for tree in individual.gene])
 
             # If this fitness value hasn't been added yet, add the individual to the dictionary
@@ -545,6 +548,8 @@ class NSGA2(EnvironmentalSelection):
                 if tree_size < historical_tree_size:
                     unique_individuals[fitness] = individual
 
+        if self.algorithm.verbose:
+            print("Number of unique individuals", len(unique_individuals))
         # Extract the individuals from the dictionary to form a new population without duplicates
         return list(unique_individuals.values())
 
