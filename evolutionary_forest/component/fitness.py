@@ -856,7 +856,7 @@ class R2PACBayesian(Fitness):
         # [(training R2, 1), (sharpness, -1)]
         sharpness_value = estimation[1][0]
         if self.algorithm.constant_type in ["GD+", "GD-"]:
-            sharpness_value = (gradient_sharpness + sharpness_value) / 2
+            sharpness_value = np.maximum(gradient_sharpness, sharpness_value)
         """
         Here, using cross-validation loss is reasonable
         """
