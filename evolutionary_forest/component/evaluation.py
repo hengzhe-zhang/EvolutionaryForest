@@ -618,7 +618,7 @@ def split_and_combine_data_decorator(
 
                     result = func(*args, **kwargs)
                     results.append(result)
-                    assert isinstance(result, np.ndarray)
+                    assert isinstance(result, (np.ndarray, torch.Tensor))
 
                 # Combine the results from all slices
                 combined_results = np.concatenate(results)
@@ -825,8 +825,8 @@ def single_tree_evaluation(
                             )
                     if (
                         random_noise > 0
-                        and isinstance(result, np.ndarray)
-                        and result.size > 1
+                        and isinstance(result, (np.ndarray, torch.Tensor))
+                        and len(result) > 1
                     ):
                         if (
                             # not add noise to the root node
@@ -872,7 +872,7 @@ def single_tree_evaluation(
                         raise ValueError("Unsupported data type!")
                     if (
                         random_noise > 0
-                        and isinstance(result, np.ndarray)
+                        and isinstance(result, (np.ndarray, torch.Tensor))
                         # not a trivial expression
                         and len(result) > 1
                         and noise_configuration.noise_to_terminal is not False
@@ -1041,6 +1041,10 @@ def inject_noise_to_data(
             noise = noise_generation(
                 noise_type, size_of_noise, random_noise_magnitude, random_seed
             )
+
+    if isinstance(result, torch.Tensor):
+        # from numpy
+        noise = torch.from_numpy(noise).float()
 
     if noise_configuration.noise_normalization == "Mix":
         sampled_instances = random_sample(len(result), random_seed)

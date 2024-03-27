@@ -252,7 +252,7 @@ class EvaluationConfiguration:
         mini_batch=False,
         semantic_crossover_probability=0,
         gradient_descent=False,
-        gradient_optimizer="GD",
+        gradient_optimizer="",
         transductive_learning=False,
         classification=False,
         max_height=None,

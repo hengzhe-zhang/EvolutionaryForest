@@ -1,4 +1,3 @@
-import random
 import time
 from abc import abstractmethod
 from functools import partial, lru_cache
@@ -8,7 +7,6 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
-from sklearn.base import ClassifierMixin
 from sklearn.metrics import r2_score, pairwise_distances
 from sklearn.metrics.pairwise import rbf_kernel
 from torch import optim
@@ -725,13 +723,17 @@ class R2PACBayesian(Fitness):
         # return a tuple
         if self.algorithm.constant_type in ["GD+", "GD-"]:
             torch.set_grad_enabled(True)
-            torch_variables, trees = self.transform_gp_tree_with_tensors(individual)
+            size_of_data = len(self.algorithm.X)
+            torch_variables, trees = self.transform_gp_tree_with_tensors(
+                individual, size_of_data
+            )
 
             if all(
                 (
+                    # has no function
                     all(isinstance(x, Terminal) for x in gene)
                     or
-                    # no primitives
+                    # has function, but only constant terminal
                     all(
                         isinstance(x.value, torch.Tensor)
                         for x in filter(lambda x: isinstance(x, Terminal), gene)
@@ -740,7 +742,7 @@ class R2PACBayesian(Fitness):
                 # or only constant primitives
                 for gene in individual.gene
             ):
-                sharpness = np.inf
+                sharpness = 0
             else:
                 features = multi_tree_evaluation(
                     trees,
@@ -806,26 +808,25 @@ class R2PACBayesian(Fitness):
 
                         sharpness = norm_of_norms
                     # print('R2 After', r2_score(y, Y_pred.detach().numpy()))
-            sharpness = np.nan_to_num(sharpness, nan=np.inf)
-            assert sharpness >= 0
-            # print('Sharpness', sharpness, individual.case_values.mean())
-            estimation = [(individual.fitness.wvalues[0], 1), (sharpness, -1)]
-        else:
-            estimation = pac_bayesian_estimation(
-                X_features,
-                algorithm.X,
-                y,
-                estimator,
-                individual,
-                self.algorithm.evaluation_configuration.cross_validation,
-                self.algorithm.pac_bayesian,
-                self.sharpness_type,
-                feature_generator=feature_generator,
-                data_generator=data_generator,
-                reference_model=self.algorithm.reference_lgbm,
-                sharpness_vector=sharpness_vector,
-                instance_weights=self.instance_weights,
-            )
+            gradient_sharpness = np.nan_to_num(sharpness, nan=np.inf)
+            assert gradient_sharpness >= 0
+
+        # no matter what, always need Gaussian estimation
+        estimation = pac_bayesian_estimation(
+            X_features,
+            algorithm.X,
+            y,
+            estimator,
+            individual,
+            self.algorithm.evaluation_configuration.cross_validation,
+            self.algorithm.pac_bayesian,
+            self.sharpness_type,
+            feature_generator=feature_generator,
+            data_generator=data_generator,
+            reference_model=self.algorithm.reference_lgbm,
+            sharpness_vector=sharpness_vector,
+            instance_weights=self.instance_weights,
+        )
         if (
             hasattr(individual, "fitness_list")
             and self.algorithm.pac_bayesian.sharpness_decay > 0
@@ -854,6 +855,8 @@ class R2PACBayesian(Fitness):
         assert len(individual.case_values) > 0
         # [(training R2, 1), (sharpness, -1)]
         sharpness_value = estimation[1][0]
+        if self.algorithm.constant_type in ["GD+", "GD-"]:
+            sharpness_value = (gradient_sharpness + sharpness_value) / 2
         """
         Here, using cross-validation loss is reasonable
         """
@@ -891,7 +894,7 @@ class R2PACBayesian(Fitness):
         optimizer.step()
         optimizer.zero_grad()
 
-    def transform_gp_tree_with_tensors(self, individual):
+    def transform_gp_tree_with_tensors(self, individual, length):
         """
         Convert genes into a format with gradient-enabled tensors.
         """
@@ -910,15 +913,13 @@ class R2PACBayesian(Fitness):
                     ).requires_grad_(False)
                     # save it a constant
                     new_gene.append(Terminal(node, False, object))
-                elif (
-                    i != 0
-                    and isinstance(gene[i], Primitive)
-                    or isinstance(gene[i], Terminal)
+                elif i != 0 and (
+                    isinstance(gene[i], Primitive) or isinstance(gene[i], Terminal)
                 ):
                     # unless the root node, add a noise term
                     # including both terminal and non-terminal nodes
                     new_gene.append(self.algorithm.pset.mapping["Add"])
-                    v = torch.zeros(1, requires_grad=True, dtype=torch.float32)
+                    v = torch.zeros(length, requires_grad=True, dtype=torch.float32)
                     gp_v = Terminal(v, False, object)
                     new_gene.append(gp_v)
                     torch_variables.append(v)

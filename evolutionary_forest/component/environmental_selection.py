@@ -439,7 +439,7 @@ class NSGA2(EnvironmentalSelection):
                                 Sometimes, the best individual could be eliminated.
                                 """
                                 print(
-                                    "Bad!",
+                                    "Bad case!",
                                     current_best.sam_loss,
                                     first_pareto_front[knee].sam_loss,
                                 )
