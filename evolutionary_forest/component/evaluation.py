@@ -617,6 +617,8 @@ def split_and_combine_data_decorator(
                         args = tuple(args)
 
                     result = func(*args, **kwargs)
+                    if isinstance(result, torch.Tensor):
+                        result = result.detach().numpy()
                     results.append(result)
                     assert isinstance(result, (np.ndarray, torch.Tensor))
 
