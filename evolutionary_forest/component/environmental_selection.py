@@ -421,7 +421,12 @@ class NSGA2(EnvironmentalSelection):
                     self.algorithm.hof = [first_pareto_front[k] for k in knee]
                 else:
                     if self.knee_point == "SAM":
+                        if self.algorithm.verbose:
+                            print("Number of models on PF", len(first_pareto_front))
                         current_best = self.algorithm.hof[0]
+                        """
+                        The newly added one should be better than the historical one.
+                        """
                         if current_best.sam_loss > first_pareto_front[knee].sam_loss:
                             self.algorithm.hof = [first_pareto_front[knee]]
                         else:
@@ -430,6 +435,9 @@ class NSGA2(EnvironmentalSelection):
                                 and current_best.sam_loss
                                 < first_pareto_front[knee].sam_loss
                             ):
+                                """
+                                Sometimes, the best individual could be eliminated.
+                                """
                                 print(
                                     "Bad!",
                                     current_best.sam_loss,
