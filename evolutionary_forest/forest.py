@@ -23,7 +23,7 @@ from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
 from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
-from sklearn.base import TransformerMixin
+from sklearn.base import TransformerMixin, ClassifierMixin
 from sklearn.decomposition import PCA
 from sklearn.neural_network import MLPRegressor
 
