@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
-from sklearn.metrics import r2_score, pairwise_distances
+from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
 from torch import optim
 
@@ -468,6 +468,7 @@ class R2BootstrapError(Fitness):
                 sample_indices, size=sample_indices.shape[0], replace=True
             )
             bse.append(semantic_loss[bootstrap_indices].mean())
+        individual.sam_loss = mean_squared_error(Y, y_pred) * np.std(bse)
         # minimize standard deviation
         return (-1 * score, np.std(bse))
 
