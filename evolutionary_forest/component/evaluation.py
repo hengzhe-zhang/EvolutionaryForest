@@ -202,6 +202,12 @@ def calculate_score(args):
             configuration=configuration,
             individual_configuration=individual_configuration,
         )
+
+    gradient_operators = (
+        configuration.gradient_descent
+        or configuration.gradient_optimizer.startswith("GD")
+    )
+    if gradient_operators:
         Yp = Yp.detach().numpy()
 
     # ML evaluation
@@ -657,7 +663,11 @@ def multi_tree_evaluation(
             data = individual_configuration.dynamic_standardization.transform(data)
 
     gradient_descent = configuration.gradient_descent
-    if gradient_descent and isinstance(data, np.ndarray):
+
+    gradient_operators = (
+        gradient_descent or configuration.gradient_optimizer.startswith("GD")
+    )
+    if gradient_operators and isinstance(data, np.ndarray):
         data = torch.from_numpy(data).float().detach()
 
     # evaluate an individual rather than a gene
@@ -728,10 +738,11 @@ def multi_tree_evaluation(
                 )
                 correlation_results.append(abs_pearson_correlation)
             result.append(feature)
-    if not sklearn_format and not gradient_descent:
+
+    if not sklearn_format and not gradient_operators:
         result = result_post_process(result, data, original_features)
         # result = np.reshape(result[:, -1], (-1, 1))
-    if gradient_descent:
+    if gradient_operators:
         result = quick_fill(result, data)
         result = torch.stack(tuple(result)).T
 

@@ -723,7 +723,7 @@ class R2PACBayesian(Fitness):
         sharpness_vector = []
         # PAC-Bayesian estimation
         # return a tuple
-        if self.algorithm.constant_type == "GD+":
+        if self.algorithm.constant_type in ["GD+", "GD-"]:
             torch.set_grad_enabled(True)
             torch_variables, trees = self.transform_gp_tree_with_tensors(individual)
 
@@ -772,20 +772,39 @@ class R2PACBayesian(Fitness):
                     loss = criterion(Y_pred, torch.from_numpy(y).detach().float())
                     loss.backward()
 
-                    self.sharpness_gradient_ascent(torch_variables)
+                    traditional_sam = False
+                    if traditional_sam:
+                        self.sharpness_gradient_ascent(torch_variables)
 
-                    features = multi_tree_evaluation(
-                        trees,
-                        self.algorithm.pset,
-                        self.algorithm.X,
-                        self.algorithm.original_features,
-                        configuration=self.algorithm.evaluation_configuration,
-                        individual_configuration=individual.individual_configuration,
-                    )
-                    features = feature_standardization_torch(features)
-                    Y_pred = torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
-                    mse_new = (Y_pred.detach().numpy().flatten() - y) ** 2
-                    sharpness = np.maximum(mse_new - mse_old, 0).mean()
+                        features = multi_tree_evaluation(
+                            trees,
+                            self.algorithm.pset,
+                            self.algorithm.X,
+                            self.algorithm.original_features,
+                            configuration=self.algorithm.evaluation_configuration,
+                            individual_configuration=individual.individual_configuration,
+                        )
+                        features = feature_standardization_torch(features)
+                        Y_pred = (
+                            torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
+                        )
+                        mse_new = (Y_pred.detach().numpy().flatten() - y) ** 2
+                        sharpness = np.maximum(mse_new - mse_old, 0).mean()
+                    else:
+                        # Collect gradients into a list
+                        gradients = [
+                            v.grad.numpy()
+                            for v in torch_variables
+                            if v.grad is not None
+                        ]
+
+                        # Compute norms of gradients
+                        norms = [np.linalg.norm(grad) for grad in gradients]
+
+                        # Compute norm of the vector containing norms
+                        norm_of_norms = np.linalg.norm(norms)
+
+                        sharpness = norm_of_norms
                     # print('R2 After', r2_score(y, Y_pred.detach().numpy()))
             sharpness = np.nan_to_num(sharpness, nan=np.inf)
             assert sharpness >= 0
