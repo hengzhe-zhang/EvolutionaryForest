@@ -160,7 +160,8 @@ def varAndPlus(
 
                 if mutation_configuration.addition_or_deletion:
                     addition_or_deletion(i, offspring)
-                    simple_simplification(offspring[i])
+                    if mutation_configuration.handle_objective_duplication:
+                        simple_simplification(offspring[i])
                 # else:
                 #     addition_and_deletion(i, offspring)
             del offspring[i].fitness.values

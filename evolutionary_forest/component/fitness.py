@@ -331,14 +331,14 @@ class LocalRademacherComplexityR2Scaler(LocalRademacherComplexityR2):
 class TikhonovR2(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
-        coef_norm = np.linalg.norm(y_pred, ord=2) ** 2
+        coef_norm = np.linalg.norm(y_pred, ord=2)
         return (-1 * score, coef_norm)
 
 
 class R2GrandComplexity(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
-        coef_norm = np.linalg.norm(y_pred, ord=2) ** 2
+        coef_norm = np.linalg.norm(y_pred, ord=2)
         tree_size = sum([len(tree) for tree in individual.gene])
         individual.grand_complexity = (coef_norm, tree_size)
         return (-1 * score, 0)

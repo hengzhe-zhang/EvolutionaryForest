@@ -7,7 +7,7 @@ def simple_simplification(ind: MultipleGeneGP):
     visited = set()
     all_genes = []
     for gene in ind.gene:
-        # check constant tree
+        # check constant trees
         constant = True
         for node in gene:
             if isinstance(node, Terminal) and isinstance(node.value, str):
@@ -16,7 +16,7 @@ def simple_simplification(ind: MultipleGeneGP):
         if constant:
             continue
 
-        # check constructed tree
+        # check constructed trees
         if str(gene) not in visited:
             visited.add(str(gene))
             all_genes.append(gene)

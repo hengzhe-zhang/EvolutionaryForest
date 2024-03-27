@@ -196,6 +196,7 @@ class MutationConfiguration:
         pool_hard_instance_interval=0,
         change_semantic_after_deletion=False,
         include_subtree_to_lib=False,
+        handle_objective_duplication=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -214,6 +215,9 @@ class MutationConfiguration:
         self.redundant_based_deletion = redundant_based_deletion
         self.deletion_strategy = deletion_strategy
         self.change_semantic_after_deletion = change_semantic_after_deletion
+
+        # handle syntax duplication
+        self.handle_objective_duplication = handle_objective_duplication
 
 
 class ImbalancedConfiguration:
