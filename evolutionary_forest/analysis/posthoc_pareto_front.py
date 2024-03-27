@@ -419,7 +419,7 @@ class ParetoFrontTool:
         elif model_name == "RF":
             model = SlicedPredictor(RandomForestRegressor())
         elif model_name == "LightGBM":
-            model = SlicedPredictor(LGBMRegressor())
+            model = SlicedPredictor(LGBMRegressor(verbosity=-1))
         else:
             raise Exception("Model name is not supported")
         model.fit(constructed_train_x, train_y)
