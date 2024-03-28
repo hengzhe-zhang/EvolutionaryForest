@@ -9,6 +9,7 @@ from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
+from sklearn.preprocessing import StandardScaler
 from torch import optim
 
 from evolutionary_forest.component.evaluation import (
@@ -722,7 +723,7 @@ class R2PACBayesian(Fitness):
         sharpness_vector = []
         # PAC-Bayesian estimation
         # return a tuple
-        if self.algorithm.constant_type in ["GD+", "GD-"]:
+        if self.algorithm.constant_type in ["GD+", "GD-", "GD--"]:
             torch.set_grad_enabled(True)
             size_of_data = len(self.algorithm.X)
             torch_variables, trees = self.transform_gp_tree_with_tensors(
@@ -756,7 +757,23 @@ class R2PACBayesian(Fitness):
                 if torch.any(torch.isnan(features)):
                     sharpness = np.inf
                 else:
-                    features = feature_standardization_torch(features)
+                    # features = feature_standardization_torch(features)
+                    scaler: StandardScaler = estimator["Scaler"]
+                    mean = torch.tensor(scaler.mean_, dtype=torch.float32)
+                    std = torch.tensor(scaler.scale_, dtype=torch.float32)
+
+                    # Check if std is not zero for each feature
+                    non_zero_std_indices = std != 0
+
+                    # Normalize features for non-zero std features
+                    if non_zero_std_indices.any():
+                        features[:, non_zero_std_indices] = (
+                            features[:, non_zero_std_indices]
+                            - mean[non_zero_std_indices]
+                        ) / std[non_zero_std_indices]
+
+                    # Subtract mean for zero std features
+                    features[:, ~non_zero_std_indices] -= mean[~non_zero_std_indices]
 
                     ridge = estimator["Ridge"]
                     # extract coefficients from linear model
@@ -812,51 +829,76 @@ class R2PACBayesian(Fitness):
             gradient_sharpness = np.nan_to_num(sharpness, nan=np.inf)
             assert gradient_sharpness >= 0
 
-        # no matter what, always need Gaussian estimation
-        estimation = pac_bayesian_estimation(
-            X_features,
-            algorithm.X,
-            y,
-            estimator,
-            individual,
-            self.algorithm.evaluation_configuration.cross_validation,
-            self.algorithm.pac_bayesian,
-            self.sharpness_type,
-            feature_generator=feature_generator,
-            data_generator=data_generator,
-            reference_model=self.algorithm.reference_lgbm,
-            sharpness_vector=sharpness_vector,
-            instance_weights=self.instance_weights,
-        )
-        if (
-            hasattr(individual, "fitness_list")
-            and self.algorithm.pac_bayesian.sharpness_decay > 0
-        ):
-            old_sharpness = individual.fitness_list[1][0]
-            estimation = tuple_to_list(estimation)
-            estimation[1][0] = (
-                self.algorithm.pac_bayesian.sharpness_decay * old_sharpness
-                + (1 - self.algorithm.pac_bayesian.sharpness_decay) * estimation[1][0]
+        if self.algorithm.constant_type == "GD--":
+            sharpness_value = gradient_sharpness
+        else:
+            # no matter what, always need Gaussian estimation
+            estimation = pac_bayesian_estimation(
+                X_features,
+                algorithm.X,
+                y,
+                estimator,
+                individual,
+                self.algorithm.evaluation_configuration.cross_validation,
+                self.algorithm.pac_bayesian,
+                self.sharpness_type,
+                feature_generator=feature_generator,
+                data_generator=data_generator,
+                reference_model=self.algorithm.reference_lgbm,
+                sharpness_vector=sharpness_vector,
+                instance_weights=self.instance_weights,
             )
-            estimation = list_to_tuple(estimation)
-        if (
-            hasattr(individual, "structural_sharpness")
-            and self.algorithm.pac_bayesian.structural_sharpness > 0
-        ):
-            estimation = tuple_to_list(estimation)
-            estimation[1][0] = (
-                self.algorithm.pac_bayesian.structural_sharpness
-                * individual.structural_sharpness
-                + (1 - self.algorithm.pac_bayesian.structural_sharpness)
-                * estimation[1][0]
-            )
-            estimation = list_to_tuple(estimation)
+            if (
+                hasattr(individual, "fitness_list")
+                and self.algorithm.pac_bayesian.sharpness_decay > 0
+            ):
+                old_sharpness = individual.fitness_list[1][0]
+                estimation = tuple_to_list(estimation)
+                estimation[1][0] = (
+                    self.algorithm.pac_bayesian.sharpness_decay * old_sharpness
+                    + (1 - self.algorithm.pac_bayesian.sharpness_decay)
+                    * estimation[1][0]
+                )
+                estimation = list_to_tuple(estimation)
+            if (
+                hasattr(individual, "structural_sharpness")
+                and self.algorithm.pac_bayesian.structural_sharpness > 0
+            ):
+                estimation = tuple_to_list(estimation)
+                estimation[1][0] = (
+                    self.algorithm.pac_bayesian.structural_sharpness
+                    * individual.structural_sharpness
+                    + (1 - self.algorithm.pac_bayesian.structural_sharpness)
+                    * estimation[1][0]
+                )
+                estimation = list_to_tuple(estimation)
 
-        individual.fitness_list = estimation
-        assert len(individual.case_values) > 0
-        # [(training R2, 1), (sharpness, -1)]
-        sharpness_value = estimation[1][0]
+            individual.fitness_list = estimation
+            assert len(individual.case_values) > 0
+            # [(training R2, 1), (sharpness, -1)]
+            sharpness_value = estimation[1][0]
+
         if self.algorithm.constant_type in ["GD+", "GD-"]:
+            if algorithm.verbose and sharpness_value > gradient_sharpness:
+                max_gradient = np.max([np.max(grad) for grad in gradients])
+                print(
+                    "Gradient Sharpness",
+                    gradient_sharpness,
+                    "Maximum Norm",
+                    max_gradient,
+                    "Traditional Sharpness",
+                    sharpness_value,
+                    "individual",
+                    str(individual),
+                    "coef",
+                    individual.pipe["Ridge"].coef_,
+                    "case fitness",
+                    individual.case_values.max(),
+                    # "mean",
+                    # features.mean(dim=0).detach().numpy(),
+                    # "std",
+                    # features.std(dim=0).detach().numpy(),
+                )
             sharpness_value = np.maximum(gradient_sharpness, sharpness_value)
         """
         Here, using cross-validation loss is reasonable
