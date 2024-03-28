@@ -1,7 +1,7 @@
 import time
 from abc import abstractmethod
 from functools import partial, lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Tuple
 
 import numpy as np
 import torch
@@ -831,6 +831,7 @@ class R2PACBayesian(Fitness):
 
         if self.algorithm.constant_type == "GD--":
             sharpness_value = gradient_sharpness
+            estimation = [(individual.fitness.wvalues[0], 1), (sharpness_value, -1)]
         else:
             # no matter what, always need Gaussian estimation
             estimation = pac_bayesian_estimation(
@@ -873,10 +874,10 @@ class R2PACBayesian(Fitness):
                 )
                 estimation = list_to_tuple(estimation)
 
-            individual.fitness_list = estimation
-            assert len(individual.case_values) > 0
-            # [(training R2, 1), (sharpness, -1)]
-            sharpness_value = estimation[1][0]
+        individual.fitness_list = estimation
+        assert len(individual.case_values) > 0
+        # Encoded information: [(training R2, 1), (sharpness, -1)]
+        sharpness_value = estimation[1][0]
 
         if self.algorithm.constant_type in ["GD+", "GD-"]:
             if algorithm.verbose and sharpness_value > gradient_sharpness:
@@ -900,6 +901,11 @@ class R2PACBayesian(Fitness):
                     # features.std(dim=0).detach().numpy(),
                 )
             sharpness_value = np.maximum(gradient_sharpness, sharpness_value)
+            # sharpness value needs to be updated, so that objective values are consistent
+            individual.fitness_list = [
+                (individual.fitness.wvalues[0], 1),
+                (sharpness_value, -1),
+            ]
         """
         Here, using cross-validation loss is reasonable
         """

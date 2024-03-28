@@ -4,7 +4,7 @@ import random
 import sys
 from functools import wraps, partial
 from inspect import isclass
-from typing import Callable, List
+from typing import Callable, List, Tuple
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -108,11 +108,11 @@ class MultipleGeneGP:
     predicted_values: np.ndarray
     individual_semantics: np.ndarray
     coef: np.ndarray
-    hash_result: list
+    hash_result: List
     mgp_mode: bool
     semantics: np.ndarray
     pipe: GPPipeline
-    fitness_list: List
+    fitness_list: List[Tuple]
     # for sharpness estimation
     sam_loss: float
     scaler: StandardScaler

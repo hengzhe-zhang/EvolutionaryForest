@@ -422,7 +422,12 @@ class ParetoFrontTool:
             model = SlicedPredictor(LGBMRegressor(verbosity=-1))
         else:
             raise Exception("Model name is not supported")
-        model.fit(constructed_train_x, train_y)
+
+        if model_name == "Lasso":
+            # In scikit-learn, LassoCV does not perform well for float32.
+            model.fit(constructed_train_x.astype(np.float64), train_y)
+        else:
+            model.fit(constructed_train_x, train_y)
 
         prediction = model.predict(constructed_test_x)
         prediction = self.y_scaler.inverse_transform(
