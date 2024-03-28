@@ -881,25 +881,22 @@ class R2PACBayesian(Fitness):
 
         if self.algorithm.constant_type in ["GD+", "GD-"]:
             if algorithm.verbose and sharpness_value > gradient_sharpness:
-                max_gradient = np.max([np.max(grad) for grad in gradients])
-                print(
-                    "Gradient Sharpness",
-                    gradient_sharpness,
-                    "Maximum Norm",
-                    max_gradient,
-                    "Traditional Sharpness",
-                    sharpness_value,
-                    "individual",
-                    str(individual),
-                    "coef",
-                    individual.pipe["Ridge"].coef_,
-                    "case fitness",
-                    individual.case_values.max(),
-                    # "mean",
-                    # features.mean(dim=0).detach().numpy(),
-                    # "std",
-                    # features.std(dim=0).detach().numpy(),
-                )
+                pass
+                # max_gradient = np.max([np.max(grad) for grad in gradients])
+                # print(
+                #     "Gradient Sharpness",
+                #     gradient_sharpness,
+                #     "Maximum Norm",
+                #     max_gradient,
+                #     "Traditional Sharpness",
+                #     sharpness_value,
+                #     "individual",
+                #     str(individual),
+                #     "coef",
+                #     individual.pipe["Ridge"].coef_,
+                #     "case fitness",
+                #     individual.case_values.max(),
+                # )
             sharpness_value = np.maximum(gradient_sharpness, sharpness_value)
             # sharpness value needs to be updated, so that objective values are consistent
             individual.fitness_list = [
