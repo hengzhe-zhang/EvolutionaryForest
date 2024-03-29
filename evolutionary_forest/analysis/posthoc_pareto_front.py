@@ -6,8 +6,9 @@ from matplotlib import cm
 from matplotlib.colors import Normalize
 from sklearn.base import ClassifierMixin
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import RidgeCV, LassoCV
+from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.svm import LinearSVR
 from sklearn.tree import DecisionTreeRegressor
 
 from evolutionary_forest.component.decision_making.bend_angle_knee import (
@@ -86,7 +87,6 @@ class ParetoFrontTool:
             transfer_model_front = True
 
         if flag in ["SAM", "Mixup"]:
-            noise_target_pareto_front = True
             transfer_model_front = True
 
         # Compute normalized prediction error for each individual
@@ -179,7 +179,15 @@ class ParetoFrontTool:
                         loss_on_noisy_target,
                     )
             if transfer_model_front:
-                for model in ["KNN", "WKNN", "Lasso", "RF", "LightGBM"]:
+                for model in [
+                    "KNN",
+                    "WKNN",
+                    "ElasticNet",
+                    "Lasso",
+                    "LinearSVR",
+                    "RF",
+                    "LightGBM",
+                ]:
                     test_error_normalized_knn = ParetoFrontTool.model_transfer(
                         self,
                         normalization_factor_test,
@@ -193,67 +201,6 @@ class ParetoFrontTool:
                     )
             del prediction
             del errors
-        # self.pareto_front, _ = pareto_front_2d(self.pareto_front)
-        # self.pareto_front = self.pareto_front.tolist()
-        # self.size_pareto_front, _ = pareto_front_2d(self.size_pareto_front)
-        # self.size_pareto_front = self.size_pareto_front.tolist()
-
-        # if len(self.data_pareto_front_50) > 0:
-        #     self.data_pareto_front_50, _ = pareto_front_2d(self.data_pareto_front_50)
-        #     self.data_pareto_front_50 = self.data_pareto_front_50.tolist()
-        # if len(self.data_pareto_front_200) > 0:
-        #     self.data_pareto_front_200, _ = pareto_front_2d(self.data_pareto_front_200)
-        #     self.data_pareto_front_200 = self.data_pareto_front_200.tolist()
-        # if len(self.data_pareto_front_500) > 0:
-        #     self.data_pareto_front_500, _ = pareto_front_2d(self.data_pareto_front_500)
-        #     self.data_pareto_front_500 = self.data_pareto_front_500.tolist()
-        # if len(self.adversarial_pareto_front_10) > 0:
-        #     self.adversarial_pareto_front_10, _ = pareto_front_2d(
-        #         self.adversarial_pareto_front_10
-        #     )
-        #     self.adversarial_pareto_front_10 = self.adversarial_pareto_front_10.tolist()
-        # if len(self.noise_pareto_front_1) > 0:
-        #     self.noise_pareto_front_1, _ = pareto_front_2d(self.noise_pareto_front_1)
-        #     self.noise_pareto_front_1 = self.noise_pareto_front_1.tolist()
-        # if len(self.noise_pareto_front_10) > 0:
-        #     self.noise_pareto_front_10, _ = pareto_front_2d(self.noise_pareto_front_10)
-        #     self.noise_pareto_front_10 = self.noise_pareto_front_10.tolist()
-        # if len(self.noise_sample_pareto_front_10) > 0:
-        #     self.noise_sample_pareto_front_10, _ = pareto_front_2d(
-        #         self.noise_sample_pareto_front_10
-        #     )
-        #     self.noise_sample_pareto_front_10 = (
-        #         self.noise_sample_pareto_front_10.tolist()
-        #     )
-        # if len(self.noise_sample_pareto_front_5) > 0:
-        #     self.noise_sample_pareto_front_5, _ = pareto_front_2d(
-        #         self.noise_sample_pareto_front_5
-        #     )
-        #     self.noise_sample_pareto_front_5 = self.noise_sample_pareto_front_5.tolist()
-        # if len(self.knn_pareto_front) > 0:
-        #     self.knn_pareto_front, _ = pareto_front_2d(self.knn_pareto_front)
-        #     self.knn_pareto_front = self.knn_pareto_front.tolist()
-        # if len(self.wknn_pareto_front) > 0:
-        #     self.wknn_pareto_front, _ = pareto_front_2d(self.wknn_pareto_front)
-        #     self.wknn_pareto_front = self.wknn_pareto_front.tolist()
-        # if len(self.dt_pareto_front) > 0:
-        #     self.dt_pareto_front, _ = pareto_front_2d(self.dt_pareto_front)
-        #     self.dt_pareto_front = self.dt_pareto_front.tolist()
-
-        if parameters is not None and isinstance(parameters.get("log_item"), str):
-            save_pareto_front = (
-                True if "ParetoFront" in parameters.get("log_item") else False
-            )
-            if save_pareto_front:
-                scoring_function = parameters.get("score_func")
-                np.save(
-                    f"result/{scoring_function}_adversarial_pareto_front_10.npy",
-                    self.adversarial_pareto_front_10,
-                )
-                np.save(
-                    f"result/{scoring_function}_size_pareto_front_10.npy",
-                    self.size_pareto_front,
-                )
 
     @staticmethod
     def noisy_prediction(ind, self, std, normalization_factor_test, test_x, test_y):
@@ -400,6 +347,20 @@ class ParetoFrontTool:
                 [
                     ("scaler", StandardScaler()),
                     ("model", SlicedPredictor(LassoCV())),
+                ]
+            )
+        elif model_name == "ElasticNet":
+            model = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("model", SlicedPredictor(ElasticNetCV())),
+                ]
+            )
+        elif model_name == "LinearSVR":
+            model = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("model", SlicedPredictor(LinearSVR())),
                 ]
             )
         elif model_name == "WKNN":
