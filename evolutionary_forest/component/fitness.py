@@ -14,7 +14,10 @@ from torch import optim
 
 from evolutionary_forest.component.evaluation import (
     multi_tree_evaluation,
+)
+from evolutionary_forest.utility.gradient_optimization.scaling import (
     feature_standardization_torch,
+    gradient_agnostic_standarization,
 )
 from evolutionary_forest.component.generalization.iodc import (
     create_z,
@@ -746,53 +749,32 @@ class R2PACBayesian(Fitness):
             ):
                 sharpness = 0
             else:
-                features = multi_tree_evaluation(
-                    trees,
-                    self.algorithm.pset,
-                    self.algorithm.X,
-                    self.algorithm.original_features,
-                    configuration=self.algorithm.evaluation_configuration,
-                    individual_configuration=individual.individual_configuration,
-                )
+                features = self.get_constructed_features(individual, trees)
                 if torch.any(torch.isnan(features)):
                     sharpness = np.inf
                 else:
                     # features = feature_standardization_torch(features)
                     scaler: StandardScaler = estimator["Scaler"]
-                    self.scaler_standarization(features, scaler)
+                    gradient_agnostic_standarization(features, scaler)
 
                     ridge = estimator["Ridge"]
-                    # extract coefficients from linear model
-                    weights = ridge.coef_
-                    bias = ridge.intercept_
-                    weights_torch = torch.tensor(
-                        weights, dtype=torch.float32, requires_grad=False
+                    (
+                        bias_torch,
+                        weights_torch,
+                    ) = self.extract_weights_and_bias_from_linear_model(ridge)
+                    Y_pred = self.get_predictions_on_linear_model(
+                        features, weights_torch, bias_torch
                     )
-                    bias_torch = torch.tensor(
-                        bias, dtype=torch.float32, requires_grad=False
-                    )
-                    Y_pred = torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
-
-                    criterion = torch.nn.MSELoss()
                     mse_old = (Y_pred.detach().numpy().flatten() - y) ** 2
-                    loss = criterion(Y_pred, torch.from_numpy(y).detach().float())
-                    loss.backward()
+                    self.calculate_gradient(Y_pred, y)
 
                     traditional_sam = True
                     if traditional_sam:
                         self.sharpness_gradient_ascent(torch_variables)
-
-                        features = multi_tree_evaluation(
-                            trees,
-                            self.algorithm.pset,
-                            self.algorithm.X,
-                            self.algorithm.original_features,
-                            configuration=self.algorithm.evaluation_configuration,
-                            individual_configuration=individual.individual_configuration,
-                        )
+                        features = self.get_constructed_features(individual, trees)
                         features = feature_standardization_torch(features)
-                        Y_pred = (
-                            torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
+                        Y_pred = self.get_predictions_on_linear_model(
+                            features, weights_torch, bias_torch
                         )
                         mse_new = (Y_pred.detach().numpy().flatten() - y) ** 2
                         sharpness = np.maximum(mse_new - mse_old, 0).mean()
@@ -800,24 +782,12 @@ class R2PACBayesian(Fitness):
                         one_step_gradient_ascent = False
                         if one_step_gradient_ascent:
                             self.sharpness_gradient_ascent(torch_variables)
-
-                            features = multi_tree_evaluation(
-                                trees,
-                                self.algorithm.pset,
-                                self.algorithm.X,
-                                self.algorithm.original_features,
-                                configuration=self.algorithm.evaluation_configuration,
-                                individual_configuration=individual.individual_configuration,
+                            features = self.get_constructed_features(individual, trees)
+                            gradient_agnostic_standarization(features, scaler)
+                            Y_pred = self.get_predictions_on_linear_model(
+                                features, weights_torch, bias_torch
                             )
-                            self.scaler_standarization(features, scaler)
-                            Y_pred = (
-                                torch.mm(features, weights_torch.view(-1, 1))
-                                + bias_torch
-                            )
-                            loss = criterion(
-                                Y_pred, torch.from_numpy(y).detach().float()
-                            )
-                            loss.backward()
+                            self.calculate_gradient(Y_pred, y)
 
                         # Collect gradients into a list
                         gradients = [
@@ -925,18 +895,33 @@ class R2PACBayesian(Fitness):
             individual.case_values = individual.case_values + sharpness_vector
         return (-1 * individual.fitness_list[0][0],)
 
-    def scaler_standarization(self, features, scaler):
-        mean = torch.tensor(scaler.mean_, dtype=torch.float32)
-        std = torch.tensor(scaler.scale_, dtype=torch.float32)
-        # Check if std is not zero for each feature
-        non_zero_std_indices = std != 0
-        # Normalize features for non-zero std features
-        if non_zero_std_indices.any():
-            features[:, non_zero_std_indices] = (
-                features[:, non_zero_std_indices] - mean[non_zero_std_indices]
-            ) / std[non_zero_std_indices]
-        # Subtract mean for zero std features
-        features[:, ~non_zero_std_indices] -= mean[~non_zero_std_indices]
+    def extract_weights_and_bias_from_linear_model(self, ridge):
+        # extract coefficients from linear model
+        weights = ridge.coef_
+        bias = ridge.intercept_
+        weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=False)
+        bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=False)
+        return bias_torch, weights_torch
+
+    def get_predictions_on_linear_model(self, features, weights_torch, bias_torch):
+        Y_pred = torch.mm(features, weights_torch.view(-1, 1)) + bias_torch
+        return Y_pred
+
+    def calculate_gradient(self, Y_pred, Y_label):
+        criterion = torch.nn.MSELoss()
+        loss = criterion(Y_pred, torch.from_numpy(Y_label).detach().float())
+        loss.backward()
+
+    def get_constructed_features(self, individual, trees):
+        features = multi_tree_evaluation(
+            trees,
+            self.algorithm.pset,
+            self.algorithm.X,
+            self.algorithm.original_features,
+            configuration=self.algorithm.evaluation_configuration,
+            individual_configuration=individual.individual_configuration,
+        )
+        return features
 
     def sharpness_gradient_ascent(self, torch_variables):
         # Reverse the direction of the gradients for gradient ascent

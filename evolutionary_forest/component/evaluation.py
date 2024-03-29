@@ -58,6 +58,9 @@ from evolutionary_forest.multigene_gp import (
     IndividualConfiguration,
 )
 from evolutionary_forest.sklearn_utils import cross_val_predict
+from evolutionary_forest.utility.gradient_optimization.scaling import (
+    feature_standardization_torch,
+)
 from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
 from evolutionary_forest.utility.sampling_utils import (
     sample_according_to_distance,
@@ -425,17 +428,6 @@ def gradient_optimization(constructed_features, Y, configuration, func):
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-
-
-def feature_standardization_torch(constructed_features):
-    # normalize before ridge regression
-    mean = constructed_features.mean(dim=0)
-    std = constructed_features.std(dim=0)
-    # mean = constructed_features.mean(dim=0).detach()
-    # std = constructed_features.var(dim=0).detach()
-    epsilon = 1e-10
-    constructed_features_normalized = (constructed_features - mean) / (std + epsilon)
-    return constructed_features_normalized
 
 
 def calculate_permutation_importance(estimators, Yp, Y):
