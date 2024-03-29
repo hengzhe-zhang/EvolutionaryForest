@@ -759,21 +759,7 @@ class R2PACBayesian(Fitness):
                 else:
                     # features = feature_standardization_torch(features)
                     scaler: StandardScaler = estimator["Scaler"]
-                    mean = torch.tensor(scaler.mean_, dtype=torch.float32)
-                    std = torch.tensor(scaler.scale_, dtype=torch.float32)
-
-                    # Check if std is not zero for each feature
-                    non_zero_std_indices = std != 0
-
-                    # Normalize features for non-zero std features
-                    if non_zero_std_indices.any():
-                        features[:, non_zero_std_indices] = (
-                            features[:, non_zero_std_indices]
-                            - mean[non_zero_std_indices]
-                        ) / std[non_zero_std_indices]
-
-                    # Subtract mean for zero std features
-                    features[:, ~non_zero_std_indices] -= mean[~non_zero_std_indices]
+                    self.scaler_standarization(features, scaler)
 
                     ridge = estimator["Ridge"]
                     # extract coefficients from linear model
@@ -792,7 +778,7 @@ class R2PACBayesian(Fitness):
                     loss = criterion(Y_pred, torch.from_numpy(y).detach().float())
                     loss.backward()
 
-                    traditional_sam = False
+                    traditional_sam = True
                     if traditional_sam:
                         self.sharpness_gradient_ascent(torch_variables)
 
@@ -811,6 +797,28 @@ class R2PACBayesian(Fitness):
                         mse_new = (Y_pred.detach().numpy().flatten() - y) ** 2
                         sharpness = np.maximum(mse_new - mse_old, 0).mean()
                     else:
+                        one_step_gradient_ascent = False
+                        if one_step_gradient_ascent:
+                            self.sharpness_gradient_ascent(torch_variables)
+
+                            features = multi_tree_evaluation(
+                                trees,
+                                self.algorithm.pset,
+                                self.algorithm.X,
+                                self.algorithm.original_features,
+                                configuration=self.algorithm.evaluation_configuration,
+                                individual_configuration=individual.individual_configuration,
+                            )
+                            self.scaler_standarization(features, scaler)
+                            Y_pred = (
+                                torch.mm(features, weights_torch.view(-1, 1))
+                                + bias_torch
+                            )
+                            loss = criterion(
+                                Y_pred, torch.from_numpy(y).detach().float()
+                            )
+                            loss.backward()
+
                         # Collect gradients into a list
                         gradients = [
                             v.grad.numpy()
@@ -916,6 +924,19 @@ class R2PACBayesian(Fitness):
             # smaller is better
             individual.case_values = individual.case_values + sharpness_vector
         return (-1 * individual.fitness_list[0][0],)
+
+    def scaler_standarization(self, features, scaler):
+        mean = torch.tensor(scaler.mean_, dtype=torch.float32)
+        std = torch.tensor(scaler.scale_, dtype=torch.float32)
+        # Check if std is not zero for each feature
+        non_zero_std_indices = std != 0
+        # Normalize features for non-zero std features
+        if non_zero_std_indices.any():
+            features[:, non_zero_std_indices] = (
+                features[:, non_zero_std_indices] - mean[non_zero_std_indices]
+            ) / std[non_zero_std_indices]
+        # Subtract mean for zero std features
+        features[:, ~non_zero_std_indices] -= mean[~non_zero_std_indices]
 
     def sharpness_gradient_ascent(self, torch_variables):
         # Reverse the direction of the gradients for gradient ascent
