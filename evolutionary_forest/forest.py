@@ -220,6 +220,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
     MultiFidelityEvaluation,
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
+from evolutionary_forest.utility.check_util import is_standardized
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
@@ -2765,6 +2766,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.counter_initialization()
         self.history_initialization()
 
+        # whether input data is standardized
+        self.standardized_flag = is_standardized(X)
+
         self.y_shape = y.shape
         if isinstance(X, pd.DataFrame):
             self.columns = X.columns.tolist()  # store column names
@@ -5284,12 +5288,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return count
 
     def model(self, mtl_id=None):
-        assert np.allclose(
-            self.x_scaler.mean_, 0
-        ), "The mean of the input data should be zero!"
-        assert np.allclose(
-            self.x_scaler.scale_, 1
-        ), "The scale of the input data should be one!"
+        assert self.standardized_flag, "Data is not standardized."
         print(self.x_scaler.mean_, self.x_scaler.scale_)
         if len(self.hof) == 1:
             assert len(self.hof) == 1
