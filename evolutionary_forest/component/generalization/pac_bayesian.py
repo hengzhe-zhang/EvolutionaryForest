@@ -16,7 +16,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
-from evolutionary_forest.component.configuration import NoiseConfiguration
+from evolutionary_forest.component.configuration import (
+    NoiseConfiguration,
+    Configuration,
+)
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
@@ -42,7 +45,7 @@ def m_sharpness(baseline, k=4):
     return final_baseline
 
 
-class PACBayesianConfiguration:
+class PACBayesianConfiguration(Configuration):
     def __init__(
         self,
         kl_term_weight: float = 1,

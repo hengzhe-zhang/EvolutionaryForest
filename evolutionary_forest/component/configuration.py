@@ -15,7 +15,11 @@ def check_semantic_based_bc(bloat_control):
     return False
 
 
-class NoiseConfiguration:
+class Configuration:
+    pass
+
+
+class NoiseConfiguration(Configuration):
     def __init__(
         self,
         noise_type="Normal",
@@ -47,7 +51,7 @@ class NoiseConfiguration:
         self.random_layer_mode = random_layer_mode
 
 
-class MABConfiguration:
+class MABConfiguration(Configuration):
     def __init__(
         self,
         mode="Decay",
@@ -67,7 +71,7 @@ class MABConfiguration:
         self.threshold = threshold
 
 
-class ArchiveConfiguration:
+class ArchiveConfiguration(Configuration):
     def __init__(self, dynamic_validation=False, data_combination=True, **params):
         self.dynamic_validation = dynamic_validation
         # Training the final model with training data and validation data
@@ -102,7 +106,7 @@ class SelectionMode(enum.Enum):
         return None
 
 
-class CrossoverConfiguration:
+class CrossoverConfiguration(Configuration):
     """
     Two possible ways of macro semantic crossover:
     1. Two individuals only apply macro crossover with a certain probability
@@ -171,13 +175,13 @@ class CrossoverConfiguration:
         self.sc_temperature = sc_temperature
 
 
-class MAPElitesConfiguration:
+class MAPElitesConfiguration(Configuration):
     def __init__(self, map_elites_random_sample=False, map_elites_bins=10, **params):
         self.map_elites_random_sample = map_elites_random_sample
         self.map_elites_bins = map_elites_bins
 
 
-class MutationConfiguration:
+class MutationConfiguration(Configuration):
     def __init__(
         self,
         safe_mutation=False,
@@ -220,7 +224,7 @@ class MutationConfiguration:
         self.handle_objective_duplication = handle_objective_duplication
 
 
-class ImbalancedConfiguration:
+class ImbalancedConfiguration(Configuration):
     def __init__(
         self,
         balanced_evaluation=False,
@@ -237,7 +241,7 @@ class ImbalancedConfiguration:
         self.based_on_test = based_on_test
 
 
-class EvaluationConfiguration:
+class EvaluationConfiguration(Configuration):
     def __init__(
         self,
         dynamic_target=False,
@@ -318,7 +322,7 @@ class EvaluationConfiguration:
         self.enable_library = False
 
 
-class BloatControlConfiguration:
+class BloatControlConfiguration(Configuration):
     def __init__(
         self,
         hoist_before_selection=True,
@@ -331,19 +335,19 @@ class BloatControlConfiguration:
         self.size_selection = size_selection
 
 
-class BaseLearnerConfiguration:
+class BaseLearnerConfiguration(Configuration):
     def __init__(self, ridge_alpha=1, **params):
         self.ridge_alpha = ridge_alpha
 
 
-class ExperimentalConfiguration:
+class ExperimentalConfiguration(Configuration):
     def __init__(self, pac_bayesian_comparison=False, **params) -> None:
         # Here are some configurations only used for experiments
         # This flag is only used for experimental comparison
         self.pac_bayesian_comparison = pac_bayesian_comparison
 
 
-class DepthLimitConfiguration:
+class DepthLimitConfiguration(Configuration):
     def __init__(
         self,
         max_height: Union[str, int] = 10,  # Maximum height of a GP tree

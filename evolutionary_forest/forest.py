@@ -234,6 +234,9 @@ from evolutionary_forest.utility.skew_transformer import (
 from evolutionary_forest.utility.tree_pool import SemanticLibrary
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
+from evolutionary_forest.component.verification.configuration_check import (
+    consistency_check,
+)
 
 multi_gene_operators = [
     "uniform-plus",
@@ -2034,6 +2037,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.pac_bayesian.perturbation_std = auto_sam_scaling(
                 self.X, self.y, self.pac_bayesian.perturbation_std
             )
+        consistency_check(self)
 
     def tree_initialization_function(self, pset, toolbox: TypedToolbox):
         if self.initial_tree_size is None:
@@ -5280,6 +5284,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return count
 
     def model(self, mtl_id=None):
+        assert np.allclose(
+            self.x_scaler.mean_, 0
+        ), "The mean of the input data should be zero!"
+        assert np.allclose(
+            self.x_scaler.scale_, 1
+        ), "The scale of the input data should be one!"
+        print(self.x_scaler.mean_, self.x_scaler.scale_)
         if len(self.hof) == 1:
             assert len(self.hof) == 1
             best_ind = self.hof[0]
@@ -5313,7 +5324,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             learner = best_ind.pipe
         assert isinstance(learner, LinearModel)
         genes = best_ind.gene
-        return model_to_string(genes, learner, scaler)
+        final_model = model_to_string(genes, learner, scaler)
+        if self.y_scaler is not None:
+            mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
+            final_model = f"((({final_model})*{std})+{mean})"
+        return final_model
 
     def pretrain_predict(self, X):
         if self.learner is not None:
