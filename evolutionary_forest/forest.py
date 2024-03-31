@@ -342,7 +342,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         decision_tree_count=0,  # Number of piecewise trees in a SR-Tree
         # More Parameters
         initial_tree_size=None,  # Initial size of GP tree
-        basic_gene_num=0,  # Number of basic genes in a MGP
         reduction_ratio=0,  # Ratio of samples removed in pre-selection based on filters
         random_state=None,  # Random state used for reproducibility
         validation_size=0,  # Size of the validation set for using in HOF
@@ -510,7 +509,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.random_state = random_state
         self.reduction_ratio = reduction_ratio
         self.mgp_mode = mgp_mode
-        self.basic_gene_num = basic_gene_num
         self.decision_tree_count = decision_tree_count
         self.shared_partition_scheme = shared_partition_scheme
         self.only_original_features = only_original_features
