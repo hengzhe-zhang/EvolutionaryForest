@@ -5294,7 +5294,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if len(self.hof) == 1:
             assert len(self.hof) == 1
             best_ind = self.hof[0]
-            return self.single_model(best_ind, mtl_id)
+            final_model = self.single_model(best_ind, mtl_id)
+            if self.y_scaler is not None:
+                mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
+                final_model = f"((({final_model})*{std})+{mean})"
+            return final_model
         else:
             final_model = ""
             for ind in self.hof:
@@ -5325,9 +5329,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         assert isinstance(learner, LinearModel)
         genes = best_ind.gene
         final_model = model_to_string(genes, learner, scaler)
-        if self.y_scaler is not None:
-            mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
-            final_model = f"((({final_model})*{std})+{mean})"
         return final_model
 
     def pretrain_predict(self, X):

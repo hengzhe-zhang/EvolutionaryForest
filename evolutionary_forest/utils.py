@@ -1,4 +1,5 @@
 import copy
+import math
 import os
 import pickle as cPickle
 import random
@@ -299,6 +300,8 @@ def gene_to_string(gene):
                     string += f"{args[0]}/sqrt(1+{args[1]}*{args[1]})"
                 elif prim.name == "Log":
                     string += f"log(sqrt(1+{args[0]}*{args[0]}))"
+                elif prim.name == "ALog":
+                    string += f"log(sqrt(1+{args[0]}*{args[0]}))"
                 elif prim.name == "Log10":
                     string += f"log(sqrt(1+{args[0]}*{args[0]}),10)"
                 elif prim.name == "Square":
@@ -327,6 +330,10 @@ def gene_to_string(gene):
                     string += f"sin({args[0]})"
                 elif prim.name == "Cos":
                     string += f"cos({args[0]})"
+                elif prim.name == "RSin":
+                    string += f"sin({math.pi}*{args[0]})"
+                elif prim.name == "RCos":
+                    string += f"cos({math.pi}*{args[0]})"
                 elif prim.name == "Abs":
                     string += f"Abs({args[0]})"
                 elif prim.name not in infix_map:
