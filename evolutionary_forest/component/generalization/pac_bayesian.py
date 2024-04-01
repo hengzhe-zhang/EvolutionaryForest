@@ -20,6 +20,7 @@ from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
     Configuration,
 )
+from evolutionary_forest.component.generalization.decision_tool import DecisionTool
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
@@ -67,6 +68,8 @@ class PACBayesianConfiguration(Configuration):
         classification=False,
         sam_knn_neighbors=1,
         weighted_sam=False,
+        missing_value_imputation=0,
+        intelligent_decision=False,
         **params
     ):
         # For VCD
@@ -91,6 +94,12 @@ class PACBayesianConfiguration(Configuration):
         self.classification = classification
         self.sam_knn_neighbors = sam_knn_neighbors
         self.weighted_sam = weighted_sam
+
+        # allow missing value imputation
+        self.missing_value_imputation = missing_value_imputation
+        # intelligent decision
+        self.intelligent_decision = intelligent_decision
+        self.intelligent_decision_tool = DecisionTool()
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -197,6 +206,15 @@ def pac_bayesian_estimation(
     std = configuration.perturbation_std
     # Iterate over the number of iterations
     for i in range(num_iterations):
+        if (
+            configuration.intelligent_decision
+            and configuration.intelligent_decision_tool.learner is not None
+        ):
+            if not configuration.intelligent_decision_tool.decision(
+                original_predictions, i
+            ):
+                # skip this iteration
+                continue
         X_noise_plus = None
         # default using original data
         data = X
