@@ -783,6 +783,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **params, **vars(self), classification=isinstance(self, ClassifierMixin)
         )
         if self.constant_type in ["GD", "GD+"]:
+            # in this case, enable gradient descent
             self.evaluation_configuration.gradient_descent = True
         self.archive_configuration = ArchiveConfiguration(
             **params,
