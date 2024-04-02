@@ -5290,7 +5290,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def model(self, mtl_id=None):
         # assert self.standardized_flag, "Data is not standardized."
-        print(self.x_scaler.mean_, self.x_scaler.scale_)
         if len(self.hof) == 1:
             assert len(self.hof) == 1
             best_ind = self.hof[0]
