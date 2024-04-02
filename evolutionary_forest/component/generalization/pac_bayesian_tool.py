@@ -68,7 +68,6 @@ def automatic_perturbation_std(self: "EvolutionaryForestRegressor", population):
                     y_train,
                     pipe,
                     individual,
-                    self.evaluation_configuration.cross_validation,
                     pac_bayesian,
                     SharpnessType.Parameter,
                     feature_generator=feature_generator,

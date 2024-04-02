@@ -20,7 +20,6 @@ from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
     Configuration,
 )
-from evolutionary_forest.component.generalization.decision_tool import DecisionTool
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
@@ -68,7 +67,7 @@ class PACBayesianConfiguration(Configuration):
         classification=False,
         sam_knn_neighbors=1,
         weighted_sam=False,
-        missing_value_imputation=0,
+        prediction_based_sharpness=0,
         intelligent_decision=False,
         **params
     ):
@@ -96,10 +95,9 @@ class PACBayesianConfiguration(Configuration):
         self.weighted_sam = weighted_sam
 
         # allow missing value imputation
-        self.missing_value_imputation = missing_value_imputation
+        self.prediction_based_sharpness = prediction_based_sharpness
         # intelligent decision
         self.intelligent_decision = intelligent_decision
-        self.intelligent_decision_tool = DecisionTool()
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -139,12 +137,13 @@ class SharpnessType(Enum):
 
 # @timeit
 def pac_bayesian_estimation(
+    # X: constructed features
     X,
+    # original_X: input features
     original_X,
     y,
     estimator,
     individual,
-    cross_validation: bool,
     configuration: PACBayesianConfiguration,
     sharpness_type: SharpnessType,
     feature_generator=None,
@@ -152,6 +151,7 @@ def pac_bayesian_estimation(
     reference_model: LGBMRegressor = None,
     sharpness_vector=None,
     instance_weights=None,
+    historical_best_score=None,
 ):
     """
     Please pay attention, when calculating the sharpness,
@@ -206,15 +206,23 @@ def pac_bayesian_estimation(
     std = configuration.perturbation_std
     # Iterate over the number of iterations
     for i in range(num_iterations):
-        if (
-            configuration.intelligent_decision
-            and configuration.intelligent_decision_tool.learner is not None
-        ):
-            if not configuration.intelligent_decision_tool.decision(
-                original_predictions, i
-            ):
-                # skip this iteration
+        if configuration.intelligent_decision and historical_best_score is not None:
+            regularization_objective = configuration.objective.split(",")[1]
+            if regularization_objective == "MaxSharpness-1~":
+                scores = np.max(mse_scores, axis=0)
+                max_sharpness = np.mean(scores)
+            elif regularization_objective == "MaxSharpness-1-Base":
+                scores = np.vstack((baseline, mse_scores))
+                scores = np.max(scores, axis=0)
+                scores -= baseline
+                max_sharpness = np.mean(scores)
+            else:
+                raise Exception("Not support!")
+            base_score = np.mean(individual.case_values)
+            if historical_best_score < max_sharpness + base_score:
+                # don't need evaluation
                 continue
+
         X_noise_plus = None
         # default using original data
         data = X

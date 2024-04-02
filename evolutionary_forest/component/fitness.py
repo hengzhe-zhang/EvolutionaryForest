@@ -1,7 +1,7 @@
 import time
 from abc import abstractmethod
 from functools import partial, lru_cache
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -14,10 +14,6 @@ from torch import optim
 
 from evolutionary_forest.component.evaluation import (
     multi_tree_evaluation,
-)
-from evolutionary_forest.utility.gradient_optimization.scaling import (
-    feature_standardization_torch,
-    gradient_agnostic_standarization,
 )
 from evolutionary_forest.component.generalization.iodc import (
     create_z,
@@ -44,6 +40,10 @@ from evolutionary_forest.component.generalization.wcrv import (
 from evolutionary_forest.model.ASGAN import ASGAN
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
+from evolutionary_forest.utility.gradient_optimization.scaling import (
+    feature_standardization_torch,
+    gradient_agnostic_standarization,
+)
 from evolutionary_forest.utility.sampling_utils import sample_according_to_distance
 from evolutionary_forest.utils import tuple_to_list, list_to_tuple
 
@@ -811,6 +811,11 @@ class R2PACBayesian(Fitness):
             sharpness_value = gradient_sharpness
             estimation = [(individual.fitness.wvalues[0], 1), (sharpness_value, -1)]
         else:
+            if len(self.algorithm.hof) > 0:
+                historical_best_score = self.algorithm.hof[0].sam_loss
+            else:
+                historical_best_score = None
+
             # no matter what, always need Gaussian estimation
             estimation = pac_bayesian_estimation(
                 X_features,
@@ -818,7 +823,6 @@ class R2PACBayesian(Fitness):
                 y,
                 estimator,
                 individual,
-                self.algorithm.evaluation_configuration.cross_validation,
                 self.algorithm.pac_bayesian,
                 self.sharpness_type,
                 feature_generator=feature_generator,
@@ -826,6 +830,7 @@ class R2PACBayesian(Fitness):
                 reference_model=self.algorithm.reference_lgbm,
                 sharpness_vector=sharpness_vector,
                 instance_weights=self.instance_weights,
+                historical_best_score=historical_best_score,
             )
             if (
                 hasattr(individual, "fitness_list")
@@ -860,21 +865,6 @@ class R2PACBayesian(Fitness):
         if self.algorithm.constant_type in ["GD+", "GD-"]:
             if algorithm.verbose and sharpness_value > gradient_sharpness:
                 pass
-                # max_gradient = np.max([np.max(grad) for grad in gradients])
-                # print(
-                #     "Gradient Sharpness",
-                #     gradient_sharpness,
-                #     "Maximum Norm",
-                #     max_gradient,
-                #     "Traditional Sharpness",
-                #     sharpness_value,
-                #     "individual",
-                #     str(individual),
-                #     "coef",
-                #     individual.pipe["Ridge"].coef_,
-                #     "case fitness",
-                #     individual.case_values.max(),
-                # )
             sharpness_value = np.maximum(gradient_sharpness, sharpness_value)
             # sharpness value needs to be updated, so that objective values are consistent
             individual.fitness_list = [
