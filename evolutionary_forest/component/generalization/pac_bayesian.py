@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
+from analysis.pac_bayesian.evaluation.dropout import dropout_features
 from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
     Configuration,
@@ -69,8 +70,12 @@ class PACBayesianConfiguration(Configuration):
         weighted_sam=False,
         prediction_based_sharpness=0,
         intelligent_decision=False,
+        dropout_rate=0.2,
         **params
     ):
+        # For dropout
+        self.dropout_rate = dropout_rate
+
         # For VCD
         self.adaptive_depth = adaptive_depth
         self.optimal_design = optimal_design
@@ -96,6 +101,7 @@ class PACBayesianConfiguration(Configuration):
 
         # allow missing value imputation
         self.prediction_based_sharpness = prediction_based_sharpness
+
         # intelligent decision
         self.intelligent_decision = intelligent_decision
 
@@ -133,6 +139,7 @@ class SharpnessType(Enum):
     DataGPHybrid = 9
     ParameterPlus = 10
     GKNN = 11
+    Dropout = 12
 
 
 # @timeit
@@ -230,6 +237,9 @@ def pac_bayesian_estimation(
         if sharpness_type == SharpnessType.Semantics:
             # Add random Gaussian noise to the coefficients and intercept
             X_noise = X + np.random.normal(scale=std, size=X.shape)
+        elif sharpness_type == SharpnessType.Dropout:
+            dropout_rate = configuration.dropout_rate
+            X_noise = dropout_features(X, dropout_rate=dropout_rate)
         elif (
             sharpness_type == SharpnessType.Data
             or sharpness_type == SharpnessType.DataGP

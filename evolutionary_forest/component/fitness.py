@@ -527,6 +527,8 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.MaxMargin
         if sharpness_type == "Parameter":
             sharpness_type = SharpnessType.Parameter
+        if sharpness_type == "Dropout":
+            sharpness_type = SharpnessType.Dropout
         if sharpness_type == "ParameterPlus":
             sharpness_type = SharpnessType.ParameterPlus
         if sharpness_type == "GKNN":
