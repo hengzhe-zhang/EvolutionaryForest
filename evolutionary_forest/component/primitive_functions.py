@@ -5,6 +5,7 @@ from functools import reduce
 import numpy as np
 import pandas as pd
 import torch
+from deap.gp import PrimitiveTree
 from hdfe import Groupby
 from numba import njit
 from scipy.stats import mode
@@ -139,10 +140,14 @@ def analytical_log_torch(x):
 def individual_to_tuple(ind):
     encoded_ind = []
     for tree in ind.gene:
-        encoded_ind.append(tuple(node.name for node in tree))
+        encoded_ind.append(tree_to_tuple(tree))
     if hasattr(ind, "base_model"):
         encoded_ind.append((ind.base_model,))
     return tuple(sorted(encoded_ind))
+
+
+def tree_to_tuple(tree: PrimitiveTree):
+    return tuple(node.name for node in tree)
 
 
 def protect_loge(x1):

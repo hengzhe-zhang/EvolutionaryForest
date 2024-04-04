@@ -47,6 +47,7 @@ from evolutionary_forest.component.configuration import (
     ImbalancedConfiguration,
     NoiseConfiguration,
 )
+from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
 from evolutionary_forest.component.tree_utils import node_depths
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
@@ -646,6 +647,7 @@ def multi_tree_evaluation(
     noise_configuration: NoiseConfiguration = None,
     reference_label: np.ndarray = None,
     individual_configuration: IndividualConfiguration = None,
+    evaluation_cache: TreeLRUCache = None,
 ):
     if configuration is None:
         configuration = EvaluationConfiguration()
@@ -710,6 +712,16 @@ def multi_tree_evaluation(
     else:
         # ordinary GP evaluation
         for gene in gp_trees:
+            # support a cache system
+            if (
+                evaluation_cache is not None
+                and evaluation_cache.query(gene, random_noise, random_seed) is not None
+            ):
+                # cache to skip evaluation
+                feature = evaluation_cache.query(gene, random_noise, random_seed)
+                result.append(feature)
+                continue
+
             feature, semantic_similarity = single_tree_evaluation(
                 gene,
                 pset,
@@ -734,6 +746,10 @@ def multi_tree_evaluation(
                 )
                 correlation_results.append(abs_pearson_correlation)
             result.append(feature)
+
+            if evaluation_cache is not None:
+                # support a cache system
+                evaluation_cache.store(gene, feature, random_noise, random_seed)
 
     if not sklearn_format and not gradient_operators:
         result = result_post_process(result, data, original_features)

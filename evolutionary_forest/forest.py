@@ -3,7 +3,6 @@ import inspect
 from multiprocessing import Pool
 
 import dill
-import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -24,9 +23,6 @@ from numpy.linalg import norm
 from scipy.spatial.distance import cosine
 from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
 from sklearn.base import TransformerMixin, ClassifierMixin
-from sklearn.decomposition import PCA
-from sklearn.neural_network import MLPRegressor
-
 from sklearn.ensemble import (
     ExtraTreesRegressor,
     GradientBoostingRegressor,
@@ -39,8 +35,9 @@ from sklearn.linear_model import Ridge, HuberRegressor, Lasso, LassoCV, ElasticN
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsRegressor, KDTree
+from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import (
     MaxAbsScaler,
     QuantileTransformer,
@@ -180,6 +177,9 @@ from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderN
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
+from evolutionary_forest.component.verification.configuration_check import (
+    consistency_check,
+)
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.PLTree import (
     SoftPLTreeRegressor,
@@ -235,9 +235,6 @@ from evolutionary_forest.utility.skew_transformer import (
 from evolutionary_forest.utility.tree_pool import SemanticLibrary
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
-from evolutionary_forest.component.verification.configuration_check import (
-    consistency_check,
-)
 
 multi_gene_operators = [
     "uniform-plus",
@@ -3033,6 +3030,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         random_seed=0,
         noise_configuration=None,
     ):
+        if self.pac_bayesian is not None and self.pac_bayesian.cached_sharpness:
+            evaluation_cache = self.pac_bayesian.tree_sharpness_cache
+        else:
+            evaluation_cache = None
+
         if individual.num_of_active_trees > 0:
             genes = individual.gene[: individual.num_of_active_trees]
         else:
@@ -3052,6 +3054,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             noise_configuration=noise_configuration,
             reference_label=self.y,
             individual_configuration=individual.individual_configuration,
+            evaluation_cache=evaluation_cache,
         )
         if isinstance(Yp, torch.Tensor):
             Yp = Yp.detach().numpy()

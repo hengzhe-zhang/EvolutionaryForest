@@ -21,13 +21,14 @@ from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
     Configuration,
 )
+from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
-@njit
+@njit(cache=True)
 def m_sharpness(baseline, k=4):
     final_baseline = np.zeros(baseline.shape[0])
     random_indices = np.random.choice(len(baseline), baseline.shape[0], replace=False)
@@ -71,6 +72,7 @@ class PACBayesianConfiguration(Configuration):
         prediction_based_sharpness=0,
         intelligent_decision=False,
         dropout_rate=0.2,
+        cached_sharpness=False,
         **params
     ):
         # For dropout
@@ -104,6 +106,9 @@ class PACBayesianConfiguration(Configuration):
 
         # intelligent decision
         self.intelligent_decision = intelligent_decision
+        # efficient evaluation
+        self.cached_sharpness = cached_sharpness
+        self.tree_sharpness_cache = TreeLRUCache()
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
