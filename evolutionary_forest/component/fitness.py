@@ -1,3 +1,4 @@
+import random
 import time
 from abc import abstractmethod
 from functools import partial, lru_cache
@@ -578,6 +579,7 @@ class R2PACBayesian(Fitness):
         mixup_strategy="C-MixUp",
         alpha_beta=None,
     ):
+        allow_extrapolate_mixup = self.algorithm.pac_bayesian.allow_extrapolate_mixup
         # MixUp for data augmentation
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
@@ -632,10 +634,24 @@ class R2PACBayesian(Fitness):
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
         else:
             indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
+
         data = algorithm.X[indices_a] * ratio.reshape(-1, 1) + algorithm.X[
             indices_b
         ] * (1 - ratio.reshape(-1, 1))
         label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * (1 - ratio)
+        if allow_extrapolate_mixup and random.random() < 0.5:
+            data_extrapolation = algorithm.X[indices_a] + (
+                algorithm.X[indices_a] - algorithm.X[indices_b]
+            ) * (ratio.reshape(-1, 1))
+            label_extrapolation = algorithm.y[indices_a] + (
+                algorithm.y[indices_a] - algorithm.y[indices_b]
+            )
+            # only consider out of distribution samples
+            replace_index = (label_extrapolation > algorithm.y.max()) & (
+                label_extrapolation < algorithm.y.min()
+            )
+            data[replace_index] = data_extrapolation[replace_index]
+            label[replace_index] = label_extrapolation[replace_index]
         return data, label, ((indices_a, ratio), (indices_b, 1 - ratio))
 
     @lru_cache(maxsize=128)

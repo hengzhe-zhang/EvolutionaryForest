@@ -18,16 +18,18 @@ class TreeLRUCache:
             return None
         key = tree_to_tuple(key) + (random_noise, random_seed)
         result = self.cache.get(key)
-        if result is not None:
-            self.cache_hits += 1
-        else:
-            self.cache_misses += 1
-        if (self.cache_misses + self.cache_hits) % 1000 == 0:
-            print(
-                f"Cache hits: {self.cache_hits}, Cache misses: {self.cache_misses}",
-                "Cache miss ratio: ",
-                self.get_cache_miss_ratio(),
-            )
+        verbose = False
+        if verbose:
+            if result is not None:
+                self.cache_hits += 1
+            else:
+                self.cache_misses += 1
+            if (self.cache_misses + self.cache_hits) % 1000 == 0:
+                print(
+                    f"Cache hits: {self.cache_hits}, Cache misses: {self.cache_misses}",
+                    "Cache miss ratio: ",
+                    self.get_cache_miss_ratio(),
+                )
         return result
 
     def get_cache_miss_ratio(self):

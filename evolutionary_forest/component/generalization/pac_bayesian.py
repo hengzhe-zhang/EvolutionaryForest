@@ -73,6 +73,7 @@ class PACBayesianConfiguration(Configuration):
         intelligent_decision=False,
         dropout_rate=0.2,
         cached_sharpness=False,
+        allow_extrapolate_mixup=False,
         **params
     ):
         # For dropout
@@ -109,6 +110,9 @@ class PACBayesianConfiguration(Configuration):
         # efficient evaluation
         self.cached_sharpness = cached_sharpness
         self.tree_sharpness_cache = TreeLRUCache()
+
+        # mixup setting
+        self.allow_extrapolate_mixup = allow_extrapolate_mixup
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
