@@ -647,9 +647,10 @@ class R2PACBayesian(Fitness):
                 algorithm.y[indices_a] - algorithm.y[indices_b]
             )
             # only consider out of distribution samples
-            replace_index = (label_extrapolation > algorithm.y.max()) & (
+            replace_index = (label_extrapolation > algorithm.y.max()) | (
                 label_extrapolation < algorithm.y.min()
             )
+            # print("Extrapolation instances", np.sum(replace_index))
             data[replace_index] = data_extrapolation[replace_index]
             label[replace_index] = label_extrapolation[replace_index]
         return data, label, ((indices_a, ratio), (indices_b, 1 - ratio))
