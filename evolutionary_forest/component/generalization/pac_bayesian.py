@@ -196,8 +196,6 @@ def pac_bayesian_estimation(
     R2 = individual.fitness.wvalues[0]
     # Define the number of iterations
     num_iterations = configuration.sharpness_iterations
-    # sc = StandardScaler()
-    # X = sc.fit_transform(X)
     sc = estimator["Scaler"]
 
     # Create an array to store the R2 scores

@@ -180,6 +180,7 @@ from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
+from evolutionary_forest.model.FeatureClipper import FeatureClipper
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.PLTree import (
     SoftPLTreeRegressor,
@@ -408,6 +409,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         post_selection_method=None,
         stochastic_mode=False,
         log_item="",
+        feature_clipping=False,
         **params,
     ):
         """
@@ -808,6 +810,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.reference_lgbm = None
         if self.mutation_configuration.pool_based_addition:
             self.evaluation_configuration.save_semantics = True
+        self.feature_clipping = feature_clipping
 
     def init_some_logs(self):
         self.duel_logs = []
@@ -1744,6 +1747,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 n_components = float(self.base_learner.split("~")[1])
             scaler = StandardScalerPCA(n_components=n_components)
 
+        if self.feature_clipping:
+            scaler = FeatureClipper()
         components = [
             ("Scaler", scaler),
             ("Ridge", ridge_model),
