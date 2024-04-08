@@ -55,7 +55,7 @@ est = EvolutionaryForestRegressor(
     # Variance Reduction parameters
     score_func="R2-VarianceReduction",
     objective_normalization=True,
-    perturbation_std=0.25,
+    perturbation_std=0.5,
     environmental_selection="NSGA2",
     objective="R2,MeanVariance",
     knee_point="SUM",
