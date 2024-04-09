@@ -51,7 +51,10 @@ from evolutionary_forest.component.generalization.local_sensitive_shuffle import
     local_sensitive_shuffle_by_value,
 )
 from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
-from evolutionary_forest.component.tree_utils import node_depths
+from evolutionary_forest.component.tree_utils import (
+    node_depths_bottom_up,
+    node_depths_top_down,
+)
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
 from evolutionary_forest.multigene_gp import (
@@ -809,7 +812,7 @@ def single_tree_evaluation(
     result = None
     stack = []
     subtree_information = {}
-    depth_information, _ = node_depths(expr)
+    depth_information, _ = node_depths_top_down(expr)
     best_score = None
     # save the semantics of the best subtree
     best_subtree_semantics = None
@@ -967,6 +970,8 @@ def single_tree_evaluation(
 def get_adaptive_noise(layer_adaptive, node_depth, random_noise):
     if layer_adaptive == True:
         layer_random_noise = 1 / node_depth * random_noise
+    elif layer_adaptive == "Linear":
+        layer_random_noise = node_depth * random_noise
     elif layer_adaptive == "Log":
         layer_random_noise = 1 / np.log(1 + node_depth) * random_noise
     elif layer_adaptive == "Sqrt":

@@ -93,7 +93,26 @@ class StringDecisionTreeClassifier(BaseEstimator, ClassifierMixin):
         return y_encoded
 
 
-def node_depths(tree, current_index=0) -> (List[int], int):
+def node_depths_top_down(tree, current_index=0, current_depth=0) -> (List[int], int):
+    if current_index >= len(tree):
+        return [], 0  # No depths and no length if outside the bounds of the tree
+
+    node = tree[current_index]
+    if isinstance(node, gp.Primitive):  # If it's a non-leaf node
+        offset = 1  # Starting offset for the first child
+        all_child_depths = [current_depth]  # Include current node's depth
+        for _ in range(node.arity):
+            child_depths, child_length = node_depths_top_down(
+                tree, current_index + offset, current_depth + 1
+            )
+            offset += child_length  # Move to the next child
+            all_child_depths.extend(child_depths)
+        return all_child_depths, offset
+    else:  # If it's a leaf node
+        return [current_depth], 1  # Leaf nodes' depth is the current depth
+
+
+def node_depths_bottom_up(tree, current_index=0) -> (List[int], int):
     if current_index >= len(tree):
         return [], 0  # No depths and no length if outside the bounds of the tree
 
@@ -103,7 +122,9 @@ def node_depths(tree, current_index=0) -> (List[int], int):
         offset = 1  # Starting offset for the first child
         all_child_depths = []
         for _ in range(node.arity):
-            child_depths, child_length = node_depths(tree, current_index + offset)
+            child_depths, child_length = node_depths_bottom_up(
+                tree, current_index + offset
+            )
             max_child_depth = max(
                 max_child_depth, max(child_depths)
             )  # Update max depth based on children
@@ -126,6 +147,6 @@ if __name__ == "__main__":
 
     tree = gp.genGrow(pset, min_=2, max_=4)
     print([str(n.name) for n in tree])
-    depths, _ = node_depths(PrimitiveTree(tree))
+    depths, _ = node_depths_top_down(PrimitiveTree(tree))
     print(depths)
     assert len(depths) == len(tree)
