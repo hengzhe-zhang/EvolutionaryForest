@@ -1103,6 +1103,8 @@ def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_s
         rng = np.random.RandomState(random_seed)
     if noise_type == "Normal":
         noise = rng.normal(0, 1, size_of_noise)
+    elif noise_type == "SharedNormal":
+        noise = rng.normal(0, 1, 1)
     elif noise_type == "Uniform":
         noise = rng.uniform(-1, 1, size_of_noise)
     elif noise_type == "Laplace":
