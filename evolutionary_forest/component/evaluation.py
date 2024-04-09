@@ -47,6 +47,9 @@ from evolutionary_forest.component.configuration import (
     ImbalancedConfiguration,
     NoiseConfiguration,
 )
+from evolutionary_forest.component.generalization.local_sensitive_shuffle import (
+    local_sensitive_shuffle_by_value,
+)
 from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
 from evolutionary_forest.component.tree_utils import node_depths
 from evolutionary_forest.model.MTL import MTLRidgeCV
@@ -1040,7 +1043,10 @@ def inject_noise_to_data(
     if random_noise_magnitude == 0:
         return result
     noise_type = noise_configuration.noise_type
-
+    if noise_type == "Shuffle":
+        return local_sensitive_shuffle_by_value(
+            result, variability_scale=noise_configuration.shuffle_scale
+        )
     size_of_noise = len(result)
     if noise_vector is not None:
         noise = noise_vector

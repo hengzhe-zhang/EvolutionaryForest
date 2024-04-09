@@ -31,6 +31,7 @@ class NoiseConfiguration(Configuration):
         sam_mix_bandwidth=1,
         stochastic_mode=False,
         random_layer_mode=False,
+        shuffle_scale=0.2,
         **params
     ):
         """
@@ -49,6 +50,8 @@ class NoiseConfiguration(Configuration):
         self.sam_mix_bandwidth = sam_mix_bandwidth
         self.stochastic_mode = stochastic_mode
         self.random_layer_mode = random_layer_mode
+
+        self.shuffle_scale = shuffle_scale
 
 
 class MABConfiguration(Configuration):
