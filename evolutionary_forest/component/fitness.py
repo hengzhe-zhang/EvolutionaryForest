@@ -791,12 +791,13 @@ class R2PACBayesian(Fitness):
                     if traditional_sam:
                         self.sharpness_gradient_ascent(torch_variables)
                         features = self.get_constructed_features(individual, trees)
-                        features = feature_standardization_torch(features)
+                        gradient_agnostic_standarization(features, scaler)
                         Y_pred = self.get_predictions_on_linear_model(
                             features, weights_torch, bias_torch
                         )
                         mse_new = (Y_pred.detach().numpy().flatten() - y) ** 2
                         sharpness = np.maximum(mse_new - mse_old, 0).mean()
+                        # print("Sharpness", sharpness, "MSE", mse_old.mean())
                     else:
                         one_step_gradient_ascent = False
                         if one_step_gradient_ascent:
@@ -826,7 +827,7 @@ class R2PACBayesian(Fitness):
             gradient_sharpness = np.nan_to_num(sharpness, nan=np.inf)
             assert gradient_sharpness >= 0
 
-        if self.algorithm.constant_type == "GD--":
+        if self.algorithm.constant_type in ["GD+", "GD-"]:
             sharpness_value = gradient_sharpness
             estimation = [(individual.fitness.wvalues[0], 1), (sharpness_value, -1)]
         else:
@@ -881,7 +882,7 @@ class R2PACBayesian(Fitness):
         # Encoded information: [(training R2, 1), (sharpness, -1)]
         sharpness_value = estimation[1][0]
 
-        if self.algorithm.constant_type in ["GD+", "GD-"]:
+        if self.algorithm.constant_type in ["GD--"]:
             if algorithm.verbose and sharpness_value > gradient_sharpness:
                 pass
             sharpness_value = np.maximum(gradient_sharpness, sharpness_value)
@@ -941,19 +942,31 @@ class R2PACBayesian(Fitness):
             None,
             False,
         ]:
-            # Compute the norm of the gradient
-            gradient_norm = torch.norm(torch.stack([v.grad for v in torch_variables]))
-            # Scale the gradients to have a norm of 1
-            for v in torch_variables:
-                v.grad /= gradient_norm
+            instance_wise = True
+            if instance_wise:
+                # Compute the norm of the gradient
+                # gradient_norm = torch.norm(
+                #     torch.stack([v.grad for v in torch_variables])
+                # )
+                gradient_norm = torch.norm(
+                    torch.stack([v.grad for v in torch_variables]), dim=0
+                )
+                # Scale the gradients to have a norm of 1
+                for v in torch_variables:
+                    v.grad /= gradient_norm
         if self.algorithm.pac_bayesian.perturbation_std == "Adaptive":
             lr = len(torch_variables)
         else:
             lr = self.algorithm.pac_bayesian.perturbation_std
-        optimizer = optim.SGD(torch_variables, lr=lr)
-        # Update model parameters using an optimizer
-        optimizer.step()
-        optimizer.zero_grad()
+        # optimizer = optim.SGD(torch_variables, lr=lr)
+        # # Update model parameters using an optimizer
+        # optimizer.step()
+        # optimizer.zero_grad()
+
+        # Manual update
+        with torch.no_grad():  # Disable gradient calculation for the update step
+            for param in torch_variables:
+                param -= lr * param.grad  # Update the parameters using gradient descent
 
     def transform_gp_tree_with_tensors(self, individual, length):
         """
@@ -974,9 +987,10 @@ class R2PACBayesian(Fitness):
                     ).requires_grad_(False)
                     # save it a constant
                     new_gene.append(Terminal(node, False, object))
-                elif i != 0 and (
-                    isinstance(gene[i], Primitive) or isinstance(gene[i], Terminal)
-                ):
+                # elif i != 0 and (
+                #     isinstance(gene[i], Primitive) or isinstance(gene[i], Terminal)
+                # ):
+                elif isinstance(gene[i], Primitive) or isinstance(gene[i], Terminal):
                     # unless the root node, add a noise term
                     # including both terminal and non-terminal nodes
                     new_gene.append(self.algorithm.pset.mapping["Add"])

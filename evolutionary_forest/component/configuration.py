@@ -259,19 +259,19 @@ class EvaluationConfiguration(Configuration):
         mini_batch=False,
         semantic_crossover_probability=0,
         gradient_descent=False,
-        gradient_optimizer="",
         transductive_learning=False,
         classification=False,
         max_height=None,
         ood_split=None,
         loss_discretization=None,
         semantic_library=None,
+        constant_type=None,
         **params
     ):
         # prediction results of the neural network
         self.loss_discretization = loss_discretization
         self.ood_split = ood_split
-        self.gradient_optimizer = gradient_optimizer
+        self.constant_type = constant_type
         # random generate cross-validation scheme
         self.dynamic_target = dynamic_target
         # using original features

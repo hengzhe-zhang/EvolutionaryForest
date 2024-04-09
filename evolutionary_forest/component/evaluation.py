@@ -211,8 +211,7 @@ def calculate_score(args):
         )
 
     gradient_operators = (
-        configuration.gradient_descent
-        or configuration.gradient_optimizer.startswith("GD")
+        configuration.gradient_descent or configuration.constant_type.startswith("GD")
     )
     if gradient_operators:
         Yp = Yp.detach().numpy()
@@ -419,7 +418,7 @@ def gradient_optimization(constructed_features, Y, configuration, func):
     for v in torch_variables:
         assert v.requires_grad is True
     if len(free_variables) >= 1:
-        if configuration.gradient_optimizer in ["GD", "GD+"]:
+        if configuration.constant_type in ["GD", "GD+"]:
             optimizer = optim.SGD(
                 torch_variables,
                 lr=0.1,
@@ -665,8 +664,8 @@ def multi_tree_evaluation(
 
     gradient_descent = configuration.gradient_descent
 
-    gradient_operators = (
-        gradient_descent or configuration.gradient_optimizer.startswith("GD")
+    gradient_operators = gradient_descent or configuration.constant_type.startswith(
+        "GD"
     )
     if gradient_operators and isinstance(data, np.ndarray):
         data = torch.from_numpy(data).float().detach()
