@@ -772,7 +772,6 @@ class R2PACBayesian(Fitness):
                 if torch.any(torch.isnan(features)):
                     sharpness = np.inf
                 else:
-                    # features = feature_standardization_torch(features)
                     scaler: StandardScaler = estimator["Scaler"]
                     gradient_agnostic_standarization(features, scaler)
 
@@ -953,7 +952,7 @@ class R2PACBayesian(Fitness):
                 )
                 # Scale the gradients to have a norm of 1
                 for v in torch_variables:
-                    v.grad /= gradient_norm
+                    v.grad /= gradient_norm * len(torch_variables)
         if self.algorithm.pac_bayesian.perturbation_std == "Adaptive":
             lr = len(torch_variables)
         else:
