@@ -3529,10 +3529,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
 
             # determine the number of individuals to generate
-            if self.stochastic_mode and self.elites_archive is not None:
-                individuals_to_generate = pop_size - len(self.elites_archive)
-            else:
-                individuals_to_generate = pop_size
+            individuals_to_generate = pop_size
 
             # offspring generation
             while len(new_offspring) < individuals_to_generate:
@@ -3687,9 +3684,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             # sometime, when gene num is very small, it is hard to generate a unique individual
                             self.evaluated_pop.add(individual_to_tuple(o))
                             new_offspring.append(o)
-
-            if self.stochastic_mode and self.elites_archive is not None:
-                new_offspring += self.elites_archive
 
             assert len(new_offspring) == pop_size, f"{len(new_offspring), pop_size}"
             new_offspring = self.semantic_approximation(new_offspring)
@@ -4797,8 +4791,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.irrelevant_features_history.append(current_irrelevant_features)
 
     def update_external_archive(self, population, external_archive):
-        if self.stochastic_mode:
-            external_archive = None
         if isinstance(self.external_archive, int):
             if self.check_multi_task_optimization():
                 # multi-task optimization, need to store
