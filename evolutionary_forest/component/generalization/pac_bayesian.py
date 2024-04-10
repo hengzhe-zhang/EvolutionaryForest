@@ -185,6 +185,7 @@ def pac_bayesian_estimation(
     else:
         original_predictions = individual.pipe.predict(X)
         baseline = (y - original_predictions) ** 2
+        individual.naive_mse = np.mean(baseline)
     if configuration.structural_sharpness > 0:
         if hasattr(individual, "baseline_mse"):
             individual.structural_sharpness = np.mean(

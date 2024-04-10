@@ -3859,7 +3859,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     best_model = self.hof[0]
 
-                prediction_error = (best_model.predicted_values - self.y) ** 2
+                trees = self.feature_generation(self.X, best_model)
+                prediction = best_model.pipe.predict(trees)
+                prediction_error = (prediction - self.y) ** 2
                 cv_error = np.mean(best_model.case_values)
                 print(
                     "\n".join([replace(str(g)) for g in best_model.gene]),

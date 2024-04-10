@@ -363,9 +363,7 @@ class NSGA2(EnvironmentalSelection):
                 if self.knee_point == "Overshot-SAM":
                     first_pareto_front = []
                     for ind in population:
-                        prediction_error = np.mean(
-                            (ind.predicted_values - self.algorithm.y) ** 2
-                        )
+                        prediction_error = ind.naive_mse
                         cv_error = np.mean(ind.case_values)
                         if prediction_error <= cv_error:
                             first_pareto_front.append(ind)
