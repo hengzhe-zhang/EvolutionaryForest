@@ -74,11 +74,11 @@ class PACBayesianConfiguration(Configuration):
         dropout_rate=0.2,
         cached_sharpness=False,
         allow_extrapolate_mixup=False,
-        clip_sharpness=False,
+        kl_mechanism=False,
         **params
     ):
         # For dropout
-        self.clip_sharpness = clip_sharpness
+        self.kl_mechanism = kl_mechanism
         self.dropout_rate = dropout_rate
 
         # For VCD
@@ -213,7 +213,9 @@ def pac_bayesian_estimation(
         baseline = baseline[index]
     else:
         mse_scores = np.zeros((num_iterations, len(X)))
+        kl_scores = np.zeros((num_iterations, len(X)))
     mse_scores = mse_scores.astype(np.float32)
+    kl_scores = kl_scores.astype(np.float32)
 
     if sharpness_type == SharpnessType.GKNN:
         base_knn = GaussianKNNRegressor(configuration.sam_knn_neighbors)
@@ -354,39 +356,7 @@ def pac_bayesian_estimation(
                     mse_scores[i] = cross_entropy
             else:
                 mse_scores[i] = (target_y - y_pred_on_noise) ** 2
-
-            if configuration.clip_sharpness:
-                gp_original_predictions = get_cv_predictions(
-                    estimator, X, y, direct_prediction=True
-                ).flatten()
-                if configuration.clip_sharpness == "A":
-                    mse_scores[i][
-                        abs(y_pred_on_noise) <= abs(gp_original_predictions)
-                    ] = 0
-                elif configuration.clip_sharpness == "B":
-                    condition = np.logical_and(
-                        (
-                            y_pred_on_noise
-                            >= np.minimum(0, abs(gp_original_predictions))
-                        ),
-                        (
-                            y_pred_on_noise
-                            <= np.maximum(0, abs(gp_original_predictions))
-                        ),
-                    )
-                    mse_scores[i][condition] = 0
-                elif configuration.clip_sharpness == "C":
-                    condition = np.logical_or(
-                        (
-                            (y_pred_on_noise <= gp_original_predictions)
-                            & (gp_original_predictions >= 0)
-                        ),
-                        (
-                            (y_pred_on_noise >= gp_original_predictions)
-                            & (gp_original_predictions < 0)
-                        ),
-                    )
-                    mse_scores[i][condition] = 0
+                kl_scores[i] = y_pred_on_noise**2
 
     if sharpness_type == SharpnessType.DataRealVariance:
         # This is the real variance
@@ -469,34 +439,37 @@ def pac_bayesian_estimation(
             if configuration.weighted_sam != False:
                 individual.sharpness_vector = max_sharp
 
-            if configuration.clip_sharpness == "D":
-                # similar to huber loss
-                condition = abs(y_pred_on_noise) <= abs(gp_original_predictions)
-                max_sharp[condition] = np.sqrt(max_sharp[condition])
-            elif configuration.clip_sharpness == "E":
-                # between 0 and value
-                condition = np.logical_and(
-                    (y_pred_on_noise >= np.minimum(0, abs(gp_original_predictions))),
-                    (y_pred_on_noise <= np.maximum(0, abs(gp_original_predictions))),
-                )
-                max_sharp[condition] = np.sqrt(max_sharp[condition])
-            elif configuration.clip_sharpness == "F":
-                # left or right of that value
-                condition = np.logical_or(
-                    (
-                        (y_pred_on_noise <= gp_original_predictions)
-                        & (gp_original_predictions >= 0)
-                    ),
-                    (
-                        (y_pred_on_noise >= gp_original_predictions)
-                        & (gp_original_predictions < 0)
-                    ),
-                )
-                max_sharp[condition] = np.sqrt(max_sharp[condition])
-
             if s == "MaxSharpness-1-Base+":
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
+            if configuration.kl_mechanism == "Sharp":
+                kl_scores = np.vstack((kl_scores, original_predictions**2))
+                kl_scores = np.maximum(kl_scores, 0)
+                kl_scores -= original_predictions**2
+                max_kl_scores = np.max(kl_scores, axis=0)
+                # print("np.mean(kl_scores)", np.mean(kl_scores))
+                max_sharpness = max_sharpness + np.mean(max_kl_scores)
+            elif configuration.kl_mechanism == "KL":
+                kl_score = kl_term_function(
+                    len(X),
+                    original_predictions**2,
+                    std,
+                )
+                # print("kl_score", kl_score)
+                max_sharpness = max_sharpness + kl_score
+            elif configuration.kl_mechanism == "Weighted-KL":
+                kl_weight = configuration.kl_term_weight
+                max_sharpness = max_sharpness + kl_weight * np.mean(
+                    (original_predictions**2)
+                )
+                # print("Mean prediction", np.mean((original_predictions**2)))
+            elif configuration.kl_mechanism == "Weighted-KL+":
+                kl_weight = configuration.kl_term_weight
+                kl_scores = np.vstack((kl_scores, original_predictions**2))
+                max_kl_scores = np.max(kl_scores, axis=0)
+                max_sharpness = max_sharpness + kl_weight * np.mean(max_kl_scores)
+                # print("best KL", np.mean(max_kl_scores))
+
             objectives.append((max_sharpness, -1 * weight))
         elif check_format(s):
             # K-SAM, reduce the maximum sharpness over K samples
