@@ -387,8 +387,6 @@ def pac_bayesian_estimation(
                         ),
                     )
                     mse_scores[i][condition] = 0
-                else:
-                    raise Exception("Unknown clip sharpness type!")
 
     if sharpness_type == SharpnessType.DataRealVariance:
         # This is the real variance
@@ -470,6 +468,32 @@ def pac_bayesian_estimation(
             max_sharp -= baseline
             if configuration.weighted_sam != False:
                 individual.sharpness_vector = max_sharp
+
+            if configuration.clip_sharpness == "D":
+                # similar to huber loss
+                condition = abs(y_pred_on_noise) <= abs(gp_original_predictions)
+                max_sharp[condition] = np.sqrt(max_sharp[condition])
+            elif configuration.clip_sharpness == "E":
+                # between 0 and value
+                condition = np.logical_and(
+                    (y_pred_on_noise >= np.minimum(0, abs(gp_original_predictions))),
+                    (y_pred_on_noise <= np.maximum(0, abs(gp_original_predictions))),
+                )
+                max_sharp[condition] = np.sqrt(max_sharp[condition])
+            elif configuration.clip_sharpness == "F":
+                # left or right of that value
+                condition = np.logical_or(
+                    (
+                        (y_pred_on_noise <= gp_original_predictions)
+                        & (gp_original_predictions >= 0)
+                    ),
+                    (
+                        (y_pred_on_noise >= gp_original_predictions)
+                        & (gp_original_predictions < 0)
+                    ),
+                )
+                max_sharp[condition] = np.sqrt(max_sharp[condition])
+
             if s == "MaxSharpness-1-Base+":
                 sharpness_vector[:] = max_sharp
             max_sharpness = np.mean(max_sharp)
