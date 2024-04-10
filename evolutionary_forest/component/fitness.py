@@ -901,6 +901,10 @@ class R2PACBayesian(Fitness):
                 self.algorithm.environmental_selection.knee_point.split("-")[1]
             )
             individual.sam_loss = naive_mse + weight * sharpness_value
+        elif self.algorithm.environmental_selection.knee_point == "M-SAM":
+            individual.sam_loss = naive_mse * (1 + sharpness_value)
+        elif self.algorithm.environmental_selection.knee_point == "M-SAM+":
+            individual.sam_loss = naive_mse * (naive_mse + sharpness_value)
         else:
             individual.sam_loss = naive_mse + sharpness_value
         # print('SAM loss: ', individual.sam_loss, naive_mse, sharpness_value)
