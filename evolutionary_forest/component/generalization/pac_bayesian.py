@@ -74,9 +74,11 @@ class PACBayesianConfiguration(Configuration):
         dropout_rate=0.2,
         cached_sharpness=False,
         allow_extrapolate_mixup=False,
+        clip_sharpness=False,
         **params
     ):
         # For dropout
+        self.clip_sharpness = clip_sharpness
         self.dropout_rate = dropout_rate
 
         # For VCD
@@ -352,6 +354,42 @@ def pac_bayesian_estimation(
                     mse_scores[i] = cross_entropy
             else:
                 mse_scores[i] = (target_y - y_pred_on_noise) ** 2
+
+            if configuration.clip_sharpness:
+                gp_original_predictions = get_cv_predictions(
+                    estimator, X, y, direct_prediction=True
+                ).flatten()
+                if configuration.clip_sharpness == "A":
+                    mse_scores[i][
+                        abs(y_pred_on_noise) <= abs(gp_original_predictions)
+                    ] = 0
+                elif configuration.clip_sharpness == "B":
+                    condition = np.logical_and(
+                        (
+                            y_pred_on_noise
+                            >= np.minimum(0, abs(gp_original_predictions))
+                        ),
+                        (
+                            y_pred_on_noise
+                            <= np.maximum(0, abs(gp_original_predictions))
+                        ),
+                    )
+                    mse_scores[i][condition] = 0
+                elif configuration.clip_sharpness == "C":
+                    condition = np.logical_or(
+                        (
+                            (y_pred_on_noise <= gp_original_predictions)
+                            & (gp_original_predictions >= 0)
+                        ),
+                        (
+                            (y_pred_on_noise >= gp_original_predictions)
+                            & (gp_original_predictions < 0)
+                        ),
+                    )
+                    mse_scores[i][condition] = 0
+                else:
+                    raise Exception("Unknown clip sharpness type!")
+
     if sharpness_type == SharpnessType.DataRealVariance:
         # This is the real variance
         mean_score = np.mean(mse_scores, axis=0)
