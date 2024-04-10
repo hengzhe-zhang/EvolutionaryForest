@@ -360,11 +360,21 @@ class NSGA2(EnvironmentalSelection):
                 self.algorithm.hof = [population[knee]]
             else:
                 first_pareto_front = sortNondominated(population, self.n_pop)[0]
+                if self.knee_point == "Overshot-SAM":
+                    first_pareto_front = []
+                    for ind in population:
+                        prediction_error = np.mean(
+                            (ind.predicted_values - self.algorithm.y) ** 2
+                        )
+                        cv_error = np.mean(ind.case_values)
+                        if prediction_error <= cv_error:
+                            first_pareto_front.append(ind)
                 if (
                     self.knee_point == "SAM"
                     or self.knee_point == "SUM"
                     or self.knee_point in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++"]
-                    or self.knee_point in ["KNN-SAM", "LR-SAM", "WKNN-SAM"]
+                    or self.knee_point
+                    in ["KNN-SAM", "LR-SAM", "WKNN-SAM", "Overshot-SAM"]
                 ):
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)

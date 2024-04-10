@@ -3859,7 +3859,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     best_model = self.hof[0]
 
-                print("\n".join([replace(str(g)) for g in best_model.gene]))
+                prediction_error = (best_model.predicted_values - self.y) ** 2
+                cv_error = np.mean(best_model.case_values)
+                print(
+                    "\n".join([replace(str(g)) for g in best_model.gene]),
+                    "Sharpness",
+                    best_model.sam_loss,
+                    "Fitness",
+                    cv_error,
+                    "Prediction Error",
+                    np.mean(prediction_error),
+                    "Difference",
+                    np.mean(prediction_error - cv_error),
+                )
 
             if verbose:
                 features = set(

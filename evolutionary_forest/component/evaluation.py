@@ -425,7 +425,6 @@ def gradient_optimization(constructed_features, Y, configuration, func):
             optimizer = optim.SGD(
                 torch_variables,
                 lr=0.1,
-                weight_decay=1e-5,
             )
         else:
             raise Exception()
