@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.stats import ranksums
 
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
+
 
 def statistical_difference_between_populations(offspring, population):
     num_top_individuals = 30
@@ -33,3 +35,4 @@ def check_number_of_unique_tree_semantics(offspring, num_of_trees):
             for i in range(num_of_trees)
         ],
     )
+    print(len(set(individual_to_tuple(o) for o in offspring)))

@@ -143,7 +143,10 @@ class ParetoFrontTool:
                 constructed_train_x.astype(np.float32), posinf=0, neginf=0
             )
             # scaling test data
-            scaled_test_x = self.x_scaler.transform(test_x)
+            if self.x_scaler is not None:
+                scaled_test_x = self.x_scaler.transform(test_x)
+            else:
+                scaled_test_x = test_x
             constructed_test_x = self.feature_generation(scaled_test_x, ind)
             # fix too large values
             constructed_test_x = np.nan_to_num(
