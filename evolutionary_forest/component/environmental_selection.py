@@ -369,6 +369,7 @@ class NSGA2(EnvironmentalSelection):
                             first_pareto_front.append(ind)
                 if (
                     self.knee_point == "SAM"
+                    or self.knee_point.startswith("SAM-")
                     or self.knee_point == "SUM"
                     or self.knee_point in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++"]
                     or self.knee_point

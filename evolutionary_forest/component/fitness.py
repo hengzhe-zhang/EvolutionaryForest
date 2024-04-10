@@ -896,7 +896,13 @@ class R2PACBayesian(Fitness):
         # using SAM loss as the final selection criterion
         naive_mse = np.mean(individual.case_values)
         # sharpness value is a numerical value
-        individual.sam_loss = naive_mse + sharpness_value
+        if self.algorithm.environmental_selection.knee_point.startswith("SAM-"):
+            weight = float(
+                self.algorithm.environmental_selection.knee_point.split("-")[1]
+            )
+            individual.sam_loss = naive_mse + weight * sharpness_value
+        else:
+            individual.sam_loss = naive_mse + sharpness_value
         # print('SAM loss: ', individual.sam_loss, naive_mse, sharpness_value)
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available,
