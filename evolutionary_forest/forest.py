@@ -180,7 +180,7 @@ from evolutionary_forest.component.stgp.strong_type_generation import (
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.component.tree_manupulation import get_typed_pset, revert_back
+from evolutionary_forest.component.tree_manipulation import get_typed_pset, revert_back
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
@@ -1885,7 +1885,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 mutation_operator = None
 
             self.mutation_expression_function(toolbox)
-            if self.basic_primitives == "Pipeline":
+            if self.basic_primitives.startswith("Pipeline"):
                 toolbox.tree_generation = genHalfAndHalf_STGP
             else:
                 toolbox.tree_generation = gp.genFull
@@ -1935,7 +1935,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             initialize_crossover_operator(self, toolbox)
 
             # If the mutation scheme is 'EDA-Terminal', use Dirichlet distribution to sample terminals
-            if self.basic_primitives == "Pipeline":
+            if self.basic_primitives.startswith("Pipeline"):
                 partial_func = genHalfAndHalf_STGP
             elif self.mutation_scheme == "EDA-Terminal":
                 partial_func = partial(
@@ -2059,7 +2059,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             min_height, max_height = self.initial_tree_size.split("-")
             min_height = int(min_height)
             max_height = int(max_height)
-            if self.basic_primitives == "Pipeline":
+            if self.basic_primitives.startswith("Pipeline"):
                 toolbox.expr = partial(
                     genHalfAndHalf_STGP, pset=pset, min_=min_height, max_=max_height
                 )
@@ -2077,7 +2077,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.basic_primitives == "StrongTyped":
             # STGP
             toolbox.expr_mut = partial(gp.genFull, min_=1, max_=3)
-        elif self.basic_primitives == "Pipeline":
+        elif self.basic_primitives.startswith("Pipeline"):
             toolbox.expr_mut = partial(genHalfAndHalf_STGP, min_=0, max_=2)
         else:
             toolbox.expr_mut = partial(gp.genFull, min_=0, max_=2)
@@ -2322,8 +2322,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     np.logical_xor, [BooleanFeature, BooleanFeature], BooleanFeature
                 )
                 pset.addPrimitive(identical_boolean, [BooleanFeature], GeneralFeature)
-        elif self.basic_primitives == "Pipeline":
-            pset = get_typed_pset(self.X.shape[1])
+        elif self.basic_primitives.startswith("Pipeline"):
+            pset = get_typed_pset(
+                self.X.shape[1],
+                self.basic_primitives,
+                categorical_features=self.categorical_features,
+            )
         elif (
             isinstance(self.basic_primitives, str)
             and "optimal" in self.basic_primitives
@@ -2786,9 +2790,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.good_features = good_features
         self.cx_threshold = threshold
 
-    def fit(self, X, y, test_X=None):
+    def fit(self, X, y, test_X=None, categorical_features=None):
         self.counter_initialization()
         self.history_initialization()
+        self.categorical_features = categorical_features
 
         # whether input data is standardized
         self.standardized_flag = is_standardized(X)

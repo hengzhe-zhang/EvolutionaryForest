@@ -14,7 +14,7 @@ from evolutionary_forest.component.configuration import (
     MutationConfiguration,
 )
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.component.tree_manupulation import revert_back
+from evolutionary_forest.component.tree_manipulation import revert_back
 from evolutionary_forest.utility.deletion_utils import *
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 
@@ -175,7 +175,7 @@ def varAndPlus(
                 or not hasattr(o.fitness, "values")
                 or len(o.fitness.values) == 0
             )
-            if mutation_configuration.basic_primitives == "Pipeline":
+            if mutation_configuration.basic_primitives.startswith("Pipeline"):
                 revert_back(o)
         return offspring
 

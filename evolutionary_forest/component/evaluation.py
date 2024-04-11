@@ -51,7 +51,7 @@ from evolutionary_forest.component.generalization.local_sensitive_shuffle import
     local_sensitive_shuffle_by_value,
 )
 from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
-from evolutionary_forest.component.tree_manupulation import multi_tree_evaluation_typed
+from evolutionary_forest.component.tree_manipulation import multi_tree_evaluation_typed
 from evolutionary_forest.component.tree_utils import (
     node_depths_bottom_up,
     node_depths_top_down,
@@ -157,7 +157,7 @@ def calculate_score(args):
     else:
         register_array = None
 
-    if configuration.basic_primitives == "Pipeline":
+    if configuration.basic_primitives.startswith("Pipeline"):
         Yp = multi_tree_evaluation_typed(
             func,
             pset,

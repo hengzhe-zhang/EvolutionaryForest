@@ -11,7 +11,7 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
-from evolutionary_forest.component.shared_type import Parameter, LearnedParameter
+from evolutionary_forest.component.stgp.shared_type import Parameter, LearnedParameter
 
 
 def individual_combination(offspring, toolbox, pset, limitation_check):

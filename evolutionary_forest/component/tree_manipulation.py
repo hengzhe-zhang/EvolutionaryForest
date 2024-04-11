@@ -14,7 +14,15 @@ from evolutionary_forest.component.primitive_functions import (
     protected_division,
     analytical_log,
 )
-from evolutionary_forest.component.shared_type import Parameter, LearnedParameter
+from evolutionary_forest.component.stgp.categorical_processor import (
+    GroupByMeanTransformer,
+)
+from evolutionary_forest.component.stgp.shared_type import (
+    Parameter,
+    LearnedParameter,
+    CategoricalFeature,
+    FeatureLayer,
+)
 from evolutionary_forest.multigene_gp import quick_fill
 
 
@@ -46,6 +54,10 @@ def normal_quantile_transformer(x, qt: QuantileTransformer):
     return qt.transform(x.reshape(-1, 1)).flatten()
 
 
+def groupby_mean(x, y, transformer: GroupByMeanTransformer):
+    return transformer.transform(np.column_stack((x, y)))
+
+
 def linear_layer(x, weights):
     result = (x @ weights).flatten()
     assert x.shape == result.shape
@@ -68,13 +80,21 @@ def fitting(function, data):
         qt = QuantileTransformer()
         qt.fit(data[0].reshape(-1, 1))
         return (qt,)
+    elif function == groupby_mean:
+        transformer = GroupByMeanTransformer()
+        transformer.fit(np.column_stack((data[0], data[1])))
+        return (transformer,)
     elif function == normal_quantile_transformer:
         qt = QuantileTransformer(output_distribution="normal")
         qt.fit(data[0].reshape(-1, 1))
         return (qt,)
 
 
-def get_typed_pset(shape):
+def identity(x):
+    return x
+
+
+def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     pset.addPrimitive(np.add, [float, float], float)
     pset.addPrimitive(np.subtract, [float, float], float)
@@ -88,6 +108,12 @@ def get_typed_pset(shape):
     pset.addPrimitive(min_max_scaler, [float, Parameter], float)
     pset.addPrimitive(robust_scaler, [float, Parameter], float)
     pset.addPrimitive(quantile_transformer, [float, Parameter], float)
+    if primitive_type.endswith("-Categorical"):
+        feature_types = [float for idx in range(shape) if categorical_features[idx]]
+        pset = gp.PrimitiveSetTyped("MAIN", feature_types, float, "ARG")
+        pset.addPrimitive(np.add, [float], float)
+        pset.addPrimitive(identity, [float], FeatureLayer)
+        pset.addPrimitive(groupby_mean, [CategoricalFeature], float)
     pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
     # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
@@ -101,7 +127,11 @@ def multi_tree_evaluation_typed(
     results = []
     for tree in gp_trees:
         result = quick_evaluate(tree, pset, data)
-        results.append(result)
+        if result.shape == 2:
+            # 2D array
+            results.extend(list(result))
+        else:
+            results.append(result)
     results = quick_fill(results, data)
     return results.T
 
