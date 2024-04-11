@@ -752,18 +752,22 @@ def multi_tree_evaluation(
                 noise_configuration=noise_configuration,
                 reference_label=reference_label,
             )
-            introns_results.append(semantic_similarity)
-            simple_feature = quick_fill([feature], data)[0]
-            add_hash_value(simple_feature, hash_result)
-            if target is not None and configuration.intron_calculation:
-                abs_pearson_correlation = np.abs(
-                    cos_sim(
-                        target - target.mean(),
-                        simple_feature - simple_feature.mean(),
+            if isinstance(feature, np.ndarray) and len(feature.shape) == 2:
+                # multi-dimensional output
+                result.extend(list(feature.T))
+            else:
+                introns_results.append(semantic_similarity)
+                simple_feature = quick_fill([feature], data)[0]
+                add_hash_value(simple_feature, hash_result)
+                if target is not None and configuration.intron_calculation:
+                    abs_pearson_correlation = np.abs(
+                        cos_sim(
+                            target - target.mean(),
+                            simple_feature - simple_feature.mean(),
+                        )
                     )
-                )
-                correlation_results.append(abs_pearson_correlation)
-            result.append(feature)
+                    correlation_results.append(abs_pearson_correlation)
+                result.append(feature)
 
             if evaluation_cache is not None:
                 # support a cache system
@@ -865,7 +869,7 @@ def single_tree_evaluation(
                                 and noise_configuration.skip_root
                             )
                             or noise_configuration.only_terminal
-                            or isinstance(prim.ret, FeatureLayer)
+                            or prim.ret == FeatureLayer
                         ):
                             pass
                         else:

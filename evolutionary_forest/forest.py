@@ -1507,6 +1507,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     input_size = self.X.shape[1]
                 if self.mgp_mode == "Register":
                     input_size = self.number_of_register
+                input_size = len(individual.pipe["Scaler"].scale_)
                 model.predict(np.ones((1, input_size)))
                 return None
             except NotFittedError:

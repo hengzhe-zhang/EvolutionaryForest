@@ -19,7 +19,7 @@ class GroupByAggregator(BaseEstimator, TransformerMixin):
         return self
 
     @staticmethod
-    # @njit
+    @njit(cache=True)
     def _transform(keys, values, unique_keys, aggregated_values):
         output_array = np.zeros_like(values, dtype=np.float64)
         for i in range(len(keys)):
@@ -37,15 +37,53 @@ class GroupByAggregator(BaseEstimator, TransformerMixin):
 
 class GroupByMeanTransformer(GroupByAggregator):
     @staticmethod
-    # @njit
+    @njit(cache=True)
     def _aggregator(keys, values, unique_keys):
-        means = np.zeros_like(unique_keys, dtype=np.float64)
-        counts = np.zeros_like(unique_keys, dtype=np.int64)
+        means = np.zeros(len(unique_keys), dtype=np.float64)
 
-        for i in range(len(keys)):
-            idx = np.searchsorted(unique_keys, keys[i])
-            means[idx] += values[i]
-            counts[idx] += 1
+        for i, key in enumerate(unique_keys):
+            # Extract values corresponding to the current unique key
+            group_values = values[keys == key]
+            # Compute the mean of the group values directly
+            means[i] = np.mean(group_values)
 
-        means /= counts
         return means
+
+
+class GroupByMedianTransformer(GroupByAggregator):
+    @staticmethod
+    @njit(cache=True)
+    def _aggregator(keys, values, unique_keys):
+        median_values = np.zeros_like(unique_keys, dtype=np.float64)
+
+        for i in range(len(unique_keys)):
+            group_values = values[keys == unique_keys[i]]
+            median_values[i] = np.median(group_values)
+
+        return median_values
+
+
+class GroupByMinTransformer(GroupByAggregator):
+    @staticmethod
+    @njit(cache=True)
+    def _aggregator(keys, values, unique_keys):
+        min_values = np.zeros_like(unique_keys, dtype=np.float64)
+
+        for i in range(len(unique_keys)):
+            group_values = values[keys == unique_keys[i]]
+            min_values[i] = np.min(group_values)
+
+        return min_values
+
+
+class GroupByMaxTransformer(GroupByAggregator):
+    @staticmethod
+    @njit(cache=True)
+    def _aggregator(keys, values, unique_keys):
+        max_values = np.zeros_like(unique_keys, dtype=np.float64)
+
+        for i in range(len(unique_keys)):
+            group_values = values[keys == unique_keys[i]]
+            max_values[i] = np.max(group_values)
+
+        return max_values

@@ -3,6 +3,8 @@ import sys
 
 from deap.gp import MetaEphemeral
 
+from evolutionary_forest.component.stgp.shared_type import FeatureLayer
+
 
 def genFull_STGP(pset, min_, max_, type_=None):
     """Generate an expression where each leaf has the same depth
@@ -19,7 +21,7 @@ def genFull_STGP(pset, min_, max_, type_=None):
 
     def condition(height, depth):
         """Expression generation stops when the depth is equal to height."""
-        return depth == height
+        return depth >= height
 
     return generate_STGP(pset, min_, max_, condition, type_)
 
@@ -41,7 +43,7 @@ def genGrow_STGP(pset, min_, max_, type_=None):
         """Expression generation stops when the depth is equal to height
         or when it is randomly determined that a node should be a terminal.
         """
-        return depth == height or (
+        return depth >= height or (
             depth >= min_ and random.random() < pset.terminalRatio
         )
 
@@ -88,6 +90,10 @@ def mutUniformSTGP(individual, expr, pset):
 
 
 def generate_STGP(pset, min_, max_, condition, type_=None):
+    if any(primitive == FeatureLayer for primitive in pset.primitives.keys()):
+        # may need to increase one layer, because FeatureLayer is not counted
+        min_ += 1
+        max_ += 1
     if type_ is None:
         type_ = pset.ret
     expr = []
@@ -95,7 +101,7 @@ def generate_STGP(pset, min_, max_, condition, type_=None):
     stack = [(0, type_)]
     while len(stack) != 0:
         depth, type_ = stack.pop()
-        if condition(height, depth):
+        if condition(height, depth) and type_ != FeatureLayer:
             try:
                 term = random.choice(pset.terminals[type_])
             except IndexError:

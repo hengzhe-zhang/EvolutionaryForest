@@ -1,24 +1,26 @@
+import math
 from typing import List
 
-import numpy as np
-from category_encoders import BinaryEncoder
 from deap import gp
 from deap.gp import PrimitiveTree, Terminal
-from gplearn.functions import _protected_division
+from gplearn.functions import (
+    _protected_division,
+    _protected_log,
+    _protected_sqrt,
+    _sigmoid,
+)
 from sklearn.preprocessing import (
     QuantileTransformer,
     StandardScaler,
     MinMaxScaler,
     RobustScaler,
+    OneHotEncoder,
+    LabelEncoder,
+    KBinsDiscretizer,
 )
 
-from evolutionary_forest.component.primitive_functions import (
-    protected_division,
-    analytical_log,
-)
-from evolutionary_forest.component.stgp.categorical_processor import (
-    GroupByMeanTransformer,
-)
+from evolutionary_forest.component.stgp.categorical_processor import *
+from evolutionary_forest.component.stgp.fast_binary_encoder import BinaryEncoder
 from evolutionary_forest.component.stgp.shared_type import (
     Parameter,
     LearnedParameter,
@@ -60,8 +62,28 @@ def groupby_mean(x, y, transformer: GroupByMeanTransformer):
     return transformer.transform(np.column_stack((x, y)))
 
 
-def binary_encoding(x, transformer: BinaryEncoder):
+def groupby_median(x, y, transformer: GroupByMedianTransformer):
+    return transformer.transform(np.column_stack((x, y)))
+
+
+def groupby_min(x, y, transformer: GroupByMinTransformer):
+    return transformer.transform(np.column_stack((x, y)))
+
+
+def groupby_max(x, y, transformer: GroupByMaxTransformer):
+    return transformer.transform(np.column_stack((x, y)))
+
+
+def binary_encoding(x, transformer: OneHotEncoder):
     return transformer.transform(x)
+
+
+def label_encoding(x, transformer: LabelEncoder):
+    return transformer.transform(x.reshape(-1, 1)).flatten()
+
+
+def binning(x, transformer: KBinsDiscretizer):
+    return transformer.transform(x.reshape(-1, 1)).flatten()
 
 
 def linear_layer(x, weights):
@@ -90,6 +112,18 @@ def fitting(function, data):
         transformer = GroupByMeanTransformer()
         transformer.fit(np.column_stack((data[0], data[1])))
         return (transformer,)
+    elif function == groupby_median:
+        transformer = GroupByMedianTransformer()
+        transformer.fit(np.column_stack((data[0], data[1])))
+        return (transformer,)
+    elif function == groupby_min:
+        transformer = GroupByMinTransformer()
+        transformer.fit(np.column_stack((data[0], data[1])))
+        return (transformer,)
+    elif function == groupby_max:
+        transformer = GroupByMaxTransformer()
+        transformer.fit(np.column_stack((data[0], data[1])))
+        return (transformer,)
     elif function == normal_quantile_transformer:
         qt = QuantileTransformer(output_distribution="normal")
         qt.fit(data[0].reshape(-1, 1))
@@ -98,9 +132,23 @@ def fitting(function, data):
         transformer = BinaryEncoder()
         transformer.fit(data[0])
         return (transformer,)
+    elif function == label_encoding:
+        transformer = LabelEncoder()
+        transformer.fit(data[0].reshape(-1, 1))
+        return (transformer,)
+    elif function == binning:
+        transformer = KBinsDiscretizer(
+            math.ceil(math.sqrt(len(data[0]))), encode="ordinal"
+        )
+        transformer.fit(data[0].reshape(-1, 1))
+        return (transformer,)
 
 
 def identity(x):
+    return x
+
+
+def identity_categorical(x):
     return x
 
 
@@ -111,6 +159,7 @@ def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
     pset.addPrimitive(min_max_scaler, [float, Parameter], float)
     pset.addPrimitive(robust_scaler, [float, Parameter], float)
     pset.addPrimitive(quantile_transformer, [float, Parameter], float)
+    pset.addPrimitive(binning, [float, Parameter], float)
     if primitive_type.endswith("-Categorical"):
         feature_types = [
             CategoricalFeature if categorical_features[idx] else float
@@ -124,8 +173,19 @@ def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
             pset.addPrimitive(
                 groupby_mean, [CategoricalFeature, float, Parameter], float
             )
-            pset.addPrimitive(binary_encoding, [CategoricalFeature], FeatureLayer)
-
+            pset.addPrimitive(
+                groupby_median, [CategoricalFeature, float, Parameter], float
+            )
+            pset.addPrimitive(
+                groupby_min, [CategoricalFeature, float, Parameter], float
+            )
+            pset.addPrimitive(
+                groupby_max, [CategoricalFeature, float, Parameter], float
+            )
+            pset.addPrimitive(
+                binary_encoding, [CategoricalFeature, Parameter], FeatureLayer
+            )
+            pset.addPrimitive(identity_categorical, [CategoricalFeature], FeatureLayer)
     pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
     # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
@@ -135,11 +195,12 @@ def add_math_operators(pset):
     pset.addPrimitive(np.add, [float, float], float)
     pset.addPrimitive(np.subtract, [float, float], float)
     pset.addPrimitive(np.multiply, [float, float], float)
-    # pset.addPrimitive(protected_division, [float, float], float)
     pset.addPrimitive(_protected_division, [float, float], float)
+    pset.addPrimitive(_protected_log, [float], float)
+    pset.addPrimitive(_protected_sqrt, [float], float)
+    pset.addPrimitive(_sigmoid, [float], float)
     pset.addPrimitive(np.minimum, [float, float], float)
     pset.addPrimitive(np.maximum, [float, float], float)
-    pset.addPrimitive(analytical_log, [float], float)
 
 
 def multi_tree_evaluation_typed(
@@ -150,9 +211,9 @@ def multi_tree_evaluation_typed(
     results = []
     for tree in gp_trees:
         result = quick_evaluate(tree, pset, data)
-        if result.shape == 2:
+        if len(result.shape) == 2:
             # 2D array
-            results.extend(list(result))
+            results.extend(list(result.T))
         else:
             results.append(result)
     results = quick_fill(results, data)
