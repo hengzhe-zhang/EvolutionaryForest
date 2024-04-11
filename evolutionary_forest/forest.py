@@ -174,10 +174,13 @@ from evolutionary_forest.component.selection_operators.niche_base_selection impo
     niche_base_selection,
 )
 from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderNumpy
+from evolutionary_forest.component.stgp.strong_type_generation import (
+    genHalfAndHalf_STGP,
+)
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.component.tree_manupulation import get_typed_pset
+from evolutionary_forest.component.tree_manupulation import get_typed_pset, revert_back
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
@@ -1882,7 +1885,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 mutation_operator = None
 
             self.mutation_expression_function(toolbox)
-            toolbox.tree_generation = gp.genFull
+            if self.basic_primitives == "Pipeline":
+                toolbox.tree_generation = genHalfAndHalf_STGP
+            else:
+                toolbox.tree_generation = gp.genFull
 
             initialize_crossover_operator(self, toolbox)
 
@@ -1929,7 +1935,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             initialize_crossover_operator(self, toolbox)
 
             # If the mutation scheme is 'EDA-Terminal', use Dirichlet distribution to sample terminals
-            if self.mutation_scheme == "EDA-Terminal":
+            if self.basic_primitives == "Pipeline":
+                partial_func = genHalfAndHalf_STGP
+            elif self.mutation_scheme == "EDA-Terminal":
                 partial_func = partial(
                     genFull_with_prob, model=self, sample_type="Dirichlet"
                 )
@@ -2051,9 +2059,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             min_height, max_height = self.initial_tree_size.split("-")
             min_height = int(min_height)
             max_height = int(max_height)
-            toolbox.expr = partial(
-                gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
-            )
+            if self.basic_primitives == "Pipeline":
+                toolbox.expr = partial(
+                    genHalfAndHalf_STGP, pset=pset, min_=min_height, max_=max_height
+                )
+            else:
+                toolbox.expr = partial(
+                    gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
+                )
 
     def mutation_expression_function(self, toolbox: TypedToolbox):
         if self.mutation_configuration.mutation_expr_height is not None:
@@ -2064,6 +2077,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.basic_primitives == "StrongTyped":
             # STGP
             toolbox.expr_mut = partial(gp.genFull, min_=1, max_=3)
+        elif self.basic_primitives == "Pipeline":
+            toolbox.expr_mut = partial(genHalfAndHalf_STGP, min_=0, max_=2)
         else:
             toolbox.expr_mut = partial(gp.genFull, min_=0, max_=2)
 
@@ -2411,9 +2426,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.constant_type == "Float":
             if isinstance(pset, gp.PrimitiveSetTyped):
-                pset.addEphemeralConstant(
-                    "rand101", lambda: random.uniform(-1, 1), float
-                )
+                pass
             else:
                 pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
         elif self.constant_type in ["GD", "GD+", "GD-", "GD--"]:
@@ -3799,7 +3812,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         num_of_trees = self.gene_num
                     else:
                         num_of_trees = self.num_of_active_trees
-                    check_number_of_unique_tree_semantics(offspring, num_of_trees)
+                    # check_number_of_unique_tree_semantics(offspring, num_of_trees)
                 if self.base_learner == "AdaptiveLasso":
                     lasso_parameter = [o.parameters["Lasso"] for o in offspring]
                     print(
@@ -4595,14 +4608,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         self.archive_cos_distance_history.append(
                             self.cos_distance_calculation(self.hof)
                         )
-            (
-                genotype_sum_entropy,
-                phenotype_sum_entropy,
-            ) = self.gp_tree_entropy_calculation(population)
-            if "GenotypicDiversity" in self.log_item:
-                self.tree_genotypic_diversity.append(genotype_sum_entropy)
-            if "PhenotypicDiversity" in self.log_item:
-                self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
+            if (
+                "GenotypicDiversity" in self.log_item
+                or "PhenotypicDiversity" in self.log_item
+            ):
+                (
+                    genotype_sum_entropy,
+                    phenotype_sum_entropy,
+                ) = self.gp_tree_entropy_calculation(population)
+                if "GenotypicDiversity" in self.log_item:
+                    self.tree_genotypic_diversity.append(genotype_sum_entropy)
+                if "PhenotypicDiversity" in self.log_item:
+                    self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
             self.avg_tree_size_history.append(
                 np.mean([np.mean([len(g) for g in p.gene]) for p in population])
             )

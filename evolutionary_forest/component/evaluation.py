@@ -157,12 +157,15 @@ def calculate_score(args):
     else:
         register_array = None
 
-    if configuration.pset == "Pipeline":
-        Yp, results = multi_tree_evaluation_typed(
+    if configuration.basic_primitives == "Pipeline":
+        Yp = multi_tree_evaluation_typed(
             func,
             pset,
             X,
         )
+        hash_result = None
+        correlation_results = None
+        introns_results = None
     elif sklearn_format:
         Yp = multi_tree_evaluation(func, pset, X, original_features, sklearn_format)
         pipe = pipe_combine(Yp, pipe)
@@ -849,7 +852,7 @@ def single_tree_evaluation(
                     if (
                         random_noise > 0
                         and isinstance(result, (np.ndarray, torch.Tensor))
-                        and len(result) > 1
+                        and result.size > 1
                     ):
                         if (
                             # not add noise to the root node

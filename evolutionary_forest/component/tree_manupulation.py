@@ -1,34 +1,95 @@
-import copy
 from typing import List
 
 import numpy as np
 from deap import gp
-from deap.gp import PrimitiveTree
+from deap.gp import PrimitiveTree, Terminal
+from sklearn.preprocessing import (
+    QuantileTransformer,
+    StandardScaler,
+    MinMaxScaler,
+    RobustScaler,
+)
 
+from evolutionary_forest.component.primitive_functions import (
+    protected_division,
+    analytical_log,
+)
+from evolutionary_forest.component.shared_type import Parameter, LearnedParameter
 from evolutionary_forest.multigene_gp import quick_fill
 
 
-def standardize(x, mean, std):
+def standardize(x, scaler):
     # standardize the input
-    x = (x - mean) / std
+    return scaler.transform(x.reshape(-1, 1)).flatten()
+
+
+def min_max_scaler(x, scaler):
+    # standardize the input
+    return scaler.transform(x.reshape(-1, 1)).flatten()
+
+
+def robust_scaler(x, scaler):
+    return scaler.transform(x.reshape(-1, 1)).flatten()
+
+
+def clip(x, min_val, max_val):
+    # standardize the input
+    x = np.clip(x, min_val, max_val)
     return x
+
+
+def quantile_transformer(x, qt: QuantileTransformer):
+    return qt.transform(x.reshape(-1, 1)).flatten()
+
+
+def normal_quantile_transformer(x, qt: QuantileTransformer):
+    return qt.transform(x.reshape(-1, 1)).flatten()
+
+
+def linear_layer(x, weights):
+    result = (x @ weights).flatten()
+    assert x.shape == result.shape
+    return result
 
 
 def fitting(function, data):
     if function == standardize:
-        return np.mean(data), np.std(data)
-
-
-class Parameter:
-    pass
+        sc = StandardScaler().fit(data[0].reshape(-1, 1))
+        return (sc,)
+    elif function == min_max_scaler:
+        scaler = MinMaxScaler().fit(data[0].reshape(-1, 1))
+        return (scaler,)
+    elif function == robust_scaler:
+        scaler = RobustScaler().fit(data[0].reshape(-1, 1))
+        return (scaler,)
+    elif function == linear_layer:
+        return (np.random.randn(len(data[0]), len(data[0])),)
+    elif function == quantile_transformer:
+        qt = QuantileTransformer()
+        qt.fit(data[0].reshape(-1, 1))
+        return (qt,)
+    elif function == normal_quantile_transformer:
+        qt = QuantileTransformer(output_distribution="normal")
+        qt.fit(data[0].reshape(-1, 1))
+        return (qt,)
 
 
 def get_typed_pset(shape):
-    pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "X")
+    pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     pset.addPrimitive(np.add, [float, float], float)
     pset.addPrimitive(np.subtract, [float, float], float)
     pset.addPrimitive(np.multiply, [float, float], float)
-    pset.addPrimitive(standardize, [float, Parameter, Parameter], float)
+    pset.addPrimitive(protected_division, [float, float], float)
+    pset.addPrimitive(np.minimum, [float, float], float)
+    pset.addPrimitive(np.maximum, [float, float], float)
+    pset.addPrimitive(analytical_log, [float], float)
+    # pset.addPrimitive(linear_layer, [float, Parameter], float)
+    pset.addPrimitive(standardize, [float, Parameter], float)
+    pset.addPrimitive(min_max_scaler, [float, Parameter], float)
+    pset.addPrimitive(robust_scaler, [float, Parameter], float)
+    pset.addPrimitive(quantile_transformer, [float, Parameter], float)
+    pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
+    # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
 
 
@@ -41,13 +102,11 @@ def multi_tree_evaluation_typed(
     for tree in gp_trees:
         result = quick_evaluate(tree, pset, data)
         results.append(result)
-    results = quick_fill(np.array(results), data)
-    return results
+    results = quick_fill(results, data)
+    return results.T
 
 
-def quick_evaluate(expr: PrimitiveTree, pset, data, prefix="X"):
-    new_expr = copy.deepcopy(expr)
-
+def quick_evaluate(expr: PrimitiveTree, pset, data, prefix="ARG"):
     result = None
     stack = []
     for idx, node in enumerate(expr):
@@ -74,8 +133,11 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix="X"):
 
                     # Update new_expr with fitted parameters
                     for p_id, parameter in enumerate(parameters):
-                        new_expr[node_idx + param_index + p_id] = gp.Terminal(
-                            parameter, False, type(parameter)
+                        assert isinstance(
+                            expr[arg_indices[param_index + p_id]].value, Parameter
+                        )
+                        expr[arg_indices[param_index + p_id]] = gp.Terminal(
+                            parameter, False, LearnedParameter
                         )
 
                     result = pset.context[prim.name](*updated_args)
@@ -93,5 +155,12 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix="X"):
             stack[-1][1].append((result, node_idx))
 
     # Replace the original expression tree with the updated one
-    expr[:] = new_expr[:]
     return result
+
+
+def revert_back(ind):
+    for tree in ind.gene:
+        # tree:PrimitiveSetTyped
+        for i in range(len(tree)):
+            if tree[i].ret == LearnedParameter:
+                tree[i] = Terminal(Parameter(), False, Parameter)

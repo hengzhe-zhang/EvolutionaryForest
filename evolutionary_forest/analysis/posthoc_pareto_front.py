@@ -391,9 +391,10 @@ class ParetoFrontTool:
         model.fit(constructed_train_x.astype(np.float64), train_y)
 
         prediction = model.predict(constructed_test_x)
-        prediction = self.y_scaler.inverse_transform(
-            prediction.reshape(-1, 1)
-        ).flatten()
+        if self.y_scaler is not None:
+            prediction = self.y_scaler.inverse_transform(
+                prediction.reshape(-1, 1)
+            ).flatten()
         errors = (test_y - prediction) ** 2
         test_error_normalized_transfer_model = (
             np.mean(errors) / normalization_factor_test

@@ -11,6 +11,7 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
+from evolutionary_forest.component.shared_type import Parameter, LearnedParameter
 
 
 def individual_combination(offspring, toolbox, pset, limitation_check):
@@ -204,11 +205,14 @@ def cxOnePointWithRoot(ind1, ind2, configuration: CrossoverConfiguration):
             types2[__type__] = list(range(0, len(ind2)))
         common_types = [__type__]
     else:
-        for idx, node in enumerate(ind1[0:], 1):
+        for idx, node in enumerate(ind1[0:], 0):
             types1[node.ret].append(idx)
-        for idx, node in enumerate(ind2[0:], 1):
+        for idx, node in enumerate(ind2[0:], 0):
             types2[node.ret].append(idx)
         common_types = set(types1.keys()).intersection(set(types2.keys()))
+        for type in [LearnedParameter, Parameter]:
+            if type in common_types:
+                common_types.remove(type)
 
     if len(common_types) > 0:
         type_ = random.choice(list(common_types))

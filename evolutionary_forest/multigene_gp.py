@@ -44,6 +44,7 @@ from evolutionary_forest.component.crossover_mutation import (
     cxOnePointSizeSafe,
     mutUniformSizeSafe,
 )
+from evolutionary_forest.component.stgp.strong_type_generation import mutUniformSTGP
 from evolutionary_forest.component.syntax_tools import TransformerTool
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
 
@@ -461,9 +462,13 @@ def mutUniform_multiple_gene(
     return (individual,)
 
 
-def gene_mutation(gene, pset, expr, tree_generation, configuration):
+def gene_mutation(
+    gene, pset, expr, tree_generation, configuration: MutationConfiguration
+):
     if configuration.safe_mutation:
         genes = mutUniformSizeSafe(gene, tree_generation, pset, configuration)
+    elif configuration.basic_primitives:
+        genes = mutUniformSTGP(gene, expr, pset)
     else:
         genes = mutUniform(gene, expr, pset)
     return genes
@@ -1322,7 +1327,7 @@ def result_post_process(result, data, original_features):
     return result
 
 
-def quick_fill(result: np.ndarray, data: np.ndarray):
+def quick_fill(result: list, data: np.ndarray):
     # check whether tensor imputation or numpy imputation
     include_tensor = False
     for yp in result:
