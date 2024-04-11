@@ -2796,7 +2796,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.categorical_features = categorical_features
 
         # whether input data is standardized
-        self.standardized_flag = is_standardized(X)
+        # self.standardized_flag = is_standardized(X)
 
         self.y_shape = y.shape
         if isinstance(X, pd.DataFrame):

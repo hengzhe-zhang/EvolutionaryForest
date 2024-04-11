@@ -1,8 +1,10 @@
 from typing import List
 
 import numpy as np
+from category_encoders import BinaryEncoder
 from deap import gp
 from deap.gp import PrimitiveTree, Terminal
+from gplearn.functions import _protected_division
 from sklearn.preprocessing import (
     QuantileTransformer,
     StandardScaler,
@@ -58,6 +60,10 @@ def groupby_mean(x, y, transformer: GroupByMeanTransformer):
     return transformer.transform(np.column_stack((x, y)))
 
 
+def binary_encoding(x, transformer: BinaryEncoder):
+    return transformer.transform(x)
+
+
 def linear_layer(x, weights):
     result = (x @ weights).flatten()
     assert x.shape == result.shape
@@ -88,6 +94,10 @@ def fitting(function, data):
         qt = QuantileTransformer(output_distribution="normal")
         qt.fit(data[0].reshape(-1, 1))
         return (qt,)
+    elif function == binary_encoding:
+        transformer = BinaryEncoder()
+        transformer.fit(data[0])
+        return (transformer,)
 
 
 def identity(x):
@@ -96,27 +106,40 @@ def identity(x):
 
 def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
-    pset.addPrimitive(np.add, [float, float], float)
-    pset.addPrimitive(np.subtract, [float, float], float)
-    pset.addPrimitive(np.multiply, [float, float], float)
-    pset.addPrimitive(protected_division, [float, float], float)
-    pset.addPrimitive(np.minimum, [float, float], float)
-    pset.addPrimitive(np.maximum, [float, float], float)
-    pset.addPrimitive(analytical_log, [float], float)
-    # pset.addPrimitive(linear_layer, [float, Parameter], float)
+    add_math_operators(pset)
     pset.addPrimitive(standardize, [float, Parameter], float)
     pset.addPrimitive(min_max_scaler, [float, Parameter], float)
     pset.addPrimitive(robust_scaler, [float, Parameter], float)
     pset.addPrimitive(quantile_transformer, [float, Parameter], float)
     if primitive_type.endswith("-Categorical"):
-        feature_types = [float for idx in range(shape) if categorical_features[idx]]
-        pset = gp.PrimitiveSetTyped("MAIN", feature_types, float, "ARG")
-        pset.addPrimitive(np.add, [float], float)
+        feature_types = [
+            CategoricalFeature if categorical_features[idx] else float
+            for idx in range(shape)
+        ]
+        pset = gp.PrimitiveSetTyped("MAIN", feature_types, FeatureLayer, "ARG")
         pset.addPrimitive(identity, [float], FeatureLayer)
-        pset.addPrimitive(groupby_mean, [CategoricalFeature], float)
+        add_math_operators(pset)
+        if np.sum(categorical_features) > 0:
+            # must have categorical features
+            pset.addPrimitive(
+                groupby_mean, [CategoricalFeature, float, Parameter], float
+            )
+            pset.addPrimitive(binary_encoding, [CategoricalFeature], FeatureLayer)
+
     pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
     # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
+
+
+def add_math_operators(pset):
+    pset.addPrimitive(np.add, [float, float], float)
+    pset.addPrimitive(np.subtract, [float, float], float)
+    pset.addPrimitive(np.multiply, [float, float], float)
+    # pset.addPrimitive(protected_division, [float, float], float)
+    pset.addPrimitive(_protected_division, [float, float], float)
+    pset.addPrimitive(np.minimum, [float, float], float)
+    pset.addPrimitive(np.maximum, [float, float], float)
+    pset.addPrimitive(analytical_log, [float], float)
 
 
 def multi_tree_evaluation_typed(

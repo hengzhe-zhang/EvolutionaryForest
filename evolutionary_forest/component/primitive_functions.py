@@ -63,6 +63,8 @@ def protected_division(x1, *x2, threshold=1e-10):
     with np.errstate(divide="ignore", invalid="ignore"):
         x2 = reduce(operator.mul, x2)
         # threshold from GEPPY
+        # with np.errstate(divide="ignore", invalid="ignore"):
+        #     return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
         try:
             return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
         except ZeroDivisionError as e:

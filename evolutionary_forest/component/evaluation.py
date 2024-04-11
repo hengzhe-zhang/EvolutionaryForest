@@ -51,6 +51,10 @@ from evolutionary_forest.component.generalization.local_sensitive_shuffle import
     local_sensitive_shuffle_by_value,
 )
 from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
+from evolutionary_forest.component.stgp.shared_type import (
+    CategoricalFeature,
+    FeatureLayer,
+)
 from evolutionary_forest.component.tree_manipulation import multi_tree_evaluation_typed
 from evolutionary_forest.component.tree_utils import (
     node_depths_bottom_up,
@@ -855,10 +859,14 @@ def single_tree_evaluation(
                         and result.size > 1
                     ):
                         if (
-                            # not add noise to the root node
-                            len(stack) == 0
-                            and noise_configuration.skip_root
-                        ) or noise_configuration.only_terminal:
+                            (
+                                # not add noise to the root node
+                                len(stack) == 0
+                                and noise_configuration.skip_root
+                            )
+                            or noise_configuration.only_terminal
+                            or isinstance(prim.ret, FeatureLayer)
+                        ):
                             pass
                         else:
                             layer_random_noise = get_adaptive_noise(
@@ -905,6 +913,8 @@ def single_tree_evaluation(
                         # not add noise to only a terminal node, len(stack) == 0 represents only terminal node
                         # but this restriction only available in skip_root mode
                         and not (len(stack) == 0 and noise_configuration.skip_root)
+                        # not to add noise to categorical features
+                        and not (prim.ret == CategoricalFeature)
                     ):
                         layer_random_noise = get_adaptive_noise(
                             noise_configuration.layer_adaptive,
