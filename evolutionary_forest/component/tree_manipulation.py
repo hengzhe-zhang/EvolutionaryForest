@@ -159,7 +159,7 @@ def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
     pset.addPrimitive(min_max_scaler, [float, Parameter], float)
     pset.addPrimitive(robust_scaler, [float, Parameter], float)
     pset.addPrimitive(quantile_transformer, [float, Parameter], float)
-    pset.addPrimitive(binning, [float, Parameter], float)
+    # pset.addPrimitive(binning, [float, Parameter], float)
     if primitive_type.endswith("-Categorical"):
         feature_types = [
             CategoricalFeature if categorical_features[idx] else float
