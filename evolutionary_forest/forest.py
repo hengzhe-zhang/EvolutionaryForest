@@ -177,6 +177,7 @@ from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderN
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
+from evolutionary_forest.component.tree_manupulation import get_typed_pset
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
@@ -2306,6 +2307,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     np.logical_xor, [BooleanFeature, BooleanFeature], BooleanFeature
                 )
                 pset.addPrimitive(identical_boolean, [BooleanFeature], GeneralFeature)
+        elif self.basic_primitives == "Pipeline":
+            pset = get_typed_pset(self.X.shape[1])
         elif (
             isinstance(self.basic_primitives, str)
             and "optimal" in self.basic_primitives
@@ -2407,7 +2410,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "rand101", lambda: random.randint(-1, 1), NumericalFeature
             )
         elif self.constant_type == "Float":
-            pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
+            if isinstance(pset, gp.PrimitiveSetTyped):
+                pset.addEphemeralConstant(
+                    "rand101", lambda: random.uniform(-1, 1), float
+                )
+            else:
+                pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
         elif self.constant_type in ["GD", "GD+", "GD-", "GD--"]:
 
             def random_variable():

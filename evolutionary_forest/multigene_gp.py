@@ -1322,7 +1322,7 @@ def result_post_process(result, data, original_features):
     return result
 
 
-def quick_fill(result, data: np.ndarray):
+def quick_fill(result: np.ndarray, data: np.ndarray):
     # check whether tensor imputation or numpy imputation
     include_tensor = False
     for yp in result:
