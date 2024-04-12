@@ -51,6 +51,7 @@ from evolutionary_forest.utility.multiobjective.fitness_normalization import (
     fitness_normalization,
     fitness_restore_back,
 )
+from evolutionary_forest.utility.statistics.variance_tool import std_without_outliers
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -368,14 +369,34 @@ class NSGA2(EnvironmentalSelection):
                         cv_error = np.mean(ind.case_values)
                         if prediction_error <= cv_error:
                             first_pareto_front.append(ind)
+
+                if self.knee_point == "Adaptive-SAM":
+                    all_mse = []
+                    all_sharpness = []
+                    for ind in population + list(self.algorithm.hof):
+                        sharpness = ind.fitness_list[1][0]
+                        naive_mse = np.mean(ind.case_values)
+                        all_mse.append(naive_mse)
+                        all_sharpness.append(sharpness)
+                    ratio = std_without_outliers(
+                        np.array(all_mse)
+                    ) / std_without_outliers(np.array(all_sharpness))
+                    if self.algorithm.verbose:
+                        print("STD Ratio", ratio)
+                    for ind in population + list(self.algorithm.hof):
+                        sharpness = ind.fitness_list[1][0]
+                        naive_mse = np.mean(ind.case_values)
+                        ind.sam_loss = sharpness + ratio * naive_mse
+
                 if (
                     self.knee_point == "SAM"
                     or self.knee_point.startswith("SAM-")
                     or self.knee_point == "SUM"
-                    or self.knee_point in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++"]
+                    or self.knee_point
+                    in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++", "Adaptive-SAM"]
                     or self.knee_point
                     in ["KNN-SAM", "LR-SAM", "WKNN-SAM", "Overshot-SAM"]
-                    or self.knee_point in ["M-SAM", "M-SAM+"]
+                    or self.knee_point in ["M-SAM", "M-SAM+", "AdaptiveSAM"]
                 ):
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
