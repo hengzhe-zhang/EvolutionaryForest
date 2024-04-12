@@ -1094,7 +1094,7 @@ def inject_noise_to_data(
     if noise_configuration.noise_normalization == "Mix":
         sampled_instances = random_sample(len(result), random_seed)
         result = (1 - noise) * result + noise * result[sampled_instances]
-    elif noise_configuration.noise_normalization == "MixT":
+    elif noise_configuration.noise_normalization in ["MixT", "MixT+"]:
         # For this distance matrix, the larger, the near
         if noise_configuration.stochastic_mode:
             sampled_instances = weighted_sampling(

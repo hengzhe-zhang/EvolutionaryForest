@@ -21,6 +21,10 @@ from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
     Configuration,
 )
+from evolutionary_forest.component.evaluation import (
+    noise_generation,
+    weighted_sampling_cached,
+)
 from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
@@ -355,6 +359,25 @@ def pac_bayesian_estimation(
                 else:
                     mse_scores[i] = cross_entropy
             else:
+                if configuration.noise_configuration.noise_normalization == "MixT+":
+                    random_seed = i
+                    size_of_noise = len(y)
+                    noise_type = configuration.noise_configuration.noise_type
+                    random_noise_magnitude = configuration.perturbation_std
+                    reference_label = y
+                    sam_mix_bandwidth = (
+                        configuration.noise_configuration.sam_mix_bandwidth
+                    )
+
+                    noise = noise_generation(
+                        noise_type, size_of_noise, random_noise_magnitude, random_seed
+                    )
+                    sampled_instances = weighted_sampling_cached(
+                        random_seed, reference_label, gamma=sam_mix_bandwidth
+                    )
+
+                    target_y = (1 - noise) * y + noise * y[sampled_instances]
+
                 mse_scores[i] = (target_y - y_pred_on_noise) ** 2
                 kl_scores[i] = y_pred_on_noise**2
 
