@@ -30,7 +30,7 @@ class NoiseConfiguration(Configuration):
         only_terminal=False,
         sam_mix_bandwidth=1,
         stochastic_mode=False,
-        random_layer_mode=False,
+        strict_layer_mode=False,
         shuffle_scale=0.2,
         **params
     ):
@@ -49,7 +49,7 @@ class NoiseConfiguration(Configuration):
         self.only_terminal = only_terminal
         self.sam_mix_bandwidth = sam_mix_bandwidth
         self.stochastic_mode = stochastic_mode
-        self.random_layer_mode = random_layer_mode
+        self.strict_layer_mode = strict_layer_mode
 
         self.shuffle_scale = shuffle_scale
 

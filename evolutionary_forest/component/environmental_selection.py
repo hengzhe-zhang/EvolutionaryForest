@@ -231,6 +231,7 @@ class NSGA2(EnvironmentalSelection):
         if self.algorithm.validation_size > 0:
             """
             When have validation data, the knee point is selected using the validation data.
+            This has the first priority.
             """
             first_pareto_front = sortNondominated(population, self.n_pop)[0]
             self.algorithm.hof = first_pareto_front

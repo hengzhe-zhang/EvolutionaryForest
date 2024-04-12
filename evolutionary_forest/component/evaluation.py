@@ -50,6 +50,9 @@ from evolutionary_forest.component.configuration import (
 from evolutionary_forest.component.generalization.local_sensitive_shuffle import (
     local_sensitive_shuffle_by_value,
 )
+from evolutionary_forest.component.generalization.pac_utils.random_node_selection import (
+    select_one_node_per_path,
+)
 from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
 from evolutionary_forest.component.stgp.shared_type import (
     CategoricalFeature,
@@ -833,14 +836,11 @@ def single_tree_evaluation(
     best_score = None
     # save the semantics of the best subtree
     best_subtree_semantics = None
-    if noise_configuration is not None and noise_configuration.random_layer_mode:
-        if expr.height < 1:
-            random_layer = -1
-        else:
-            random_layer = random.randint(1, expr.height)
+    if noise_configuration is not None and noise_configuration.strict_layer_mode:
+        random_nodes = select_one_node_per_path(expr)
     else:
         # default value
-        random_layer = -1
+        random_nodes = []
     for id, node in enumerate(expr):
         stack.append((node, [], id))
         while len(stack[-1][1]) == stack[-1][0].arity:
@@ -879,8 +879,8 @@ def single_tree_evaluation(
                                 random_noise,
                             )
                             if (
-                                noise_configuration.random_layer_mode
-                                and random_layer != depth_information[id]
+                                noise_configuration.strict_layer_mode
+                                and id not in random_nodes
                             ):
                                 layer_random_noise = 0
                             result = inject_noise_to_data(
@@ -926,8 +926,8 @@ def single_tree_evaluation(
                             random_noise,
                         )
                         if (
-                            noise_configuration.random_layer_mode
-                            and random_layer != depth_information[id]
+                            noise_configuration.strict_layer_mode
+                            and id not in random_nodes
                         ):
                             layer_random_noise = 0
                         result = inject_noise_to_data(
