@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def std_without_outliers(data):
+def mean_without_outliers(data):
     """
     Calculate the standard deviation of a list/array of numbers, ignoring outliers.
 
@@ -22,11 +22,11 @@ def std_without_outliers(data):
     filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
 
     # Compute standard deviation
-    return np.std(filtered_data)
+    return np.mean(filtered_data)
 
 
 if __name__ == "__main__":
     # Example usage
     data = [1, 2, 2, 3, 4, 4, 4, 5, 100]  # Data with an outlier
-    std_value = std_without_outliers(data)
+    std_value = mean_without_outliers(data)
     print("Standard Deviation after removing outliers:", std_value)

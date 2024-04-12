@@ -837,7 +837,10 @@ def single_tree_evaluation(
     # save the semantics of the best subtree
     best_subtree_semantics = None
     if noise_configuration is not None and noise_configuration.strict_layer_mode:
-        random_nodes = select_one_node_per_path(expr)
+        if noise_configuration.skip_root:
+            random_nodes = select_one_node_per_path(expr, forbidden_nodes={0})
+        else:
+            random_nodes = select_one_node_per_path(expr)
     else:
         # default value
         random_nodes = []

@@ -51,7 +51,7 @@ from evolutionary_forest.utility.multiobjective.fitness_normalization import (
     fitness_normalization,
     fitness_restore_back,
 )
-from evolutionary_forest.utility.statistics.variance_tool import std_without_outliers
+from evolutionary_forest.utility.statistics.variance_tool import mean_without_outliers
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -378,15 +378,15 @@ class NSGA2(EnvironmentalSelection):
                         naive_mse = np.mean(ind.case_values)
                         all_mse.append(naive_mse)
                         all_sharpness.append(sharpness)
-                    ratio = std_without_outliers(
+                    ratio = mean_without_outliers(
                         np.array(all_mse)
-                    ) / std_without_outliers(np.array(all_sharpness))
+                    ) / mean_without_outliers(np.array(all_sharpness))
                     if self.algorithm.verbose:
                         print("STD Ratio", ratio)
                     for ind in population + list(self.algorithm.hof):
                         sharpness = ind.fitness_list[1][0]
                         naive_mse = np.mean(ind.case_values)
-                        ind.sam_loss = sharpness + ratio * naive_mse
+                        ind.sam_loss = naive_mse + ratio * sharpness
 
                 if (
                     self.knee_point == "SAM"

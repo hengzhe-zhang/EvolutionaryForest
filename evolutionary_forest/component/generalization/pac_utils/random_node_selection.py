@@ -5,7 +5,7 @@ from deap import gp
 
 
 # Redefine the random selection function to adapt to DEAP structures
-def select_one_node_per_path(tree):
+def select_one_node_per_path(tree, forbidden_nodes=None):
     paths = []
 
     def get_paths(node_idx, current_path):
@@ -36,7 +36,8 @@ def select_one_node_per_path(tree):
     # print(paths)
 
     selected_nodes = set()
-    forbidden_nodes = set()
+    if forbidden_nodes is None:
+        forbidden_nodes = set()
     for path in paths:
         if any(node in selected_nodes for node in path):
             continue
