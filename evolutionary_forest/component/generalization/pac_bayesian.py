@@ -25,7 +25,9 @@ from evolutionary_forest.component.evaluation import (
     noise_generation,
     weighted_sampling_cached,
 )
-from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
+from evolutionary_forest.component.generalization.cache.sharpness_memory import (
+    TreeLRUCache,
+)
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel

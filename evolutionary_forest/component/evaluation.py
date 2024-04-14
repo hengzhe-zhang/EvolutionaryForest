@@ -53,14 +53,15 @@ from evolutionary_forest.component.generalization.local_sensitive_shuffle import
 from evolutionary_forest.component.generalization.pac_utils.random_node_selection import (
     select_one_node_per_path,
 )
-from evolutionary_forest.component.generalization.sharpness_memory import TreeLRUCache
+from evolutionary_forest.component.generalization.cache.sharpness_memory import (
+    TreeLRUCache,
+)
 from evolutionary_forest.component.stgp.shared_type import (
     CategoricalFeature,
     FeatureLayer,
 )
 from evolutionary_forest.component.tree_manipulation import multi_tree_evaluation_typed
 from evolutionary_forest.component.tree_utils import (
-    node_depths_bottom_up,
     node_depths_top_down,
 )
 from evolutionary_forest.model.MTL import MTLRidgeCV
