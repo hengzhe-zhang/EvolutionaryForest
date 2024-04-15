@@ -16,6 +16,9 @@ from torch import optim
 from evolutionary_forest.component.evaluation import (
     multi_tree_evaluation,
 )
+from evolutionary_forest.component.generalization.cache.radius_neighbor_cache import (
+    LearningTreeCache,
+)
 from evolutionary_forest.component.generalization.iodc import (
     create_z,
     create_w,
@@ -1032,6 +1035,11 @@ class R2PACBayesian(Fitness):
                 reduced_evaluation += 1
 
         reassign_objective_values(parent, population)
+
+        if isinstance(
+            self.algorithm.pac_bayesian.tree_sharpness_cache, LearningTreeCache
+        ):
+            self.algorithm.pac_bayesian.tree_sharpness_cache.retrain()
 
 
 class PACBayesianR2Scaler(R2PACBayesian):

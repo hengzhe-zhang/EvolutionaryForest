@@ -3062,6 +3062,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         random_seed=0,
         noise_configuration=None,
     ):
+        self.pac_bayesian: PACBayesianConfiguration
         if self.pac_bayesian is not None and self.pac_bayesian.cached_sharpness:
             evaluation_cache = self.pac_bayesian.tree_sharpness_cache
         else:

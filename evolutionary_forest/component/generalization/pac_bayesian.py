@@ -25,6 +25,9 @@ from evolutionary_forest.component.evaluation import (
     noise_generation,
     weighted_sampling_cached,
 )
+from evolutionary_forest.component.generalization.cache.radius_neighbor_cache import (
+    LearningTreeCache,
+)
 from evolutionary_forest.component.generalization.cache.sharpness_memory import (
     TreeLRUCache,
 )
@@ -81,6 +84,7 @@ class PACBayesianConfiguration(Configuration):
         cached_sharpness=False,
         allow_extrapolate_mixup=False,
         kl_mechanism=False,
+        cache_radius=0.001,
         **params
     ):
         # For dropout
@@ -117,7 +121,9 @@ class PACBayesianConfiguration(Configuration):
         self.intelligent_decision = intelligent_decision
         # efficient evaluation
         self.cached_sharpness = cached_sharpness
-        self.tree_sharpness_cache = TreeLRUCache()
+        # self.tree_sharpness_cache = TreeLRUCache()
+        self.cache_radius = cache_radius
+        self.tree_sharpness_cache = LearningTreeCache(self.cache_radius)
 
         # mixup setting
         self.allow_extrapolate_mixup = allow_extrapolate_mixup

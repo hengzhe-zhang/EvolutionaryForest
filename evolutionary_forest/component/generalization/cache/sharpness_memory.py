@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 from cachetools import LRUCache
 from deap.gp import PrimitiveTree
@@ -6,9 +8,9 @@ from evolutionary_forest.component.primitive_functions import tree_to_tuple
 
 
 class TreeLRUCache:
-    def __init__(self, capacity: int = 1000):
+    def __init__(self, capacity: int = 1000, noise_evaluation_cache=True):
         self.cache = LRUCache(capacity)
-        self.noise_evaluation_cache = True
+        self.noise_evaluation_cache = noise_evaluation_cache
 
         self.cache_hits = 0
         self.cache_misses = 0
@@ -39,7 +41,11 @@ class TreeLRUCache:
         return self.cache_misses / total_queries
 
     def store(
-        self, key: PrimitiveTree, value: np.ndarray, random_noise, random_seed
+        self,
+        key: PrimitiveTree,
+        value: Union[np.ndarray, bool],
+        random_noise,
+        random_seed,
     ) -> None:
         if self.noise_evaluation_cache and random_noise <= 0:
             return
