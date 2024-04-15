@@ -49,6 +49,7 @@ from evolutionary_forest.utility.gradient_optimization.scaling import (
     gradient_agnostic_standarization,
 )
 from evolutionary_forest.utility.sampling_utils import sample_according_to_distance
+from evolutionary_forest.utility.timing import time_it
 from evolutionary_forest.utils import tuple_to_list, list_to_tuple
 
 if TYPE_CHECKING:
@@ -1020,6 +1021,7 @@ class R2PACBayesian(Fitness):
         for p in pop:
             self.assign_complexity(p, p.pipe)
 
+    # @time_it
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
         # get minimum r2
         ratio = self.algorithm.pac_bayesian.complexity_estimation_ratio

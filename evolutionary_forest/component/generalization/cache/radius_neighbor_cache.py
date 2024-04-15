@@ -1,5 +1,5 @@
-from sklearn.neighbors import RadiusNeighborsRegressor
 import numpy as np
+from sklearn.neighbors import RadiusNeighborsRegressor
 
 from evolutionary_forest.component.generalization.cache.sharpness_memory import (
     TreeLRUCache,
@@ -58,7 +58,7 @@ class LearningTreeCache:
         self.labels[random_seed].append(value)
 
         # Maintain capacity limits
-        if len(self.data[random_seed]) > self.capacity:
+        while len(self.data[random_seed]) > self.capacity:
             self.data[random_seed].pop(0)
             self.labels[random_seed].pop(0)
 
@@ -69,6 +69,12 @@ class LearningTreeCache:
 
     def _retrain_model(self, random_seed):
         if random_seed not in self.models:
+            # self.models[random_seed] = Pipeline(
+            #     [
+            #         ("scaler", PCA(n_components=2)),
+            #         ("model", RadiusNeighborsRegressor(radius=self.radius)),
+            #     ]
+            # )
             self.models[random_seed] = RadiusNeighborsRegressor(radius=self.radius)
 
         self.models[random_seed].fit(

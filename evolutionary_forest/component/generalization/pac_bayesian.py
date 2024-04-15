@@ -34,6 +34,7 @@ from evolutionary_forest.component.generalization.cache.sharpness_memory import 
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
+from evolutionary_forest.utility.timing import time_it
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
@@ -121,9 +122,9 @@ class PACBayesianConfiguration(Configuration):
         self.intelligent_decision = intelligent_decision
         # efficient evaluation
         self.cached_sharpness = cached_sharpness
-        # self.tree_sharpness_cache = TreeLRUCache()
-        self.cache_radius = cache_radius
-        self.tree_sharpness_cache = LearningTreeCache(self.cache_radius)
+        self.tree_sharpness_cache = TreeLRUCache()
+        # self.cache_radius = cache_radius
+        # self.tree_sharpness_cache = LearningTreeCache(self.cache_radius)
 
         # mixup setting
         self.allow_extrapolate_mixup = allow_extrapolate_mixup
@@ -165,7 +166,6 @@ class SharpnessType(Enum):
     Dropout = 12
 
 
-# @timeit
 def pac_bayesian_estimation(
     # X: constructed features
     X,
