@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np  # noqa
-from mpl_toolkits.mplot3d import Axes3D  # noqa
 from scipy.stats import spearmanr
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.metrics import make_scorer
