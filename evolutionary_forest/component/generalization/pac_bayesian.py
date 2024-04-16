@@ -403,6 +403,9 @@ def pac_bayesian_estimation(
         else:
             weight = 1
 
+        if s == "PVRM":
+            s = "MaxSharpness-1~"
+
         if s == "R2":
             objectives.append((R2, 1 * weight))
         elif s == "Perturbed-MSE" or s == "MeanSharpness" or s == "MeanVariance":
