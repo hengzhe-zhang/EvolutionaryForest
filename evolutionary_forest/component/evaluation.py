@@ -833,7 +833,7 @@ def single_tree_evaluation(
     result = None
     stack = []
     subtree_information = {}
-    depth_information, _ = node_depths_top_down(expr, current_depth=1)
+    depth_information, _ = node_depths_top_down(expr, current_depth=0)
     best_score = None
     # save the semantics of the best subtree
     best_subtree_semantics = None
