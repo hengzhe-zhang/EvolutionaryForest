@@ -396,7 +396,7 @@ class NSGA2(EnvironmentalSelection):
                     in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++", "Adaptive-SAM"]
                     or self.knee_point
                     in ["KNN-SAM", "LR-SAM", "WKNN-SAM", "Overshot-SAM"]
-                    or self.knee_point in ["M-SAM", "M-SAM+", "AdaptiveSAM"]
+                    or self.knee_point in ["M-SAM", "M-SAM+"]
                 ):
                     if not isinstance(self.algorithm.score_func, R2PACBayesian):
                         pac = R2PACBayesian(self.algorithm, **self.algorithm.param)
