@@ -180,7 +180,11 @@ from evolutionary_forest.component.stgp.strong_type_generation import (
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.component.tree_manipulation import get_typed_pset, revert_back
+from evolutionary_forest.component.tree_manipulation import (
+    get_typed_pset,
+    revert_back,
+    copy_categorical_features,
+)
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
@@ -545,7 +549,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.verbose = verbose
         self.initialized = False
         self.pop: List[MultipleGeneGP] = []
-        self.basic_primitives = basic_primitives
+        self.basic_primitives: str = basic_primitives
         self.select = select
         self.gene_num = gene_num
         self.param = params
@@ -2794,6 +2798,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def fit(self, X, y, test_X=None, categorical_features=None):
         self.counter_initialization()
         self.history_initialization()
+
+        if (
+            self.basic_primitives.startswith("Pipeline")
+            and categorical_features is not None
+        ):
+            self.original_categorical_features = categorical_features
+            X, categorical_features = copy_categorical_features(X, categorical_features)
         self.categorical_features = categorical_features
 
         # whether input data is standardized
@@ -3095,6 +3106,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     @split_and_combine_data_decorator(data_arg_position=1, data_arg_name="X")
     def predict(self, X, return_std=False):
+        if self.basic_primitives.startswith("Pipeline"):
+            X, categorical_features = copy_categorical_features(
+                X, self.original_categorical_features
+            )
+
         if self.normalize:
             # Scale X data if normalize flag is set
             X = self.x_scaler.transform(X)

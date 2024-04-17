@@ -21,6 +21,9 @@ from sklearn.preprocessing import (
 
 from evolutionary_forest.component.stgp.categorical_processor import *
 from evolutionary_forest.component.stgp.fast_binary_encoder import BinaryEncoder
+from evolutionary_forest.component.stgp.feature_crossing import (
+    FeatureCrossBinaryEncoder,
+)
 from evolutionary_forest.component.stgp.shared_type import (
     Parameter,
     LearnedParameter,
@@ -28,6 +31,22 @@ from evolutionary_forest.component.stgp.shared_type import (
     FeatureLayer,
 )
 from evolutionary_forest.multigene_gp import quick_fill
+
+
+def copy_categorical_features(data, categorical_features: list[bool]):
+    return data, categorical_features
+    # if np.sum(categorical_features) > 0:
+    #     # add categorical features to the end of the data
+    #     cat_features = np.column_stack(
+    #         [
+    #             data[:, idx]
+    #             for idx in range(len(categorical_features))
+    #             if categorical_features[idx]
+    #         ]
+    #     )
+    #     data = np.concatenate([data, cat_features], axis=1)
+    #     categorical_features = categorical_features + [False] * cat_features.shape[1]
+    # return data, categorical_features
 
 
 def standardize(x, scaler):
@@ -74,7 +93,19 @@ def groupby_max(x, y, transformer: GroupByMaxTransformer):
     return transformer.transform(np.column_stack((x, y)))
 
 
-def binary_encoding(x, transformer: OneHotEncoder):
+def binary_feature_cross(x, y, transformer: FeatureCrossBinaryEncoder):
+    return transformer.transform(np.column_stack((x, y)))
+
+
+def triple_feature_cross(x, y, z, transformer: FeatureCrossBinaryEncoder):
+    return transformer.transform(np.column_stack((x, y, z)))
+
+
+def onehot_encoding(x, transformer: OneHotEncoder):
+    return transformer.transform(x.reshape(-1, 1))
+
+
+def binary_encoding(x, transformer: BinaryEncoder):
     return transformer.transform(x)
 
 
@@ -132,9 +163,21 @@ def fitting(function, data):
         transformer = BinaryEncoder()
         transformer.fit(data[0])
         return (transformer,)
+    elif function == onehot_encoding:
+        transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+        transformer.fit(data[0].reshape(-1, 1))
+        return (transformer,)
     elif function == label_encoding:
         transformer = LabelEncoder()
         transformer.fit(data[0].reshape(-1, 1))
+        return (transformer,)
+    elif function == binary_feature_cross:
+        transformer = FeatureCrossBinaryEncoder()
+        transformer.fit(np.column_stack((data[0], data[1])))
+        return (transformer,)
+    elif function == triple_feature_cross:
+        transformer = FeatureCrossBinaryEncoder()
+        transformer.fit(np.column_stack((data[0], data[1], data[2])))
         return (transformer,)
     elif function == binning:
         transformer = KBinsDiscretizer(
@@ -166,9 +209,15 @@ def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
             for idx in range(shape)
         ]
         pset = gp.PrimitiveSetTyped("MAIN", feature_types, FeatureLayer, "ARG")
-        pset.addPrimitive(identity, [float], FeatureLayer)
-        add_math_operators(pset)
-        if np.sum(categorical_features) > 0:
+        has_numerical_features = len(categorical_features) != np.sum(
+            categorical_features
+        )
+        # has_numerical_features = True
+        has_categorical_features = np.sum(categorical_features) != 0
+        if has_numerical_features:
+            pset.addPrimitive(identity, [float], FeatureLayer)
+            add_math_operators(pset)
+        if has_numerical_features and has_categorical_features:
             # must have categorical features
             pset.addPrimitive(
                 groupby_mean, [CategoricalFeature, float, Parameter], float
@@ -182,10 +231,21 @@ def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
             pset.addPrimitive(
                 groupby_max, [CategoricalFeature, float, Parameter], float
             )
+        if has_categorical_features:
+            pset.addPrimitive(
+                binary_feature_cross,
+                [CategoricalFeature, CategoricalFeature, Parameter],
+                FeatureLayer,
+            )
+            pset.addPrimitive(
+                triple_feature_cross,
+                [CategoricalFeature, CategoricalFeature, CategoricalFeature, Parameter],
+                FeatureLayer,
+            )
             pset.addPrimitive(
                 binary_encoding, [CategoricalFeature, Parameter], FeatureLayer
             )
-            pset.addPrimitive(identity_categorical, [CategoricalFeature], FeatureLayer)
+            pset.addPrimitive(identity_categorical, [CategoricalFeature], float)
     pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
     # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
