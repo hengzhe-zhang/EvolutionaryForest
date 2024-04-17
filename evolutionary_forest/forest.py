@@ -3887,8 +3887,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 cv_error = np.mean(best_model.case_values)
                 print(
                     "\n".join([replace(str(g)) for g in best_model.gene]),
-                    "Sharpness",
-                    best_model.sam_loss,
                     "Fitness",
                     cv_error,
                     "Prediction Error",
