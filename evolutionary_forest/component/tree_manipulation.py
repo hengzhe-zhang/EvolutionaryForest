@@ -35,7 +35,7 @@ from evolutionary_forest.multigene_gp import quick_fill
 
 
 def copy_categorical_features(data, categorical_features: list[bool]):
-    # return data, categorical_features
+    return data, categorical_features
     if np.sum(categorical_features) > 0:
         # add categorical features to the end of the data
         cat_features = np.column_stack(
