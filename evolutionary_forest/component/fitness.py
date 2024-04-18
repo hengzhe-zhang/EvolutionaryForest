@@ -199,6 +199,10 @@ class RademacherComplexityR2(Fitness):
 
     def get_fitness_list(self, individual: MultipleGeneGP, rademacher_complexity):
         objective_weight = 1
+        """
+        Actually, the weight in fitness list doesn't matter, because we didn't consider it.
+        The rule is: Maximize first, minimize others.
+        """
         if self.size_objective:
             # Calculate tree size
             tree_size = sum([len(tree) for tree in individual.gene])
@@ -251,8 +255,15 @@ class RademacherComplexityR2(Fitness):
 
 
 def reassign_objective_values(parent, pop):
+    """
+    PAC-Bayesian and Rademacher are very special, they need to be re-assigned.
+    Actually, the weight in fitness list doesn't matter, because we didn't consider it.
+    """
     if parent != None:
         pop = parent + pop
+    for p in pop:
+        p.fitness_list = [[element[0]] for element in p.fitness_list]
+        assert all([len(element) == 1 for element in p.fitness_list])
     valid_components = [
         p.fitness_list[1][0]
         for p in pop
@@ -501,6 +512,28 @@ class R2SizeScaler(Fitness):
 
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
         assign_rank(population, hall_of_fame, elite_archive)
+
+
+class R2CVGap(Fitness):
+    def __init__(self, algorithm):
+        self.algorithm = algorithm
+        super().__init__()
+
+    def fitness_value(self, individual: MultipleGeneGP, estimators, Y, y_pred):
+        cv_mse = np.mean((y_pred - Y) ** 2)
+        r2 = r2_score(Y, y_pred)
+        trees = self.algorithm.feature_generation(self.algorithm.X, individual)
+        prediction = individual.pipe.predict(trees)
+        # this should be smaller
+        training_mse = np.mean((prediction - Y) ** 2)
+        gap = max(cv_mse - training_mse, 0)
+        """
+        Actually, the weight in fitness list doesn't matter, because we didn't consider it.
+        The rule is: Maximize first, minimize others.
+        """
+        individual.fitness_list = ((r2, 1), (gap, 1))
+        # minimize generalization gap
+        return (cv_mse, gap)
 
 
 class R2PACBayesian(Fitness):

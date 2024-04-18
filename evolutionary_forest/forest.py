@@ -965,6 +965,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = R2FeatureCount()
         elif isinstance(score_func, str) and score_func == "R2-Size-Scaler":
             self.score_func = R2SizeScaler(self, **params)
+        elif isinstance(score_func, str) and score_func == "R2-GAP":
+            self.score_func = R2CVGap(self)
         elif isinstance(score_func, str) and score_func == "R2-WKNN":
             self.score_func = R2WKNN(self)
         else:

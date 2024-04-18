@@ -406,6 +406,10 @@ def pac_bayesian_estimation(
         if s == "PVRM":
             s = "MaxSharpness-1~"
 
+        """
+        Actually, the weight in fitness list doesn't matter, because we didn't consider it.
+        The rule is: Maximize first, minimize others.
+        """
         if s == "R2":
             objectives.append((R2, 1 * weight))
         elif s == "Perturbed-MSE" or s == "MeanSharpness" or s == "MeanVariance":

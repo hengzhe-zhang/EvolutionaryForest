@@ -17,6 +17,7 @@ from sklearn.preprocessing import (
     OneHotEncoder,
     LabelEncoder,
     KBinsDiscretizer,
+    OrdinalEncoder,
 )
 
 from evolutionary_forest.component.stgp.categorical_processor import *
@@ -34,19 +35,19 @@ from evolutionary_forest.multigene_gp import quick_fill
 
 
 def copy_categorical_features(data, categorical_features: list[bool]):
-    return data, categorical_features
-    # if np.sum(categorical_features) > 0:
-    #     # add categorical features to the end of the data
-    #     cat_features = np.column_stack(
-    #         [
-    #             data[:, idx]
-    #             for idx in range(len(categorical_features))
-    #             if categorical_features[idx]
-    #         ]
-    #     )
-    #     data = np.concatenate([data, cat_features], axis=1)
-    #     categorical_features = categorical_features + [False] * cat_features.shape[1]
     # return data, categorical_features
+    if np.sum(categorical_features) > 0:
+        # add categorical features to the end of the data
+        cat_features = np.column_stack(
+            [
+                data[:, idx]
+                for idx in range(len(categorical_features))
+                if categorical_features[idx]
+            ]
+        )
+        data = np.concatenate([data, cat_features], axis=1)
+        categorical_features = categorical_features + [False] * cat_features.shape[1]
+    return data, categorical_features
 
 
 def standardize(x, scaler):
@@ -93,6 +94,10 @@ def groupby_max(x, y, transformer: GroupByMaxTransformer):
     return transformer.transform(np.column_stack((x, y)))
 
 
+def groupby_count(x, y, transformer: GroupByCountTransformer):
+    return transformer.transform(np.column_stack((x, y)))
+
+
 def binary_feature_cross(x, y, transformer: FeatureCrossBinaryEncoder):
     return transformer.transform(np.column_stack((x, y)))
 
@@ -109,7 +114,7 @@ def binary_encoding(x, transformer: BinaryEncoder):
     return transformer.transform(x)
 
 
-def label_encoding(x, transformer: LabelEncoder):
+def ordinal_encoding(x, transformer: LabelEncoder):
     return transformer.transform(x.reshape(-1, 1)).flatten()
 
 
@@ -155,6 +160,10 @@ def fitting(function, data):
         transformer = GroupByMaxTransformer()
         transformer.fit(np.column_stack((data[0], data[1])))
         return (transformer,)
+    elif function == groupby_count:
+        transformer = GroupByCountTransformer()
+        transformer.fit(np.column_stack((data[0], data[1])))
+        return (transformer,)
     elif function == normal_quantile_transformer:
         qt = QuantileTransformer(output_distribution="normal")
         qt.fit(data[0].reshape(-1, 1))
@@ -167,16 +176,18 @@ def fitting(function, data):
         transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         transformer.fit(data[0].reshape(-1, 1))
         return (transformer,)
-    elif function == label_encoding:
-        transformer = LabelEncoder()
+    elif function == ordinal_encoding:
+        transformer = OrdinalEncoder(
+            handle_unknown="use_encoded_value", unknown_value=-1
+        )
         transformer.fit(data[0].reshape(-1, 1))
         return (transformer,)
     elif function == binary_feature_cross:
-        transformer = FeatureCrossBinaryEncoder()
+        transformer = FeatureCrossBinaryEncoder(mode="ordinal")
         transformer.fit(np.column_stack((data[0], data[1])))
         return (transformer,)
     elif function == triple_feature_cross:
-        transformer = FeatureCrossBinaryEncoder()
+        transformer = FeatureCrossBinaryEncoder(mode="binary")
         transformer.fit(np.column_stack((data[0], data[1], data[2])))
         return (transformer,)
     elif function == binning:
@@ -231,21 +242,29 @@ def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
             pset.addPrimitive(
                 groupby_max, [CategoricalFeature, float, Parameter], float
             )
+            pset.addPrimitive(
+                groupby_count, [CategoricalFeature, float, Parameter], float
+            )
         if has_categorical_features:
             pset.addPrimitive(
                 binary_feature_cross,
                 [CategoricalFeature, CategoricalFeature, Parameter],
-                FeatureLayer,
+                CategoricalFeature,
             )
+            # pset.addPrimitive(
+            #     binary_feature_cross,
+            #     [CategoricalFeature, CategoricalFeature, Parameter],
+            #     FeatureLayer,
+            # )
+            # pset.addPrimitive(
+            #     triple_feature_cross,
+            #     [CategoricalFeature, CategoricalFeature, CategoricalFeature, Parameter],
+            #     FeatureLayer,
+            # )
             pset.addPrimitive(
-                triple_feature_cross,
-                [CategoricalFeature, CategoricalFeature, CategoricalFeature, Parameter],
-                FeatureLayer,
+                onehot_encoding, [CategoricalFeature, Parameter], FeatureLayer
             )
-            pset.addPrimitive(
-                binary_encoding, [CategoricalFeature, Parameter], FeatureLayer
-            )
-            pset.addPrimitive(identity_categorical, [CategoricalFeature], float)
+            pset.addPrimitive(ordinal_encoding, [CategoricalFeature, Parameter], float)
     pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
     # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
@@ -256,11 +275,12 @@ def add_math_operators(pset):
     pset.addPrimitive(np.subtract, [float, float], float)
     pset.addPrimitive(np.multiply, [float, float], float)
     pset.addPrimitive(_protected_division, [float, float], float)
-    pset.addPrimitive(_protected_log, [float], float)
     pset.addPrimitive(_protected_sqrt, [float], float)
+    pset.addPrimitive(_protected_log, [float], float)
     pset.addPrimitive(_sigmoid, [float], float)
     pset.addPrimitive(np.minimum, [float, float], float)
     pset.addPrimitive(np.maximum, [float, float], float)
+    pset.addPrimitive(np.square, [float], float)
 
 
 def multi_tree_evaluation_typed(
