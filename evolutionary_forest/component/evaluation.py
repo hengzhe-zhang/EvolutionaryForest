@@ -17,6 +17,7 @@ from deap import creator
 from deap import gp
 from deap import tools
 from deap.gp import PrimitiveTree, Primitive, Terminal
+from numpy.linalg import LinAlgError
 from numpy.testing import assert_almost_equal
 from onedal.primitives import rbf_kernel
 from scipy.spatial.distance import cdist
@@ -267,6 +268,8 @@ def calculate_score(args):
             if sample_weight is not None:
                 pipe.fit(Yp, Y, Ridge__sample_weight=sample_weight)
             else:
+                # impute nan again
+                Yp = np.nan_to_num(Yp, posinf=0, neginf=0)
                 pipe.fit(Yp, Y)
 
             if time_flag:
