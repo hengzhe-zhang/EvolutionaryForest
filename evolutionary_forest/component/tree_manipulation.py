@@ -1,6 +1,6 @@
 import math
 from typing import List
-
+import numpy as np  # noqa
 from deap import gp
 from deap.gp import PrimitiveTree, Terminal
 from gplearn.functions import (
