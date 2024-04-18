@@ -532,6 +532,7 @@ class R2CVGap(Fitness):
         The rule is: Maximize first, minimize others.
         """
         individual.fitness_list = ((r2, 1), (gap, 1))
+        individual.sam_loss = cv_mse + gap
         # minimize generalization gap
         return (cv_mse, gap)
 

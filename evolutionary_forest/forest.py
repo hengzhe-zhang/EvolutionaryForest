@@ -1148,6 +1148,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 register_array=individual.parameters["Register"]
                 if self.mgp_mode == "Register"
                 else None,
+                configuration=self.evaluation_configuration,
                 individual_configuration=individual.individual_configuration,
             )
             self.train_final_model(individual, Yp, Y)
@@ -1516,7 +1517,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 input_size = len(individual.pipe["Scaler"].scale_)
                 model.predict(np.ones((1, input_size)))
                 return None
-            except NotFittedError:
+            except (NotFittedError, AttributeError):
                 pass
 
         # ensure ensemble base leaner will not be retrained
