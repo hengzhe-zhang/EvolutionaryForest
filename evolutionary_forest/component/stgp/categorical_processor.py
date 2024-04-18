@@ -1,5 +1,6 @@
 from numba import njit
 from sklearn.base import BaseEstimator, TransformerMixin
+import numpy as np
 
 
 class StringToIntMapper(TransformerMixin):
@@ -134,8 +135,6 @@ class GroupByCountTransformer(GroupByAggregator):
 
 
 if __name__ == "__main__":
-    import numpy as np
-
     # Create some example data
     data = np.array([["1", 5], [2, 6], [1, 5], [3, 7], [2, 8], [1, 5]])
 
