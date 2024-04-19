@@ -824,7 +824,12 @@ class R2PACBayesian(Fitness):
                     mse_old = (Y_pred.detach().numpy().flatten() - y) ** 2
                     self.calculate_gradient(Y_pred, y)
 
-                    traditional_sam = True
+                    """
+                    Two modes:
+                    1. Gradient-based sharpness perturbation
+                    2. Gradient Regularization
+"""
+                    traditional_sam = False
                     if traditional_sam:
                         self.sharpness_gradient_ascent(torch_variables)
                         features = self.get_constructed_features(individual, trees)
@@ -920,6 +925,9 @@ class R2PACBayesian(Fitness):
         sharpness_value = estimation[1][0]
 
         if self.algorithm.constant_type in ["GD--"]:
+            """
+            In the mode is GD--, not only use gradient norm but also use weight perturbation.
+            """
             if algorithm.verbose and sharpness_value > gradient_sharpness:
                 pass
             sharpness_value = np.maximum(gradient_sharpness, sharpness_value)

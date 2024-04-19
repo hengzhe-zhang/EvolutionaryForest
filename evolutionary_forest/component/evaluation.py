@@ -866,8 +866,8 @@ def single_tree_evaluation(
                             )
                     if (
                         random_noise > 0
-                        and isinstance(result, (np.ndarray, torch.Tensor))
-                        and result.size > 1
+                        and (isinstance(result, (np.ndarray)) and result.size > 1)
+                        and (isinstance(result, (torch.Tensor)) and result.shape[0] > 1)
                     ):
                         if (
                             (
