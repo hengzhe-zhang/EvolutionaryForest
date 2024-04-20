@@ -637,7 +637,7 @@ class R2PACBayesian(Fitness):
         else:
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if mixup_strategy in ["I-MixUp", "IN-MixUp"]:
+        if mixup_strategy in ["I-MixUp"]:
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
             if alpha_beta == "Adaptive":
@@ -678,6 +678,8 @@ class R2PACBayesian(Fitness):
         ] * (1 - ratio.reshape(-1, 1))
         label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * (1 - ratio)
         if allow_extrapolate_mixup:
+            # For some point, the ratio could be larger than 1 to simulate extrapolation.
+            # However, 1.5 is a very dangerous value.
             data_extrapolation = algorithm.X[indices_a] + (
                 algorithm.X[indices_a] - algorithm.X[indices_b]
             ) * (ratio.reshape(-1, 1))
