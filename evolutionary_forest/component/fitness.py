@@ -677,7 +677,7 @@ class R2PACBayesian(Fitness):
             indices_b
         ] * (1 - ratio.reshape(-1, 1))
         label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * (1 - ratio)
-        if allow_extrapolate_mixup and random.random() < 0.5:
+        if allow_extrapolate_mixup:
             data_extrapolation = algorithm.X[indices_a] + (
                 algorithm.X[indices_a] - algorithm.X[indices_b]
             ) * (ratio.reshape(-1, 1))
