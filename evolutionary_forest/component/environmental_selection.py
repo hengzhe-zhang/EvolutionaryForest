@@ -374,7 +374,11 @@ class NSGA2(EnvironmentalSelection):
                     all_mse = []
                     all_sharpness = []
                     for ind in population + list(self.algorithm.hof):
-                        sharpness = ind.fitness_list[1][0]
+                        if hasattr(ind, "fitness_list"):
+                            # minimize
+                            sharpness = ind.fitness_list[1][0]
+                        else:
+                            sharpness = -1 * ind.fitness.wvalues[1]
                         naive_mse = np.mean(ind.case_values)
                         all_mse.append(naive_mse)
                         all_sharpness.append(sharpness)
@@ -384,7 +388,11 @@ class NSGA2(EnvironmentalSelection):
                     if self.algorithm.verbose:
                         print("STD Ratio", ratio)
                     for ind in population + list(self.algorithm.hof):
-                        sharpness = ind.fitness_list[1][0]
+                        if hasattr(ind, "fitness_list"):
+                            # minimize
+                            sharpness = ind.fitness_list[1][0]
+                        else:
+                            sharpness = -1 * ind.fitness.wvalues[1]
                         naive_mse = np.mean(ind.case_values)
                         ind.sam_loss = naive_mse + ratio * sharpness
 
