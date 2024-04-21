@@ -737,10 +737,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_model_list = "Random-DT,LightGBM-Stump,DT"
         elif self.base_learner == "Spline-Ridge":
             self.base_model_list = "SplineRidgeCV,RidgeCV"
-        elif self.base_learner == "Spline-Ridge-DT":
-            self.base_model_list = "SplineRidgeCV,RidgeCV,DT"
-        elif self.base_learner == "Spline-Ridge-DT-KNN":
-            self.base_model_list = "SplineRidgeCV,RidgeCV,DT,KNN"
+        elif self.base_learner.startswith("Ridge~"):
+            self.base_model_list = ",".join(self.base_learner.split("~"))
         else:
             self.base_model_list = None
 
@@ -1044,15 +1042,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.min_samples_leaf = 1
         elif self.base_learner == "Hybrid":
             pipe = self.get_base_model(base_model=individual.base_model)
-        elif self.base_learner in [
-            "DT-LR",
-            "Balanced-DT-LR",
-            "Balanced-RDT-LR",
-            "DT-LGBM",
-            "Spline-Ridge",
-            "Spline-Ridge-DT",
-            "Spline-Ridge-DT-KNN",
-        ] or isinstance(self.base_learner, list):
+        elif (
+            self.base_learner
+            in [
+                "DT-LR",
+                "Balanced-DT-LR",
+                "Balanced-RDT-LR",
+                "DT-LGBM",
+            ]
+            or self.base_learner.startswith("Ridge~")
+            or isinstance(self.base_learner, list)
+        ):
             pipe = self.get_base_model(base_model=individual.base_model)
         elif self.base_learner == "Dynamic-LogisticRegression":
             pipe = self.get_base_model(
@@ -1589,6 +1589,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = DecisionTreeRegressor(
                 min_samples_leaf=int(self.base_learner.split("-")[1])
             )
+        elif isinstance(base_model, str) and base_model.startswith("DT"):
+            ridge_model = DecisionTreeRegressor(
+                min_samples_leaf=int(base_model.split("-")[1])
+            )
         elif self.base_learner == "SimpleDT-RandomDT":
             ridge_model = DecisionTreeRegressor(max_depth=3)
         elif self.base_learner in [
@@ -1713,8 +1717,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = SVR()
         elif self.base_learner == "KNN" or base_model == "KNN":
             ridge_model = KNeighborsRegressor(weights="uniform")
-        elif self.base_learner == "KNN-3":
-            ridge_model = KNeighborsRegressor(n_neighbors=3, weights="uniform")
+        elif self.base_learner.startswith("KNN-"):
+            n_neighbors = int(self.base_learner.split("-")[1])
+            ridge_model = KNeighborsRegressor(
+                n_neighbors=n_neighbors, weights="uniform"
+            )
+        elif isinstance(base_model, str) and base_model.startswith("KNN-"):
+            n_neighbors = int(base_model.split("-")[1])
+            ridge_model = KNeighborsRegressor(
+                n_neighbors=n_neighbors, weights="uniform"
+            )
         elif self.base_learner == "WKNN":
             ridge_model = KNeighborsRegressor(weights="distance")
         elif self.base_learner.startswith("GKNN"):
@@ -3348,10 +3360,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             dt = defaultdict(int)
             # parameters = np.zeros(2)
             for p in pop:
-                # dt[str(p.base_learner)] += 1
                 # dt[str(p.dynamic_leaf_size)] += 1
                 dt[str(p.dynamic_regularization)] += 1
-            print(dt)
+            print("Information", dt)
             if self.all_nodes_counter > 0:
                 print(
                     "Ratio of Introns",
