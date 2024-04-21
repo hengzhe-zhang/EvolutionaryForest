@@ -327,7 +327,6 @@ class EvaluationConfiguration(Configuration):
         self.enable_library = False
 
 
-
 class BloatControlConfiguration(Configuration):
     def __init__(
         self,
