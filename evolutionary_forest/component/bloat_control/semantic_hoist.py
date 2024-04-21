@@ -44,6 +44,7 @@ class SHM:
     def hoist_mutation(
         self, o: MultipleGeneGP, hoist_probability=None, previous_gene=None
     ):
+        gene_num = len(o.gene)
         hoist_frequency = self.hoist_frequency
         if (
             hoist_frequency != 0
@@ -102,7 +103,7 @@ class SHM:
                 )
             )
 
-        while len(new_gene) < self.algorithm.gene_num:
+        while len(new_gene) < gene_num:
             fail = True
             for eid, gid in order:
                 gene = o.gene[gid]
@@ -218,15 +219,11 @@ class SHM:
 
         assert len(new_gene) >= 0
         if not iteratively_check:
-            assert (
-                len(new_gene) == self.algorithm.gene_num
-            ), f"Number of Genes {len(new_gene)}"
+            assert len(new_gene) == gene_num, f"Number of Genes {len(new_gene)}"
         # may sample more trees, just taking a few is enough
-        new_gene = new_gene[: self.algorithm.gene_num]
-        while len(new_gene) < self.algorithm.gene_num:
+        new_gene = new_gene[:gene_num]
+        while len(new_gene) < gene_num:
             new_tree = self.algorithm.new_tree_generation()
             new_gene.append(new_tree)
-        assert (
-            len(new_gene) == self.algorithm.gene_num
-        ), f"Number of Genes {len(new_gene)}"
+        assert len(new_gene) == gene_num, f"Number of Genes {len(new_gene)}"
         o.gene = new_gene
