@@ -54,6 +54,14 @@ def gaussian(x):
     return np.exp(-np.multiply(x, x) / 2.0)
 
 
+def gaussian_kernel(x, y):
+    return np.exp(-((x - y) ** 2) / 2.0)
+
+
+def exponential_kernel(x, y):
+    return np.exp(-np.abs(x - y))
+
+
 def gaussian_torch(x):
     # Gaussian with mean 0 and sigma 1
     return torch.exp(-torch.multiply(x, x) / 2.0)
