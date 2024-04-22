@@ -382,9 +382,12 @@ class NSGA2(EnvironmentalSelection):
                         naive_mse = np.mean(ind.case_values)
                         all_mse.append(naive_mse)
                         all_sharpness.append(sharpness)
+                    metric_std = "Std"
                     ratio = mean_without_outliers(
-                        np.array(all_mse)
-                    ) / mean_without_outliers(np.array(all_sharpness))
+                        np.array(all_mse), metric=metric_std
+                    ) / mean_without_outliers(
+                        np.array(all_sharpness), metric=metric_std
+                    )
                     if self.algorithm.verbose:
                         print("STD Ratio", ratio)
                     for ind in population + list(self.algorithm.hof):
