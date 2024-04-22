@@ -2262,87 +2262,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
 
     def primitive_initialization(self, x):
-        # initialize the primitive set
-        if self.basic_primitives == "StrongTyped":
-            feature_types = self.feature_types
-            pset = gp.PrimitiveSetTyped("MAIN", feature_types, GeneralFeature)
-            has_numerical_feature = False
-            for x in feature_types:
-                if x == NumericalFeature:
-                    has_numerical_feature = True
-            has_categorical_feature = False
-            for x in feature_types:
-                if x == CategoricalFeature:
-                    has_categorical_feature = True
-            has_boolean_feature = False
-            for x in feature_types:
-                if x == BooleanFeature:
-                    has_boolean_feature = True
-            if has_numerical_feature:
-                pset.addPrimitive(
-                    np.add, [NumericalFeature, NumericalFeature], NumericalFeature
-                )
-                pset.addPrimitive(
-                    np.subtract, [NumericalFeature, NumericalFeature], NumericalFeature
-                )
-                pset.addPrimitive(
-                    np.multiply, [NumericalFeature, NumericalFeature], NumericalFeature
-                )
-                pset.addPrimitive(
-                    analytical_quotient,
-                    [NumericalFeature, NumericalFeature],
-                    NumericalFeature,
-                )
-                pset.addPrimitive(
-                    np.maximum, [NumericalFeature, NumericalFeature], NumericalFeature
-                )
-                pset.addPrimitive(
-                    np.minimum, [NumericalFeature, NumericalFeature], NumericalFeature
-                )
-                pset.addPrimitive(np.sin, [NumericalFeature], NumericalFeature)
-                pset.addPrimitive(np.cos, [NumericalFeature], NumericalFeature)
-                pset.addPrimitive(_protected_sqrt, [NumericalFeature], NumericalFeature)
-                pset.addPrimitive(
-                    identical_numerical, [NumericalFeature], GeneralFeature
-                )
-            if has_categorical_feature:
-                pset.addPrimitive(
-                    np_bit_wrapper(np.bitwise_and),
-                    [CategoricalFeature, CategoricalFeature],
-                    CategoricalFeature,
-                )
-                pset.addPrimitive(
-                    np_bit_wrapper(np.bitwise_or),
-                    [CategoricalFeature, CategoricalFeature],
-                    CategoricalFeature,
-                )
-                pset.addPrimitive(
-                    np_bit_wrapper(np.bitwise_xor),
-                    [CategoricalFeature, CategoricalFeature],
-                    CategoricalFeature,
-                )
-                pset.addPrimitive(
-                    identical_categorical, [CategoricalFeature], GeneralFeature
-                )
-            if has_boolean_feature:
-                if has_numerical_feature:
-                    pset.addPrimitive(
-                        np.greater, [NumericalFeature, NumericalFeature], BooleanFeature
-                    )
-                    pset.addPrimitive(
-                        np.less, [NumericalFeature, NumericalFeature], BooleanFeature
-                    )
-                pset.addPrimitive(
-                    np.logical_and, [BooleanFeature, BooleanFeature], BooleanFeature
-                )
-                pset.addPrimitive(
-                    np.logical_or, [BooleanFeature, BooleanFeature], BooleanFeature
-                )
-                pset.addPrimitive(
-                    np.logical_xor, [BooleanFeature, BooleanFeature], BooleanFeature
-                )
-                pset.addPrimitive(identical_boolean, [BooleanFeature], GeneralFeature)
-        elif self.basic_primitives.startswith("Pipeline"):
+        # Initialize the function set
+        if self.basic_primitives.startswith("Pipeline"):
             pset = get_typed_pset(
                 self.X.shape[1],
                 self.basic_primitives,
