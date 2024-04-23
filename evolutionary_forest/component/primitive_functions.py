@@ -139,6 +139,11 @@ def analytical_quotient(x1, *x2):
     return x1 / np.sqrt(1 + (x2**2))
 
 
+def analytical_quotient_signed(x1, *x2):
+    x2 = reduce(operator.mul, x2)
+    return x1 / np.sqrt(1 + (x2**2)) * np.sign(x2)
+
+
 def analytical_quotient_torch(x1, x2):
     return x1 / torch.sqrt(1 + (x2**2))
 
@@ -169,6 +174,10 @@ def analytical_log(x):
     return np.log(np.sqrt(1 + x**2))
 
 
+def analytical_log_singed(x):
+    return np.log(np.sqrt(1 + x**2)) * np.sign(x)
+
+
 def analytical_log10(x):
     return np.log10(np.sqrt(1 + x**2))
 
@@ -179,6 +188,14 @@ def equal(x1, x2):
 
 def not_equal(x1, x2):
     return np.not_equal(x1, x2).astype(np.float32)
+
+
+def square_signed(x):
+    return x**2 * np.sign(x)
+
+
+def sqrt_signed(x):
+    return np.sqrt(np.abs(x)) * np.sign(x)
 
 
 def cube(x):

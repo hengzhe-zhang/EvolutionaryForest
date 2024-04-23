@@ -186,6 +186,7 @@ class NSGA2(EnvironmentalSelection):
         max_cluster_point=True,
         handle_objective_duplication=False,
         n_pop=0,
+        adaptive_knee_point_metric="Std",
         **kwargs
     ):
         self.handle_objective_duplication = handle_objective_duplication
@@ -202,6 +203,9 @@ class NSGA2(EnvironmentalSelection):
         self.validation_y = None
         # golden standard
         self.n_pop = n_pop
+
+        # Std/Mean
+        self.adaptive_knee_point_metric = adaptive_knee_point_metric
 
     def select(self, population, offspring):
         """
@@ -382,7 +386,7 @@ class NSGA2(EnvironmentalSelection):
                         naive_mse = np.mean(ind.case_values)
                         all_mse.append(naive_mse)
                         all_sharpness.append(sharpness)
-                    metric_std = "Std"
+                    metric_std = self.adaptive_knee_point_metric
                     ratio = mean_without_outliers(
                         np.array(all_mse), metric=metric_std
                     ) / mean_without_outliers(

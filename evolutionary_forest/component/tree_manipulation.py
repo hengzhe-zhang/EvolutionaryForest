@@ -129,6 +129,7 @@ def linear_layer(x, weights):
 
 
 def fitting(function, data):
+    data = np.nan_to_num(data, posinf=0, neginf=0)
     if function == standardize:
         sc = StandardScaler().fit(data[0].reshape(-1, 1))
         return (sc,)

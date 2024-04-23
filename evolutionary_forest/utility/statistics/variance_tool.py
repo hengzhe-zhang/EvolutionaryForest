@@ -24,6 +24,9 @@ def mean_without_outliers(data, metric="Mean"):
     if metric == "Mean":
         # Compute mean
         return np.mean(filtered_data)
+    elif metric == "Median":
+        # Compute median
+        return np.median(filtered_data)
     else:
         # Compute standard deviation
         return np.std(filtered_data)
