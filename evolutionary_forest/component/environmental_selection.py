@@ -189,7 +189,6 @@ class NSGA2(EnvironmentalSelection):
         alpha_dominance_sam=False,
         **kwargs
     ):
-        self.alpha_dominance_sam = alpha_dominance_sam
         self.handle_objective_duplication = handle_objective_duplication
         self.first_objective_weight = first_objective_weight
         self.bootstrapping_selection = bootstrapping_selection
@@ -207,6 +206,7 @@ class NSGA2(EnvironmentalSelection):
 
         # Std/Mean
         self.adaptive_knee_point_metric = adaptive_knee_point_metric
+        self.alpha_dominance_sam = alpha_dominance_sam
 
     def select(self, population, offspring):
         """

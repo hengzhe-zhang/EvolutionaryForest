@@ -636,8 +636,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
             self.y_scaler = StandardScaler()
         elif normalize == "MinMax":
-            self.x_scaler = MinMaxScaler(feature_range=(-1, 1))
-            self.y_scaler = MinMaxScaler(feature_range=(-1, 1))
+            self.x_scaler = MinMaxScaler(feature_range=(0, 1))
+            self.y_scaler = MinMaxScaler(feature_range=(0, 1))
         elif normalize == "Robust":
             self.x_scaler = RobustScaler()
             self.y_scaler = RobustScaler()
