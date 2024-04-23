@@ -25,7 +25,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from analysis.knee_point_eurogp.utility_function import knee_point_by_utility
-from evolutionary_forest.application.baes_class import spearman
 from evolutionary_forest.component.bloat_control.simple_simplification import (
     simple_simplification,
 )
@@ -386,7 +385,8 @@ class NSGA2(EnvironmentalSelection):
                             sharpness = ind.fitness_list[1][0]
                         else:
                             sharpness = -1 * ind.fitness.wvalues[1]
-                        naive_mse = np.mean(ind.case_values)
+                        # naive_mse = np.mean(ind.case_values)
+                        naive_mse = ind.naive_mse
                         all_mse.append(naive_mse)
                         all_sharpness.append(sharpness)
                     metric_std = self.adaptive_knee_point_metric
@@ -403,7 +403,8 @@ class NSGA2(EnvironmentalSelection):
                             sharpness = ind.fitness_list[1][0]
                         else:
                             sharpness = -1 * ind.fitness.wvalues[1]
-                        naive_mse = np.mean(ind.case_values)
+                        # naive_mse = np.mean(ind.case_values)
+                        naive_mse = ind.naive_mse
                         ind.sam_loss = naive_mse + ratio * sharpness
 
                 if (
@@ -470,14 +471,14 @@ class NSGA2(EnvironmentalSelection):
                 if isinstance(knee, list):
                     self.algorithm.hof = [first_pareto_front[k] for k in knee]
                 else:
-                    if self.knee_point == "SAM":
+                    if self.knee_point == "SAM" or self.knee_point == "Adaptive-SAM":
                         if self.algorithm.verbose:
                             print("Number of models on PF", len(first_pareto_front))
                         current_best = self.algorithm.hof[0]
                         """
                         The newly added one should be better than the historical one.
                         """
-                        if current_best.sam_loss > first_pareto_front[knee].sam_loss:
+                        if current_best.sam_loss >= first_pareto_front[knee].sam_loss:
                             self.algorithm.hof = [first_pareto_front[knee]]
                         else:
                             if (
@@ -496,7 +497,6 @@ class NSGA2(EnvironmentalSelection):
                     else:
                         # Select the knee point as the final model
                         self.algorithm.hof = [first_pareto_front[knee]]
-
         if self.bootstrapping_selection:
             first_pareto_front: list = sortNondominated(population, self.n_pop)[0]
 

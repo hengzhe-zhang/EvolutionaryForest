@@ -2029,6 +2029,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.pop = toolbox.population(n=self.n_pop)
 
+        seed_with_linear_model = True
+        if seed_with_linear_model:
+            tree = []
+            for x in self.pset.terminals[object]:
+                tree.append(PrimitiveTree([x]))
+            self.pop[0].gene = tree
+
         self.random_index = np.random.randint(0, len(self.X), 5)
 
         def shuffle_along_axis(a, axis):

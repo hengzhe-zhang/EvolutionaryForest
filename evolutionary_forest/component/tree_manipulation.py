@@ -70,7 +70,7 @@ def clip(x, min_val, max_val):
     return x
 
 
-def quantile_transformer(x, qt: QuantileTransformer):
+def gaussian_quantile_transformer(x, qt: QuantileTransformer):
     return qt.transform(x.reshape(-1, 1)).flatten()
 
 
@@ -141,8 +141,8 @@ def fitting(function, data):
         return (scaler,)
     elif function == linear_layer:
         return (np.random.randn(len(data[0]), len(data[0])),)
-    elif function == quantile_transformer:
-        qt = QuantileTransformer()
+    elif function == gaussian_quantile_transformer:
+        qt = QuantileTransformer(output_distribution="uniform")
         qt.fit(data[0].reshape(-1, 1))
         return (qt,)
     elif function == groupby_mean:
@@ -210,10 +210,7 @@ def identity_categorical(x):
 def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     add_math_operators(pset)
-    pset.addPrimitive(standardize, [float, Parameter], float)
-    pset.addPrimitive(min_max_scaler, [float, Parameter], float)
-    pset.addPrimitive(robust_scaler, [float, Parameter], float)
-    pset.addPrimitive(quantile_transformer, [float, Parameter], float)
+    add_scaling_primitives(pset)
     # pset.addPrimitive(binning, [float, Parameter], float)
     if primitive_type.endswith("-Categorical"):
         feature_types = [
@@ -269,6 +266,14 @@ def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
     pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
     # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
+
+
+def add_scaling_primitives(pset):
+    pset.addPrimitive(standardize, [float, Parameter], float)
+    pset.addPrimitive(min_max_scaler, [float, Parameter], float)
+    pset.addPrimitive(robust_scaler, [float, Parameter], float)
+    pset.addPrimitive(gaussian_quantile_transformer, [float, Parameter], float)
+    pset.addPrimitive(normal_quantile_transformer, [float, Parameter], float)
 
 
 def add_math_operators(pset):
