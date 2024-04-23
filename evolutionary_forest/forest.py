@@ -418,6 +418,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         stochastic_mode=False,
         log_item="",
         feature_clipping=False,
+        seed_with_linear_model=False,
         **params,
     ):
         """
@@ -453,6 +454,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         mgp_mode: A modular GP system
         """
 
+        self.seed_with_linear_model = seed_with_linear_model
         self.init_some_logs()
         self.log_item = log_item
         self.post_selection_method = post_selection_method
@@ -2029,7 +2031,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.pop = toolbox.population(n=self.n_pop)
 
-        seed_with_linear_model = True
+        seed_with_linear_model = self.seed_with_linear_model
         if seed_with_linear_model:
             tree = []
             for x in self.pset.terminals[object]:
