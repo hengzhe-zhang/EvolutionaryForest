@@ -189,7 +189,16 @@ def varAndPlus(
 
     def addition_or_deletion(i, offspring):
         addition_and_deletion = random.random()
+        assert (
+            mutation_configuration.gene_addition_rate
+            + mutation_configuration.gene_deletion_rate
+            <= 1
+        )
         if addition_and_deletion < mutation_configuration.gene_addition_rate:
+            # new_trees = random.randint(
+            #     1, offspring[i].max_gene_num - len(offspring[i].gene) + 1
+            # )
+            # for _ in range(new_trees):
             gene_addition(offspring[i], algorithm)
         elif (
             addition_and_deletion
