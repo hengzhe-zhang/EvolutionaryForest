@@ -186,7 +186,7 @@ class NSGA2(EnvironmentalSelection):
         max_cluster_point=True,
         handle_objective_duplication=False,
         n_pop=0,
-        adaptive_knee_point_metric="Std",
+        adaptive_knee_point_metric="Mean",
         alpha_dominance_sam=False,
         **kwargs
     ):
@@ -232,16 +232,9 @@ class NSGA2(EnvironmentalSelection):
 
         if self.objective_normalization:
             classification_task = isinstance(self.algorithm, ClassifierMixin)
-            if self.alpha_dominance_sam:
-                # alpha dominance
-                for ind in individuals:
-                    assert all((w < 0 for w in ind.fitness.weights))
-                    ind.fitness.values = (
-                        ind.fitness.values[0],
-                        ind.fitness.values[0] + ind.fitness.values[1],
-                    )
-
-            fitness_normalization(individuals, classification_task)
+            fitness_normalization(
+                individuals, classification_task, self.alpha_dominance_sam
+            )
         population[:] = self.selection_operator(individuals, self.n_pop)
         if self.algorithm.validation_size > 0:
             """

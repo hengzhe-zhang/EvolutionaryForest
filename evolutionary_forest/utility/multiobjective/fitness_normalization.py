@@ -1,9 +1,18 @@
 import numpy as np
 
 
-def fitness_normalization(individuals, classification_task):
+def fitness_normalization(individuals, classification_task, alpha_dominance_sam=False):
     for ind in individuals:
         ind.unnormalized_fitness = ind.fitness.values
+
+    if alpha_dominance_sam:
+        # alpha dominance
+        for ind in individuals:
+            assert all((w < 0 for w in ind.fitness.weights))
+            ind.fitness.values = (
+                ind.fitness.values[0],
+                ind.fitness.values[0] + ind.fitness.values[1],
+            )
 
     dims = len(individuals[0].fitness.values)
     min_max = []
