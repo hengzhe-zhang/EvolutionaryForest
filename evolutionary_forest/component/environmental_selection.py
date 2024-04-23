@@ -232,7 +232,8 @@ class NSGA2(EnvironmentalSelection):
             classification_task = isinstance(self.algorithm, ClassifierMixin)
             fitness_normalization(individuals, classification_task)
 
-        population[:] = self.selection_operator(individuals, self.n_pop)
+        # population[:] = self.selection_operator(individuals, self.n_pop)
+        population[:] = selBest(individuals, self.n_pop)
         if self.algorithm.validation_size > 0:
             """
             When have validation data, the knee point is selected using the validation data.
