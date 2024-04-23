@@ -187,8 +187,10 @@ class NSGA2(EnvironmentalSelection):
         handle_objective_duplication=False,
         n_pop=0,
         adaptive_knee_point_metric="Std",
+        alpha_dominance_sam=False,
         **kwargs
     ):
+        self.alpha_dominance_sam = alpha_dominance_sam
         self.handle_objective_duplication = handle_objective_duplication
         self.first_objective_weight = first_objective_weight
         self.bootstrapping_selection = bootstrapping_selection
@@ -230,10 +232,17 @@ class NSGA2(EnvironmentalSelection):
 
         if self.objective_normalization:
             classification_task = isinstance(self.algorithm, ClassifierMixin)
-            fitness_normalization(individuals, classification_task)
+            if self.alpha_dominance_sam:
+                # alpha dominance
+                for ind in individuals:
+                    assert all((w < 0 for w in ind.fitness.weights))
+                    ind.fitness.values = (
+                        ind.fitness.values[0],
+                        ind.fitness.values[0] + ind.fitness.values[1],
+                    )
 
-        # population[:] = self.selection_operator(individuals, self.n_pop)
-        population[:] = selBest(individuals, self.n_pop)
+            fitness_normalization(individuals, classification_task)
+        population[:] = self.selection_operator(individuals, self.n_pop)
         if self.algorithm.validation_size > 0:
             """
             When have validation data, the knee point is selected using the validation data.
