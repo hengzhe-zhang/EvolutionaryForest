@@ -998,7 +998,7 @@ def single_tree_evaluation(
 
 
 def get_adaptive_noise(layer_adaptive, node_depth, random_noise):
-    if layer_adaptive == True:
+    if layer_adaptive == "InvLinear":
         layer_random_noise = 1 / node_depth * random_noise
     elif layer_adaptive == "Linear":
         layer_random_noise = node_depth * random_noise

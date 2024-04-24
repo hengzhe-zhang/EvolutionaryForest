@@ -85,6 +85,16 @@ class TournamentLexicase(Selection):
         return offspring
 
 
+def hybrid_lexicase_dcd(individuals, k):
+    inds = []
+    for _ in range(k):
+        if random.random() < 0.5:
+            inds.append(selAutomaticEpsilonLexicaseFast(individuals, 1)[0])
+        else:
+            inds.append(selLexicaseDCD(individuals, 1)[0])
+    return inds
+
+
 # @njit(cache=True)
 def batch_tournament_selection(
     individuals, k, tournsize=8, batch_size=8, fit_attr="fitness"
