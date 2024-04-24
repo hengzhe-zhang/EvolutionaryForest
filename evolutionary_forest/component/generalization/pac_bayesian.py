@@ -86,9 +86,11 @@ class PACBayesianConfiguration(Configuration):
         allow_extrapolate_mixup=False,
         kl_mechanism=False,
         cache_radius=0.001,
+        sam_standardization=False,
         **params
     ):
         # For dropout
+        self.sam_standardization = sam_standardization
         self.kl_mechanism = kl_mechanism
         self.dropout_rate = dropout_rate
 
@@ -313,6 +315,8 @@ def pac_bayesian_estimation(
             estimator_noise.fit(X_noise, y)
             y_pred_on_noise = get_cv_predictions(estimator_noise, X_noise, y)
         else:
+            if configuration.sam_standardization:
+                X_noise = StandardScaler().fit_transform(X_noise)
             # in most cases, don't need to refit the model
             y_pred_on_noise = get_cv_predictions(
                 estimator, X_noise, y, direct_prediction=True
