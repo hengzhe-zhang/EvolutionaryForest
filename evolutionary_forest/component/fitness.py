@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
+from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.preprocessing import StandardScaler
@@ -740,6 +741,13 @@ class R2PACBayesian(Fitness):
             size=algorithm.X.shape,
         )
 
+    @lru_cache(maxsize=1)
+    def linear_prediction(self):
+        prediction = (
+            RidgeCV().fit(self.algorithm.X, self.algorithm.y).predict(self.algorithm.X)
+        )
+        return prediction
+
     def assign_complexity(self, individual: MultipleGeneGP, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
@@ -946,6 +954,13 @@ class R2PACBayesian(Fitness):
         # sharpness value is a numerical value
         individual.sam_loss = naive_mse + sharpness_value
         # print('SAM loss: ', individual.sam_loss, naive_mse, sharpness_value)
+        if self.algorithm.pac_bayesian.linear_regularization:
+            prediction = individual.pipe.predict(X_features)
+            linear_regularization = np.mean(
+                (self.linear_prediction() - prediction) ** 2
+            )
+            sharpness_value += linear_regularization
+            print("Regularization", linear_regularization)
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available,
             # smaller is better

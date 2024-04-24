@@ -87,6 +87,7 @@ class PACBayesianConfiguration(Configuration):
         kl_mechanism=False,
         cache_radius=0.001,
         sam_standardization=False,
+        linear_regularization=False,
         **params
     ):
         # For dropout
@@ -130,6 +131,7 @@ class PACBayesianConfiguration(Configuration):
 
         # mixup setting
         self.allow_extrapolate_mixup = allow_extrapolate_mixup
+        self.linear_regularization = linear_regularization
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
