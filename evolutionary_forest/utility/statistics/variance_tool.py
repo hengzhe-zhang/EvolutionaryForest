@@ -21,15 +21,17 @@ def mean_without_outliers(data, metric="Mean"):
     # Filter out outliers
     filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
 
-    if metric == "Mean":
-        # Compute mean
-        return np.mean(filtered_data)
+    if metric == "Std":
+        # Compute standard deviation
+        return np.std(filtered_data)
     elif metric == "Median":
         # Compute median
         return np.median(filtered_data)
+    elif metric == "Min":
+        return np.min(filtered_data)
     else:
-        # Compute standard deviation
-        return np.std(filtered_data)
+        # Compute mean
+        return np.mean(filtered_data)
 
 
 if __name__ == "__main__":

@@ -388,16 +388,24 @@ class NSGA2(EnvironmentalSelection):
                             sharpness = ind.fitness_list[1][0]
                         else:
                             sharpness = -1 * ind.fitness.wvalues[1]
-                        # naive_mse = np.mean(ind.case_values)
-                        naive_mse = ind.naive_mse
+                        naive_mse = np.mean(ind.case_values)
                         all_mse.append(naive_mse)
                         all_sharpness.append(sharpness)
                     metric_std = self.adaptive_knee_point_metric
-                    ratio = mean_without_outliers(
-                        np.array(all_mse), metric=metric_std
-                    ) / mean_without_outliers(
-                        np.array(all_sharpness), metric=metric_std
-                    )
+                    if metric_std == "Min":
+                        ratio = np.min(all_mse) / mean_without_outliers(
+                            np.array(all_sharpness), metric=metric_std
+                        )
+                    else:
+                        ratio = 1
+                        if isinstance(metric_std, float):
+                            ratio = metric_std
+                            metric_std = "Mean"
+                        ratio *= mean_without_outliers(
+                            np.array(all_mse), metric=metric_std
+                        ) / mean_without_outliers(
+                            np.array(all_sharpness), metric=metric_std
+                        )
                     if self.algorithm.verbose:
                         print("STD Ratio", ratio)
                     for ind in population + list(self.algorithm.hof):
