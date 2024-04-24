@@ -970,7 +970,7 @@ class R2PACBayesian(Fitness):
                     )
                 )
             sharpness_value += linear_regularization
-            print("Regularization", linear_regularization)
+            # print("Regularization", linear_regularization)
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available,
             # smaller is better
