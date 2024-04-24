@@ -47,6 +47,7 @@ class NoiseConfiguration(Configuration):
         self.layer_adaptive = layer_adaptive
         self.skip_root = skip_root
         self.only_terminal = only_terminal
+        # Based on mixup to synthesize intermediate noise
         self.sam_mix_bandwidth = sam_mix_bandwidth
         self.stochastic_mode = stochastic_mode
         self.strict_layer_mode = strict_layer_mode
