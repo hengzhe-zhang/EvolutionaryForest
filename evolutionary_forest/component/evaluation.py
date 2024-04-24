@@ -1001,8 +1001,10 @@ def get_adaptive_noise(layer_adaptive, node_depth, random_noise):
     if layer_adaptive == "InvLinear":
         layer_random_noise = 1 / node_depth * random_noise
     elif layer_adaptive == "Linear":
+        # Add noise to deep layers
         layer_random_noise = node_depth * random_noise
     elif layer_adaptive == "Log":
+        # Less aggressive
         layer_random_noise = 1 / np.log(1 + node_depth) * random_noise
     elif layer_adaptive == "Sqrt":
         layer_random_noise = 1 / np.sqrt(node_depth) * random_noise

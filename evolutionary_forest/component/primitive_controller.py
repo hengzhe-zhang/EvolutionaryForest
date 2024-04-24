@@ -140,6 +140,7 @@ def get_functions(p):
         "Ceil": (np.ceil, 1),  # Round to the nearest integer
         "Residual": (residual, 1),  # Residual function for handling negative values
         "Relu": (relu, 1),  # Residual function for handling negative values
+        "Gaussian": (gaussian, 1),
         "GaussianKernel": (gaussian_kernel, 2),
         "ExponentialKernel": (exponential_kernel, 2),
         "LeakyRelu": (leaky_relu, 1),  # Leaky ReLU activation function
