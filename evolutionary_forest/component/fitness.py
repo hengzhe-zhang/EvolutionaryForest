@@ -954,11 +954,21 @@ class R2PACBayesian(Fitness):
         # sharpness value is a numerical value
         individual.sam_loss = naive_mse + sharpness_value
         # print('SAM loss: ', individual.sam_loss, naive_mse, sharpness_value)
-        if self.algorithm.pac_bayesian.linear_regularization:
+        linear_regularization_flag = self.algorithm.pac_bayesian.linear_regularization
+        if linear_regularization_flag:
             prediction = individual.pipe.predict(X_features)
             linear_regularization = np.mean(
                 (self.linear_prediction() - prediction) ** 2
             )
+            if linear_regularization_flag == "Max":
+                # similar to SAM
+                linear_regularization = np.mean(
+                    np.maximum(
+                        (self.linear_prediction() - prediction) ** 2
+                        - (y - prediction) ** 2,
+                        0,
+                    )
+                )
             sharpness_value += linear_regularization
             print("Regularization", linear_regularization)
         if len(sharpness_vector) > 0:
