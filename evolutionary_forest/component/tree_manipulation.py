@@ -1,4 +1,5 @@
 import math
+from functools import partial
 from typing import List
 import numpy as np  # noqa
 from deap import gp
@@ -31,6 +32,7 @@ from evolutionary_forest.component.stgp.shared_type import (
     CategoricalFeature,
     FeatureLayer,
 )
+from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
 from evolutionary_forest.multigene_gp import quick_fill
 
 
@@ -197,6 +199,7 @@ def fitting(function, data):
         )
         transformer.fit(data[0].reshape(-1, 1))
         return (transformer,)
+    return smooth_fitting(function, data)
 
 
 def identity(x):
@@ -207,8 +210,17 @@ def identity_categorical(x):
     return x
 
 
-def get_typed_pset(shape, primitive_type, categorical_features: list[bool]):
+def get_typed_pset(
+    shape, primitive_type, categorical_features: list[bool]
+) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
+    if primitive_type.endswith("-Smooth"):
+        add_smooth_math_operators(pset)
+        pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
+        return pset
+    if primitive_type.endswith("-Basic"):
+        add_math_operators(pset)
+        return pset
     add_math_operators(pset)
     add_scaling_primitives(pset)
     # pset.addPrimitive(binning, [float, Parameter], float)
@@ -287,6 +299,78 @@ def add_math_operators(pset):
     pset.addPrimitive(np.minimum, [float, float], float)
     pset.addPrimitive(np.maximum, [float, float], float)
     pset.addPrimitive(np.square, [float], float)
+
+
+def smooth_fitting(function, data):
+    if function.func in [smooth_operator_1, smooth_operator_2]:
+        transformer = NearestValueTransformer()
+        transformer.fit(data[0].reshape(-1, 1))
+        return (transformer,)
+
+
+def smooth_operator_1(x, trans: NearestValueTransformer, operator):
+    return trans.transform(operator(x))
+
+
+def smooth_operator_2(x, y, trans: NearestValueTransformer, operator):
+    return trans.transform(operator(x, y))
+
+
+def partial_wrapper(function, operator):
+    partial_func = partial(function, operator=operator)
+    partial_func.__name__ = operator.__name__
+    return partial_func
+
+
+def add_smooth_math_operators(pset):
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_2, operator=np.add),
+        [float, float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_2, operator=np.subtract),
+        [float, float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_2, operator=np.multiply),
+        [float, float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_2, operator=_protected_division),
+        [float, float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_1, operator=_protected_sqrt),
+        [float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_1, operator=_protected_log),
+        [float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_1, operator=_sigmoid), [float, Parameter], float
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_2, operator=np.minimum),
+        [float, float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_2, operator=np.maximum),
+        [float, float, Parameter],
+        float,
+    )
+    pset.addPrimitive(
+        partial_wrapper(smooth_operator_1, operator=np.square),
+        [float, Parameter],
+        float,
+    )
 
 
 def multi_tree_evaluation_typed(

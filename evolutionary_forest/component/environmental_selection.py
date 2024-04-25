@@ -401,13 +401,15 @@ class NSGA2(EnvironmentalSelection):
                         if isinstance(metric_std, float):
                             ratio = metric_std
                             metric_std = "Mean"
-                        ratio *= mean_without_outliers(
+                        mean_of_error = mean_without_outliers(
                             np.array(all_mse), metric=metric_std
-                        ) / mean_without_outliers(
+                        )
+                        mean_of_sam = mean_without_outliers(
                             np.array(all_sharpness), metric=metric_std
                         )
+                        ratio *= mean_of_error / mean_of_sam
                     if self.algorithm.verbose:
-                        print("STD Ratio", ratio)
+                        print("STD Ratio", ratio, mean_of_error, mean_of_sam)
                     for ind in population + list(self.algorithm.hof):
                         if hasattr(ind, "fitness_list"):
                             # minimize
