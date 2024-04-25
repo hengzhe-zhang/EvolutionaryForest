@@ -220,8 +220,8 @@ def get_typed_pset(
     shape, primitive_type, categorical_features: list[bool]
 ) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
-    if primitive_type.endswith("-Smooth"):
-        if primitive_type.endswith("-Smooth-Analytical"):
+    if primitive_type.endswith("Smooth"):
+        if primitive_type.endswith("-ASmooth"):
             add_smooth_math_operators(pset, analytical_operators=True)
         else:
             add_smooth_math_operators(pset)
@@ -319,10 +319,12 @@ def smooth_fitting(function, data):
 
 def smooth_operator_1(x, trans: NearestValueTransformer, operator):
     return trans.transform(operator(x))
+    # return operator(x)
 
 
 def smooth_operator_2(x, y, trans: NearestValueTransformer, operator):
     return trans.transform(operator(x, y))
+    # return operator(x, y)
 
 
 def partial_wrapper(function, operator):
