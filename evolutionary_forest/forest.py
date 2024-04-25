@@ -6,6 +6,7 @@ import dill
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
+from deap.gp import PrimitiveSetTyped
 from deap.tools import (
     selNSGA2,
     History,
@@ -2043,8 +2044,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         seed_with_linear_model = self.seed_with_linear_model
         if seed_with_linear_model:
             tree = []
-            for x in self.pset.terminals[object]:
-                tree.append(PrimitiveTree([x]))
+            if isinstance(self.pset, PrimitiveSetTyped):
+                for x in self.pset.terminals[float]:
+                    tree.append(PrimitiveTree([x]))
+            else:
+                for x in self.pset.terminals[object]:
+                    tree.append(PrimitiveTree([x]))
             self.pop[0].gene = tree
 
         self.random_index = np.random.randint(0, len(self.X), 5)

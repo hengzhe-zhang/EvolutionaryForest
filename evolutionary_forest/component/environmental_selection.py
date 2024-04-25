@@ -231,11 +231,12 @@ class NSGA2(EnvironmentalSelection):
 
         if self.objective_normalization:
             classification_task = isinstance(self.algorithm, ClassifierMixin)
-            alpha_dominance_sam = (
-                self.alpha_dominance_sam
-                if self.algorithm.current_gen > self.algorithm.n_gen // 2
-                else False
-            )
+            # alpha_dominance_sam = (
+            #     self.alpha_dominance_sam
+            #     if self.algorithm.current_gen > self.algorithm.n_gen // 2
+            #     else False
+            # )
+            alpha_dominance_sam = self.alpha_dominance_sam
             fitness_normalization(individuals, classification_task, alpha_dominance_sam)
         population[:] = self.selection_operator(individuals, self.n_pop)
         if self.algorithm.validation_size > 0:
