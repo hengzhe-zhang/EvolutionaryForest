@@ -304,7 +304,7 @@ def add_math_operators(pset):
 def smooth_fitting(function, data):
     if function.func in [smooth_operator_1, smooth_operator_2]:
         transformer = NearestValueTransformer()
-        transformer.fit(data[0].reshape(-1, 1))
+        transformer.fit(function.keywords["operator"](*data))
         return (transformer,)
 
 

@@ -201,7 +201,11 @@ from evolutionary_forest.model.PLTree import (
     RandomWeightRidge,
 )
 from evolutionary_forest.model.RBFN import RBFN
-from evolutionary_forest.model.SafeRidgeCV import BoundedRidgeCV, SplineRidgeCV
+from evolutionary_forest.model.SafeRidgeCV import (
+    BoundedRidgeCV,
+    SplineRidgeCV,
+    SmoothRidgeCV,
+)
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.multigene_gp import *
@@ -1655,6 +1659,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "Bounded-RidgeCV":
             ridge_model = BoundedRidgeCV(
+                store_cv_values=True, scoring=make_scorer(r2_score)
+            )
+        elif self.base_learner == "Smooth-RidgeCV":
+            ridge_model = SmoothRidgeCV(
                 store_cv_values=True, scoring=make_scorer(r2_score)
             )
         elif self.base_learner == "ElasticNetCV":
