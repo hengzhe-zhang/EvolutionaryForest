@@ -409,8 +409,6 @@ class NSGA2(EnvironmentalSelection):
                             np.array(all_sharpness), metric=metric_std
                         )
                         ratio *= mean_of_error / mean_of_sam
-                    if self.algorithm.verbose:
-                        print("STD Ratio", ratio, mean_of_error, mean_of_sam)
                     for ind in population + list(self.algorithm.hof):
                         if hasattr(ind, "fitness_list"):
                             # minimize
