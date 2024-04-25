@@ -1,7 +1,16 @@
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.stgp.fast_binary_encoder import BinaryEncoder
+
+
+class StandardScaler1D(StandardScaler):
+    def fit(self, X, y=None, **kwargs):
+        return super().fit(X.reshape(-1, 1), y)
+
+    def transform(self, X, **kwargs):
+        return super().transform(X.reshape(-1, 1), **kwargs).flatten()
 
 
 class OrdinalEncoder1D(BaseEstimator, TransformerMixin):
