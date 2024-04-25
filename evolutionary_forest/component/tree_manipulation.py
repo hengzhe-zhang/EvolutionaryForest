@@ -1,6 +1,7 @@
 import math
 from functools import partial
 from typing import List
+
 import numpy as np  # noqa
 from deap import gp
 from deap.gp import PrimitiveTree, Terminal
@@ -221,7 +222,9 @@ def get_typed_pset(
 ) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     if primitive_type.endswith("Smooth"):
-        if primitive_type.endswith("-ASmooth"):
+        if primitive_type == "Pipeline-ASmooth":
+            add_smooth_math_operators(pset, analytical_operators=True)
+        elif primitive_type == "Pipeline-SSmooth":
             add_smooth_math_operators(pset, analytical_operators=True)
         else:
             add_smooth_math_operators(pset)
@@ -349,17 +352,6 @@ def add_smooth_math_operators(pset, analytical_operators=False):
         [float, float, Parameter],
         float,
     )
-    if not analytical_operators:
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_2, operator=_protected_division),
-            [float, float, Parameter],
-            float,
-        )
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_1, operator=_protected_log),
-            [float, Parameter],
-            float,
-        )
     pset.addPrimitive(
         partial_wrapper(smooth_operator_1, operator=_protected_sqrt),
         [float, Parameter],
@@ -393,6 +385,17 @@ def add_smooth_math_operators(pset, analytical_operators=False):
         )
         pset.addPrimitive(
             partial_wrapper(smooth_operator_1, operator=np.negative),
+            [float, Parameter],
+            float,
+        )
+    else:
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_2, operator=_protected_division),
+            [float, float, Parameter],
+            float,
+        )
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=_protected_log),
             [float, Parameter],
             float,
         )

@@ -21,7 +21,7 @@ from numpy.linalg import LinAlgError
 from numpy.testing import assert_almost_equal
 from onedal.primitives import rbf_kernel
 from scipy.spatial.distance import cdist
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, truncnorm
 from sklearn import model_selection
 from sklearn.base import RegressorMixin, ClassifierMixin
 from sklearn.datasets import make_regression
@@ -1128,6 +1128,10 @@ def inject_noise_to_data(
     return result
 
 
+def get_truncated_normal(mean=0, sd=1, low=0, upp=10):
+    return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
+
+
 @lru_cache
 def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_seed):
     """
@@ -1139,8 +1143,8 @@ def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_s
         rng = np.random.RandomState(random_seed)
     if noise_type == "Normal":
         noise = rng.normal(0, 1, size_of_noise)
-    elif noise_type == "SharedNormal":
-        noise = rng.normal(0, 1, 1)
+    elif noise_type == "TruncatedNormal":
+        noise = get_truncated_normal(0, 1, -1, 1).rvs(size_of_noise)
     elif noise_type == "Uniform":
         noise = rng.uniform(-1, 1, size_of_noise)
     elif noise_type == "Laplace":
