@@ -21,6 +21,12 @@ from sklearn.preprocessing import (
     OrdinalEncoder,
 )
 
+from evolutionary_forest.component.primitive_functions import (
+    analytical_log,
+    analytical_quotient,
+    radian_sin,
+    radian_cos,
+)
 from evolutionary_forest.component.stgp.categorical_processor import *
 from evolutionary_forest.component.stgp.fast_binary_encoder import BinaryEncoder
 from evolutionary_forest.component.stgp.feature_crossing import (
@@ -215,7 +221,10 @@ def get_typed_pset(
 ) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     if primitive_type.endswith("-Smooth"):
-        add_smooth_math_operators(pset)
+        if primitive_type.endswith("-Smooth-Analytical"):
+            add_smooth_math_operators(pset, analytical_operators=True)
+        else:
+            add_smooth_math_operators(pset)
         pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
         return pset
     if primitive_type.endswith("-Basic"):
@@ -322,7 +331,7 @@ def partial_wrapper(function, operator):
     return partial_func
 
 
-def add_smooth_math_operators(pset):
+def add_smooth_math_operators(pset, analytical_operators=False):
     pset.addPrimitive(
         partial_wrapper(smooth_operator_2, operator=np.add),
         [float, float, Parameter],
@@ -338,21 +347,53 @@ def add_smooth_math_operators(pset):
         [float, float, Parameter],
         float,
     )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_2, operator=_protected_division),
-        [float, float, Parameter],
-        float,
-    )
+    if not analytical_operators:
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_2, operator=_protected_division),
+            [float, float, Parameter],
+            float,
+        )
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=_protected_log),
+            [float, Parameter],
+            float,
+        )
     pset.addPrimitive(
         partial_wrapper(smooth_operator_1, operator=_protected_sqrt),
         [float, Parameter],
         float,
     )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_1, operator=_protected_log),
-        [float, Parameter],
-        float,
-    )
+    if analytical_operators:
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_2, operator=analytical_quotient),
+            [float, float, Parameter],
+            float,
+        )
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=analytical_log),
+            [float, Parameter],
+            float,
+        )
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=radian_sin),
+            [float, Parameter],
+            float,
+        )
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=radian_cos),
+            [float, Parameter],
+            float,
+        )
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=np.abs),
+            [float, Parameter],
+            float,
+        )
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=np.negative),
+            [float, Parameter],
+            float,
+        )
     pset.addPrimitive(
         partial_wrapper(smooth_operator_1, operator=_sigmoid), [float, Parameter], float
     )
