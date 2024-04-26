@@ -2,17 +2,20 @@ import numpy as np
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import SplineTransformer
 
-from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
+from evolutionary_forest.component.stgp.smooth_scaler import (
+    NearestValueTransformer2D,
+)
 
 
 class SmoothRidgeCV(RidgeCV):
     def fit(self, X, y, sample_weight=None):
-        self.trans = NearestValueTransformer().fit(y)
+        self.transformer = NearestValueTransformer2D()
+        X = self.transformer.fit_transform(X)
         return super().fit(X, y, sample_weight)
 
     def predict(self, X):
-        prediction = super().predict(X)
-        return self.trans.transform(prediction)
+        X = self.transformer.transform(X)
+        return super().predict(X)
 
 
 class BoundedRidgeCV(RidgeCV):
