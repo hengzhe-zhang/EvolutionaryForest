@@ -57,6 +57,9 @@ from evolutionary_forest.component.archive import (
     OOBHallOfFame,
     BootstrapHallOfFame,
 )
+from evolutionary_forest.component.archive_operators.map_elites_archive import (
+    ACMAPElitesHOF,
+)
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import (
     DSA,
@@ -2567,6 +2570,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = GeneralizationHOF(
                 self.X, self.y, self.pset, verbose=self.verbose
             )
+        elif self.ensemble_selection == "ACMAPElitesHOF":
+            self.hof = ACMAPElitesHOF(self.ensemble_size)
         elif (
             isinstance(self.ensemble_selection, str)
             and "Similar" in self.ensemble_selection

@@ -226,11 +226,7 @@ def get_typed_pset(
             flag = primitive_type.split("-")[1]
         else:
             flag = ""
-
-        if primitive_type.endswith("ASmooth"):
-            add_smooth_math_operators(pset, analytical_operators=True, flag=flag)
-        else:
-            add_smooth_math_operators(pset)
+        add_smooth_math_operators(pset, flag)
         pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
         return pset
     if primitive_type.endswith("-Basic"):
@@ -339,92 +335,93 @@ def partial_wrapper(function, operator):
     return partial_func
 
 
-def add_smooth_math_operators(pset, analytical_operators=False, flag=""):
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_2, operator=np.add),
-        [float, float, Parameter],
-        float,
-    )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_2, operator=np.subtract),
-        [float, float, Parameter],
-        float,
-    )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_2, operator=np.multiply),
-        [float, float, Parameter],
-        float,
-    )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_1, operator=_protected_sqrt),
-        [float, Parameter],
-        float,
-    )
-    if analytical_operators:
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_2, operator=analytical_quotient),
+def add_smooth_math_operators(pset, flag):
+    operators = flag.split(",")
+    tools = {
+        "Add": (
+            partial_wrapper(smooth_operator_2, operator=np.add),
             [float, float, Parameter],
             float,
-        )
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_1, operator=analytical_log),
-            [float, Parameter],
+        ),
+        "Sub": (
+            partial_wrapper(smooth_operator_2, operator=np.subtract),
+            [float, float, Parameter],
             float,
-        )
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_1, operator=radian_sin),
-            [float, Parameter],
+        ),
+        "Mul": (
+            partial_wrapper(smooth_operator_2, operator=np.multiply),
+            [float, float, Parameter],
             float,
-        )
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_1, operator=radian_cos),
-            [float, Parameter],
-            float,
-        )
-        if "Abs" in flag or flag == "":
-            pset.addPrimitive(
-                partial_wrapper(smooth_operator_1, operator=np.abs),
-                [float, Parameter],
-                float,
-            )
-            pset.addPrimitive(
-                partial_wrapper(smooth_operator_1, operator=np.negative),
-                [float, Parameter],
-                float,
-            )
-    else:
-        pset.addPrimitive(
+        ),
+        "Div": (
             partial_wrapper(smooth_operator_2, operator=_protected_division),
             [float, float, Parameter],
             float,
-        )
-        pset.addPrimitive(
+        ),
+        "Sqrt": (
+            partial_wrapper(smooth_operator_1, operator=_protected_sqrt),
+            [float, Parameter],
+            float,
+        ),
+        "Log": (
             partial_wrapper(smooth_operator_1, operator=_protected_log),
             [float, Parameter],
             float,
-        )
-    if "Sigmoid" in flag or flag == "":
-        pset.addPrimitive(
+        ),
+        "RSin": (
+            partial_wrapper(smooth_operator_1, operator=radian_sin),
+            [float, Parameter],
+            float,
+        ),
+        "RCos": (
+            partial_wrapper(smooth_operator_1, operator=radian_cos),
+            [float, Parameter],
+            float,
+        ),
+        "Abs": (
+            partial_wrapper(smooth_operator_1, operator=np.abs),
+            [float, Parameter],
+            float,
+        ),
+        "Sigmoid": (
             partial_wrapper(smooth_operator_1, operator=_sigmoid),
             [float, Parameter],
             float,
-        )
-    if "Square" in flag or flag == "":
-        pset.addPrimitive(
+        ),
+        "Square": (
             partial_wrapper(smooth_operator_1, operator=np.square),
             [float, Parameter],
             float,
-        )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_2, operator=np.minimum),
-        [float, float, Parameter],
-        float,
-    )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_2, operator=np.maximum),
-        [float, float, Parameter],
-        float,
-    )
+        ),
+        "Min": (
+            partial_wrapper(smooth_operator_2, operator=np.minimum),
+            [float, float, Parameter],
+            float,
+        ),
+        "Max": (
+            partial_wrapper(smooth_operator_2, operator=np.maximum),
+            [float, float, Parameter],
+            float,
+        ),
+        "Neg": (
+            partial_wrapper(smooth_operator_1, operator=np.negative),
+            [float, Parameter],
+            float,
+        ),
+        "AQ": (
+            partial_wrapper(smooth_operator_2, operator=analytical_quotient),
+            [float, float, Parameter],
+            float,
+        ),
+        "ALog": (
+            partial_wrapper(smooth_operator_1, operator=analytical_log),
+            [float, Parameter],
+            float,
+        ),
+    }
+    for operator in operators:
+        a, b, c = tools[operator]
+        pset.addPrimitive(a, b, c)
 
 
 def multi_tree_evaluation_typed(
