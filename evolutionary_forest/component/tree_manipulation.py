@@ -222,10 +222,13 @@ def get_typed_pset(
 ) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     if primitive_type.endswith("Smooth"):
-        if primitive_type == "Pipeline-ASmooth":
-            add_smooth_math_operators(pset, analytical_operators=True)
-        elif primitive_type == "Pipeline-SSmooth":
-            add_smooth_math_operators(pset, analytical_operators=True)
+        if len(primitive_type.split("-")) == 3:
+            flag = primitive_type.split("-")[1]
+        else:
+            flag = ""
+
+        if primitive_type.endswith("ASmooth"):
+            add_smooth_math_operators(pset, analytical_operators=True, flag=flag)
         else:
             add_smooth_math_operators(pset)
         pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
@@ -336,7 +339,7 @@ def partial_wrapper(function, operator):
     return partial_func
 
 
-def add_smooth_math_operators(pset, analytical_operators=False):
+def add_smooth_math_operators(pset, analytical_operators=False, flag=""):
     pset.addPrimitive(
         partial_wrapper(smooth_operator_2, operator=np.add),
         [float, float, Parameter],
@@ -378,16 +381,17 @@ def add_smooth_math_operators(pset, analytical_operators=False):
             [float, Parameter],
             float,
         )
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_1, operator=np.abs),
-            [float, Parameter],
-            float,
-        )
-        pset.addPrimitive(
-            partial_wrapper(smooth_operator_1, operator=np.negative),
-            [float, Parameter],
-            float,
-        )
+        if "Abs" in flag or flag == "":
+            pset.addPrimitive(
+                partial_wrapper(smooth_operator_1, operator=np.abs),
+                [float, Parameter],
+                float,
+            )
+            pset.addPrimitive(
+                partial_wrapper(smooth_operator_1, operator=np.negative),
+                [float, Parameter],
+                float,
+            )
     else:
         pset.addPrimitive(
             partial_wrapper(smooth_operator_2, operator=_protected_division),
@@ -399,9 +403,18 @@ def add_smooth_math_operators(pset, analytical_operators=False):
             [float, Parameter],
             float,
         )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_1, operator=_sigmoid), [float, Parameter], float
-    )
+    if "Sigmoid" in flag or flag == "":
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=_sigmoid),
+            [float, Parameter],
+            float,
+        )
+    if "Square" in flag or flag == "":
+        pset.addPrimitive(
+            partial_wrapper(smooth_operator_1, operator=np.square),
+            [float, Parameter],
+            float,
+        )
     pset.addPrimitive(
         partial_wrapper(smooth_operator_2, operator=np.minimum),
         [float, float, Parameter],
@@ -410,11 +423,6 @@ def add_smooth_math_operators(pset, analytical_operators=False):
     pset.addPrimitive(
         partial_wrapper(smooth_operator_2, operator=np.maximum),
         [float, float, Parameter],
-        float,
-    )
-    pset.addPrimitive(
-        partial_wrapper(smooth_operator_1, operator=np.square),
-        [float, Parameter],
         float,
     )
 
