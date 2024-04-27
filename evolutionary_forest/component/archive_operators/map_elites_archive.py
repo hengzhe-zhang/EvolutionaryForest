@@ -1,12 +1,19 @@
 from deap.tools import HallOfFame, selBest
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.preprocessing import normalize
 
 
 class ACMAPElitesHOF(HallOfFame):
-    def __init__(self, maxsize, map_archive_candidate_size=3):
+    def __init__(
+        self,
+        maxsize,
+        map_archive_candidate_size=3,
+        clustering_method="agglomerative",
+        **kwargs
+    ):
         super().__init__(maxsize)
         self.map_archive_candidate_size = map_archive_candidate_size
+        self.clustering_method = clustering_method
 
     def update(self, population):
         best_candidate = selBest(
@@ -15,12 +22,17 @@ class ACMAPElitesHOF(HallOfFame):
         )
         semantics = [ind.predicted_values for ind in best_candidate]
 
-        semantics_normalized = normalize(semantics, norm="l2")
+        if self.clustering_method == "agglomerative":
+            clustering = AgglomerativeClustering(
+                n_clusters=self.maxsize, metric="cosine", linkage="average"
+            )
+        elif self.clustering_method == "kmeans":
+            semantics = normalize(semantics, norm="l2")
+            clustering = KMeans(n_clusters=self.maxsize, random_state=0)
+        else:
+            raise ValueError("Unsupported clustering method")
 
-        clustering = AgglomerativeClustering(
-            n_clusters=self.maxsize, metric="cosine", linkage="average"
-        )
-        labels = clustering.fit_predict(semantics_normalized)
+        labels = clustering.fit_predict(semantics)
 
         cluster_individuals = {i: [] for i in range(self.maxsize)}
         for label, ind in zip(labels, best_candidate):

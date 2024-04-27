@@ -2571,7 +2571,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.X, self.y, self.pset, verbose=self.verbose
             )
         elif self.ensemble_selection == "ACMAPElitesHOF":
-            self.hof = ACMAPElitesHOF(self.ensemble_size)
+            self.hof = ACMAPElitesHOF(self.ensemble_size, **self.param)
         elif (
             isinstance(self.ensemble_selection, str)
             and "Similar" in self.ensemble_selection
