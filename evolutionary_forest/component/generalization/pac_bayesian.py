@@ -254,7 +254,8 @@ def pac_bayesian_estimation(
             else:
                 raise Exception("Not support!")
             base_score = np.mean(individual.case_values)
-            if historical_best_score < max_sharpness + base_score:
+            if i >= 1 and historical_best_score < max_sharpness + base_score:
+                # At least one iteration is needed
                 # don't need evaluation
                 continue
 
