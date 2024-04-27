@@ -43,22 +43,6 @@ from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransfo
 from evolutionary_forest.multigene_gp import quick_fill
 
 
-def copy_categorical_features(data, categorical_features: list[bool]):
-    return data, categorical_features
-    if np.sum(categorical_features) > 0:
-        # add categorical features to the end of the data
-        cat_features = np.column_stack(
-            [
-                data[:, idx]
-                for idx in range(len(categorical_features))
-                if categorical_features[idx]
-            ]
-        )
-        data = np.concatenate([data, cat_features], axis=1)
-        categorical_features = categorical_features + [False] * cat_features.shape[1]
-    return data, categorical_features
-
-
 def standardize(x, scaler):
     # standardize the input
     return scaler.transform(x.reshape(-1, 1)).flatten()
@@ -421,6 +405,7 @@ def add_smooth_math_operators(pset, flag):
     }
     for operator in operators:
         a, b, c = tools[operator]
+        a.__name__ = operator
         pset.addPrimitive(a, b, c)
 
 

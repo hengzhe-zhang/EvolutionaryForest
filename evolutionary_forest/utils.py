@@ -310,6 +310,12 @@ def gene_to_string(gene):
                     string += f"{args[0]}*{args[0]}*{args[0]}"
                 elif prim.name == "Sqrt":
                     string += f"sqrt(Abs({args[0]}))"
+                elif prim.name == "Add":
+                    string += f"({args[0]}+{args[1]})"
+                elif prim.name == "Sub":
+                    string += f"({args[0]}-{args[1]})"
+                elif prim.name == "Mul":
+                    string += f"({args[0]}*{args[1]})"
                 elif prim.name == "Max":
                     string += f"Max({args[0]}, {args[1]})"
                 elif prim.name == "Min":
@@ -318,6 +324,8 @@ def gene_to_string(gene):
                     string += f"-{args[0]}"
                 elif prim.name == "Tanh":
                     string += f"tanh({args[0]})"
+                elif prim.name == "Sigmoid":
+                    string += f"expit({args[0]})"
                 elif prim.name == "Arctan":
                     string += f"atan({args[0]})"
                 elif prim.name == "Square":
