@@ -9,17 +9,25 @@ class ACMAPElitesHOF(HallOfFame):
         maxsize,
         map_archive_candidate_size=3,
         clustering_method="agglomerative",
+        map_elites_hof_mode="A",
         **kwargs
     ):
         super().__init__(maxsize)
         self.map_archive_candidate_size = map_archive_candidate_size
         self.clustering_method = clustering_method
+        self.map_elites_hof_mode = map_elites_hof_mode
 
     def update(self, population):
-        best_candidate = selBest(
-            population + list(self.items),
-            self.maxsize * self.map_archive_candidate_size,
-        )
+        if self.map_elites_hof_mode == "A":
+            best_candidate = selBest(
+                population + list(self.items),
+                self.maxsize * self.map_archive_candidate_size,
+            )
+        else:
+            best_candidate = selBest(
+                population,
+                self.maxsize * self.map_archive_candidate_size,
+            ) + list(self.items)
         semantics = [ind.predicted_values for ind in best_candidate]
 
         if self.clustering_method == "agglomerative":
