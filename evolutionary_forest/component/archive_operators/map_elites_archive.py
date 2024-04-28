@@ -12,9 +12,11 @@ class ACMAPElitesHOF(HallOfFame):
         clustering_method="agglomerative",
         map_elites_hof_mode="B",
         y=None,
+        symmetric_map_archive_mode=False,
         **kwargs
     ):
         super().__init__(maxsize)
+        self.symmetric_map_archive_mode = symmetric_map_archive_mode
         self.map_archive_candidate_size = map_archive_candidate_size
         self.clustering_method = clustering_method
         self.map_elites_hof_mode = map_elites_hof_mode
@@ -33,7 +35,11 @@ class ACMAPElitesHOF(HallOfFame):
                 self.maxsize * self.map_archive_candidate_size,
             ) + list(self.items)
         # centered
-        semantics = [ind.predicted_values - self.y for ind in best_candidate]
+        semantics = np.array([ind.predicted_values - self.y for ind in best_candidate])
+
+        if self.symmetric_map_archive_mode:
+            symmetric_semantics = -semantics
+            semantics = np.concatenate([semantics, symmetric_semantics], axis=0)
 
         if self.clustering_method.startswith("Agglomerative"):
             _, metric, linkage = self.clustering_method.split("-")
@@ -53,7 +59,8 @@ class ACMAPElitesHOF(HallOfFame):
         labels = clustering.fit_predict(semantics)
 
         cluster_individuals = {i: [] for i in range(self.maxsize)}
-        for label, ind in zip(labels, best_candidate):
+        original_length = len(best_candidate)
+        for label, ind in zip(labels[:original_length], best_candidate):
             cluster_individuals[label].append(ind)
 
         new_hof = []
