@@ -1,3 +1,4 @@
+import numpy as np
 from deap.tools import HallOfFame, selBest
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.preprocessing import normalize
@@ -10,12 +11,15 @@ class ACMAPElitesHOF(HallOfFame):
         map_archive_candidate_size=3,
         clustering_method="agglomerative",
         map_elites_hof_mode="B",
+        y=None,
         **kwargs
     ):
         super().__init__(maxsize)
         self.map_archive_candidate_size = map_archive_candidate_size
         self.clustering_method = clustering_method
         self.map_elites_hof_mode = map_elites_hof_mode
+        self.y = y
+        assert isinstance(self.y, np.ndarray)
 
     def update(self, population):
         if self.map_elites_hof_mode == "A":
@@ -28,13 +32,17 @@ class ACMAPElitesHOF(HallOfFame):
                 population,
                 self.maxsize * self.map_archive_candidate_size,
             ) + list(self.items)
-        semantics = [ind.predicted_values for ind in best_candidate]
+        # centered
+        semantics = [ind.predicted_values - self.y for ind in best_candidate]
 
-        if self.clustering_method == "Cos-Agglomerative":
+        if self.clustering_method.startswith("Agglomerative"):
+            _, metric, linkage = self.clustering_method.split("-")
+            metric = metric.lower()
+            linkage = linkage.lower()
             clustering = AgglomerativeClustering(
-                n_clusters=self.maxsize, metric="cosine", linkage="average"
+                n_clusters=self.maxsize, metric=metric, linkage=linkage
             )
-        elif self.clustering_method == "Cos-KMeans":
+        elif self.clustering_method == "KMeans-Cosine":
             semantics = normalize(semantics, norm="l2")
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans":
