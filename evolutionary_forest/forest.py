@@ -3265,15 +3265,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 best_ind: MultipleGeneGP = sorted(
                     pop, key=lambda x: x.fitness.wvalues[0]
                 )[-1]
-                features = self.feature_generation(self.X, best_ind)
-                training_r2 = r2_score(self.y, best_ind.pipe.predict(features))
-                gap = training_r2 - best_ind.fitness.wvalues[0]
-
-                if "GeneralizationGap" in self.log_item:
-                    self.generalization_gap_logs.append(gap)
-
-                if "TrainingLoss" in self.log_item:
-                    self.training_r2_logs.append(training_r2)
 
                 if "LOOCV" in self.log_item:
                     self.loocv_logs.append(best_ind.fitness.wvalues[0])
@@ -3853,19 +3844,23 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     best_model = self.hof[0]
 
-                trees = self.feature_generation(self.X, best_model)
-                prediction = best_model.pipe.predict(trees)
-                prediction_error = (prediction - self.y) ** 2
-                cv_error = np.mean(best_model.case_values)
                 print(
                     "\n".join([replace(str(g)) for g in best_model.gene]),
-                    "Fitness",
-                    cv_error,
-                    "Prediction Error",
-                    np.mean(prediction_error),
-                    "Difference",
-                    np.mean(prediction_error - cv_error),
                 )
+
+                # trees = self.feature_generation(self.X, best_model)
+                # prediction = best_model.pipe.predict(trees)
+                # prediction_error = (prediction - self.y) ** 2
+                # cv_error = np.mean(best_model.case_values)
+                # print(
+                #     "\n".join([replace(str(g)) for g in best_model.gene]),
+                #     "Fitness",
+                #     cv_error,
+                #     "Prediction Error",
+                #     np.mean(prediction_error),
+                #     "Difference",
+                #     np.mean(prediction_error - cv_error),
+                # )
 
             if verbose:
                 features = set(

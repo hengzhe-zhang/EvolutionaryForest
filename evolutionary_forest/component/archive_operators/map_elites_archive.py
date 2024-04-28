@@ -9,7 +9,7 @@ class ACMAPElitesHOF(HallOfFame):
         maxsize,
         map_archive_candidate_size=3,
         clustering_method="agglomerative",
-        map_elites_hof_mode="A",
+        map_elites_hof_mode="B",
         **kwargs
     ):
         super().__init__(maxsize)
