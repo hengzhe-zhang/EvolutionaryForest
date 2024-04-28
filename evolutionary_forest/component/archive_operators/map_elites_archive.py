@@ -34,10 +34,10 @@ class ACMAPElitesHOF(HallOfFame):
             clustering = AgglomerativeClustering(
                 n_clusters=self.maxsize, metric="cosine", linkage="average"
             )
-        elif self.clustering_method == "Cos-Kmeans":
+        elif self.clustering_method == "Cos-KMeans":
             semantics = normalize(semantics, norm="l2")
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
-        elif self.clustering_method == "Kmeans":
+        elif self.clustering_method == "KMeans":
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         else:
             raise ValueError("Unsupported clustering method")
