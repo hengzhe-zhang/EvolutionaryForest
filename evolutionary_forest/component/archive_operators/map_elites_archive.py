@@ -27,12 +27,12 @@ class ACMAPElitesHOF(HallOfFame):
         if self.map_elites_hof_mode == "A":
             best_candidate = selBest(
                 population + list(self.items),
-                self.maxsize * self.map_archive_candidate_size,
+                self.map_archive_candidate_size,
             )
         else:
             best_candidate = selBest(
                 population,
-                self.maxsize * self.map_archive_candidate_size,
+                self.map_archive_candidate_size,
             ) + list(self.items)
         # centered
         semantics = np.array([ind.predicted_values - self.y for ind in best_candidate])
