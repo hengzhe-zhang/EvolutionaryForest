@@ -1,6 +1,10 @@
 import numpy as np
 from deap.tools import HallOfFame, selBest
-from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.cluster import (
+    AgglomerativeClustering,
+    KMeans,
+    SpectralClustering,
+)
 from sklearn.preprocessing import normalize
 
 
@@ -53,6 +57,10 @@ class ACMAPElitesHOF(HallOfFame):
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans":
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
+        elif self.clustering_method == "Spectral":
+            clustering = SpectralClustering(
+                n_clusters=self.maxsize, affinity="nearest_neighbors"
+            )
         else:
             raise ValueError("Unsupported clustering method")
 
