@@ -2586,7 +2586,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = GreedyHallOfFame(self.ensemble_size, y=self.y, **self.param)
         elif self.ensemble_selection == "GridMAPElitesHOF":
             self.hof = GridMAPElites(self.ensemble_size, y=self.y, **self.param)
-        elif self.ensemble_selection == "ACMAPElitesHOF":
+        elif self.ensemble_selection == "CVR-MAPElitesHOF":
             self.hof = CVTMAPElitesHOF(self.ensemble_size, y=self.y, **self.param)
         elif (
             isinstance(self.ensemble_selection, str)

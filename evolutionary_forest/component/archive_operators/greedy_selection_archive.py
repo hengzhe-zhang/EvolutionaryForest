@@ -16,7 +16,7 @@ class GreedyHallOfFame(HallOfFame):
 
         # Greedily select individuals to minimize the residual to self.y
         new_hof = []
-        current_residual_vector = self.y
+        current_residual_vector = np.copy(self.y)
 
         for _ in range(self.maxsize):
             residuals = [
@@ -33,7 +33,7 @@ class GreedyHallOfFame(HallOfFame):
             # print(f"New residual: {new_residual}, No modification: {no_modification}")
 
             # Only add this candidate if it improves the residual
-            if new_residual < no_modification:
+            if len(new_hof) == 0 or new_residual < no_modification:
                 new_hof.append(candidate)
                 current_residual_vector -= candidate.predicted_values
             else:

@@ -1,7 +1,7 @@
 import math
 
 import numpy as np
-from deap.tools import HallOfFame
+from deap.tools import HallOfFame, selBest
 from sklearn.decomposition import KernelPCA
 
 from evolutionary_forest.component.archive_operators.test_utils import (
@@ -10,14 +10,18 @@ from evolutionary_forest.component.archive_operators.test_utils import (
 
 
 class GridMAPElites(HallOfFame):
-    def __init__(self, k, **kwargs):
+    def __init__(self, k, map_archive_candidate_size=100, **kwargs):
         super().__init__(k)
+        self.map_archive_candidate_size = map_archive_candidate_size
         self.grid_size = math.ceil(np.sqrt(k))
         self.elites = np.empty((self.grid_size, self.grid_size), dtype=object)
 
     def update(self, population):
+        individuals = selBest(
+            population,
+            self.map_archive_candidate_size,
+        ) + list(self.items)
         # Perform Kernel PCA to reduce GP outputs to two dimensions
-        individuals = population + list(self.items)
         data = np.array([ind.predicted_values for ind in individuals])
         pca = KernelPCA(n_components=2, kernel="cosine")
         reduced_data = pca.fit_transform(data)
