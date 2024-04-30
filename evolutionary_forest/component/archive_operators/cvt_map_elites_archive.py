@@ -14,7 +14,7 @@ class CVTMAPElitesHOF(HallOfFame):
         maxsize,
         map_archive_candidate_size=3,
         clustering_method="KMeans-Cosine",
-        map_elites_hof_mode="B",
+        map_elites_hof_mode="Independent",
         y=None,
         symmetric_map_archive_mode=False,
         **kwargs
@@ -28,16 +28,16 @@ class CVTMAPElitesHOF(HallOfFame):
         assert isinstance(self.y, np.ndarray)
 
     def update(self, population):
-        if self.map_elites_hof_mode == "A":
-            best_candidate = selBest(
-                population + list(self.items),
-                self.map_archive_candidate_size,
-            )
-        else:
+        if self.map_elites_hof_mode == "Independent":
             best_candidate = selBest(
                 population,
                 self.map_archive_candidate_size,
             ) + list(self.items)
+        else:
+            best_candidate = selBest(
+                population + list(self.items),
+                self.map_archive_candidate_size,
+            )
         # centered
         semantics = np.array([ind.predicted_values - self.y for ind in best_candidate])
 
