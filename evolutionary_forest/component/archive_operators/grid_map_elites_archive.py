@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 from deap.tools import HallOfFame, selBest
-from sklearn.decomposition import KernelPCA
+from sklearn.decomposition import KernelPCA, PCA
 
 from evolutionary_forest.component.archive_operators.test_utils import (
     generate_random_individuals,
@@ -15,11 +15,13 @@ class GridMAPElites(HallOfFame):
         k,
         map_archive_candidate_size=100,
         symmetric_map_archive_mode=False,
-        **kwargs
+        dimensionality_reduction_method="Cosine-KPCA",
+        **kwargs,
     ):
         super().__init__(k)
         self.symmetric_map_archive_mode = symmetric_map_archive_mode
         self.map_archive_candidate_size = map_archive_candidate_size
+        self.dimensionality_reduction_method = dimensionality_reduction_method
         self.grid_size = math.ceil(np.sqrt(k))
         self.elites = np.empty((self.grid_size, self.grid_size), dtype=object)
 
@@ -35,7 +37,14 @@ class GridMAPElites(HallOfFame):
         if self.symmetric_map_archive_mode:
             symmetric_semantics = -data
             data = np.concatenate([data, symmetric_semantics], axis=0)
-        pca = KernelPCA(n_components=2, kernel="cosine")
+        if self.dimensionality_reduction_method == "Cosine-KPCA":
+            pca = KernelPCA(n_components=2, kernel="cosine")
+        elif self.dimensionality_reduction_method == "PCA":
+            pca = PCA(n_components=2)
+        else:
+            raise ValueError(
+                f"Dimensionality reduction method {self.dimensionality_reduction_method} not supported"
+            )
         reduced_data = pca.fit_transform(data)
         reduced_data = reduced_data[:original_length]
 
