@@ -10,8 +10,15 @@ from evolutionary_forest.component.archive_operators.test_utils import (
 
 
 class GridMAPElites(HallOfFame):
-    def __init__(self, k, map_archive_candidate_size=100, **kwargs):
+    def __init__(
+        self,
+        k,
+        map_archive_candidate_size=100,
+        symmetric_map_archive_mode=False,
+        **kwargs
+    ):
         super().__init__(k)
+        self.symmetric_map_archive_mode = symmetric_map_archive_mode
         self.map_archive_candidate_size = map_archive_candidate_size
         self.grid_size = math.ceil(np.sqrt(k))
         self.elites = np.empty((self.grid_size, self.grid_size), dtype=object)
@@ -23,8 +30,14 @@ class GridMAPElites(HallOfFame):
         ) + list(self.items)
         # Perform Kernel PCA to reduce GP outputs to two dimensions
         data = np.array([ind.predicted_values for ind in individuals])
+
+        original_length = len(individuals)
+        if self.symmetric_map_archive_mode:
+            symmetric_semantics = -data
+            data = np.concatenate([data, symmetric_semantics], axis=0)
         pca = KernelPCA(n_components=2, kernel="cosine")
         reduced_data = pca.fit_transform(data)
+        reduced_data = reduced_data[:original_length]
 
         # Determine the bounds for grid discretization
         min_vals = np.min(reduced_data, axis=0)
