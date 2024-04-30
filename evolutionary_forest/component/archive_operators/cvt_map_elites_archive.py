@@ -8,12 +8,12 @@ from sklearn.cluster import (
 from sklearn.preprocessing import normalize
 
 
-class ACMAPElitesHOF(HallOfFame):
+class CVTMAPElitesHOF(HallOfFame):
     def __init__(
         self,
         maxsize,
         map_archive_candidate_size=3,
-        clustering_method="agglomerative",
+        clustering_method="KMeans-Cosine",
         map_elites_hof_mode="B",
         y=None,
         symmetric_map_archive_mode=False,

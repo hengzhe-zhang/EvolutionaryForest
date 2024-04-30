@@ -57,8 +57,14 @@ from evolutionary_forest.component.archive import (
     OOBHallOfFame,
     BootstrapHallOfFame,
 )
-from evolutionary_forest.component.archive_operators.map_elites_archive import (
-    ACMAPElitesHOF,
+from evolutionary_forest.component.archive_operators.cvt_map_elites_archive import (
+    CVTMAPElitesHOF,
+)
+from evolutionary_forest.component.archive_operators.greedy_selection_archive import (
+    GreedyHallOfFame,
+)
+from evolutionary_forest.component.archive_operators.grid_map_elites_archive import (
+    GridMAPElites,
 )
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import (
@@ -2514,12 +2520,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             def comparison(a, b):
                 return a.sam_loss < b.sam_loss
 
-            pac_bayesian = R2PACBayesian(self, **self.param)
             self.hof = CustomHOF(
                 self.ensemble_size,
                 comparison_function=comparison,
                 key_metric=lambda x: -x.sam_loss,
-                # preprocess=lambda pop: pac_bayesian.assign_complexity_pop(pop),
             )
         elif self.ensemble_selection == "WeightedSum":
             # Automatically determine the ensemble size
@@ -2568,8 +2572,22 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = GeneralizationHOF(
                 self.X, self.y, self.pset, verbose=self.verbose
             )
+        elif self.ensemble_selection == "UniqueObjective":
+            self.hof = HallOfFame(
+                self.ensemble_size,
+                similar=lambda a, b: a.fitness.wvalues == b.fitness.wvalues,
+            )
+        elif self.ensemble_selection == "UniqueSemantics":
+            self.hof = HallOfFame(
+                self.ensemble_size,
+                similar=lambda a, b: np.all(a.predicted_values == b.predicted_values),
+            )
+        elif self.ensemble_selection == "GreedyHOF":
+            self.hof = GreedyHallOfFame(self.ensemble_size, y=self.y, **self.param)
+        elif self.ensemble_selection == "GridMAPElitesHOF":
+            self.hof = GridMAPElites(self.ensemble_size, y=self.y, **self.param)
         elif self.ensemble_selection == "ACMAPElitesHOF":
-            self.hof = ACMAPElitesHOF(self.ensemble_size, y=self.y, **self.param)
+            self.hof = CVTMAPElitesHOF(self.ensemble_size, y=self.y, **self.param)
         elif (
             isinstance(self.ensemble_selection, str)
             and "Similar" in self.ensemble_selection
