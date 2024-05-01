@@ -9,6 +9,7 @@ from evolutionary_forest.component.archive_operators.test_utils import (
 class GreedyHallOfFame(HallOfFame):
     def __init__(self, maxsize, y, **kwargs):
         self.y = y
+        self.nuber_of_initial_individuals = 1
         super().__init__(maxsize)
 
     def update(self, population):
@@ -17,6 +18,9 @@ class GreedyHallOfFame(HallOfFame):
         # Greedily select individuals to minimize the residual to self.y
         new_hof = []
         current_residual_vector = np.copy(self.y)
+
+        # select number of initial individuals based on top fitness
+        pass
 
         for _ in range(self.maxsize):
             residuals = [
