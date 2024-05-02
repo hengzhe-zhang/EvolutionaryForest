@@ -854,6 +854,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.archive_diversity_history = []
         # average diversity of the ensemble model
         self.archive_cos_distance_history = []
+        # ambiguity of the ensemble model
+        self.ambiguity_history = []
         # average fitness of the population
         self.pop_avg_fitness_history = []
         # average diversity of the population
@@ -4594,6 +4596,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         self.cos_distance_calculation(population)
                     )
                 if len(self.hof) > 0:
+                    if "Ambiguity" in self.log_item:
+                        variance_per_sample = np.var(
+                            [ind.predicted_values for ind in self.hof], axis=0
+                        )
+                        assert len(variance_per_sample) == self.y.shape[0]
+                        variance = np.mean(variance_per_sample)
+                        self.ambiguity_history.append(variance)
                     if "ArchiveAverageCosineDistance" in self.log_item:
                         self.archive_cos_distance_history.append(
                             self.cos_distance_calculation(self.hof)

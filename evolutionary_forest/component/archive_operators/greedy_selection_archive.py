@@ -39,7 +39,7 @@ class GreedyHallOfFame(HallOfFame):
             new_residual = residuals[min_residual_index]
             # Calculate the residual if we don't add the candidate
             no_modification = np.mean((self.y - current_prediction) ** 2)
-            print(f"New residual: {new_residual}, No modification: {no_modification}")
+            # print(f"New residual: {new_residual}, No modification: {no_modification}")
 
             # Only add this candidate if it improves the residual
             if len(new_hof) == 0 or new_residual < no_modification:
