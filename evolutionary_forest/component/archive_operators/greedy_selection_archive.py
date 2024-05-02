@@ -48,7 +48,7 @@ class GreedyHallOfFame(HallOfFame):
                 current_prediction = np.mean(
                     [ind.predicted_values for ind in new_hof], axis=0
                 )
-                self.residual_correct_check(new_hof, self.y, new_residual)
+                # self.residual_correct_check(new_hof, self.y, new_residual)
             else:
                 break
 
