@@ -7,7 +7,7 @@ from evolutionary_forest.component.archive_operators.test_utils import (
 
 
 class GreedyHallOfFame(HallOfFame):
-    def __init__(self, maxsize, y, nuber_of_initial_individuals=1, **kwargs):
+    def __init__(self, maxsize, y, nuber_of_initial_individuals=5, **kwargs):
         self.y = y
         self.nuber_of_initial_individuals = nuber_of_initial_individuals
         super().__init__(maxsize)
