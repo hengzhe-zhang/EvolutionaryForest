@@ -66,6 +66,7 @@ from evolutionary_forest.component.archive_operators.greedy_selection_archive im
 from evolutionary_forest.component.archive_operators.grid_map_elites_archive import (
     GridMAPElites,
 )
+from evolutionary_forest.component.archive_operators.important_features import construct_important_feature_archive
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import (
     DSA,
@@ -244,6 +245,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.check_util import is_standardized
 from evolutionary_forest.utility.evomal_loss import *
+from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
     check_number_of_unique_tree_semantics,
@@ -2326,6 +2328,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     "Neg",
                 ]
             )
+            self.evaluation_configuration.basic_primitives = self.basic_primitives
+            self.mutation_configuration.basic_primitives = self.basic_primitives
             self.add_primitives_to_pset(pset)
         elif isinstance(
             self.basic_primitives, str
@@ -4773,18 +4777,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 offspring = toolbox.select(parent_a, 2)
         else:
             if self.number_of_parents > 0:
-                # multi-parent generation, which is particularly useful for multi-tree GP
-                offspring = []
-                offspring.append(
-                    self.offspring_generation(
+                # multi-parent generation, which is particularly useful for modular multi-tree GP
+                offspring = [
+                                        self.offspring_generation_with_repair(
                         toolbox, parent, self.number_of_parents, external_archive
                     )[0]
-                )
-                offspring.append(
-                    self.offspring_generation(
-                        toolbox, parent, self.number_of_parents, external_archive
-                    )[0]
-                )
+                        for _ in range(2)
+                ]
             else:
                 if (
                     isinstance(self.external_archive, int)
@@ -4849,44 +4848,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 external_archive = selBest(list(population), size * self.n_pop)
         elif self.external_archive == "ImportantFeatures" or self.semantic_repair > 0:
-            if external_archive is None:
-                external_archive = []
-
-            # Iterate over each tree
-            for g in range(self.gene_num):
-                if len(external_archive) == self.gene_num:
-                    selected_features = {str(o[1]): o for o in external_archive[g]}
-                else:
-                    selected_features = {}
-
-                # Iterate over individuals in the population
-                for p in population:
-                    # Calculate score for each tree based on fitness and coefficient
-                    score = p.fitness.wvalues[0] * p.coef[g]
-                    gene_str = str(p.gene[g])
-                    if gene_str in selected_features:
-                        if score > selected_features[gene_str][0]:
-                            selected_features[gene_str] = (score, p.gene[g])
-                        else:
-                            pass
-                    else:
-                        selected_features[gene_str] = (score, p.gene[g])
-                final_archive = list(
-                    sorted(
-                        selected_features.values(), key=lambda x: x[0], reverse=True
-                    )[: self.n_pop]
-                )
-                if len(external_archive) == self.gene_num:
-                    external_archive[g] = final_archive
-                else:
-                    external_archive.append(final_archive)
+            external_archive = construct_important_feature_archive(population, external_archive)
         else:
             external_archive = None
         self.elites_archive = external_archive
         return external_archive
 
-    def offspring_generation(self, toolbox, parent, count, external_archive=None):
-        # Generate offspring based multiple parents
+    def offspring_generation_with_repair(self, toolbox, parent, count, external_archive=None):
+        # Generate offspring based on multiple parents
         if self.external_archive == False or self.external_archive is None:
             offspring = toolbox.select(parent, count)
         elif self.external_archive == "ImportantFeatures":
@@ -5080,6 +5049,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def sample_model_name(self, parent):
         models = self.base_model_list.split(",")
+        # Randomly select either one population
         model = random.choice(models)
         parent = list(filter(lambda x: x.base_model == model, parent))
         return parent
@@ -5224,7 +5194,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return invalid_ind
 
     def cos_distance_calculation(self, population=None):
-        inds = self.get_diversity_matrix(population)
+        inds = get_diversity_matrix(population)
         if self.evaluation_configuration.mini_batch:
             inds -= self.get_mini_batch_y()
         else:
@@ -5273,20 +5243,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         else:
             raise Exception
-        inds = self.get_diversity_matrix(all_ind)
+        inds = get_diversity_matrix(all_ind)
         dis = pairwise_distances(inds)
         return np.mean(dis)
 
-    def get_diversity_matrix(self, all_ind):
-        inds = []
-        for p in all_ind:
-            inds.append(p.predicted_values.flatten())
-        inds = np.array(inds)
-        return inds
-
     def diversity_assignment(self, population):
         # distance calculation
-        inds = self.get_diversity_matrix(population)
+        inds = get_diversity_matrix(population)
 
         hof_inds = []
         pop = {

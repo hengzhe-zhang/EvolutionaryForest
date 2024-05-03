@@ -686,10 +686,8 @@ def multi_tree_evaluation(
             data = individual_configuration.dynamic_standardization.transform(data)
 
     gradient_descent = configuration.gradient_descent
-
-    gradient_operators = gradient_descent or configuration.constant_type.startswith(
-        "GD"
-    )
+    gradient_optimization_flag = configuration.constant_type.startswith("GD")
+    gradient_operators = gradient_descent or gradient_optimization_flag
     if gradient_operators and isinstance(data, np.ndarray):
         data = torch.from_numpy(data).float().detach()
 

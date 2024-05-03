@@ -118,7 +118,12 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         predictions = []
         weight_list = []
         for i, individual in enumerate(self.hof):
-            Yp = multi_tree_evaluation(individual.gene, self.pset, X)
+            Yp = multi_tree_evaluation(
+                individual.gene,
+                self.pset,
+                X,
+                configuration=self.evaluation_configuration,
+            )
             if self.test_data is not None:
                 Yp = Yp[-prediction_data_size:]
             predicted = individual.pipe.predict_proba(Yp)
@@ -163,7 +168,16 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         # encoding target labels
         self.label_encoder = OneHotEncoder(sparse_output=False)
         self.label_encoder.fit(self.y.reshape(-1, 1))
+
+        # set some parameters
+        self.evaluation_configuration.classification = True
+        self.pac_bayesian.classification = True
+        if isinstance(self.score_func, Fitness):
+            self.score_func.classification = True
+
         super().lazy_init(x)
+
+        # set class weight
         if self.class_weight == "Balanced":
             self.class_weight = compute_sample_weight(class_weight="balanced", y=self.y)
             if hasattr(self.hof, "class_weight"):
@@ -174,8 +188,6 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             self.hof.categories = len(np.unique(self.y))
             self.hof.label = self.label_encoder.transform(self.y.reshape(-1, 1))
         if isinstance(self.score_func, Fitness):
-            self.score_func.classification = True
-            self.pac_bayesian.classification = True
             self.score_func.instance_weights = self.class_weight
 
     def entropy_calculation(self):

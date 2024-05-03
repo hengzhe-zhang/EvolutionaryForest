@@ -263,12 +263,15 @@ class MultipleGeneGP:
                 weight = softmax(-(1 / temperature) * np.abs(self.coef))
             else:
                 weight = softmax((1 / temperature) * np.abs(self.coef))
+
         if weight.sum() == 0:
             # If there is an error in the feature importance vector
+            # Or the method does not support feature importance
             index = np.random.choice(np.arange(len(self.gene)), 1)
         else:
             weight = weight / weight.sum()
             index = np.random.choice(np.arange(len(self.gene)), 1, p=weight)
+
         if with_id:
             return self.gene[index[0]], index[0]
         else:
