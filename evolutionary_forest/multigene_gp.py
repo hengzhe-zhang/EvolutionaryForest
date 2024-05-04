@@ -56,7 +56,7 @@ def is_number(string):
     try:
         float(string)
         return True
-    except ValueError:
+    except (ValueError, TypeError):
         return False
 
 
