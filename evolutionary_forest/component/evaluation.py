@@ -17,7 +17,6 @@ from deap import creator
 from deap import gp
 from deap import tools
 from deap.gp import PrimitiveTree, Primitive, Terminal
-from numpy.linalg import LinAlgError
 from numpy.testing import assert_almost_equal
 from onedal.primitives import rbf_kernel
 from scipy.spatial.distance import cdist
@@ -61,7 +60,9 @@ from evolutionary_forest.component.stgp.shared_type import (
     CategoricalFeature,
     FeatureLayer,
 )
-from evolutionary_forest.component.tree_manipulation import multi_tree_evaluation_typed
+from evolutionary_forest.component.stgp.strongly_type_gp_utility import (
+    multi_tree_evaluation_typed,
+)
 from evolutionary_forest.component.tree_utils import (
     node_depths_top_down,
 )
@@ -232,9 +233,13 @@ def calculate_score(args):
             individual_configuration=individual_configuration,
         )
 
-    gradient_operators = (
-        configuration.gradient_descent or configuration.constant_type.startswith("GD")
-    )
+    if configuration.constant_type is None:
+        gradient_operators = False
+    else:
+        gradient_operators = (
+            configuration.gradient_descent
+            or configuration.constant_type.startswith("GD")
+        )
     if gradient_operators:
         Yp = Yp.detach().numpy()
 
@@ -686,7 +691,10 @@ def multi_tree_evaluation(
             data = individual_configuration.dynamic_standardization.transform(data)
 
     gradient_descent = configuration.gradient_descent
-    gradient_optimization_flag = configuration.constant_type.startswith("GD")
+    if configuration.constant_type is None:
+        gradient_optimization_flag = False
+    else:
+        gradient_optimization_flag = configuration.constant_type.startswith("GD")
     gradient_operators = gradient_descent or gradient_optimization_flag
     if gradient_operators and isinstance(data, np.ndarray):
         data = torch.from_numpy(data).float().detach()

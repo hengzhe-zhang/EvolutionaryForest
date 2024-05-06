@@ -17,7 +17,6 @@ from deap.tools import (
     selSPEA2,
     selTournamentDCD,
 )
-from gplearn.functions import _protected_sqrt
 from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
@@ -66,7 +65,9 @@ from evolutionary_forest.component.archive_operators.greedy_selection_archive im
 from evolutionary_forest.component.archive_operators.grid_map_elites_archive import (
     GridMAPElites,
 )
-from evolutionary_forest.component.archive_operators.important_features import construct_important_feature_archive
+from evolutionary_forest.component.archive_operators.important_features import (
+    construct_important_feature_archive,
+)
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import (
     DSA,
@@ -192,7 +193,7 @@ from evolutionary_forest.component.stgp.strong_type_generation import (
 from evolutionary_forest.component.strategy import Clearing
 from evolutionary_forest.component.test_function import TestFunction
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.component.tree_manipulation import (
+from evolutionary_forest.component.stgp.strongly_type_gp_utility import (
     get_typed_pset,
 )
 from evolutionary_forest.component.verification.configuration_check import (
@@ -219,9 +220,6 @@ from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.preprocess_utils import (
-    GeneralFeature,
-    CategoricalFeature,
-    BooleanFeature,
     NumericalFeature,
     FeatureTransformer,
     StandardScalerWithMinMaxScaler,
@@ -243,12 +241,10 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
     MultiFidelityEvaluation,
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
-from evolutionary_forest.utility.check_util import is_standardized
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
-    check_number_of_unique_tree_semantics,
 )
 from evolutionary_forest.utility.scaler.OneHotStandardScaler import OneHotStandardScaler
 from evolutionary_forest.utility.scaler.StandardPCA import StandardScalerPCA
@@ -4779,10 +4775,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.number_of_parents > 0:
                 # multi-parent generation, which is particularly useful for modular multi-tree GP
                 offspring = [
-                                        self.offspring_generation_with_repair(
+                    self.offspring_generation_with_repair(
                         toolbox, parent, self.number_of_parents, external_archive
                     )[0]
-                        for _ in range(2)
+                    for _ in range(2)
                 ]
             else:
                 if (
@@ -4848,13 +4844,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 external_archive = selBest(list(population), size * self.n_pop)
         elif self.external_archive == "ImportantFeatures" or self.semantic_repair > 0:
-            external_archive = construct_important_feature_archive(population, external_archive)
+            external_archive = construct_important_feature_archive(
+                population, external_archive
+            )
         else:
             external_archive = None
         self.elites_archive = external_archive
         return external_archive
 
-    def offspring_generation_with_repair(self, toolbox, parent, count, external_archive=None):
+    def offspring_generation_with_repair(
+        self, toolbox, parent, count, external_archive=None
+    ):
         # Generate offspring based on multiple parents
         if self.external_archive == False or self.external_archive is None:
             offspring = toolbox.select(parent, count)

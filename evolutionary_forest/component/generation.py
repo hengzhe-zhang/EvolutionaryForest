@@ -3,7 +3,6 @@ import math
 import random
 from typing import List, TYPE_CHECKING
 
-import numpy as np
 from deap.tools import cxTwoPoint
 
 from evolutionary_forest.component.bloat_control.simple_simplification import (
@@ -14,7 +13,7 @@ from evolutionary_forest.component.configuration import (
     MutationConfiguration,
 )
 from evolutionary_forest.component.toolbox import TypedToolbox
-from evolutionary_forest.component.tree_manipulation import revert_back
+from evolutionary_forest.component.stgp.strongly_type_gp_utility import revert_back
 from evolutionary_forest.utility.deletion_utils import *
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 
