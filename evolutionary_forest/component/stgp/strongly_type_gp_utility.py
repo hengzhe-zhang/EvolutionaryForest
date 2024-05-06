@@ -40,7 +40,7 @@ from evolutionary_forest.component.stgp.shared_type import (
     FeatureLayer,
 )
 from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
-from evolutionary_forest.multigene_gp import quick_fill
+from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 
 
 def standardize(x, scaler):
@@ -121,8 +121,21 @@ def linear_layer(x, weights):
     return result
 
 
+def is_inhomogeneous(arr):
+    # Attempt to get the size of each element
+    sizes = np.array([len(item) if isinstance(item, np.ndarray) else 1 for item in arr])
+    # Check if all sizes are the same
+    return len(np.unique(sizes))
+
+
 def fitting(function, data):
-    data = np.nan_to_num(data, posinf=0, neginf=0)
+    if is_inhomogeneous(data):
+        data = list(data)
+        for c in range(len(data)):
+            data[c] = np.nan_to_num(data[c], posinf=0, neginf=0)
+    else:
+        data = np.nan_to_num(data, posinf=0, neginf=0)
+
     if function == standardize:
         sc = StandardScaler().fit(data[0].reshape(-1, 1))
         return (sc,)
@@ -212,7 +225,6 @@ def get_typed_pset(
             flag = ""
         add_smooth_math_operators(pset, flag)
         pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
-        pset.addEphemeralConstant("rand101", constant, float)
         return pset
     if primitive_type.endswith("-Basic"):
         add_math_operators(pset)
@@ -418,7 +430,7 @@ def multi_tree_evaluation_typed(
     results = []
     for tree in gp_trees:
         result = quick_evaluate(tree, pset, data)
-        if len(result.shape) == 2:
+        if isinstance(result, np.ndarray) and len(result.shape) == 2:
             # 2D array
             results.extend(list(result.T))
         else:

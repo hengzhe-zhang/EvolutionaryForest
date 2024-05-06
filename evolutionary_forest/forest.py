@@ -2440,9 +2440,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             generator = scaled_random_constant(biggest_val)
             pset.addEphemeralConstant("rand101", generator)
         else:
-            assert self.constant_type == "Int"
             constant_generator = constant_controller(self.constant_type)
-            pset.addEphemeralConstant("rand101", constant_generator)
+            if not isinstance(pset, gp.PrimitiveSet):
+                pset.addEphemeralConstant("rand101", constant_generator, float)
+            else:
+                pset.addEphemeralConstant("rand101", constant_generator)
         # Check if MGP mode is enabled and create a new primitive set for each gene
         if isinstance(pset, PrimitiveSet) and self.mgp_mode is True:
             new_pset = MultiplePrimitiveSet("MAIN", self.X.shape[1])

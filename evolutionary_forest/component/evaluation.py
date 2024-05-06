@@ -71,10 +71,10 @@ from evolutionary_forest.model.RidgeGCV import RidgeGCV
 from evolutionary_forest.multigene_gp import (
     result_post_process,
     MultiplePrimitiveSet,
-    quick_fill,
     GPPipeline,
     IndividualConfiguration,
 )
+from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 from evolutionary_forest.sklearn_utils import cross_val_predict
 from evolutionary_forest.utility.gradient_optimization.scaling import (
     feature_standardization_torch,

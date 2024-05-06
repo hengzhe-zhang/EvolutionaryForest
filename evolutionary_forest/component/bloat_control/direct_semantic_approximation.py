@@ -5,7 +5,8 @@ import numpy as np
 from deap.gp import Terminal
 
 from evolutionary_forest.component.evaluation import single_tree_evaluation
-from evolutionary_forest.multigene_gp import quick_fill, MultipleGeneGP
+from evolutionary_forest.multigene_gp import MultipleGeneGP
+from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 
 if TYPE_CHECKING:
     import evolutionary_forest.forest as forest

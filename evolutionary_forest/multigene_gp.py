@@ -8,7 +8,6 @@ from typing import Callable, List, Tuple
 from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
 from deap import base
 from deap.gp import (
     PrimitiveTree,
@@ -44,6 +43,7 @@ from evolutionary_forest.component.crossover_mutation import (
     cxOnePointSizeSafe,
     mutUniformSizeSafe,
 )
+from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 from evolutionary_forest.component.stgp.strong_type_generation import mutUniformSTGP
 from evolutionary_forest.component.syntax_tools import TransformerTool
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
@@ -1327,35 +1327,6 @@ def result_post_process(result, data, original_features):
         result = np.concatenate([np.array(result).T, data], axis=1)
     else:
         result = np.array(result).T
-    return result
-
-
-def quick_fill(result: list, data: np.ndarray):
-    # check whether tensor imputation or numpy imputation
-    include_tensor = False
-    for yp in result:
-        if isinstance(yp, torch.Tensor):
-            include_tensor = True
-            break
-
-    for i in range(len(result)):
-        yp = result[i]
-        if not isinstance(yp, (np.ndarray, torch.Tensor)):
-            yp = np.full(len(data), 0)
-        elif yp.size == 1:
-            yp = np.full(len(data), yp)
-        if isinstance(yp, torch.Tensor) and len(yp) == 1:
-            yp = torch.full([len(data)], yp.item())
-        result[i] = yp
-
-    if not include_tensor:
-        result = np.nan_to_num(result, posinf=0, neginf=0)
-    else:
-        for i in range(len(result)):
-            if isinstance(result[i], np.ndarray):
-                result[i] = torch.from_numpy(result[i])
-            result[i] = torch.nan_to_num(result[i], posinf=0, neginf=0)
-            assert isinstance(result[i], torch.Tensor)
     return result
 
 

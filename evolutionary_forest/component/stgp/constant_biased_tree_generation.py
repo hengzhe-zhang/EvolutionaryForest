@@ -1,7 +1,7 @@
 import operator
 import sys
 from typing import Callable
-
+import random  # noqa
 from evolutionary_forest.component.constant_optimization.random_constant import (
     random_gaussian,
 )
@@ -28,9 +28,9 @@ def genGrow_STGP_constant_biased(pset, min_, max_, constant_prob, type_=None):
     )
 
 
-def genHalfAndHalf_STGP_constant_biased(pset, min_, max_, constant_prob, type_=None):
+def genHalfAndHalf_STGP_constant_biased(pset, min_, max_, constant_ratio, type_=None):
     method = random.choice((genGrow_STGP_constant_biased, genFull_STGP_constant_biased))
-    return method(pset, min_, max_, constant_prob, type_)
+    return method(pset, min_, max_, constant_ratio, type_)
 
 
 def generate_STGP_constant_biased(
