@@ -1,6 +1,6 @@
 import math
 from functools import partial
-from typing import List
+from typing import List, Callable
 
 import numpy as np  # noqa
 from deap import gp
@@ -202,7 +202,7 @@ def identity_categorical(x):
 
 
 def get_typed_pset(
-    shape, primitive_type, categorical_features: list[bool]
+    shape, primitive_type, categorical_features: list[bool], constant: Callable
 ) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     if primitive_type.endswith("Smooth"):
@@ -212,6 +212,7 @@ def get_typed_pset(
             flag = ""
         add_smooth_math_operators(pset, flag)
         pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
+        pset.addEphemeralConstant("rand101", constant, float)
         return pset
     if primitive_type.endswith("-Basic"):
         add_math_operators(pset)

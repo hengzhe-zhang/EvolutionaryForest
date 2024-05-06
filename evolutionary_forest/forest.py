@@ -92,6 +92,9 @@ from evolutionary_forest.component.configuration import (
     ExperimentalConfiguration,
     DepthLimitConfiguration,
 )
+from evolutionary_forest.component.constant_optimization.random_constant import (
+    constant_controller,
+)
 from evolutionary_forest.component.crossover.intron_based_crossover import (
     IntronPrimitive,
     IntronTerminal,
@@ -187,6 +190,9 @@ from evolutionary_forest.component.selection_operators.niche_base_selection impo
     niche_base_selection,
 )
 from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderNumpy
+from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
+    genHalfAndHalf_STGP_constant_biased,
+)
 from evolutionary_forest.component.stgp.strong_type_generation import (
     genHalfAndHalf_STGP,
 )
@@ -2114,9 +2120,21 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             min_height = int(min_height)
             max_height = int(max_height)
             if self.basic_primitives.startswith("Pipeline"):
-                toolbox.expr = partial(
-                    genHalfAndHalf_STGP, pset=pset, min_=min_height, max_=max_height
-                )
+                if self.constant_ratio > 0:
+                    toolbox.expr = partial(
+                        genHalfAndHalf_STGP_constant_biased,
+                        pset=pset,
+                        min_=min_height,
+                        max_=max_height,
+                        constant_ratio=self.constant_ratio,
+                    )
+                else:
+                    toolbox.expr = partial(
+                        genHalfAndHalf_STGP,
+                        pset=pset,
+                        min_=min_height,
+                        max_=max_height,
+                    )
             else:
                 toolbox.expr = partial(
                     gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
@@ -2304,6 +2322,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.X.shape[1],
                 self.basic_primitives,
                 categorical_features=self.categorical_features,
+                constant=constant_controller(self.constant_type),
             )
         elif (
             isinstance(self.basic_primitives, str)
@@ -2399,9 +2418,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         for attr in attrs_to_remove:
             delattr(gp, attr)
 
-        if self.constant_type == "Normal":
-            pset.addEphemeralConstant("rand101", lambda: np.random.normal())
-        elif self.constant_type is None:
+        if self.constant_type is None:
             pass
         elif self.basic_primitives == False:
             pset.addEphemeralConstant(
@@ -2417,18 +2434,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             def random_variable():
                 return torch.randn(1, requires_grad=True, dtype=torch.float32)
 
-            if self.constant_ratio == 0:
-                pset.addEphemeralConstant("rand101", random_variable)
-            else:
-                for i in range(max(int(self.X.shape[1] * self.constant_ratio), 1)):
-                    pset.addEphemeralConstant(f"rand{i}", random_variable)
+            pset.addEphemeralConstant("rand101", random_variable)
         elif self.constant_type == "SRC":
             biggest_val = np.max(np.abs(self.X))
             generator = scaled_random_constant(biggest_val)
             pset.addEphemeralConstant("rand101", generator)
         else:
             assert self.constant_type == "Int"
-            pset.addEphemeralConstant("rand101", random_int)
+            constant_generator = constant_controller(self.constant_type)
+            pset.addEphemeralConstant("rand101", constant_generator)
         # Check if MGP mode is enabled and create a new primitive set for each gene
         if isinstance(pset, PrimitiveSet) and self.mgp_mode is True:
             new_pset = MultiplePrimitiveSet("MAIN", self.X.shape[1])
