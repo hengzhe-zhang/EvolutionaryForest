@@ -2322,7 +2322,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.X.shape[1],
                 self.basic_primitives,
                 categorical_features=self.categorical_features,
-                constant=constant_controller(self.constant_type),
             )
         elif (
             isinstance(self.basic_primitives, str)
@@ -2425,10 +2424,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "rand101", lambda: random.randint(-1, 1), NumericalFeature
             )
         elif self.constant_type == "Float":
-            if isinstance(pset, gp.PrimitiveSetTyped):
-                pass
-            else:
-                pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
+            pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
         elif self.constant_type in ["GD", "GD+", "GD-", "GD--"]:
 
             def random_variable():

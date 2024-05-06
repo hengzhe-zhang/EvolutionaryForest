@@ -215,7 +215,7 @@ def identity_categorical(x):
 
 
 def get_typed_pset(
-    shape, primitive_type, categorical_features: list[bool], constant: Callable
+    shape, primitive_type, categorical_features: list[bool]
 ) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     if primitive_type.endswith("Smooth"):
