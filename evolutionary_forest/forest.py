@@ -259,6 +259,7 @@ from evolutionary_forest.utility.skew_transformer import (
     CubeSkewnessCorrector,
 )
 from evolutionary_forest.utility.tree_pool import SemanticLibrary
+from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -4632,7 +4633,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if "PhenotypicDiversity" in self.log_item:
                     self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
             self.avg_tree_size_history.append(
-                np.mean([np.mean([len(g) for g in p.gene]) for p in population])
+                np.mean(
+                    [np.mean([get_tree_size(g) for g in p.gene]) for p in population]
+                )
             )
             if len(self.hof) > 0:
                 if "ArchiveAverageFitness" in self.log_item:
