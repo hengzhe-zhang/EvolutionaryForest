@@ -1,5 +1,7 @@
 from functools import partial
 
+import torch
+
 from evolutionary_forest.component.primitive_functions import *
 
 simple_reduce = lambda function, *x: reduce(function, x)
@@ -186,6 +188,7 @@ def get_differentiable_functions(p):
             1,
         ),  # Residual function for handling negative values
         "Relu": (torch.relu, 1),  # Residual function for handling negative values
+        "Sigmoid": (torch.sigmoid, 1),
         "Abs": (torch.absolute, 1),  # Absolute value function
     }[p]
     return primitive

@@ -3,11 +3,10 @@ from sklearn.preprocessing import StandardScaler
 
 
 def feature_standardization_torch(constructed_features):
+    constructed_features = constructed_features.float()
     # normalize before ridge regression
     mean = constructed_features.mean(dim=0)
     std = constructed_features.std(dim=0)
-    # mean = constructed_features.mean(dim=0).detach()
-    # std = constructed_features.var(dim=0).detach()
     epsilon = 1e-10
     constructed_features_normalized = (constructed_features - mean) / (std + epsilon)
     return constructed_features_normalized

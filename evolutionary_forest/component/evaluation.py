@@ -56,6 +56,9 @@ from evolutionary_forest.component.generalization.pac_utils.random_node_selectio
 from evolutionary_forest.component.generalization.cache.sharpness_memory import (
     TreeLRUCache,
 )
+from evolutionary_forest.component.gradient_optimization.gradient_descent import (
+    gradient_optimization,
+)
 from evolutionary_forest.component.stgp.shared_type import (
     CategoricalFeature,
     FeatureLayer,
@@ -401,64 +404,6 @@ def calculate_score(args):
             semantic_results=semantic_results,
         ),
     )
-
-
-def gradient_optimization(constructed_features, Y, configuration, func):
-    constructed_features_normalized = feature_standardization_torch(
-        constructed_features
-    )
-    # fit a ridge model
-    ridge: LinearModel = Ridge()
-    ridge.fit(constructed_features_normalized.detach().numpy(), Y)
-    assert isinstance(ridge, LinearModel), "Only linear models support gradient descent"
-    # extract coefficients from linear model
-    weights = ridge.coef_
-    bias = ridge.intercept_
-    if np.all(ridge.coef_) == 0:
-        # if all zero, do not need to optimize
-        return
-    optimize_lr_weights = True
-    if not optimize_lr_weights:
-        weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=False)
-        bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=False)
-    else:
-        weights_torch = torch.tensor(weights, dtype=torch.float32, requires_grad=True)
-        bias_torch = torch.tensor(bias, dtype=torch.float32, requires_grad=True)
-    Y_pred = (
-        torch.mm(constructed_features_normalized, weights_torch.view(-1, 1))
-        + bias_torch
-    )
-    # gradient descent
-    criterion = torch.nn.MSELoss()
-    free_variables = [
-        f.value
-        for tree in func
-        for f in tree
-        if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)
-    ]
-    # Add an assertion to ensure that the two MSE scores are very close, for validation
-    # check = pearsonr(Y_pred_torch.flatten(), Y_pred_pipe)
-    # assert np.all(np.isnan(check)) or check[0] > 0.99, \
-    #     f"Predictions do not match, {check}"
-    if optimize_lr_weights:
-        torch_variables = [weights_torch, bias_torch] + free_variables
-    else:
-        torch_variables = free_variables
-    for v in torch_variables:
-        assert v.requires_grad is True
-    if len(free_variables) >= 1:
-        if configuration.constant_type in ["GD", "GD+"]:
-            optimizer = optim.SGD(
-                torch_variables,
-                lr=0.1,
-            )
-        else:
-            raise Exception()
-        # optimize
-        loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
 
 
 def calculate_permutation_importance(estimators, Yp, Y):
