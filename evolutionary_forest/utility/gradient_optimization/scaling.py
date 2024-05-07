@@ -13,7 +13,7 @@ def feature_standardization_torch(constructed_features):
     return constructed_features_normalized
 
 
-def gradient_agnostic_standarization(features: torch.Tensor, scaler: StandardScaler):
+def gradient_agnostic_standardization(features: torch.Tensor, scaler: StandardScaler):
     mean = torch.tensor(scaler.mean_, dtype=torch.float32)
     std = torch.tensor(scaler.scale_, dtype=torch.float32)
     # Check if std is not zero for each feature

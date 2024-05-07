@@ -47,7 +47,7 @@ from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.gradient_optimization.scaling import (
     feature_standardization_torch,
-    gradient_agnostic_standarization,
+    gradient_agnostic_standardization,
 )
 from evolutionary_forest.utility.sampling_utils import sample_according_to_distance
 from evolutionary_forest.utility.timing import time_it
@@ -821,7 +821,7 @@ class R2PACBayesian(Fitness):
                     sharpness = np.inf
                 else:
                     scaler: StandardScaler = estimator["Scaler"]
-                    gradient_agnostic_standarization(features, scaler)
+                    gradient_agnostic_standardization(features, scaler)
 
                     ridge = estimator["Ridge"]
                     (
@@ -843,7 +843,7 @@ class R2PACBayesian(Fitness):
                     if traditional_sam:
                         self.sharpness_gradient_ascent(torch_variables)
                         features = self.get_constructed_features(individual, trees)
-                        gradient_agnostic_standarization(features, scaler)
+                        gradient_agnostic_standardization(features, scaler)
                         Y_pred = self.get_predictions_on_linear_model(
                             features, weights_torch, bias_torch
                         )
@@ -855,7 +855,7 @@ class R2PACBayesian(Fitness):
                         if one_step_gradient_ascent:
                             self.sharpness_gradient_ascent(torch_variables)
                             features = self.get_constructed_features(individual, trees)
-                            gradient_agnostic_standarization(features, scaler)
+                            gradient_agnostic_standardization(features, scaler)
                             Y_pred = self.get_predictions_on_linear_model(
                                 features, weights_torch, bias_torch
                             )
