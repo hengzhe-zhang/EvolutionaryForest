@@ -12,7 +12,7 @@ def impute_values(result, data_length):
     for i in range(len(result)):
         yp = result[i]
         if not isinstance(yp, (np.ndarray, torch.Tensor)):
-            yp = np.full(data_length, 0)
+            yp = np.full(data_length, yp).astype(np.float32)
         elif yp.size == 1:
             yp = np.full(data_length, yp.item() if isinstance(yp, torch.Tensor) else yp)
         result[i] = yp
