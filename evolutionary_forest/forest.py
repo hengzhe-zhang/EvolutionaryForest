@@ -4776,8 +4776,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # multi-base learner selection
             if random.random() < self.rmp_ratio:
                 # cross between different models
-                # 0.25-> AA BB
-                # 0.25-> AB BA
+                # 0.5-> AA BB
+                # 0.5-> AB BA
                 parent_a = self.sample_model_name(parent_pool)
                 offspring_a = toolbox.select(parent_a, 1)
                 parent_b = self.sample_model_name(parent_pool)
