@@ -1,7 +1,6 @@
 from sympy import parse_expr
 from sympy import preorder_traversal
 
-from benchmark.utils.symbolic_check_utils import model_verification
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 hyper_params = [
@@ -69,7 +68,3 @@ def complexity(est: EvolutionaryForestRegressor):
 
 def model(est):
     return str(est.model())
-
-
-if __name__ == "__main__":
-    model_verification(est, complexity)
