@@ -88,6 +88,7 @@ class PACBayesianConfiguration(Configuration):
         cache_radius=0.001,
         sam_standardization=False,
         linear_regularization=False,
+        data_constraint=False,
         **params
     ):
         # For dropout
@@ -131,6 +132,7 @@ class PACBayesianConfiguration(Configuration):
 
         # mixup setting
         self.allow_extrapolate_mixup = allow_extrapolate_mixup
+        self.data_constraint = data_constraint
         self.linear_regularization = linear_regularization
 
 

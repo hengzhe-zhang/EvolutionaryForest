@@ -25,6 +25,9 @@ from evolutionary_forest.component.generalization.iodc import (
     create_w,
     calculate_iodc,
 )
+from evolutionary_forest.component.generalization.mixup_utils.safety_mixup import (
+    safe_mixup,
+)
 from evolutionary_forest.component.generalization.pac_bayesian import (
     assign_rank,
     pac_bayesian_estimation,
@@ -639,6 +642,14 @@ class R2PACBayesian(Fitness):
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         if mixup_strategy in ["I-MixUp"]:
+            if self.algorithm.pac_bayesian.data_constraint:
+                return safe_mixup(
+                    algorithm.X,
+                    algorithm.y,
+                    self.mixup_bandwidth,
+                    alpha_beta,
+                    random_seed,
+                )
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
             if alpha_beta == "Adaptive":
