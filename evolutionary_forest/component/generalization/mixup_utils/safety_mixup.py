@@ -20,13 +20,13 @@ def create_point(x_a, x_b, y_a, y_b, ratio):
 
 
 def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, random_seed=0):
-    np.random.seed(random_seed)
     distance_matrix = rbf_kernel(y.reshape(-1, 1), gamma=mixup_bandwidth)
 
     ratio = np.random.beta(alpha_beta, alpha_beta, len(X))
+    ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
 
     # Indices for data generation
-    indices_a = np.random.randint(0, len(X), len(X))
+    indices_a = np.arange(0, len(X))
     indices_b = sample_according_to_distance(distance_matrix, indices_a)
 
     # Generate initial synthetic data
@@ -48,6 +48,7 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, random_seed=0):
         ) and retries < max_retries:
             # Regenerate this particular data point
             ratio[idx] = np.random.beta(alpha_beta, alpha_beta)
+            ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
             indices_b[idx] = sample_according_to_distance(
                 distance_matrix, indices_a[idx : idx + 1]
             )[
