@@ -39,6 +39,7 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, random_seed=0):
 
     # Conformity check and regeneration
     max_retries = 10  # Limit to prevent infinite loops
+    retry_counter = 0
     for idx in range(len(data)):
         y_i, y_j = y[indices_a[idx]], y[indices_b[idx]]
         retries = 0
@@ -47,6 +48,11 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, random_seed=0):
         ) and retries < max_retries:
             # Regenerate this particular data point
             ratio[idx] = np.random.beta(alpha_beta, alpha_beta)
+            indices_b[idx] = sample_according_to_distance(
+                distance_matrix, indices_a[idx : idx + 1]
+            )[
+                0
+            ]  # Sample new b
             data[idx], label[idx] = create_point(
                 X[indices_a[idx]],
                 X[indices_b[idx]],
@@ -58,5 +64,7 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, random_seed=0):
             _, index_nn = nbrs.kneighbors([data[idx]])
             y_nn[idx] = y[index_nn].flatten()[0]
             retries += 1
+            retry_counter += 1
+    # print(f"Total retries: {retry_counter}")
 
     return data, label, ((indices_a, ratio), (indices_b, 1 - ratio))
