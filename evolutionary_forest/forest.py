@@ -207,6 +207,7 @@ from evolutionary_forest.component.verification.configuration_check import (
 )
 from evolutionary_forest.model.FeatureClipper import FeatureClipper
 from evolutionary_forest.model.MTL import MTLRidgeCV
+from evolutionary_forest.model.MixupPredictor import MixupRegressor
 from evolutionary_forest.model.PLTree import (
     SoftPLTreeRegressor,
     SoftPLTreeRegressorEM,
@@ -1667,6 +1668,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     ridge = eval(self.ridge_alphas)
             ridge_model = RidgeGCV(
                 alphas=ridge, store_cv_values=True, scoring=make_scorer(r2_score)
+            )
+        elif self.base_learner == "RidgeCV-Mixup":
+            ridge_model = MixupRegressor(
+                RidgeGCV(
+                    alphas=[0.1, 1, 10],
+                    store_cv_values=True,
+                    scoring=make_scorer(r2_score),
+                )
             )
         elif self.base_learner == "SplineRidgeCV" or base_model == "SplineRidgeCV":
             ridge_model = SplineRidgeCV(

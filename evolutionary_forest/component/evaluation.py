@@ -70,6 +70,7 @@ from evolutionary_forest.component.tree_utils import (
     node_depths_top_down,
 )
 from evolutionary_forest.model.MTL import MTLRidgeCV
+from evolutionary_forest.model.MixupPredictor import MixupRegressor
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
 from evolutionary_forest.multigene_gp import (
     result_post_process,
@@ -266,7 +267,10 @@ def calculate_score(args):
                 Y,
                 cv=cv,
             )
-        elif isinstance(base_model, (RidgeCV, RidgeGCV)):
+        elif isinstance(base_model, (RidgeCV, RidgeGCV)) or (
+            isinstance(base_model, MixupRegressor)
+            and isinstance(base_model.regressor, RidgeGCV)
+        ):
             if time_flag:
                 cv_st = time.time()
             else:
