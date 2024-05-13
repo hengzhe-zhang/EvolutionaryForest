@@ -85,7 +85,6 @@ class PACBayesianConfiguration(Configuration):
         cached_sharpness=False,
         allow_extrapolate_mixup=False,
         kl_mechanism=False,
-        cache_radius=0.001,
         sam_standardization=False,
         linear_regularization=False,
         data_constraint=False,
