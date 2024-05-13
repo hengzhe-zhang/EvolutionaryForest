@@ -694,10 +694,10 @@ class R2PACBayesian(Fitness):
             # However, 1.5 is a very dangerous value.
             temp_ratio = (1 + ratio).reshape(-1, 1)
             data_extrapolation = temp_ratio * algorithm.X[indices_a] + (
-                -temp_ratio * algorithm.X[indices_b]
+                (1 - temp_ratio) * algorithm.X[indices_b]
             )
             label_extrapolation = temp_ratio.flatten() * algorithm.y[indices_a] + (
-                -temp_ratio.flatten() * algorithm.y[indices_b]
+                (1 - temp_ratio).flatten() * algorithm.y[indices_b]
             )
             # only consider out of distribution samples
             replace_index = (label_extrapolation > algorithm.y.max()) | (
