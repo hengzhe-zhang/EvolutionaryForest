@@ -33,9 +33,10 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, random_seed=0):
     data, label = create_synthetic_data(X, y, indices_a, indices_b, ratio)
 
     # Nearest Neighbor to check conformation
-    nbrs = NearestNeighbors(n_neighbors=1).fit(X)
+    nbrs = NearestNeighbors(n_neighbors=3).fit(X)
     _, indices_nn = nbrs.kneighbors(data)  # Find nearest neighbors for synthetic data
-    y_nn = y[indices_nn].flatten()
+    # y_nn = y[indices_nn].flatten()
+    y_nn = y[indices_nn].mean(axis=1)
 
     # Conformity check and regeneration
     max_retries = 10  # Limit to prevent infinite loops
@@ -63,7 +64,8 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, random_seed=0):
             )
             # Check its nearest neighbor again
             _, index_nn = nbrs.kneighbors([data[idx]])
-            y_nn[idx] = y[index_nn].flatten()[0]
+            # y_nn[idx] = y[index_nn].flatten()[0]
+            y_nn[idx] = y[index_nn].mean(axis=1)[0]
             retries += 1
             retry_counter += 1
     # print(f"Total retries: {retry_counter}")
