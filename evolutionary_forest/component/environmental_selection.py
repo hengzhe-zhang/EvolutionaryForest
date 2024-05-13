@@ -399,16 +399,16 @@ class NSGA2(EnvironmentalSelection):
                         )
                     else:
                         ratio = 1
-                        if isinstance(metric_std, float):
-                            ratio = metric_std
-                            metric_std = "Mean"
                         mean_of_error = mean_without_outliers(
                             np.array(all_mse), metric=metric_std
                         )
                         mean_of_sam = mean_without_outliers(
                             np.array(all_sharpness), metric=metric_std
                         )
-                        ratio *= mean_of_error
+                        if metric_std == "Ratio":
+                            ratio *= mean_of_error / mean_of_sam
+                        else:
+                            ratio *= mean_of_error
 
                         if self.algorithm.verbose:
                             print("Ratio", ratio, mean_of_error, mean_of_sam)
