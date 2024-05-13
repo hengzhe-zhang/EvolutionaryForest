@@ -692,17 +692,18 @@ class R2PACBayesian(Fitness):
         if allow_extrapolate_mixup:
             # For some point, the ratio could be larger than 1 to simulate extrapolation.
             # However, 1.5 is a very dangerous value.
-            temp_ratio = 1 + ratio
+            temp_ratio = (1 + ratio).reshape(-1, 1)
             data_extrapolation = temp_ratio * algorithm.X[indices_a] + (
                 -temp_ratio * algorithm.X[indices_b]
-            ) * (ratio.reshape(-1, 1))
-            label_extrapolation = temp_ratio * algorithm.y[indices_a] + (
-                -temp_ratio * algorithm.y[indices_b]
+            )
+            label_extrapolation = temp_ratio.flatten() * algorithm.y[indices_a] + (
+                -temp_ratio.flatten() * algorithm.y[indices_b]
             )
             # only consider out of distribution samples
             replace_index = (label_extrapolation > algorithm.y.max()) | (
                 label_extrapolation < algorithm.y.min()
             )
+            temp_ratio = temp_ratio.flatten()
             ratio[replace_index] = temp_ratio[replace_index]
             # print("Extrapolation instances", np.sum(replace_index))
             data[replace_index] = data_extrapolation[replace_index]
