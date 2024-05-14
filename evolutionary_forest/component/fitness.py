@@ -648,7 +648,7 @@ class R2PACBayesian(Fitness):
                     algorithm.y,
                     self.mixup_bandwidth,
                     alpha_beta,
-                    random_seed,
+                    mode=self.algorithm.pac_bayesian.mixup_mode,
                 )
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
