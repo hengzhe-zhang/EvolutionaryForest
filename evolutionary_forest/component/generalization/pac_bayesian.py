@@ -87,7 +87,6 @@ class PACBayesianConfiguration(Configuration):
         kl_mechanism=False,
         sam_standardization=False,
         linear_regularization=False,
-        data_constraint=False,
         mixup_mode="",
         **params
     ):
@@ -132,7 +131,6 @@ class PACBayesianConfiguration(Configuration):
 
         # mixup setting
         self.allow_extrapolate_mixup = allow_extrapolate_mixup
-        self.data_constraint = data_constraint
         self.linear_regularization = linear_regularization
         self.mixup_mode = mixup_mode
 

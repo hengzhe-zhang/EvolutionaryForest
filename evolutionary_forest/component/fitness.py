@@ -642,7 +642,7 @@ class R2PACBayesian(Fitness):
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         if mixup_strategy in ["I-MixUp"]:
-            if self.algorithm.pac_bayesian.data_constraint:
+            if self.algorithm.pac_bayesian.mixup_mode != "":
                 return safe_mixup(
                     algorithm.X,
                     algorithm.y,
