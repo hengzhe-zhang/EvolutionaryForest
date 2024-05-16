@@ -108,6 +108,10 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode="Clustering"):
         model = KNeighborsRegressor(n_neighbors=3)
         model.fit(X, y)
         y_nn = model.predict(data)
+    elif retry_flag == "KNN-1":
+        model = KNeighborsRegressor(n_neighbors=1)
+        model.fit(X, y)
+        y_nn = model.predict(data)
     elif retry_flag == "KNN-5":
         model = KNeighborsRegressor(n_neighbors=3)
         model.fit(X, y)
