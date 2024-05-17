@@ -67,7 +67,7 @@ def sample_indices_within_cluster(cluster_labels, data, mixup_bandwidth):
     return indices_b
 
 
-def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode="Clustering"):
+def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode=""):
     # Step 1: Compute distance matrix
     distance_matrix = rbf_kernel(y.reshape(-1, 1), gamma=mixup_bandwidth)
     mixup_flag, retry_flag = mode.split(",")
