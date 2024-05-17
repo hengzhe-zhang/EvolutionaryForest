@@ -631,9 +631,17 @@ class R2PACBayesian(Fitness):
             else alpha_beta
         )
         # For this distance matrix, the larger, the near
-        distance_matrix = rbf_kernel(
-            algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwidth
-        )
+        if isinstance(self.mixup_bandwidth, str) and self.mixup_bandwidth.startswith(
+            "Adaptive"
+        ):
+            _, ratio = self.mixup_bandwidth.split("-")
+            ratio = float(ratio)
+            features = algorithm.X.shape[1]
+            gamma_value = ratio / features
+        else:
+            gamma_value = self.mixup_bandwidth
+
+        distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1), gamma=gamma_value)
         if alpha_beta == "Adaptive":
             ratio = None
         elif isinstance(alpha_beta, str) and alpha_beta.startswith("Fix"):
@@ -646,7 +654,7 @@ class R2PACBayesian(Fitness):
                 return safe_mixup(
                     algorithm.X,
                     algorithm.y,
-                    self.mixup_bandwidth,
+                    gamma_value,
                     alpha_beta,
                     mode=self.algorithm.pac_bayesian.mixup_mode,
                 )
@@ -677,9 +685,7 @@ class R2PACBayesian(Fitness):
             )
         elif mixup_strategy == "C-MixUp":
             # sample indices
-            distance_matrix = rbf_kernel(
-                algorithm.y.reshape(-1, 1), gamma=self.mixup_bandwidth
-            )
+            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1), gamma=gamma_value)
             # for the distance, the large the near, because it's Gaussian
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
         else:
