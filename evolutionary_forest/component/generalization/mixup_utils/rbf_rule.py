@@ -45,7 +45,7 @@ def scotts_rule_gamma(X):
 
 
 if __name__ == "__main__":
-    X = np.random.rand(100, 2)
+    X = np.random.randn(100, 5)
     # gamma = silvermans_rule_of_thumb_gamma(X)
     gamma = scotts_rule_gamma(X)
     print(f"Gamma value: {gamma}")
