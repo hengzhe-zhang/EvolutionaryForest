@@ -130,11 +130,14 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode="Clustering"):
         y_nn = model.predict(data)
 
     # Step 5: Conformity check and regeneration
-    max_retries = 10
+    max_retries = 100
     retry_counter = 0
     for idx in range(len(data)):
         y_i, y_j = y[indices_a[idx]], y[indices_b[idx]]
         retries = 0
+        # y_temp = np.sin(10 * (ratio[idx] * X[idx] + (1 - ratio[idx]) * X[indices_b[idx]]))
+        # y_nn[idx]
+        increased_alpha_beta = alpha_beta
         while (
             (
                 isinstance(model, RegressorMixin)
@@ -146,13 +149,19 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode="Clustering"):
             )
         ) and retries < max_retries:
             # Regenerate this particular data point
-            ratio[idx] = np.random.beta(alpha_beta, alpha_beta)
-            ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
+            if retries > 0 and retries % 10 == 0:
+                increased_alpha_beta = increased_alpha_beta * 10
+                # print("Increase", increased_alpha_beta)
+            ratio[idx] = np.random.beta(increased_alpha_beta, alpha_beta)
+            ratio[idx] = np.where(
+                ratio[idx] < 1 - ratio[idx], 1 - ratio[idx], ratio[idx]
+            )
             indices_b[idx] = sample_according_to_distance(
                 distance_matrix, indices_a[idx : idx + 1]
             )[
                 0
             ]  # Sample new b
+            y_i, y_j = y[indices_a[idx]], y[indices_b[idx]]
             data[idx], label[idx] = create_point(
                 X[indices_a[idx]],
                 X[indices_b[idx]],
@@ -164,6 +173,8 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode="Clustering"):
             y_nn[idx] = model.predict([data[idx]])[0]
             retries += 1
             retry_counter += 1
+        # if retries >= max_retries:
+        #     print("Max retries reached for a data point!")
     # print(f"Total retries: {retry_counter}")
 
     return data, label, ((indices_a, ratio), (indices_b, 1 - ratio))
@@ -174,4 +185,6 @@ def condition_of_outlier_based_check(idx, y_i, y_j, y_nn):
 
 
 def condition_of_prediction_based_check(idx, y_i, y_j, y_nn):
+    # if y_i == y_j:
+    #     return False
     return y_nn[idx] > max(y_i, y_j) or y_nn[idx] < min(y_i, y_j)
