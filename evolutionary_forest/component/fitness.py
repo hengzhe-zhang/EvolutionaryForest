@@ -25,6 +25,10 @@ from evolutionary_forest.component.generalization.iodc import (
     create_w,
     calculate_iodc,
 )
+from evolutionary_forest.component.generalization.mixup_utils.rbf_rule import (
+    silvermans_rule_of_thumb_gamma,
+    scotts_rule_gamma,
+)
 from evolutionary_forest.component.generalization.mixup_utils.safety_mixup import (
     safe_mixup,
 )
@@ -631,13 +635,19 @@ class R2PACBayesian(Fitness):
             else alpha_beta
         )
         # For this distance matrix, the larger, the near
-        if isinstance(self.mixup_bandwidth, str) and self.mixup_bandwidth.startswith(
-            "Adaptive"
-        ):
+        if isinstance(self.mixup_bandwidth, str):
+            if self.mixup_bandwidth.startswith("Adaptive"):
+                features = algorithm.X.shape[1]
+                gamma_value = 1 / features
+            elif self.mixup_bandwidth.startswith("Silverman"):
+                gamma_value = silvermans_rule_of_thumb_gamma(algorithm.X)
+            elif self.mixup_bandwidth.startswith("Scott"):
+                gamma_value = scotts_rule_gamma(algorithm.X)
+            else:
+                raise ValueError("Unknown bandwidth")
             _, ratio = self.mixup_bandwidth.split("-")
             ratio = float(ratio)
-            features = algorithm.X.shape[1]
-            gamma_value = ratio / features
+            gamma_value = gamma_value * ratio
         else:
             gamma_value = self.mixup_bandwidth
 
