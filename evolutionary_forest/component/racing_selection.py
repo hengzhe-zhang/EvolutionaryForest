@@ -1,13 +1,10 @@
 import copy
 from collections import defaultdict
 from itertools import chain
-from typing import List, Set
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
+from typing import Set
+
 import pandas as pd
 from deap import gp
-from deap.gp import Primitive, PrimitiveTree
 from deap.tools import HallOfFame, selNSGA2
 from scipy import stats
 from sklearn.ensemble import RandomForestRegressor

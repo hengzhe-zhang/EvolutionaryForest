@@ -6,7 +6,6 @@ import dill
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
-from deap.gp import PrimitiveSetTyped, MetaEphemeral
 from deap.tools import (
     selNSGA2,
     History,
@@ -193,19 +192,19 @@ from evolutionary_forest.component.selection import (
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
 )
-from evolutionary_forest.component.stateful_gp import make_class, TargetEncoderNumpy
+from evolutionary_forest.component.stateful_gp import make_class
 from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
     genHalfAndHalf_STGP_constant_biased,
 )
 from evolutionary_forest.component.stgp.strong_type_generation import (
     genHalfAndHalf_STGP,
 )
-from evolutionary_forest.component.strategy import Clearing
-from evolutionary_forest.component.test_function import TestFunction
-from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.component.stgp.strongly_type_gp_utility import (
     get_typed_pset,
 )
+from evolutionary_forest.component.strategy import Clearing
+from evolutionary_forest.component.test_function import TestFunction
+from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
@@ -697,13 +696,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
 
         self.n_process = n_process
-
-        if self.mutation_scheme == "Transformer":
-            self.transformer_switch = True
-            self.mutation_scheme = "uniform-plus"
-        else:
-            self.transformer_switch = False
-
         self.novelty_weight = 1
         self.dynamic_target = False
         self.ensemble_cooperation = False
@@ -1878,8 +1870,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         # hall of fame initialization
         self.archive_initialization()
-        if self.transformer_switch:
-            self.transformer_tool = TransformerTool(self.X, self.y, self.hof, self.pset)
 
         # toolbox initialization
         toolbox = TypedToolbox()
@@ -1946,20 +1936,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             initialize_crossover_operator(self, toolbox)
 
             # special mutation operators
-            if self.transformer_switch:
-                # using transformer to generate subtrees
-                def condition_probability():
-                    return self.current_gen / self.n_gen
-
-                toolbox.register(
-                    "mutate",
-                    mutUniform_multiple_gene_transformer,
-                    expr=toolbox.expr_mut,
-                    pset=pset,
-                    condition_probability=condition_probability,
-                    transformer=self.transformer_tool,
-                )
-            elif self.mutation_scheme == "parsimonious_mutation":
+            if self.mutation_scheme == "parsimonious_mutation":
                 toolbox.register(
                     "mutate",
                     mutProbability_multiple_gene,
@@ -3485,9 +3462,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 for x in self.hof:
                     ambiguity = (x.predicted_values - ensemble_value) ** 2
                     x.case_values[len(x.predicted_values) :] = -1 * ambiguity
-
-            if self.transformer_switch:
-                self.transformer_tool.train()
 
             cxpb, mutpb = self.linear_adaptive_rate(gen, cxpb, mutpb)
             cxpb, mutpb = self.get_adaptive_mutation_rate(cxpb, mutpb)

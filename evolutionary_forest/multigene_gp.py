@@ -45,7 +45,6 @@ from evolutionary_forest.component.crossover_mutation import (
 )
 from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 from evolutionary_forest.component.stgp.strong_type_generation import mutUniformSTGP
-from evolutionary_forest.component.syntax_tools import TransformerTool
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
 
 if TYPE_CHECKING:
@@ -812,22 +811,6 @@ def mutShrink_multiple_gene(individual: MultipleGeneGP, expr, pset):
     else:
         mutShrink(individual.random_select())
     return (individual,)
-
-
-# transformer-based mutation
-def mutUniform_multiple_gene_transformer(
-    individual: MultipleGeneGP,
-    expr,
-    pset,
-    condition_probability: Callable[[], float],
-    transformer: TransformerTool,
-):
-    if random.random() > condition_probability():
-        return mutUniform_multiple_gene(individual, expr, pset)
-    else:
-        ind = transformer.sample(1)
-        individual.replace_worst_gene(PrimitiveTree(ind[0]))
-        return (individual,)
 
 
 def mutUniform_multiple_gene_worst(individual: MultipleGeneGP, expr, pset):
