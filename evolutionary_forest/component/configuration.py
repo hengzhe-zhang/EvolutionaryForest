@@ -282,7 +282,6 @@ class EvaluationConfiguration(Configuration):
         self.pset: Union[PrimitiveSet] = pset
         # check model is in sklearn format or not
         self.basic_primitives = basic_primitives
-        self.sklearn_format = self.basic_primitives == "ML"
         # using 5-fold CV
         self.cross_validation = cross_validation
         # feature importance method (Internal, SHAP, Permutation Importance)

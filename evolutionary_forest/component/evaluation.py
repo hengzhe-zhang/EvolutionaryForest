@@ -135,7 +135,6 @@ def calculate_score(args):
     dynamic_target = configuration.dynamic_target
     original_features = configuration.original_features
     pset = configuration.pset
-    sklearn_format = configuration.sklearn_format
     feature_importance_method = configuration.feature_importance_method
     filter_elimination = configuration.filter_elimination
     intron_calculation = configuration.intron_calculation
@@ -177,13 +176,6 @@ def calculate_score(args):
             pset,
             X,
         )
-        hash_result = None
-        correlation_results = None
-        introns_results = None
-    elif sklearn_format:
-        Yp = multi_tree_evaluation(func, pset, X, original_features, sklearn_format)
-        pipe = pipe_combine(Yp, pipe)
-        Yp = X
         hash_result = None
         correlation_results = None
         introns_results = None
@@ -254,10 +246,7 @@ def calculate_score(args):
         y_pred = pipe.predict(Yp)
         estimators = [pipe]
     else:
-        if sklearn_format:
-            base_model = pipe["model"]["Ridge"]
-        else:
-            base_model = pipe["Ridge"]
+        base_model = pipe["Ridge"]
         regression_task = isinstance(base_model, RegressorMixin)
         if configuration.ood_split:
             cv = OutOfDistributionSplit(n_splits=5, n_bins=5)
@@ -503,27 +492,6 @@ def get_sample_weight(X, testX, Y, imbalanced_configuration: ImbalancedConfigura
     return K
 
 
-def pipe_combine(Yp, pipe):
-    Yp = list(
-        filter(lambda x: not isinstance(x, (int, float, np.ndarray, enum.Enum)), Yp)
-    )
-    if len(Yp) == 0:
-        pipe = Pipeline([("feature", "passthrough"), ("model", pipe)])
-    else:
-        pipe = Pipeline(
-            [
-                (
-                    "feature",
-                    FeatureUnion(
-                        [(f"preprocessing_{id}", p) for id, p in enumerate(Yp)]
-                    ),
-                ),
-                ("model", pipe),
-            ]
-        )
-    return pipe
-
-
 def single_fold_validation(model, x_data, y_data, index):
     # only validate single fold, this method is faster than cross-validation
     cv = model_selection.KFold(n_splits=5, shuffle=False, random_state=0)
@@ -615,7 +583,6 @@ def multi_tree_evaluation(
     pset,
     data: np.ndarray,
     original_features=False,
-    sklearn_format=False,
     need_hash=False,
     register_array=None,
     target=None,
@@ -648,9 +615,6 @@ def multi_tree_evaluation(
     if gradient_operators and isinstance(data, np.ndarray):
         data = torch.from_numpy(data).float().detach()
 
-    # evaluate an individual rather than a gene
-    if sklearn_format:
-        data = enum.Enum("Enum", {f"ARG{i}": i for i in range(data.shape[1])})
     # quick evaluate the result of features
     result = []
     hash_result = []
@@ -735,7 +699,7 @@ def multi_tree_evaluation(
                 # support a cache system
                 evaluation_cache.store(gene, feature, random_noise, random_seed)
 
-    if not sklearn_format and not gradient_operators:
+    if not gradient_operators:
         result = result_post_process(result, data, original_features)
         # result = np.reshape(result[:, -1], (-1, 1))
     if gradient_operators:

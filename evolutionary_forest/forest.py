@@ -124,7 +124,6 @@ from evolutionary_forest.component.environmental_selection import (
 )
 from evolutionary_forest.component.evaluation import (
     calculate_score,
-    pipe_combine,
     single_tree_evaluation,
     EvaluationResults,
     select_from_array,
@@ -1022,10 +1021,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return tuple(Yp.flatten())
 
     def get_model_coefficient(self, x):
-        if self.basic_primitives == "ML":
-            ridge_ = x["model"]["Ridge"]
-        else:
-            ridge_ = x["Ridge"]
+        ridge_ = x["Ridge"]
         if isinstance(ridge_, Pipeline):
             base_learner = ridge_[-1]
         else:
@@ -1176,7 +1172,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.pset,
                 X,
                 self.original_features,
-                sklearn_format=self.basic_primitives == "ML",
                 register_array=individual.parameters["Register"]
                 if self.mgp_mode == "Register"
                 else None,
@@ -1261,7 +1256,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 raise Exception
 
         # count the number of nodes in decision tree
-        if self.basic_primitives != "ML" and hasattr(estimators[0]["Ridge"], "tree_"):
+        if hasattr(estimators[0]["Ridge"], "tree_"):
             individual.node_count = [
                 estimators[i]["Ridge"].tree_.node_count for i in range(len(estimators))
             ]
@@ -1522,10 +1517,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual.pipe = self.get_base_model()
         # avoid re-training
         model = individual.pipe
-        if self.basic_primitives == "ML" and model.steps[0][0] != "feature":
-            individual.pipe = pipe_combine(Yp, model)
-            model = individual.pipe
-            Yp = self.X
         if not force_training:
             # check the necessity of training
             try:
@@ -1542,8 +1533,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     input_size += self.X.shape[1]
                 if self.intron_probability > 0:
                     input_size = individual.active_gene.sum()
-                if self.basic_primitives == "ML":
-                    input_size = self.X.shape[1]
                 if self.mgp_mode == "Register":
                     input_size = self.number_of_register
                 input_size = len(individual.pipe["Scaler"].scale_)
@@ -2357,43 +2346,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.evaluation_configuration.basic_primitives = self.basic_primitives
             self.mutation_configuration.basic_primitives = self.basic_primitives
             self.add_primitives_to_pset(pset)
-        elif isinstance(
-            self.basic_primitives, str
-        ) and self.basic_primitives.startswith("ML"):
-            pset = PrimitiveSet("MAIN", x.shape[1])
-            primitives = ",".join(
-                [
-                    "Add",
-                    "Sub",
-                    "Mul",
-                    "AQ",
-                    "Sqrt",
-                    "Sin",
-                    "Cos",
-                    "Max",
-                    "Min",
-                    "Neg",
-                ]
-            )
-            models = self.basic_primitives.replace("ML-", "").split(",")
-            for m in models:
-                if m == "TargetEncoder":
-                    pset.addPrimitive(
-                        make_class(
-                            TargetEncoderNumpy,
-                            2,
-                            parameters=dict(cols=[0], return_df=False),
-                        ),
-                        2,
-                    )
-                if m == "KNN-2":
-                    pset.addPrimitive(make_class(KNeighborsRegressor, 2), 2)
-                if m == "DT-2":
-                    pset.addPrimitive(make_class(DecisionTreeRegressor, 2), 2)
-                if m == "Ridge-2":
-                    pset.addPrimitive(make_class(Ridge, 2), 2)
-            self.add_primitives_to_pset(pset, primitives, transformer_wrapper=True)
-            self.basic_primitives = "ML"
         elif self.basic_primitives == "CDFC":
             # Primitives used in CDFC
             # "Genetic programming for multiple-feature construction on high-dimensional classification"
@@ -3050,7 +3002,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.pset,
             X,
             self.original_features,
-            sklearn_format=self.basic_primitives == "ML",
             register_array=individual.parameters["Register"]
             if self.mgp_mode == "Register"
             else None,
@@ -3095,7 +3046,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             X,
             self.original_features,
             configuration=self.evaluation_configuration,
-            sklearn_format=self.basic_primitives == "ML",
             register_array=individual.parameters["Register"]
             if self.mgp_mode == "Register"
             else None,
@@ -3134,23 +3084,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual: MultipleGeneGP
             if len(individual.gene) == 0:
                 continue
-            if self.basic_primitives == "ML":
-                # Use evolved pipeline to make predictions
-                predicted = individual.pipe.predict(X)
-            else:
-                # Generate features using the individual's genes
-                Yp = self.feature_generation(X, individual)
-                if self.test_data is not None:
-                    # In transductive learning setting
-                    Yp = Yp[-prediction_data_size:]
-                if isinstance(
-                    individual.pipe["Ridge"], SoftPLTreeRegressor
-                ) and not isinstance(individual.pipe["Ridge"], SoftPLTreeRegressorEM):
-                    Yp = np.concatenate([Yp, np.zeros((len(Yp), 1))], axis=1)
-                if self.intron_probability > 0:
-                    # Apply intron probability mask to Yp if intron_probability is greater than 0
-                    Yp = Yp[:, individual.active_gene]
-                predicted = individual.pipe.predict(Yp)
+            # Generate features using the individual's genes
+            Yp = self.feature_generation(X, individual)
+            if self.test_data is not None:
+                # In transductive learning setting
+                Yp = Yp[-prediction_data_size:]
+            if isinstance(
+                individual.pipe["Ridge"], SoftPLTreeRegressor
+            ) and not isinstance(individual.pipe["Ridge"], SoftPLTreeRegressorEM):
+                Yp = np.concatenate([Yp, np.zeros((len(Yp), 1))], axis=1)
+            if self.intron_probability > 0:
+                # Apply intron probability mask to Yp if intron_probability is greater than 0
+                Yp = Yp[:, individual.active_gene]
+            predicted = individual.pipe.predict(Yp)
 
             if self.bounded_prediction:
                 predicted = np.clip(predicted, self.y.min(), self.y.max())
@@ -3782,12 +3728,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     "Average number of features",
                     np.mean([o.gene_num for o in offspring]),
                 )
-                if self.basic_primitives != "ML":
-                    if self.num_of_active_trees == 0:
-                        num_of_trees = self.gene_num
-                    else:
-                        num_of_trees = self.num_of_active_trees
-                    # check_number_of_unique_tree_semantics(offspring, num_of_trees)
+                if self.num_of_active_trees == 0:
+                    num_of_trees = self.gene_num
+                else:
+                    num_of_trees = self.num_of_active_trees
+                # check_number_of_unique_tree_semantics(offspring, num_of_trees)
                 if self.base_learner == "AdaptiveLasso":
                     lasso_parameter = [o.parameters["Lasso"] for o in offspring]
                     print(
