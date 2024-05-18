@@ -70,7 +70,13 @@ def sample_indices_within_cluster(cluster_labels, data, mixup_bandwidth):
 def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode=""):
     # Step 1: Compute distance matrix
     distance_matrix = rbf_kernel(y.reshape(-1, 1), gamma=mixup_bandwidth)
-    mixup_flag, retry_flag = mode.split(",")
+
+    confidence_interval = 1
+    if len(mode.split(",")) == 3:
+        mixup_flag, retry_flag, confidence_interval = mode.split(",")
+        confidence_interval = float(confidence_interval)
+    else:
+        mixup_flag, retry_flag = mode.split(",")
 
     # Step 2: Perform clustering
     cluster_labels = None
@@ -141,7 +147,14 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode=""):
         while (
             (
                 isinstance(model, RegressorMixin)
-                and condition_of_prediction_based_check(idx, y_i, y_j, y_nn)
+                and condition_of_prediction_based_check(
+                    idx,
+                    y_i,
+                    y_j,
+                    y_nn,
+                    ratio[idx],
+                    confidence_interval=confidence_interval,
+                )
             )
             or (
                 isinstance(model, IsolationForest)
@@ -184,9 +197,21 @@ def condition_of_outlier_based_check(idx, y_i, y_j, y_nn):
     return y_nn[idx] == -1
 
 
-def condition_of_prediction_based_check(idx, y_i, y_j, y_nn):
-    # if y_i == y_j:
-    #     return False
-    return y_nn[idx] > max(y_i, (y_i + y_j) / 2) or y_nn[idx] < min(
-        y_i, (y_i + y_j) / 2
-    )
+def condition_of_prediction_based_check(
+    idx, y_i, y_j, y_nn, ratio, confidence_interval=0.1
+):
+    ratio_lb = max(ratio - confidence_interval, 0)
+    ratio_ub = min(ratio + confidence_interval, 0.5)
+    y_lb = y_i * ratio_lb + y_j * (1 - ratio_lb)
+    y_ub = y_i * ratio_ub + y_j * (1 - ratio_ub)
+    # calculate the lower and upper bound of the prediction
+    if y_lb > y_ub:
+        y_lb, y_ub = y_ub, y_lb
+
+    if y_lb > y_nn[idx] or y_nn[idx] > y_ub:
+        return False
+    return True
+
+    # return y_nn[idx] > max(y_i, (y_i + y_j) / 2) or y_nn[idx] < min(
+    #     y_i, (y_i + y_j) / 2
+    # )

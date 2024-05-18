@@ -1003,7 +1003,7 @@ class R2PACBayesian(Fitness):
 
         # sharpness value is a numerical value
         individual.sam_loss = naive_mse + sharpness_value
-        # print('SAM loss: ', individual.sam_loss, naive_mse, sharpness_value)
+        # print("SAM loss: ", individual.sam_loss, naive_mse, sharpness_value)
         if len(sharpness_vector) > 0:
             # if the sharpness vector is available,
             # smaller is better
