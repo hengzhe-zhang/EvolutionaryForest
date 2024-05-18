@@ -18,7 +18,7 @@ class SmoothRidgeCV(RidgeCV):
         return super().predict(X)
 
 
-class BoundedRidgeCV(RidgeCV):
+class BoundedRidgeCVSimple(RidgeCV):
     def fit(self, X, y, sample_weight=None):
         self.min = min(y)
         self.max = max(y)
@@ -32,12 +32,20 @@ class BoundedRidgeCV(RidgeCV):
         return self.predict(X)
 
 
-class BoundedRidgeCVPlus(BoundedRidgeCV):
+class BoundedRidgeCV(BoundedRidgeCVSimple):
     def fit(self, X, y, sample_weight=None):
         super().fit(X, y, sample_weight)
         self.cv_values_ = np.clip(
             self.cv_values_, self.min - y.mean(), self.max - y.mean()
         )
+        # get mean squared error
+        error = (self.cv_values_ - y.reshape(-1, 1)) ** 2
+        # print(error.shape)
+        mse = np.mean(error, axis=0)
+        best_alpha = np.argmin(mse)
+        if self.alphas[best_alpha] != self.alpha_:
+            print("Interesting point", self.alphas[best_alpha], self.alpha_)
+        self.alpha_ = self.alphas[best_alpha]
         return self
 
 

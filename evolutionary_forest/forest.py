@@ -224,10 +224,10 @@ from evolutionary_forest.model.PLTree import (
 )
 from evolutionary_forest.model.RBFN import RBFN
 from evolutionary_forest.model.SafeRidgeCV import (
-    BoundedRidgeCV,
+    BoundedRidgeCVSimple,
     SplineRidgeCV,
     SmoothRidgeCV,
-    BoundedRidgeCVPlus,
+    BoundedRidgeCV,
 )
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
@@ -1507,6 +1507,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_learner = "RidgeCV"
             individual.pipe = self.get_base_model()
             self.base_learner = "Lasso-RidgeCV"
+        if self.base_learner == "BoundedRidgeCV-ENet":
+            self.base_learner = "ElasticNetCV"
+            individual.pipe = self.get_base_model()
+            self.base_learner = "BoundedRidgeCV-ENet"
         if self.base_learner == "RidgeCV-ENet":
             self.base_learner = "ElasticNetCV"
             individual.pipe = self.get_base_model()
@@ -1673,12 +1677,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = SplineRidgeCV(
                 store_cv_values=True, scoring=make_scorer(r2_score)
             )
-        elif self.base_learner == "Bounded-RidgeCV":
-            ridge_model = BoundedRidgeCV(
+        elif self.base_learner == "Bounded-RidgeCVSimple":
+            ridge_model = BoundedRidgeCVSimple(
                 store_cv_values=True, scoring=make_scorer(r2_score)
             )
-        elif self.base_learner == "Bounded-RidgeCVPlus":
-            ridge_model = BoundedRidgeCVPlus(
+        elif (
+            self.base_learner == "Bounded-RidgeCV"
+            or self.base_learner == "BoundedRidgeCV-ENet"
+        ):
+            ridge_model = BoundedRidgeCV(
                 store_cv_values=True, scoring=make_scorer(r2_score)
             )
         elif self.base_learner == "Smooth-RidgeCV":
