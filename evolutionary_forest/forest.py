@@ -3613,7 +3613,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         # checking redundant individuals
                         if (
                             self.allow_revisit
-                            or self.norevisit_strategy != ""
                             or (not individual_to_tuple(o) in self.evaluated_pop)
                             # for single-tree, may have many chances to repeat,
                             # so less restrictive
