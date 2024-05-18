@@ -393,7 +393,9 @@ class NSGA2(EnvironmentalSelection):
                         all_mse.append(naive_mse)
                         all_sharpness.append(sharpness)
                     metric_std = self.adaptive_knee_point_metric
-                    if metric_std == "Min":
+                    if isinstance(metric_std, (float, int)):
+                        ratio = metric_std
+                    elif metric_std == "Min":
                         ratio = np.min(all_mse) / mean_without_outliers(
                             np.array(all_sharpness), metric=metric_std
                         )
