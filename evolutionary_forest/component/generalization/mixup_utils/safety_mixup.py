@@ -209,8 +209,8 @@ def condition_of_prediction_based_check(
         y_lb, y_ub = y_ub, y_lb
 
     if y_lb > y_nn[idx] or y_nn[idx] > y_ub:
-        return False
-    return True
+        return True
+    return False
 
     # return y_nn[idx] > max(y_i, (y_i + y_j) / 2) or y_nn[idx] < min(
     #     y_i, (y_i + y_j) / 2
