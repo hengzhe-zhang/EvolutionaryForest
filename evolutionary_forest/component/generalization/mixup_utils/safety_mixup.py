@@ -105,7 +105,7 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode=""):
     # Step 4: Nearest Neighbor to check conformation
     model = None
     if retry_flag == "KNN-3":
-        model = KNeighborsRegressor(n_neighbors=3)
+        model = KNeighborsRegressor(n_neighbors=3, weights="distance")
         model.fit(X, y)
         y_nn = model.predict(data)
     elif retry_flag == "KNN-1":
