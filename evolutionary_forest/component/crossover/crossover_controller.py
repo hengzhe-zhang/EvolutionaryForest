@@ -1,9 +1,11 @@
+import random
 from typing import Callable
 
 from deap.algorithms import varAnd
 from deap.gp import mutUniform
 
 from evolutionary_forest.component.configuration import SelectionMode
+from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import (
     mapElitesCrossover,
     semanticFeatureCrossover,
@@ -57,3 +59,26 @@ def check_redundancy_and_fix(
                 previous_set.add(str(gene))
 
     return offspring
+
+
+def norevisit_strategy_handler(
+    offspring,
+    toolbox,
+    norevisit_strategy,
+    evaluated_individuals,
+    gene_addition_function,
+):
+    if norevisit_strategy == "Mutation":
+        for o in offspring:
+            while individual_to_tuple(o) in evaluated_individuals:
+                o = toolbox.mutate(o)[0]
+    elif norevisit_strategy == "MutationOrAdditionOrDeletion":
+        for o in offspring:
+            while individual_to_tuple(o) in evaluated_individuals:
+                r = random.random()
+                if r < 1 / 3:
+                    o = toolbox.mutate(o)[0]
+                elif r < 2 / 3:
+                    gene_addition_function(o)
+                else:
+                    o.gene_deletion()

@@ -1,5 +1,6 @@
 import gc
 import inspect
+import random
 from multiprocessing import Pool
 
 import dill
@@ -98,6 +99,7 @@ from evolutionary_forest.component.crossover.crossover_controller import (
     perform_semantic_macro_crossover,
     handle_tpot_base_learner_mutation,
     check_redundancy_and_fix,
+    norevisit_strategy_handler,
 )
 from evolutionary_forest.component.crossover.intron_based_crossover import (
     IntronPrimitive,
@@ -254,6 +256,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
+from evolutionary_forest.utility.multi_tree_utils import gene_addition
 from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
 )
@@ -442,6 +445,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         log_item="",
         feature_clipping=False,
         seed_with_linear_model=False,
+        norevisit_strategy="",
         **params,
     ):
         """
@@ -839,6 +843,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.mutation_configuration.pool_based_addition:
             self.evaluation_configuration.save_semantics = True
         self.feature_clipping = feature_clipping
+        self.norevisit_strategy = norevisit_strategy
 
     def init_some_logs(self):
         self.duel_logs = []
@@ -3427,6 +3432,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         gen = 0
         # fix at the start of evolution
         pop_size = self.n_pop
+        discarded_individuals = 0
+
         while number_of_evaluations < total_evaluations:
             gen += 1
             self.current_gen = gen
@@ -3590,6 +3597,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                 self.self_adaptive_evolution(offspring)
                 offspring = self.post_selection(offspring)
+
+                norevisit_strategy_handler(
+                    offspring,
+                    toolbox,
+                    self.norevisit_strategy,
+                    self.evaluated_pop,
+                    partial(gene_addition, algorithm=self),
+                )
+
                 for o in offspring:
                     self.self_adaptive_mutation(o, population)
 
@@ -3605,7 +3621,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             # sometime, when gene num is very small, it is hard to generate a unique individual
                             self.evaluated_pop.add(individual_to_tuple(o))
                             new_offspring.append(o)
+                        else:
+                            discarded_individuals += 1
 
+            if self.verbose:
+                print("Discarded Individuals", discarded_individuals)
             assert len(new_offspring) == pop_size, f"{len(new_offspring), pop_size}"
             new_offspring = self.semantic_approximation(new_offspring)
             new_offspring = self.tarpeian(new_offspring)
