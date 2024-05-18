@@ -68,10 +68,12 @@ def norevisit_strategy_handler(
     evaluated_individuals,
     gene_addition_function,
 ):
+    temp_evaluated_individuals = set()
     if norevisit_strategy == "Mutation":
         for o in offspring:
             while individual_to_tuple(o) in evaluated_individuals:
                 o = toolbox.mutate(o)[0]
+                temp_evaluated_individuals.add(individual_to_tuple(o))
     elif norevisit_strategy == "MutationOrAdditionOrDeletion":
         for o in offspring:
             while individual_to_tuple(o) in evaluated_individuals:
