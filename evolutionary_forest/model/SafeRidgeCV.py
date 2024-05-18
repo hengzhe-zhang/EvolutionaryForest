@@ -32,6 +32,15 @@ class BoundedRidgeCV(RidgeCV):
         return self.predict(X)
 
 
+class BoundedRidgeCVPlus(BoundedRidgeCV):
+    def fit(self, X, y, sample_weight=None):
+        super().fit(X, y, sample_weight)
+        self.cv_values_ = np.clip(
+            self.cv_values_, self.min - y.mean(), self.max - y.mean()
+        )
+        return self
+
+
 class SplineRidgeCV(RidgeCV):
     def fit(self, X, y, sample_weight=None):
         self.spline = SplineTransformer()
