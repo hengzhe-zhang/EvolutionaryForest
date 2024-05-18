@@ -95,6 +95,11 @@ from evolutionary_forest.component.configuration import (
 from evolutionary_forest.component.constant_optimization.random_constant import (
     constant_controller,
 )
+from evolutionary_forest.component.crossover.crossover_controller import (
+    perform_semantic_macro_crossover,
+    handle_tpot_base_learner_mutation,
+    check_redundancy_and_fix,
+)
 from evolutionary_forest.component.crossover.intron_based_crossover import (
     IntronPrimitive,
     IntronTerminal,
@@ -3422,8 +3427,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         :param verbose:
         :return:
         """
+        target = self.y
         if self.verbose:
-            print("data shape", self.X.shape, self.y.shape)
+            print("data shape", self.X.shape, target.shape)
         logbook = tools.Logbook()
         logbook.header = ["gen", "nevals"] + (stats.fields if stats else [])
 
@@ -3592,45 +3598,23 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         )
                     else:
                         offspring: List[MultipleGeneGP]
+                        crossover_configuration = self.crossover_configuration
                         if (
                             random.random()
-                            < self.crossover_configuration.semantic_crossover_probability
-                            and self.crossover_configuration.semantic_crossover_mode
+                            < crossover_configuration.semantic_crossover_probability
+                            and crossover_configuration.semantic_crossover_mode
                             == CrossoverMode.Independent
                         ):
-                            parent = [offspring[0], offspring[1]]
-                            # copy individuals before any modifications
-                            offspring = [
-                                efficient_deepcopy(offspring[0]),
-                                efficient_deepcopy(offspring[1]),
-                            ]
-                            if (
-                                self.crossover_configuration.semantic_selection_mode
-                                == SelectionMode.AngleDriven
-                            ):
-                                # either macro-crossover or macro-crossover
-                                offspring = semanticFeatureCrossover(
-                                    offspring[0], offspring[1], target=self.y
-                                )
-                            elif (
-                                self.crossover_configuration.semantic_selection_mode
-                                == SelectionMode.MAPElites
-                            ):
-                                offspring = mapElitesCrossover(
-                                    offspring[0],
-                                    offspring[1],
-                                    target=self.y,
-                                    map_elites_configuration=self.crossover_configuration.map_elites_configuration,
-                                )
-                            else:
-                                raise Exception("Invalid Selection Mode!")
+                            offspring, parent = perform_semantic_macro_crossover(
+                                offspring, self.crossover_configuration, toolbox, self.y
+                            )
                             # mark as macro crossover
                             self.record_parent_fitness(
                                 parent, offspring, crossover_type="Macro"
                             )
                         else:
                             if (
-                                self.crossover_configuration.semantic_crossover_mode
+                                crossover_configuration.semantic_crossover_mode
                                 == CrossoverMode.Independent
                             ):
                                 # only mark this in parallel mode
@@ -3644,7 +3628,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 cxpb,
                                 mutpb,
                                 limitation_check,
-                                crossover_configuration=self.crossover_configuration,
+                                crossover_configuration=crossover_configuration,
                                 mutation_configuration=self.mutation_configuration,
                                 algorithm=self,
                             )
@@ -3655,27 +3639,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # default disabled
                 self.fix_very_trivial_trees_mode(offspring)
 
-                check_mutation = (
-                    self.bloat_control is not None
-                    and self.bloat_control.get("check_mutation", False)
+                # Handle mutation and initialization checks
+                offspring = check_redundancy_and_fix(
+                    offspring,
+                    self.bloat_control,
+                    toolbox,
+                    self.pset,
+                    self.new_tree_generation,
                 )
-                check_initialization = (
-                    self.bloat_control is not None
-                    and self.bloat_control.get("check_initialization", False)
-                )
-                if check_mutation or check_initialization:
-                    for o in offspring:
-                        previous_set = set()
-                        for id, gene in enumerate(o.gene):
-                            # mutate constant genes and redundant genes
-                            if str(gene) in previous_set or is_float(str(gene)):
-                                if check_mutation:
-                                    o.gene[id] = mutUniform(
-                                        gene, self.toolbox.expr_mut, self.pset
-                                    )[0]
-                                if check_initialization:
-                                    o.gene[id] = self.new_tree_generation()
-                            previous_set.add(str(gene))
 
                 offspring = self.prune_and_plant(offspring)
 
@@ -3688,14 +3659,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                 self.semantic_repair_features(offspring, elites_archive)
 
-                if self.base_learner == "Hybrid":
-                    # Mutation for base learners
-                    base_models = [o.base_model for o in offspring]
-                    base_models = varAnd(
-                        base_models, self.tpot_model._toolbox, 0.5, 0.1
-                    )
-                    for o, b in zip(offspring, base_models):
-                        o.base_model = b
+                offspring = handle_tpot_base_learner_mutation(
+                    offspring, self.base_learner, self.tpot_model
+                )
 
                 self.self_adaptive_evolution(offspring)
                 offspring = self.post_selection(offspring)
@@ -4193,6 +4159,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
             # copy individuals before any modifications
             offspring = [efficient_deepcopy(parents[0]), efficient_deepcopy(parents[1])]
+            target = self.y
             if (
                 crossover_configuration.semantic_selection_mode
                 == SelectionMode.MAPElites
@@ -4200,7 +4167,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 available_parent = mapElitesCrossover(
                     offspring[0],
                     offspring[1],
-                    self.y,
+                    target,
                     crossover_configuration.map_elites_configuration,
                 )
             elif (
@@ -4208,7 +4175,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 == SelectionMode.AngleDriven
             ):
                 available_parent = semanticFeatureCrossover(
-                    offspring[0], offspring[1], self.y
+                    offspring[0], offspring[1], target
                 )
             else:
                 raise Exception(
