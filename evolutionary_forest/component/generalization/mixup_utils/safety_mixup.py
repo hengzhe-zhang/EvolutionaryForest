@@ -187,4 +187,6 @@ def condition_of_outlier_based_check(idx, y_i, y_j, y_nn):
 def condition_of_prediction_based_check(idx, y_i, y_j, y_nn):
     # if y_i == y_j:
     #     return False
-    return y_nn[idx] > max(y_i, y_j) or y_nn[idx] < min(y_i, y_j)
+    return y_nn[idx] > max(y_i, (y_i + y_j) / 2) or y_nn[idx] < min(
+        y_i, (y_i + y_j) / 2
+    )
