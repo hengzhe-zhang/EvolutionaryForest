@@ -4881,26 +4881,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.y,
                     data_augmentation=ratio,
                 )
-            elif self.map_elite_parameter["type"] == "Grid-Auto":
-                elite_maps = []
-                for id, parameters in enumerate(
-                    [
-                        {"fitness_ratio": x, "map_size": y}
-                        for x in [0.2, 0.5, 0.8]
-                        for y in [5, 10, 15]
-                    ]
-                ):
-                    self.map_elite_parameter.update(parameters)
-                    if len(elite_map) > 0:
-                        elite_maps.append(
-                            selMAPElites(
-                                population, elite_map[id], self.map_elite_parameter
-                            )
-                        )
-                    else:
-                        elite_maps.append(
-                            selMAPElites(population, {}, self.map_elite_parameter)
-                        )
             elif self.map_elite_parameter["type"] == "Cluster":
                 elite_map, pop_pool = selMAPEliteClustering(
                     population, pop_pool, self.map_elite_parameter
@@ -5002,12 +4982,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             for ind in population:
                 ind.fitness.weights = (-1,)
                 ind.fitness.values = getattr(ind, "original_fitness")
-        elif self.environmental_selection in ["NSGA2-CV", "NSGA2-CV2"]:
+        elif self.environmental_selection in ["NSGA2-CV"]:
             for ind in offspring + population:
                 setattr(ind, "original_fitness", ind.fitness.values)
                 fitness = ind.case_values
-                if self.environmental_selection == "NSGA2-CV2":
-                    fitness = fitness @ np.random.uniform(0, 1, size=(5, 2))
                 ind.fitness.weights = (-1,) * len(fitness)
                 ind.fitness.values = list(fitness)
             population[:] = selNSGA2(offspring + population, len(population))
@@ -5136,7 +5114,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RF-Routing",
         ]:
             all_ind = individuals
-        elif self.second_layer in ["DiversityPrune", "TreeBaseline", "GA"]:
+        elif self.second_layer in ["DiversityPrune", "TreeBaseline"]:
             # with some prune
             if not hasattr(self, "tree_weight"):
                 return 0

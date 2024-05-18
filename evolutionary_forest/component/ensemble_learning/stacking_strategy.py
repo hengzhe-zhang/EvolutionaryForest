@@ -9,7 +9,6 @@ from sklearn.tree import DecisionTreeRegressor
 
 from evolutionary_forest.component.ensemble_learning.DREP import DREPEnsemble
 from evolutionary_forest.multigene_gp import result_calculation
-from evolutionary_forest.pruning import oob_pruning
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -113,25 +112,6 @@ class StackingStrategy:
                 remain_ind.remove(index)
             ensemble_list /= np.sum(ensemble_list)
             algorithm.tree_weight = ensemble_list
-        elif algorithm.second_layer == "GA":
-            # oob calculation
-            pop = algorithm.hof
-            x_train = algorithm.X
-            oob = np.zeros((len(pop), len(x_train)))
-            for i, ind in enumerate(pop):
-                sample = ind.out_of_bag
-                chosen = np.zeros(len(x_train))
-                chosen[sample] = 1
-                out_of_bag = np.where(chosen == 0)[0]
-                func = algorithm.toolbox.compile(individual)
-                Yp = result_calculation(
-                    func, x_train[out_of_bag], algorithm.original_features
-                )
-                oob[i][out_of_bag] = ind.pipe.predict(Yp)
-
-            weight = oob_pruning(oob, algorithm.y)
-            weight = weight / np.sum(weight)
-            algorithm.tree_weight = weight
         elif algorithm.second_layer == "CAWPE":
             pop = algorithm.hof
             weight = np.ones(len(pop))
