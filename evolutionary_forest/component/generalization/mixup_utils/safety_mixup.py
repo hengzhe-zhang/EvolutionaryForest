@@ -201,7 +201,7 @@ def condition_of_prediction_based_check(
     idx, y_i, y_j, y_nn, ratio, confidence_interval=0.1
 ):
     ratio_lb = max(ratio - confidence_interval, 0)
-    ratio_ub = min(ratio + confidence_interval, 0.5)
+    ratio_ub = min(ratio + confidence_interval, 1)
     y_lb = y_i * ratio_lb + y_j * (1 - ratio_lb)
     y_ub = y_i * ratio_ub + y_j * (1 - ratio_ub)
     # calculate the lower and upper bound of the prediction
