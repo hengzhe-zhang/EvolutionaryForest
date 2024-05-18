@@ -43,8 +43,8 @@ class BoundedRidgeCV(BoundedRidgeCVSimple):
         # print(error.shape)
         mse = np.mean(error, axis=0)
         best_alpha = np.argmin(mse)
-        if self.alphas[best_alpha] != self.alpha_:
-            print("Interesting point", self.alphas[best_alpha], self.alpha_)
+        # if self.alphas[best_alpha] != self.alpha_:
+        # print("Interesting point", self.alphas[best_alpha], self.alpha_)
         self.alpha_ = self.alphas[best_alpha]
         return self
 

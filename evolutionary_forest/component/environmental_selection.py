@@ -185,7 +185,7 @@ class NSGA2(EnvironmentalSelection):
         max_cluster_point=True,
         handle_objective_duplication=False,
         n_pop=0,
-        adaptive_knee_point_metric="Mean",
+        adaptive_knee_point_metric="Ratio",
         alpha_dominance_sam=False,
         **kwargs
     ):
