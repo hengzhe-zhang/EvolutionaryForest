@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
+from scipy.stats import kurtosis
 from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
@@ -636,18 +637,14 @@ class R2PACBayesian(Fitness):
         )
         # For this distance matrix, the larger, the near
         if isinstance(self.mixup_bandwidth, str):
-            if self.mixup_bandwidth.startswith("Adaptive"):
-                features = algorithm.X.shape[1]
-                gamma_value = 1 / features
-            elif self.mixup_bandwidth.startswith("Silverman"):
-                gamma_value = silvermans_rule_of_thumb_gamma(algorithm.X)
-            elif self.mixup_bandwidth.startswith("Scott"):
-                gamma_value = scotts_rule_gamma(algorithm.X)
+            if self.mixup_bandwidth == "Adaptive":
+                kurtosis_value = kurtosis(self.algorithm.y)
+                if kurtosis_value < -0.5:
+                    gamma_value = 100
+                else:
+                    gamma_value = 0.01
             else:
                 raise ValueError("Unknown bandwidth")
-            _, ratio = self.mixup_bandwidth.split("-")
-            ratio = float(ratio)
-            gamma_value = gamma_value * ratio
         else:
             gamma_value = self.mixup_bandwidth
 
