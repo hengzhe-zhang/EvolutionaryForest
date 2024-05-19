@@ -645,7 +645,8 @@ class R2PACBayesian(Fitness):
                     gamma_value = 0.01
             elif self.mixup_bandwidth == "AdaptiveMax":
                 max_value = np.max(self.algorithm.y)
-                if max_value < 2:
+                range_value = np.max(self.algorithm.y) - np.min(self.algorithm.y)
+                if max_value < 2 and range_value < 4:
                     gamma_value = 100
                 else:
                     gamma_value = 0.01
