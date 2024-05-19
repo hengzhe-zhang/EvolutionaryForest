@@ -638,8 +638,11 @@ class R2PACBayesian(Fitness):
         # For this distance matrix, the larger, the near
         if isinstance(self.mixup_bandwidth, str):
             if self.mixup_bandwidth == "Adaptive":
-                kurtosis_value = kurtosis(self.algorithm.y)
-                if kurtosis_value < -0.5:
+                # kurtosis_value = kurtosis(self.algorithm.y)
+                Q1 = np.percentile(self.algorithm.y, 25)
+                Q3 = np.percentile(self.algorithm.y, 75)
+                IQR = Q3 - Q1
+                if IQR < 1.5:
                     gamma_value = 100
                 else:
                     gamma_value = 0.01
