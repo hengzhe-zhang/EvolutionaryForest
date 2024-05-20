@@ -1,4 +1,3 @@
-import random
 import time
 from abc import abstractmethod
 from functools import partial, lru_cache
@@ -8,13 +7,11 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
-from scipy.stats import kurtosis
 from sklearn.linear_model import RidgeCV, LinearRegression
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import StandardScaler
-from torch import optim
 
 from evolutionary_forest.component.evaluation import (
     multi_tree_evaluation,
@@ -26,10 +23,6 @@ from evolutionary_forest.component.generalization.iodc import (
     create_z,
     create_w,
     calculate_iodc,
-)
-from evolutionary_forest.component.generalization.mixup_utils.rbf_rule import (
-    silvermans_rule_of_thumb_gamma,
-    scotts_rule_gamma,
 )
 from evolutionary_forest.component.generalization.mixup_utils.safety_mixup import (
     safe_mixup,
@@ -55,11 +48,9 @@ from evolutionary_forest.model.ASGAN import ASGAN
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.gradient_optimization.scaling import (
-    feature_standardization_torch,
     gradient_agnostic_standardization,
 )
 from evolutionary_forest.utility.sampling_utils import sample_according_to_distance
-from evolutionary_forest.utility.timing import time_it
 from evolutionary_forest.utils import tuple_to_list, list_to_tuple
 
 if TYPE_CHECKING:
@@ -648,14 +639,14 @@ class R2PACBayesian(Fitness):
 
             if mixup_mode == "Adaptive-KNN":
                 if score < 0.6:
-                    mixup_mode = "RBF,KNN-3,0.1"
-                else:
                     mixup_mode = ""
+                else:
+                    mixup_mode = "RBF,KNN-3,0.1"
             if mixup_mode == "Adaptive-ET":
                 if score < 0.6:
-                    mixup_mode = "RBF,ET,0.1"
-                else:
                     mixup_mode = ""
+                else:
+                    mixup_mode = "RBF,ET,0.1"
         if isinstance(self.mixup_bandwidth, str):
             if self.mixup_bandwidth == "AdaptiveMax":
                 max_value = np.max(self.algorithm.y)
