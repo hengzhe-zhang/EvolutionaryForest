@@ -639,15 +639,21 @@ class R2PACBayesian(Fitness):
         # For this distance matrix, the larger, the near
         mixup_mode = self.algorithm.pac_bayesian.mixup_mode
         if isinstance(mixup_mode, str):
-            if mixup_mode == "Adaptive":
-                score = np.mean(
-                    cross_val_score(
-                        LinearRegression(), algorithm.X, algorithm.y, cv=5, scoring="r2"
-                    )
+            score = np.mean(
+                cross_val_score(
+                    LinearRegression(), algorithm.X, algorithm.y, cv=5, scoring="r2"
                 )
-                print("Score", score)
-                if score < 0.5:
+            )
+            # print("Score", score)
+
+            if mixup_mode == "Adaptive-KNN":
+                if score < 0.6:
                     mixup_mode = "RBF,KNN-3,0.1"
+                else:
+                    mixup_mode = ""
+            if mixup_mode == "Adaptive-ET":
+                if score < 0.6:
+                    mixup_mode = "RBF,ET,0.1"
                 else:
                     mixup_mode = ""
         if isinstance(self.mixup_bandwidth, str):

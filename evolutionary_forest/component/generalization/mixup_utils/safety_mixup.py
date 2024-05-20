@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.base import RegressorMixin
 from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestRegressor, IsolationForest
+from sklearn.ensemble import RandomForestRegressor, IsolationForest, ExtraTreesRegressor
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.neighbors import (
     NearestNeighbors,
@@ -130,6 +130,10 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode=""):
         model = RandomForestRegressor(n_estimators=100)
         model.fit(X, y)
         y_nn = model.predict(data)
+    elif retry_flag == "ET":
+        model = ExtraTreesRegressor(n_estimators=100)
+        model.fit(X, y)
+        y_nn = model.predict(data)
     elif retry_flag == "IsolationForest":
         model = IsolationForest()
         model.fit(X)
@@ -186,8 +190,8 @@ def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode=""):
             y_nn[idx] = model.predict([data[idx]])[0]
             retries += 1
             retry_counter += 1
-        # if retries >= max_retries:
-        #     print("Max retries reached for a data point!")
+    #     if retries >= max_retries:
+    #         print("Max retries reached for a data point!")
     # print(f"Total retries: {retry_counter}")
 
     return data, label, ((indices_a, ratio), (indices_b, 1 - ratio))
