@@ -9,9 +9,10 @@ import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
 from scipy.stats import kurtosis
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import RidgeCV, LinearRegression
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from torch import optim
 
@@ -636,17 +637,21 @@ class R2PACBayesian(Fitness):
             else alpha_beta
         )
         # For this distance matrix, the larger, the near
-        if isinstance(self.mixup_bandwidth, str):
-            if self.mixup_bandwidth == "Adaptive":
-                kurtosis_value = kurtosis(self.algorithm.y)
-                # Q1 = np.percentile(self.algorithm.y, 25)
-                # Q3 = np.percentile(self.algorithm.y, 75)
-                # IQR = Q3 - Q1
-                if kurtosis_value < 0.1:
-                    gamma_value = 100
+        mixup_mode = self.algorithm.pac_bayesian.mixup_mode
+        if isinstance(mixup_mode, str):
+            if mixup_mode == "Adaptive":
+                score = np.mean(
+                    cross_val_score(
+                        LinearRegression(), algorithm.X, algorithm.y, cv=5, scoring="r2"
+                    )
+                )
+                print("Score", score)
+                if score < 0.5:
+                    mixup_mode = "RBF,KNN-3,0.1"
                 else:
-                    gamma_value = 0.1
-            elif self.mixup_bandwidth == "AdaptiveMax":
+                    mixup_mode = ""
+        if isinstance(self.mixup_bandwidth, str):
+            if self.mixup_bandwidth == "AdaptiveMax":
                 max_value = np.max(self.algorithm.y)
                 range_value = np.max(self.algorithm.y) - np.min(self.algorithm.y)
                 if max_value < 2 and range_value < 4:
@@ -667,13 +672,13 @@ class R2PACBayesian(Fitness):
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
         if mixup_strategy in ["I-MixUp"]:
-            if self.algorithm.pac_bayesian.mixup_mode != "":
+            if mixup_mode != "":
                 return safe_mixup(
                     algorithm.X,
                     algorithm.y,
                     gamma_value,
                     alpha_beta,
-                    mode=self.algorithm.pac_bayesian.mixup_mode,
+                    mode=mixup_mode,
                 )
             indices_a = np.arange(0, len(algorithm.X))
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
