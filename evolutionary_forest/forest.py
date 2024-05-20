@@ -3506,16 +3506,40 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # determine the number of individuals to generate
             individuals_to_generate = pop_size
 
+            if self.norevisit_strategy == "Crossover+Mutation":
+                offspring = []
+                while len(offspring) < pop_size:
+                    a, b = self.select_pair_of_parents(
+                        population,
+                        toolbox,
+                        elite_map,
+                        elites_archive,
+                        fitness_improvement,
+                    )
+                    offspring.append(a)
+                    if len(offspring) < pop_size:
+                        offspring.append(b)
+            else:
+                offspring = None
+
             # offspring generation
             while len(new_offspring) < individuals_to_generate:
                 if count > pop_size * 100:
                     raise Exception("Error!")
                 count += 1
-                offspring = self.select_pair_of_parents(
-                    population, toolbox, elite_map, elites_archive, fitness_improvement
-                )
+                if self.norevisit_strategy == "Crossover+Mutation":
+                    offspring = offspring
+                else:
+                    offspring = self.select_pair_of_parents(
+                        population,
+                        toolbox,
+                        elite_map,
+                        elites_archive,
+                        fitness_improvement,
+                    )
 
-                offspring: List[MultipleGeneGP] = offspring[:]
+                    offspring: List[MultipleGeneGP] = offspring[:]
+
                 if not self.bloat_control_configuration.hoist_before_selection:
                     shm = SHM(self, **self.bloat_control)
                     # deep copy and then hoist

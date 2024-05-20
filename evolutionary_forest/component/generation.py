@@ -135,12 +135,18 @@ def varAndPlus(
                         )
 
                         # set parent fitness as the fitness values of two parents
-                        if offspring[i].parent_fitness is None:
+                        if (
+                            offspring[i].parent_fitness is None
+                            and len(offspring[i].fitness.wvalues) > 0
+                        ):
                             offspring[i].parent_fitness = (
                                 offspring[i].fitness.wvalues[0],
                                 offspring[i + 1].fitness.wvalues[0],
                             )
-                        if offspring[i + 1].parent_fitness is None:
+                        if (
+                            offspring[i + 1].parent_fitness is None
+                            and len(offspring[i + 1].fitness.wvalues) > 0
+                        ):
                             offspring[i + 1].parent_fitness = (
                                 offspring[i + 1].fitness.wvalues[0],
                                 offspring[i].fitness.wvalues[0],
@@ -154,7 +160,10 @@ def varAndPlus(
                         (offspring[i],) = toolbox.mutate(offspring[i])
                         # if crossover already modifies an individual,
                         # then set its parent fitness as the fitness values of two parents
-                        if offspring[i].parent_fitness is None:
+                        if (
+                            offspring[i].parent_fitness is None
+                            and len(offspring[i].fitness.wvalues) > 0
+                        ):
                             parent_fitness = offspring[i].fitness.wvalues[0]
                             offspring[i].parent_fitness = (parent_fitness,)
 
