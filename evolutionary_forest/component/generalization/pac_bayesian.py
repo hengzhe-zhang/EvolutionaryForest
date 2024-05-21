@@ -88,6 +88,7 @@ class PACBayesianConfiguration(Configuration):
         sam_standardization=False,
         linear_regularization=False,
         mixup_mode="",
+        adaptive_knee_point_metric=None,
         **params
     ):
         # For dropout
@@ -133,6 +134,9 @@ class PACBayesianConfiguration(Configuration):
         self.allow_extrapolate_mixup = allow_extrapolate_mixup
         self.linear_regularization = linear_regularization
         self.mixup_mode = mixup_mode
+
+        # Adaptive Knee
+        self.adaptive_knee_point_metric = adaptive_knee_point_metric
 
 
 def kl_term_function(m, w, sigma, delta=0.1):

@@ -2,8 +2,14 @@ import numpy as np
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.model_selection import cross_val_score
 
+from evolutionary_forest.component.generalization.pac_bayesian import (
+    PACBayesianConfiguration,
+)
 
-def mixup_mode_check(X_data, y_data, mixup_mode):
+
+def mixup_mode_check_and_change(X_data, y_data, pac_bayesian: PACBayesianConfiguration):
+    mixup_mode = pac_bayesian.mixup_mode
+    adaptive_knee_point_metric = pac_bayesian.adaptive_knee_point_metric
     if isinstance(mixup_mode, str):
         score = np.mean(
             cross_val_score(ExtraTreesRegressor(), X_data, y_data, cv=5, scoring="r2")
@@ -13,4 +19,10 @@ def mixup_mode_check(X_data, y_data, mixup_mode):
                 mixup_mode = ""
             else:
                 mixup_mode = "RBF,ET,0.05"
-    return mixup_mode
+        if adaptive_knee_point_metric == "Adaptive":
+            if score < 0.75:
+                adaptive_knee_point_metric = 10
+            else:
+                adaptive_knee_point_metric = 0.1
+    pac_bayesian.mixup_mode = mixup_mode
+    pac_bayesian.adaptive_knee_point_metric = adaptive_knee_point_metric

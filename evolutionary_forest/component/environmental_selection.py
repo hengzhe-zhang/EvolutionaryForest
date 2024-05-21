@@ -39,6 +39,11 @@ from evolutionary_forest.component.decision_making.harmonic_rank import (
     best_harmonic_rank,
 )
 from evolutionary_forest.component.fitness import R2PACBayesian
+from evolutionary_forest.component.generalization.sharpness_utils.sharpness_utils import (
+    collect_information_of_sharpness,
+    weighted_sam_loss,
+    balanced_ratio,
+)
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import (
     multiple_gene_compile,
@@ -205,7 +210,6 @@ class NSGA2(EnvironmentalSelection):
         self.n_pop = n_pop
 
         # Std/Mean
-        self.adaptive_knee_point_metric = adaptive_knee_point_metric
         self.alpha_dominance_sam = alpha_dominance_sam
 
     def select(self, population, offspring):
@@ -380,55 +384,30 @@ class NSGA2(EnvironmentalSelection):
                         if prediction_error <= cv_error:
                             first_pareto_front.append(ind)
 
-                if self.knee_point == "Adaptive-SAM":
-                    all_mse = []
-                    all_sharpness = []
-                    for ind in population + list(self.algorithm.hof):
-                        if hasattr(ind, "fitness_list"):
-                            # minimize
-                            sharpness = ind.fitness_list[1][0]
-                        else:
-                            sharpness = -1 * ind.fitness.wvalues[1]
-                        naive_mse = np.mean(ind.case_values)
-                        all_mse.append(naive_mse)
-                        all_sharpness.append(sharpness)
-                    metric_std = self.adaptive_knee_point_metric
-                    if isinstance(metric_std, (float, int)):
-                        ratio = metric_std
-                    elif metric_std == "Min":
-                        ratio = np.min(all_mse) / mean_without_outliers(
-                            np.array(all_sharpness), metric=metric_std
-                        )
-                    else:
-                        mean_of_error = mean_without_outliers(
-                            np.array(all_mse), metric=metric_std
-                        )
-                        mean_of_sam = mean_without_outliers(
-                            np.array(all_sharpness), metric=metric_std
-                        )
-                        if metric_std == "Ratio":
-                            ratio = mean_of_error / mean_of_sam
-                        else:
-                            ratio = mean_of_error
+                all_individuals = population + list(self.algorithm.hof)
+                metric_info = self.algorithm.pac_bayesian.adaptive_knee_point_metric
+                if isinstance(metric_info, (float, int)):
+                    ratio = metric_info
+                elif metric_info == "Balanced":
+                    all_mse, all_sharpness = collect_information_of_sharpness(
+                        all_individuals
+                    )
+                    mean_of_error, mean_of_sam, ratio = balanced_ratio(
+                        all_mse, all_sharpness, metric_info
+                    )
+                    if self.algorithm.verbose:
+                        print("Ratio", ratio, mean_of_error, mean_of_sam)
+                else:
+                    ratio = None
 
-                        if self.algorithm.verbose:
-                            print("Ratio", ratio, mean_of_error, mean_of_sam)
-                    for ind in population + list(self.algorithm.hof):
-                        if hasattr(ind, "fitness_list"):
-                            # minimize
-                            sharpness = ind.fitness_list[1][0]
-                        else:
-                            sharpness = -1 * ind.fitness.wvalues[1]
-                        # naive_mse = np.mean(ind.case_values)
-                        naive_mse = ind.naive_mse
-                        ind.sam_loss = naive_mse + ratio * sharpness
+                if ratio is not None:
+                    weighted_sam_loss(all_individuals, ratio)
 
                 if (
                     self.knee_point == "SAM"
                     or self.knee_point.startswith("SAM-")
                     or self.knee_point == "SUM"
-                    or self.knee_point
-                    in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++", "Adaptive-SAM"]
+                    or self.knee_point in ["Duel-SAM", "Duel-SAM+", "Duel-SAM++"]
                     or self.knee_point
                     in ["KNN-SAM", "LR-SAM", "WKNN-SAM", "Overshot-SAM"]
                     or self.knee_point in ["M-SAM", "M-SAM+"]
@@ -487,7 +466,7 @@ class NSGA2(EnvironmentalSelection):
                 if isinstance(knee, list):
                     self.algorithm.hof = [first_pareto_front[k] for k in knee]
                 else:
-                    if self.knee_point == "SAM" or self.knee_point == "Adaptive-SAM":
+                    if self.knee_point == "SAM":
                         if self.algorithm.verbose:
                             print("Number of models on PF", len(first_pareto_front))
                         current_best = self.algorithm.hof[0]

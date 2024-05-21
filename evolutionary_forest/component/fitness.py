@@ -24,7 +24,7 @@ from evolutionary_forest.component.generalization.iodc import (
     calculate_iodc,
 )
 from evolutionary_forest.component.generalization.mixup_utils.mixup_mode_check import (
-    mixup_mode_check,
+    mixup_mode_check_and_change,
 )
 from evolutionary_forest.component.generalization.mixup_utils.safety_mixup import (
     safe_mixup,
@@ -583,9 +583,7 @@ class R2PACBayesian(Fitness):
 
     def lazy_init(self):
         algorithm = self.algorithm
-        algorithm.pac_bayesian.mixup_mode = mixup_mode_check(
-            algorithm.X, algorithm.y, algorithm.pac_bayesian.mixup_mode
-        )
+        mixup_mode_check_and_change(algorithm.X, algorithm.y, algorithm.pac_bayesian)
 
         if self.sharpness_distribution.startswith(
             "GAN"
