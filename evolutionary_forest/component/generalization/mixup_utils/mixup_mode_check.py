@@ -12,5 +12,5 @@ def mixup_mode_check(X_data, y_data, mixup_mode):
             if score < 0.5:
                 mixup_mode = ""
             else:
-                mixup_mode = "RBF,ET,0.1"
+                mixup_mode = "RBF,ET,0.05"
     return mixup_mode
