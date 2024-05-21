@@ -259,7 +259,10 @@ def pac_bayesian_estimation(
             else:
                 raise Exception("Not support!")
             base_score = np.mean(individual.case_values)
-            if i >= 1 and historical_best_score < max_sharpness + base_score:
+            ratio = 1
+            if configuration.adaptive_knee_point_metric is not None:
+                ratio = configuration.adaptive_knee_point_metric
+            if i >= 1 and historical_best_score < ratio * max_sharpness + base_score:
                 # At least one iteration is needed
                 # don't need evaluation
                 continue
