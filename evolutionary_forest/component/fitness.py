@@ -7,10 +7,9 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
-from sklearn.linear_model import RidgeCV, LinearRegression
+from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
-from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.evaluation import (
@@ -23,6 +22,9 @@ from evolutionary_forest.component.generalization.iodc import (
     create_z,
     create_w,
     calculate_iodc,
+)
+from evolutionary_forest.component.generalization.mixup_utils.mixup_mode_check import (
+    mixup_mode_check,
 )
 from evolutionary_forest.component.generalization.mixup_utils.safety_mixup import (
     safe_mixup,
@@ -580,6 +582,11 @@ class R2PACBayesian(Fitness):
         self.mixup_bandwidth = mixup_bandwidth
 
     def lazy_init(self):
+        algorithm = self.algorithm
+        algorithm.pac_bayesian.mixup_mode = mixup_mode_check(
+            algorithm.X, algorithm.y, algorithm.pac_bayesian.mixup_mode
+        )
+
         if self.sharpness_distribution.startswith(
             "GAN"
         ) or self.sharpness_distribution.startswith("ASGAN"):
@@ -629,24 +636,6 @@ class R2PACBayesian(Fitness):
         )
         # For this distance matrix, the larger, the near
         mixup_mode = self.algorithm.pac_bayesian.mixup_mode
-        if isinstance(mixup_mode, str):
-            score = np.mean(
-                cross_val_score(
-                    LinearRegression(), algorithm.X, algorithm.y, cv=5, scoring="r2"
-                )
-            )
-            # print("Score", score)
-
-            if mixup_mode == "Adaptive-KNN":
-                if score < 0.6:
-                    mixup_mode = ""
-                else:
-                    mixup_mode = "RBF,KNN-3,0.1"
-            if mixup_mode == "Adaptive-ET":
-                if score < 0.6:
-                    mixup_mode = ""
-                else:
-                    mixup_mode = "RBF,ET,0.1"
         if isinstance(self.mixup_bandwidth, str):
             if self.mixup_bandwidth == "AdaptiveMax":
                 max_value = np.max(self.algorithm.y)
