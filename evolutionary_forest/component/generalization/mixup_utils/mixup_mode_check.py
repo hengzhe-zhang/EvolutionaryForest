@@ -20,9 +20,7 @@ def mixup_mode_check_and_change(X_data, y_data, pac_bayesian: PACBayesianConfigu
             else:
                 mixup_mode = "RBF,ET,0.05"
         if adaptive_knee_point_metric == "Adaptive":
-            if score > 0.75:
-                adaptive_knee_point_metric = 0.1
-            elif score >= 0.5 and score <= 0.75:
+            if score <= 0.75:
                 adaptive_knee_point_metric = 1
             else:
                 adaptive_knee_point_metric = 10
