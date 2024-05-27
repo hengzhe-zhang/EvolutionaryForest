@@ -306,6 +306,7 @@ def varAndPlus(
                 and mutation_configuration.pool_based_addition
                 and mutation_configuration.change_semantic_after_deletion
             ):
+                # This is important to ensure correct residual
                 offspring[i].individual_semantics -= (
                     offspring[i].coef[random_index]
                     * offspring[i].semantics[:, random_index]

@@ -202,7 +202,7 @@ class MutationConfiguration(Configuration):
         pool_addition_mode="Best",
         library_clustering_mode=False,
         pool_hard_instance_interval=0,
-        change_semantic_after_deletion=False,
+        change_semantic_after_deletion=True,
         include_subtree_to_lib=False,
         handle_objective_duplication=False,
         basic_primitives=None,

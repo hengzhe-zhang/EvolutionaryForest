@@ -1854,9 +1854,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = SemanticLibrary(**self.param)
             interval = self.mutation_configuration.pool_hard_instance_interval
-            mode = self.mutation_configuration.library_clustering_mode
-            if interval == 0 and mode is not False:
-                self.tree_pool.set_clustering_based_semantics(self.y, mode)
+            clustering_mode = self.mutation_configuration.library_clustering_mode
+            if interval == 0 and clustering_mode is not False:
+                self.tree_pool.set_clustering_based_semantics(self.y, clustering_mode)
             if self.mutation_configuration.include_subtree_to_lib:
                 self.evaluation_configuration.semantic_library = self.tree_pool
         else:
