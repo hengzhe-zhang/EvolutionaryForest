@@ -34,10 +34,13 @@ from evolutionary_forest.component.generalization.pac_bayesian import (
     pac_bayesian_estimation,
     SharpnessType,
     combine_individuals,
+    RademacherConfiguration,
 )
 from evolutionary_forest.component.generalization.rademacher_complexity import (
     generate_rademacher_vector,
     rademacher_complexity_estimation,
+    calculate_bounded_mse,
+    update_historical_best,
 )
 from evolutionary_forest.component.generalization.vc_dimension import (
     vc_dimension_estimation,
@@ -110,6 +113,7 @@ class RademacherComplexityR2(Fitness):
         **params
     ):
         super().__init__()
+        self.rademacher_configuration = RademacherConfiguration(**params)
         self.algorithm = algorithm
         self.size_objective = False
         self.feature_count_objective = False
@@ -140,7 +144,7 @@ class RademacherComplexityR2(Fitness):
             estimator,
             generate_rademacher_vector(algorithm.X),
             self.historical_best_bounded_complexity_list,
-            algorithm.pac_bayesian,
+            self.rademacher_configuration,
             self.rademacher_mode,
         )
         # Store results in individual's fitness list
@@ -150,34 +154,41 @@ class RademacherComplexityR2(Fitness):
         )
         # Normalize mean squared error
         normalize_factor = np.mean((np.mean(y) - y) ** 2)
-        if algorithm.pac_bayesian.bound_reduction:
+        """
+        In the case of bounded Rademacher complexity, the mean squared error is bounded to [0, 1].
+        """
+        if self.rademacher_configuration.bound_reduction:
             # strictly follow the definition of Rademacher complexity
-            bounded_mse = np.mean(
-                np.clip(individual.case_values / normalize_factor, 0, 1)
+            normalized_squared_error = individual.case_values / normalize_factor
+            bounded_mse = calculate_bounded_mse(
+                normalized_squared_error, self.rademacher_configuration.bound_reduction
             )
         else:
             bounded_mse = np.mean(individual.case_values / normalize_factor)
+
         if (
-            algorithm.pac_bayesian.bound_reduction
-            or algorithm.pac_bayesian.direct_reduction
+            self.rademacher_configuration.bound_reduction
+            or self.rademacher_configuration.direct_reduction
         ):
             # Reduce training time based on the Rademacher bound
             current_bound = bounded_mse + 2 * bounded_rademacher
             current_bound_list = bounded_mse + 2 * np.array(bounded_rademacher_list)
-            if self.historical_best_bounded_complexity is None:
-                # Store historical best bound
-                self.historical_best_bounded_complexity = current_bound
-                self.historical_best_bounded_complexity_list = current_bound_list
-            elif self.historical_best_bounded_complexity > current_bound:
-                self.historical_best_bounded_complexity = current_bound
-                self.historical_best_bounded_complexity_list = current_bound_list
+            (
+                self.historical_best_bounded_complexity,
+                self.historical_best_bounded_complexity_list,
+            ) = update_historical_best(
+                current_bound,
+                current_bound_list,
+                self.historical_best_bounded_complexity,
+                self.historical_best_bounded_complexity_list,
+            )
         # assert abs(individual.fitness.wvalues[0] - individual.fitness_list[0][0]) <= 1e-6
 
     def assign_complexity_pop(self, pop):
         algorithm = self.algorithm
         y = algorithm.y
         normalize_factor = np.mean((np.mean(y) - y) ** 2)
-        if algorithm.pac_bayesian.bound_reduction:
+        if self.rademacher_configuration.bound_reduction:
             reduced_evaluation = 0
             for p in pop:
                 # Calculate bounded MSE

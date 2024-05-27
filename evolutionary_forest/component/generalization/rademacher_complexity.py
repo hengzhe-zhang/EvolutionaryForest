@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from evolutionary_forest.component.generalization.pac_bayesian import (
-    PACBayesianConfiguration,
+    RademacherConfiguration,
 )
 
 number_samples = 20
@@ -21,13 +21,33 @@ def generate_rademacher_vector(X):
     return rng.integers(0, 2, (number_samples, len(X))) * 2 - 1
 
 
+def update_historical_best(
+    current_bound,
+    current_bound_list,
+    historical_best_bounded_complexity,
+    historical_best_bounded_complexity_list,
+):
+    if (
+        historical_best_bounded_complexity is None
+        or historical_best_bounded_complexity > current_bound
+    ):
+        return current_bound, current_bound_list
+    return historical_best_bounded_complexity, historical_best_bounded_complexity_list
+
+
+def calculate_bounded_mse(normalized_squared_error, bound_reduction):
+    if bound_reduction:
+        normalized_squared_error = np.clip(normalized_squared_error, 0, 1)
+    return normalized_squared_error
+
+
 def rademacher_complexity_estimation(
     X,
     y,
     estimator,
     random_rademacher_vector,
     reference_complexity_list=None,
-    configuration: PACBayesianConfiguration = None,
+    configuration: RademacherConfiguration = None,
     rademacher_mode="Analytical",
 ):
     """
@@ -69,10 +89,9 @@ def rademacher_complexity_estimation(
         rademacher = max(rademacher, 0)
         complexity.append(rademacher)
 
-        if configuration.bound_reduction:
-            bounded_mse = np.clip(normalized_squared_error, 0, 1)
-        else:
-            bounded_mse = normalized_squared_error
+        bounded_mse = calculate_bounded_mse(
+            normalized_squared_error, configuration.bound_reduction
+        )
         bounded_rademacher = calculate_correlation(
             random_rademacher_vector[s], bounded_mse
         )

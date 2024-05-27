@@ -57,6 +57,13 @@ def m_sharpness(baseline, k=4):
     return final_baseline
 
 
+class RademacherConfiguration(Configuration):
+    def __init__(self, bound_reduction=False, direct_reduction=False, **params):
+        # Using definition of Rademacher complexity to reduce estimated time
+        self.bound_reduction = bound_reduction
+        self.direct_reduction = direct_reduction
+
+
 class PACBayesianConfiguration(Configuration):
     def __init__(
         self,
@@ -65,8 +72,6 @@ class PACBayesianConfiguration(Configuration):
         objective="R2,Perturbed-MSE,KL-Divergence",
         l2_penalty=0,
         complexity_estimation_ratio=1,
-        bound_reduction=False,
-        direct_reduction=False,
         optimal_design=False,
         reference_model="KR",
         sharpness_iterations=5,
@@ -99,9 +104,8 @@ class PACBayesianConfiguration(Configuration):
         # For VCD
         self.adaptive_depth = adaptive_depth
         self.optimal_design = optimal_design
-        # Using definition of Rademacher complexity to reduce estimated time
-        self.bound_reduction = bound_reduction
-        self.direct_reduction = direct_reduction
+
+        # This is a general parameter: not to evaluate individuals with very bad performance
         self.complexity_estimation_ratio = complexity_estimation_ratio
         self.kl_term_weight = kl_term_weight
         self.perturbation_std = perturbation_std
