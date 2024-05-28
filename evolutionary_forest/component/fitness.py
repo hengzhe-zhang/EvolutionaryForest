@@ -788,7 +788,17 @@ class R2PACBayesian(Fitness):
     def assign_complexity(self, individual: MultipleGeneGP, estimator):
         # reducing the time of estimating VC-Dimension
         algorithm = self.algorithm
+        configuration = self.algorithm.pac_bayesian
+
         X_features = algorithm.feature_generation(algorithm.X, individual)
+        y = algorithm.y
+
+        if configuration.pac_bayesian_subsample > 0:
+            sample_size = min(configuration.pac_bayesian_subsample, len(algorithm.X))
+            index = np.random.randint(0, len(algorithm.X), sample_size)
+            X_features = X_features[index]
+            y = y[index]
+
         # random generate training data
         if self.sharpness_distribution == "Normal":
             if algorithm.stochastic_mode:
@@ -825,7 +835,6 @@ class R2PACBayesian(Fitness):
             random_seed=random_seed,
             noise_configuration=noise_configuration,
         )
-        y = algorithm.y
 
         sharpness_vector = []
         # PAC-Bayesian estimation
@@ -932,7 +941,7 @@ class R2PACBayesian(Fitness):
                 y,
                 estimator,
                 individual,
-                self.algorithm.pac_bayesian,
+                configuration,
                 self.sharpness_type,
                 feature_generator=feature_generator,
                 data_generator=data_generator,
@@ -943,26 +952,23 @@ class R2PACBayesian(Fitness):
             )
             if (
                 hasattr(individual, "fitness_list")
-                and self.algorithm.pac_bayesian.sharpness_decay > 0
+                and configuration.sharpness_decay > 0
             ):
                 old_sharpness = individual.fitness_list[1][0]
                 estimation = tuple_to_list(estimation)
                 estimation[1][0] = (
-                    self.algorithm.pac_bayesian.sharpness_decay * old_sharpness
-                    + (1 - self.algorithm.pac_bayesian.sharpness_decay)
-                    * estimation[1][0]
+                    configuration.sharpness_decay * old_sharpness
+                    + (1 - configuration.sharpness_decay) * estimation[1][0]
                 )
                 estimation = list_to_tuple(estimation)
             if (
                 hasattr(individual, "structural_sharpness")
-                and self.algorithm.pac_bayesian.structural_sharpness > 0
+                and configuration.structural_sharpness > 0
             ):
                 estimation = tuple_to_list(estimation)
                 estimation[1][0] = (
-                    self.algorithm.pac_bayesian.structural_sharpness
-                    * individual.structural_sharpness
-                    + (1 - self.algorithm.pac_bayesian.structural_sharpness)
-                    * estimation[1][0]
+                    configuration.structural_sharpness * individual.structural_sharpness
+                    + (1 - configuration.structural_sharpness) * estimation[1][0]
                 )
                 estimation = list_to_tuple(estimation)
 
@@ -989,7 +995,7 @@ class R2PACBayesian(Fitness):
         # using SAM loss as the final selection criterion
         naive_mse = np.mean(individual.case_values)
 
-        linear_regularization_flag = self.algorithm.pac_bayesian.linear_regularization
+        linear_regularization_flag = configuration.linear_regularization
         if linear_regularization_flag:
             prediction = individual.pipe.predict(X_features)
             linear_regularization = np.mean(
