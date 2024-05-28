@@ -3,18 +3,16 @@ import math
 import operator
 from bisect import bisect_right
 from collections import defaultdict
-from functools import partial
 from itertools import chain, compress
 from operator import eq
 
 import numpy as np
-from deap.tools import HallOfFame
+from deap.tools import HallOfFame, sortNondominated
 from sklearn.linear_model import RidgeCV, LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.tree import DecisionTreeRegressor
 
-from evolutionary_forest.component.configuration import ArchiveConfiguration
 from evolutionary_forest.component.evaluation import multi_tree_evaluation
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.component.subset_selection import EnsembleSelectionADE
@@ -558,7 +556,30 @@ class ValidationHallOfFame(HallOfFame):
         super().__init__(1, similar)
 
     def update(self, population):
-        best_individual = max(population, key=lambda x: self.validation_function(x))
+        # best_individual = max(population, key=lambda x: self.validation_function(x))
+        individuals = list(self.items) + list(population)
+
+        # original_objectives = np.array(
+        #     [individuals[i].fitness.values for i in range(len(individuals))]
+        # )
+        # objectives = original_objectives
+        # size = [np.sum([len(tree) for tree in ind.gene]) for ind in individuals]
+        # combine_objectives = np.column_stack((objectives, size))
+        # assert len(combine_objectives) == len(individuals)
+        # for ind, values in zip(individuals, combine_objectives):
+        #     ind.fitness.weights = (-1,) * (len(values))
+        #     ind.fitness.values = tuple(values)
+
+        # update archive
+        pop = sortNondominated(individuals, len(individuals), first_front_only=True)[0]
+
+        # # restore
+        # for ind, values in zip(individuals, original_objectives):
+        #     values = tuple(values)
+        #     ind.fitness.weights = (-1,) * len(values)
+        #     ind.fitness.values = values
+
+        best_individual = max(pop, key=lambda x: self.validation_function(x))
         self.clear()
         super().update([best_individual])
 
