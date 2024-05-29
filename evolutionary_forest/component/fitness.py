@@ -790,14 +790,15 @@ class R2PACBayesian(Fitness):
         algorithm = self.algorithm
         configuration = self.algorithm.pac_bayesian
 
-        X_features = algorithm.feature_generation(algorithm.X, individual)
+        original_X = algorithm.X
         y = algorithm.y
 
         if configuration.pac_bayesian_subsample > 0:
-            sample_size = min(configuration.pac_bayesian_subsample, len(algorithm.X))
-            index = np.random.randint(0, len(algorithm.X), sample_size)
-            X_features = X_features[index]
+            sample_size = min(configuration.pac_bayesian_subsample, len(original_X))
+            index = np.random.randint(0, len(original_X), sample_size)
+            original_X = original_X[index]
             y = y[index]
+            X_features = algorithm.feature_generation(original_X, individual)
 
         # random generate training data
         if self.sharpness_distribution == "Normal":
@@ -937,7 +938,7 @@ class R2PACBayesian(Fitness):
             # no matter what, always need Gaussian estimation
             estimation = pac_bayesian_estimation(
                 X_features,
-                algorithm.X,
+                original_X,
                 y,
                 estimator,
                 individual,
