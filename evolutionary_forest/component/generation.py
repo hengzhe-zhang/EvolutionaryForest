@@ -84,7 +84,11 @@ def varAndPlus(
                 addition_and_deletion(i, offspring)
         if mutation_configuration.pool_based_addition:
             for i in range(len(offspring)):
-                tree_replacement(offspring[i])
+                if (
+                    random.random()
+                    < mutation_configuration.pool_based_replacement_probability
+                ):
+                    tree_replacement(offspring[i])
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -318,7 +322,7 @@ def varAndPlus(
             if value is None:
                 continue
             tree, proposed_semantics = value
-            if mutation_configuration.pool_addition_mode == "Smallest" and len(
+            if mutation_configuration.pool_addition_mode.startswith("Smallest") and len(
                 tree
             ) > len(ind.gene[id]):
                 continue

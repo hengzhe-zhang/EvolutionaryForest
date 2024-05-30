@@ -780,6 +780,7 @@ def single_tree_evaluation(
                         and evaluation_configuration.semantic_library is not None
                     ):
                         if isinstance(result, np.ndarray) and result.size > 1:
+                            # Add subtree to semantic lib
                             evaluation_configuration.semantic_library.append_semantics(
                                 result, PrimitiveTree(expr[expr.searchSubtree(id)])
                             )

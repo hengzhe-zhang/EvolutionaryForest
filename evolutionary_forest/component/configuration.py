@@ -206,6 +206,7 @@ class MutationConfiguration(Configuration):
         include_subtree_to_lib=False,
         handle_objective_duplication=False,
         basic_primitives=None,
+        pool_based_replacement_probability=1,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -228,6 +229,7 @@ class MutationConfiguration(Configuration):
         # handle syntax duplication
         self.handle_objective_duplication = handle_objective_duplication
         self.basic_primitives = basic_primitives
+        self.pool_based_replacement_probability = pool_based_replacement_probability
 
 
 class ImbalancedConfiguration(Configuration):
