@@ -198,6 +198,7 @@ from evolutionary_forest.component.stateful_gp import make_class
 from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
     genHalfAndHalf_STGP_constant_biased,
 )
+from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
 from evolutionary_forest.component.stgp.strong_type_generation import (
     genHalfAndHalf_STGP,
 )
@@ -2107,6 +2108,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         consistency_check(self)
 
+        if self.bounded_prediction == "Smooth":
+            self.smooth_model: NearestValueTransformer = NearestValueTransformer()
+            self.smooth_model.fit(self.X, self.y)
+
     def tree_initialization_function(self, pset, toolbox: TypedToolbox):
         if self.initial_tree_size is None:
             toolbox.expr = partial(gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
@@ -3092,8 +3097,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 Yp = Yp[:, individual.active_gene]
             predicted = individual.pipe.predict(Yp)
 
-            if self.bounded_prediction:
+            if self.bounded_prediction == True:
                 predicted = np.clip(predicted, self.y.min(), self.y.max())
+            if self.bounded_prediction == "Smooth":
+                self.smooth_model: NearestValueTransformer
+                predicted = self.smooth_model.transform(predicted)
 
             if self.normalize:
                 # Un-scale predicted values if normalize flag is set
