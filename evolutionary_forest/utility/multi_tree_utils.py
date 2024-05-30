@@ -35,7 +35,7 @@ def gene_addition(
                 tree = copy.deepcopy(
                     algorithm.tree_pool.retrieve_nearest_tree(residual)
                 )
-            elif mutation_configuration.pool_addition_mode == "Smallest":
+            elif mutation_configuration.pool_addition_mode.startswith("Smallest"):
                 tree = copy.deepcopy(
                     algorithm.tree_pool.retrieve_smallest_nearest_tree(residual)
                 )

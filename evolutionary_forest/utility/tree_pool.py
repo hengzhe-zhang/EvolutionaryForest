@@ -222,7 +222,11 @@ class SemanticLibrary:
         return self.trees[index]  # Return the corresponding tree
 
     def retrieve_smallest_nearest_tree(
-        self, semantics: np.ndarray, return_semantics=False, top_k=10
+        self,
+        semantics: np.ndarray,
+        return_semantics=False,
+        top_k=10,
+        incumbent_size=math.inf,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -240,7 +244,16 @@ class SemanticLibrary:
         dist, index = self.kd_tree.query(semantics, k=top_k)
         if self.library_updating_mode == "LeastFrequentUsed":
             self.frequency[index] += 1
-        smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
+
+        smallest_index = -1
+        for idx in range(top_k):
+            if len(self.trees[index[idx]]) <= incumbent_size:
+                smallest_index = index[idx]
+                break
+
+        if smallest_index == -1:
+            smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
+
         if return_semantics:
             return (
                 self.trees[smallest_index],

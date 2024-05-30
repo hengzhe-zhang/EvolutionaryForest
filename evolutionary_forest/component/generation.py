@@ -277,10 +277,25 @@ def varAndPlus(
             )
             residual = target - temp_semantics
             mutation_configuration = algorithm.mutation_configuration
-            if mutation_configuration.pool_addition_mode == "Smallest":
+            if algorithm.verbose:
+                algorithm.success_rate.add_values(0)
+
+            if (
+                mutation_configuration.pool_addition_mode == "Smallest"
+                or mutation_configuration.pool_addition_mode == "Smallest~Auto"
+            ):
+                if mutation_configuration.pool_addition_mode == "Smallest~Auto":
+                    incumbent_size = len(ind.gene[id])
+                else:
+                    incumbent_size = 0
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
-                    normalize_vector(residual), return_semantics=True
+                    normalize_vector(residual),
+                    return_semantics=True,
+                    incumbent_size=incumbent_size,
                 )
+                # value = algorithm.tree_pool.retrieve_nearest_tree(
+                #     normalize_vector(residual), return_semantics=True
+                # )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
                     normalize_vector(residual), return_semantics=True
@@ -292,13 +307,7 @@ def varAndPlus(
             if mutation_configuration.pool_addition_mode == "Smallest" and len(
                 tree
             ) > len(ind.gene[id]):
-                if algorithm.verbose:
-                    algorithm.success_rate.add_values(0)
                 continue
-
-            if algorithm.verbose:
-                algorithm.success_rate.add_values(1)
-                print("Success Rate", algorithm.success_rate.get_moving_averages())
 
             if np.all(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
@@ -314,6 +323,11 @@ def varAndPlus(
                 # replacement
                 ind.gene[id] = copy.deepcopy(tree)
                 current_semantics = trail_semantics
+                if algorithm.verbose:
+                    algorithm.success_rate.add_values(1)
+                    print("Success Rate", algorithm.success_rate.get_moving_averages())
+            else:
+                pass
         return
 
     def addition_and_deletion(i, offspring):
