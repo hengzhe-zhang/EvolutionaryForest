@@ -221,6 +221,33 @@ class SemanticLibrary:
             return self.trees[index], self.normalized_semantics_list[index]
         return self.trees[index]  # Return the corresponding tree
 
+    def retrieve_smallest_nearest_tree(
+        self, semantics: np.ndarray, return_semantics=False, top_k=10
+    ):
+        if self.kd_tree is None:
+            raise ValueError("KD-Tree is empty. Please add some trees first.")
+
+        semantics = self.index_semantics(semantics)
+
+        # Normalize the query semantics
+        norm = np.linalg.norm(semantics)
+        if norm > 0:
+            semantics = semantics / norm
+        else:
+            return None
+
+        # Query the KDTree for the nearest point
+        dist, index = self.kd_tree.query(semantics, k=top_k)
+        if self.library_updating_mode == "LeastFrequentUsed":
+            self.frequency[index] += 1
+        smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
+        if return_semantics:
+            return (
+                self.trees[smallest_index],
+                self.normalized_semantics_list[smallest_index],
+            )
+        return self.trees[smallest_index]  # Return the corresponding tree
+
     def index_semantics(self, semantics):
         if self.clustering_indexes is None or len(semantics) <= len(
             self.clustering_indexes

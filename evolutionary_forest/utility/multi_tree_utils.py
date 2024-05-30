@@ -23,26 +23,25 @@ def gene_addition(
 
         # not add the same gene
         existing_genes = set([str(g) for g in individual.gene])
-        gene_addition_mode = algorithm.mutation_configuration.gene_addition_mode
+        mutation_configuration = algorithm.mutation_configuration
+        gene_addition_mode = mutation_configuration.gene_addition_mode
         if (
-            algorithm.mutation_configuration.pool_based_addition
+            mutation_configuration.pool_based_addition
             and algorithm.tree_pool.kd_tree is not None
         ):
             residual = algorithm.y - individual.individual_semantics
             residual = normalize_vector(residual)
-            if algorithm.mutation_configuration.pool_addition_mode == "Best":
+            if mutation_configuration.pool_addition_mode == "Best":
                 tree = copy.deepcopy(
                     algorithm.tree_pool.retrieve_nearest_tree(residual)
                 )
-            elif algorithm.mutation_configuration.pool_addition_mode.startswith(
-                "Weighted"
-            ):
-                top_k = int(
-                    algorithm.mutation_configuration.pool_addition_mode.split("-")[1]
+            elif mutation_configuration.pool_addition_mode == "Smallest":
+                tree = copy.deepcopy(
+                    algorithm.tree_pool.retrieve_smallest_nearest_tree(residual)
                 )
-                std = float(
-                    algorithm.mutation_configuration.pool_addition_mode.split("-")[2]
-                )
+            elif mutation_configuration.pool_addition_mode.startswith("Weighted"):
+                top_k = int(mutation_configuration.pool_addition_mode.split("-")[1])
+                std = float(mutation_configuration.pool_addition_mode.split("-")[2])
                 tree = copy.deepcopy(
                     algorithm.tree_pool.retrieve_nearest_trees_weighted(
                         residual, top_k, std

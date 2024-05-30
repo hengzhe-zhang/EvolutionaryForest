@@ -282,6 +282,11 @@ def varAndPlus(
             if value is None:
                 continue
             tree, proposed_semantics = value
+            mutation_configuration = algorithm.mutation_configuration
+            if mutation_configuration.pool_addition_mode == "Smallest" and len(
+                tree
+            ) > len(ind.gene[id]):
+                continue
             if np.all(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
             ):
