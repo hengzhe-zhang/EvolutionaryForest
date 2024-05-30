@@ -31,12 +31,12 @@ from evolutionary_forest.utility.multi_tree_utils import gene_addition
 
 def pool_mode_controller(addition_mode, y):
     if addition_mode == "Adaptive":
-        if np.unique(y) >= 200:
+        if len(np.unique(y)) >= 200:
             addition_mode = "Best"
         else:
             addition_mode = "Smallest"
     if addition_mode == "Adaptive+":
-        if np.unique(y) >= 100:
+        if len(np.unique(y)) >= 100:
             addition_mode = "Best"
         else:
             addition_mode = "Smallest~Auto"
@@ -339,7 +339,7 @@ def varAndPlus(
                 current_semantics = trail_semantics
                 if algorithm.verbose:
                     algorithm.success_rate.add_values(1)
-                    print("Success Rate", algorithm.success_rate.get_moving_averages())
+                    # print("Success Rate", algorithm.success_rate.get_moving_averages())
             else:
                 pass
         return
