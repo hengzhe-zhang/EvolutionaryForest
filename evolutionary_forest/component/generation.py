@@ -29,6 +29,20 @@ from evolutionary_forest.multigene_gp import (
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
 
 
+def pool_mode_controller(addition_mode, y):
+    if addition_mode == "Adaptive":
+        if np.unique(y) >= 200:
+            addition_mode = "Best"
+        else:
+            addition_mode = "Smallest"
+    if addition_mode == "Adaptive+":
+        if np.unique(y) >= 100:
+            addition_mode = "Best"
+        else:
+            addition_mode = "Smallest~Auto"
+    return addition_mode
+
+
 def varAndPlus(
     population,
     toolbox: TypedToolbox,

@@ -4,6 +4,7 @@ import random
 from multiprocessing import Pool
 
 import dill
+import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -144,7 +145,7 @@ from evolutionary_forest.component.generalization.pac_bayesian_tool import (
     sharpness_based_dynamic_depth_limit,
 )
 from evolutionary_forest.component.generalization.wknn import R2WKNN
-from evolutionary_forest.component.generation import varAndPlus
+from evolutionary_forest.component.generation import varAndPlus, pool_mode_controller
 from evolutionary_forest.component.initialization import (
     initialize_crossover_operator,
     unique_initialization,
@@ -2113,6 +2114,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.bounded_prediction == "Smooth":
             self.smooth_model: NearestValueTransformer = NearestValueTransformer()
             self.smooth_model.fit(self.X, self.y)
+
+        self.mutation_configuration.pool_addition_mode = pool_mode_controller(
+            self.mutation_configuration.pool_addition_mode, self.y
+        )
 
     def tree_initialization_function(self, pset, toolbox: TypedToolbox):
         if self.initial_tree_size is None:
