@@ -276,13 +276,18 @@ def varAndPlus(
                 )
             )
             residual = target - temp_semantics
-            value = algorithm.tree_pool.retrieve_nearest_tree(
-                normalize_vector(residual), return_semantics=True
-            )
+            mutation_configuration = algorithm.mutation_configuration
+            if mutation_configuration.pool_addition_mode == "Smallest":
+                value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
+                    normalize_vector(residual), return_semantics=True
+                )
+            else:
+                value = algorithm.tree_pool.retrieve_nearest_tree(
+                    normalize_vector(residual), return_semantics=True
+                )
             if value is None:
                 continue
             tree, proposed_semantics = value
-            mutation_configuration = algorithm.mutation_configuration
             if mutation_configuration.pool_addition_mode == "Smallest" and len(
                 tree
             ) > len(ind.gene[id]):
