@@ -12,8 +12,8 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
-from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.component.stgp.strongly_type_gp_utility import revert_back
+from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.utility.deletion_utils import *
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 
@@ -285,13 +285,21 @@ def varAndPlus(
                 value = algorithm.tree_pool.retrieve_nearest_tree(
                     normalize_vector(residual), return_semantics=True
                 )
+
             if value is None:
                 continue
             tree, proposed_semantics = value
             if mutation_configuration.pool_addition_mode == "Smallest" and len(
                 tree
             ) > len(ind.gene[id]):
+                if algorithm.verbose:
+                    algorithm.success_rate.add_values(0)
                 continue
+
+            if algorithm.verbose:
+                algorithm.success_rate.add_values(1)
+                print("Success Rate", algorithm.success_rate.get_moving_averages())
+
             if np.all(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
             ):

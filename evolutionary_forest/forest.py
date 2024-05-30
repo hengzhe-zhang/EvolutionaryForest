@@ -257,6 +257,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
+from evolutionary_forest.utility.metric.moving_average import MovingAverage
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
 from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
@@ -577,6 +578,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.n_pop = n_pop
         self.n_gen = n_gen
         self.verbose = verbose
+        self.success_rate = MovingAverage(window_size=100)
         self.initialized = False
         self.pop: List[MultipleGeneGP] = []
         self.basic_primitives: str = basic_primitives
