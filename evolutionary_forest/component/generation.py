@@ -36,7 +36,7 @@ def pool_mode_controller(addition_mode, y):
         else:
             addition_mode = "Smallest"
     if addition_mode == "Adaptive+":
-        if len(np.unique(y)) >= 100:
+        if len(np.unique(y)) >= 200:
             addition_mode = "Best"
         else:
             addition_mode = "Smallest~Auto"
