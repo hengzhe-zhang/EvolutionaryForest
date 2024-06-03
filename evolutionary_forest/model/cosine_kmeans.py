@@ -9,6 +9,10 @@ def cosine_similarity(a, b):
     dot_product = np.dot(a, b)
     norm_a = np.linalg.norm(a)
     norm_b = np.linalg.norm(b)
+    if norm_a == 0 or norm_b == 0:
+        return (
+            0.0  # If either vector is zero, cosine similarity is not defined; return 0
+        )
     return dot_product / (norm_a * norm_b)
 
 
@@ -78,13 +82,13 @@ class CosineKMeans(BaseEstimator, ClusterMixin):
 
     def predict(self, X):
         check_is_fitted(self, ["cluster_centers_"])
-        X = check_array(X)
+        X = check_array(X.astype(np.float64))
 
         similarity_matrix = compute_cosine_similarity_matrix(X, self.cluster_centers_)
         return np.argmax(similarity_matrix, axis=1)
 
     def fit_predict(self, X, y=None):
-        self.fit(X)
+        self.fit(X.astype(np.float64))
         return self.labels_
 
 
@@ -95,5 +99,5 @@ if __name__ == "__main__":
     X, _ = make_blobs(n_samples=300, centers=5, random_state=0)
 
     model = CosineKMeans(n_clusters=5, random_state=0)
-    labels = model.fit_predict(X)
+    labels = model.fit_predict(X.astype(np.float64))
     print(labels)
