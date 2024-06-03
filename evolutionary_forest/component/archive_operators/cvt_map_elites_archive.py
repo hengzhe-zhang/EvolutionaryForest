@@ -7,6 +7,8 @@ from sklearn.cluster import (
 )
 from sklearn.preprocessing import normalize
 
+from evolutionary_forest.model.cosine_kmeans import CosineKMeans
+
 
 class CVTMAPElitesHOF(HallOfFame):
     def __init__(
@@ -52,9 +54,11 @@ class CVTMAPElitesHOF(HallOfFame):
             clustering = AgglomerativeClustering(
                 n_clusters=self.maxsize, metric=metric, linkage=linkage
             )
+        # elif self.clustering_method == "KMeans-Cosine":
+        #     semantics = normalize(semantics, norm="l2")
+        #     clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans-Cosine":
-            semantics = normalize(semantics, norm="l2")
-            clustering = KMeans(n_clusters=self.maxsize, random_state=0)
+            clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans":
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "Spectral":

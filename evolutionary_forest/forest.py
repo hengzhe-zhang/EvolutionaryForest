@@ -69,6 +69,9 @@ from evolutionary_forest.component.archive_operators.grid_map_elites_archive imp
 from evolutionary_forest.component.archive_operators.important_features import (
     construct_important_feature_archive,
 )
+from evolutionary_forest.component.archive_operators.meta_learner.meta_base import (
+    MetaLearner,
+)
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import (
     DSA,
@@ -3137,6 +3140,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             predictions[0] = predictions[0] / len(self.hof)
             assert len(predictions) == 1
 
+        if isinstance(self.hof, MetaLearner):
+            return self.hof.predict(predictions)
         if self.second_layer == "RF-Routing":
             self.ridge: RandomForestClassifier
             proba = self.ridge.predict_proba(X)
