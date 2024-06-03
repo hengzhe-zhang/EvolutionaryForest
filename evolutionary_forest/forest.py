@@ -262,6 +262,7 @@ from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.metric.moving_average import MovingAverage
+from evolutionary_forest.utility.metric.visualization import *
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
 from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
@@ -871,6 +872,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.archive_cos_distance_history = []
         # ambiguity of the ensemble model
         self.ambiguity_history = []
+        self.average_loss_history = []
         # average fitness of the population
         self.pop_avg_fitness_history = []
         # average diversity of the population
@@ -4578,12 +4580,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     )
                 if len(self.hof) > 0:
                     if "Ambiguity" in self.log_item:
-                        variance_per_sample = np.var(
-                            [ind.predicted_values for ind in self.hof], axis=0
+                        self.ambiguity_history.append(
+                            calculate_ambiguity(
+                                [ind.predicted_values for ind in self.hof], self.y
+                            )
                         )
-                        assert len(variance_per_sample) == self.y.shape[0]
-                        variance = np.mean(variance_per_sample)
-                        self.ambiguity_history.append(variance)
+                    if "AverageLoss" in self.log_item:
+                        self.average_loss_history.append(
+                            average_loss(
+                                [ind.predicted_values for ind in self.hof], self.y
+                            )
+                        )
                     if "ArchiveAverageCosineDistance" in self.log_item:
                         self.archive_cos_distance_history.append(
                             self.cos_distance_calculation(self.hof)
