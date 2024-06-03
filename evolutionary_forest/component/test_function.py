@@ -5,6 +5,11 @@ import numpy as np
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import r2_score, balanced_accuracy_score
 
+from evolutionary_forest.utility.metric.visualization import (
+    average_loss,
+    calculate_ambiguity,
+)
+
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
@@ -52,3 +57,20 @@ class TestFunction:
 
     def __deepcopy__(self, memodict={}):
         return copy.deepcopy(self)
+
+
+class TestDiversity:
+    def __init__(self, test_function, regr: "EvolutionaryForestRegressor"):
+        self.test_function: TestFunction = test_function
+        self.regr = regr
+
+    def calculate_diversity(self, population):
+        predictions_all = []
+        for ind in population:
+            features = self.regr.feature_generation(self.test_function.x, ind)
+            prediction = ind.pipe.predict(features)
+            predictions_all.append(prediction)
+        predictions_all = np.array(predictions_all)
+        return average_loss(predictions_all, self.test_function.y), calculate_ambiguity(
+            predictions_all, self.test_function.y
+        )

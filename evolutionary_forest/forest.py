@@ -210,7 +210,7 @@ from evolutionary_forest.component.stgp.strongly_type_gp_utility import (
     get_typed_pset,
 )
 from evolutionary_forest.component.strategy import Clearing
-from evolutionary_forest.component.test_function import TestFunction
+from evolutionary_forest.component.test_function import TestFunction, TestDiversity
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
@@ -4579,18 +4579,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         self.cos_distance_calculation(population)
                     )
                 if len(self.hof) > 0:
-                    if "Ambiguity" in self.log_item:
-                        self.ambiguity_history.append(
-                            calculate_ambiguity(
-                                [ind.predicted_values for ind in self.hof], self.y
-                            )
+                    if "Ambiguity" in self.log_item or "AverageLoss" in self.log_item:
+                        diversity = TestDiversity(self.test_fun[1], self)
+                        average_loss, ambiguity = diversity.calculate_diversity(
+                            self.hof
                         )
-                    if "AverageLoss" in self.log_item:
-                        self.average_loss_history.append(
-                            average_loss(
-                                [ind.predicted_values for ind in self.hof], self.y
-                            )
-                        )
+                        self.ambiguity_history.append(ambiguity)
+                        self.average_loss_history.append(average_loss)
                     if "ArchiveAverageCosineDistance" in self.log_item:
                         self.archive_cos_distance_history.append(
                             self.cos_distance_calculation(self.hof)
