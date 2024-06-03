@@ -54,7 +54,7 @@ class CosineKMeans(BaseEstimator, ClusterMixin):
         self.random_state = random_state
 
     def fit(self, X, y=None):
-        X = check_array(X)
+        X = check_array(X.astype(np.float64))
         n_samples, n_features = X.shape
 
         if self.random_state is not None:
@@ -88,7 +88,7 @@ class CosineKMeans(BaseEstimator, ClusterMixin):
         return np.argmax(similarity_matrix, axis=1)
 
     def fit_predict(self, X, y=None):
-        self.fit(X.astype(np.float64))
+        self.fit(X)
         return self.labels_
 
 
