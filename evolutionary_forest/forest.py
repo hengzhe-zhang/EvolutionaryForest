@@ -72,6 +72,9 @@ from evolutionary_forest.component.archive_operators.important_features import (
 from evolutionary_forest.component.archive_operators.meta_learner.meta_base import (
     MetaLearner,
 )
+from evolutionary_forest.component.base_learner.in_context_learning import (
+    InContextLearnerRegressor,
+)
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import (
     DSA,
@@ -1617,6 +1620,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 max_leaf_nodes=self.max_leaf_nodes,
                 min_samples_leaf=self.min_samples_leaf,
             )
+        elif self.base_learner == "InContextLearner":
+            ridge_model = InContextLearnerRegressor()
         elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
             ridge_model = DecisionTreeRegressor(
                 min_samples_leaf=int(self.base_learner.split("-")[1])
