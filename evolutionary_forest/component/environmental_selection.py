@@ -24,7 +24,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from analysis.knee_point_eurogp.utility_function import knee_point_by_utility
+from analysis.knee_point_eurogp_2024.utility_function import knee_point_by_utility
 from evolutionary_forest.component.bloat_control.simple_simplification import (
     simple_simplification,
 )
