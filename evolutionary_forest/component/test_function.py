@@ -69,6 +69,8 @@ class TestDiversity:
         for ind in population:
             features = self.regr.feature_generation(self.test_function.x, ind)
             prediction = ind.pipe.predict(features)
+            if self.regr.bounded_prediction:
+                prediction = np.clip(prediction, self.regr.y.min(), self.regr.y.max())
             predictions_all.append(prediction)
         predictions_all = np.array(predictions_all)
         return average_loss(predictions_all, self.test_function.y), calculate_ambiguity(
