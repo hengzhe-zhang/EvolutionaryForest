@@ -31,7 +31,7 @@ from evolutionary_forest.utility.multi_tree_utils import gene_addition
 
 def pool_mode_controller(addition_mode, y):
     if addition_mode == "Adaptive":
-        if len(np.unique(y)) >= 200:
+        if len(np.unique(y)) >= 300:
             addition_mode = "Best"
         else:
             addition_mode = "Smallest"
