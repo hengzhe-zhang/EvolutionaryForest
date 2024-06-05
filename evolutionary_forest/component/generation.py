@@ -29,18 +29,18 @@ from evolutionary_forest.multigene_gp import (
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
 
 
-def pool_mode_controller(addition_mode, y):
-    if addition_mode == "Adaptive":
+def pool_mode_controller(pool_addition_mode, y):
+    if pool_addition_mode == "Adaptive":
         if len(np.unique(y)) >= 300:
-            addition_mode = "Best"
+            pool_addition_mode = "Best"
         else:
-            addition_mode = "Smallest"
-    if addition_mode == "Adaptive+":
+            pool_addition_mode = "Smallest"
+    if pool_addition_mode == "Adaptive+":
         if len(np.unique(y)) >= 200:
-            addition_mode = "Best"
+            pool_addition_mode = "Best"
         else:
-            addition_mode = "Smallest~Auto"
-    return addition_mode
+            pool_addition_mode = "Smallest~Auto"
+    return pool_addition_mode
 
 
 def varAndPlus(
