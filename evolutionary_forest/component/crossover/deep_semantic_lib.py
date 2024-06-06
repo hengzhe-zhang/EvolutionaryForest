@@ -3,12 +3,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from deap import gp, base, creator, tools
-from lion_pytorch import Lion
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from torch import optim
 from torch.nn.utils.rnn import pad_sequence
 
 from evolutionary_forest.utility.normalization_tool import normalize_vector
@@ -50,14 +50,12 @@ def setup_deap():
     pset.addPrimitive(np.subtract, 2)
     pset.addPrimitive(np.multiply, 2)
     pset.addPrimitive(protected_div, 2)
-    # pset.addTerminal(1)
-    # pset.addTerminal(0)
 
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
     toolbox = base.Toolbox()
-    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=0, max_=1)
+    toolbox.register("expr", gp.genFull, pset=pset, min_=0, max_=1)
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
@@ -83,7 +81,7 @@ class NeuralSemanticLibrary(nn.Module):
             torch.randn(num_positions, num_symbols, embed_dim)
         )
 
-    def forward(self, semantics):
+    def forward(self, semantics, mask=None):
         semantics_embed = torch.relu(self.bn1(self.fc1(semantics)))
         semantics_embed = torch.relu(self.bn2(self.fc2(semantics_embed)))
         # Ensure semantics_embed has shape (batch_size, num_positions, embed_dim)
@@ -92,11 +90,20 @@ class NeuralSemanticLibrary(nn.Module):
                 1, self.symbol_embeddings.shape[0], 1
             )
         logits = torch.einsum("bpe,pse->bsp", semantics_embed, self.symbol_embeddings)
+        if mask is not None:
+            logits = logits.masked_fill(mask.T == 0, -1e9)
         return logits
 
 
 def train_model(
-    model, criterion, optimizer, train_loader, val_loader, epochs=10, patience=10
+    model,
+    criterion,
+    optimizer,
+    train_loader,
+    val_loader,
+    epochs=10,
+    patience=10,
+    mask=None,
 ):
     model.train()
     best_loss = float("inf")
@@ -109,8 +116,7 @@ def train_model(
 
         for semantics, target in train_loader:
             optimizer.zero_grad()
-            output = model(semantics)
-            # Flatten output and target to apply cross-entropy loss
+            output = model(semantics, mask)
             loss = criterion(output, target)
             loss.backward()
             optimizer.step()
@@ -126,7 +132,7 @@ def train_model(
 
         avg_train_loss = total_loss / len(train_loader)
         train_accuracy = total_correct / total_samples
-        avg_val_loss, val_accuracy = evaluate_model(model, criterion, val_loader)
+        avg_val_loss, val_accuracy = evaluate_model(model, criterion, val_loader, mask)
 
         print(
             f"Epoch {epoch + 1}/{epochs}, "
@@ -146,7 +152,7 @@ def train_model(
                 break
 
 
-def evaluate_model(model, criterion, data_loader):
+def evaluate_model(model, criterion, data_loader, mask):
     model.eval()
     total_loss = 0
     total_correct = 0
@@ -154,8 +160,7 @@ def evaluate_model(model, criterion, data_loader):
 
     with torch.no_grad():
         for semantics, target in data_loader:
-            output = model(semantics)
-            # loss = criterion(output.permute(0, 2, 1), target)
+            output = model(semantics, mask)
             loss = criterion(output, target)
             total_loss += loss.item()
 
@@ -181,6 +186,8 @@ def prepare_data(toolbox, pset, population, sample_inputs, input_dim, val_split=
         str(term.value) for term in pset.terminals[pset.ret]
     ]
 
+    position_symbol_sets = [set() for _ in range(500)]  # Assuming max length of 50
+
     target_tracker = {}
     redundant_counter = 0
     for individual in population:
@@ -188,9 +195,11 @@ def prepare_data(toolbox, pset, population, sample_inputs, input_dim, val_split=
         semantics_tensor = torch.tensor(semantics, dtype=torch.float32)
 
         target = []
-        for node in individual:
+        for idx, node in enumerate(individual):
             symbol = node.name if isinstance(node, gp.Primitive) else str(node.value)
             target.append(symbol_list.index(symbol))
+            if idx < 500:
+                position_symbol_sets[idx].add(symbol_list.index(symbol))
         target_tensor = torch.tensor(target, dtype=torch.long)
 
         target_key = tuple(normalize_vector(semantics))
@@ -206,6 +215,14 @@ def prepare_data(toolbox, pset, population, sample_inputs, input_dim, val_split=
 
     data = pad_sequence(semantics_list, batch_first=True, padding_value=0.0)
     targets = pad_sequence(targets_list, batch_first=True, padding_value=-1)
+    num_positions = len(targets[0])
+
+    # Create the global mask
+    mask = torch.zeros((num_positions, len(symbol_list)), dtype=torch.bool)
+    for i, symbol_set in enumerate(position_symbol_sets):
+        if len(symbol_set) == 0:
+            continue
+        mask[i, list(symbol_set)] = True
 
     # Split into training and validation datasets
     num_val_samples = int(val_split * len(data))
@@ -219,40 +236,40 @@ def prepare_data(toolbox, pset, population, sample_inputs, input_dim, val_split=
     scaler = StandardScaler()
     train_data_reshaped = train_data.view(-1, train_data.shape[-1]).numpy()
     train_data_standardized = scaler.fit_transform(train_data_reshaped)
-    train_data_standardized = torch.tensor(train_data_standardized).view(
-        train_data.shape
-    )
-
-    # Standardize the validation data using the same scaler
+    train_data_standardized = torch.tensor(
+        train_data_standardized, dtype=torch.float32
+    ).view(train_data.shape)
     val_data_reshaped = val_data.view(-1, val_data.shape[-1]).numpy()
     val_data_standardized = scaler.transform(val_data_reshaped)
-    val_data_standardized = torch.tensor(val_data_standardized).view(val_data.shape)
-
-    train_dataset = torch.utils.data.TensorDataset(
-        train_data_standardized, train_targets
-    )
-    val_dataset = torch.utils.data.TensorDataset(val_data_standardized, val_targets)
+    val_data_standardized = torch.tensor(
+        val_data_standardized, dtype=torch.float32
+    ).view(val_data.shape)
 
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=128, shuffle=True
+        list(zip(train_data_standardized, train_targets)),
+        batch_size=64,
+        shuffle=True,
     )
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=128, shuffle=False)
+    val_loader = torch.utils.data.DataLoader(
+        list(zip(val_data_standardized, val_targets)),
+        batch_size=64,
+    )
 
-    return train_loader, val_loader, len(symbol_list), max(len(t) for t in targets_list)
+    return train_loader, val_loader, len(symbol_list), num_positions, mask
 
 
 def main():
     toolbox, pset = setup_deap()
     population = toolbox.population(n=10000)
     input_dim = 10  # Number of inputs in the GP tree
-    number_of_data = 20
+    number_of_data = 50
     embed_dim = 50  # Dimension of the embeddings
 
     # Generate sample inputs for semantics (replace with your actual input data)
     sample_inputs, _ = load_diabetes(return_X_y=True)
     sample_inputs = sample_inputs[:number_of_data]
 
-    train_loader, val_loader, num_symbols, num_positions = prepare_data(
+    train_loader, val_loader, num_symbols, num_positions, mask = prepare_data(
         toolbox, pset, population, sample_inputs, input_dim
     )
 
@@ -261,8 +278,8 @@ def main():
     model = NeuralSemanticLibrary(number_of_data, embed_dim, num_symbols, num_positions)
     criterion = nn.CrossEntropyLoss(ignore_index=-1)  # Ignore padding index
     # criterion = FocalLoss()  # Ignore padding index
-    # optimizer = optim.Adam(model.parameters(), lr=0.1)
-    optimizer = Lion(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    # optimizer = Lion(model.parameters(), lr=1e-3)
 
     train_model(
         model,
@@ -271,7 +288,8 @@ def main():
         train_loader,
         val_loader,
         epochs=10000,
-        patience=1000,
+        mask=mask,
+        patience=100,
     )
 
     # Predict
@@ -285,7 +303,7 @@ def main():
         print("First batch semantics:", semantics)
         print("First batch target:", target)
 
-        logits = model(sample_semantics)
+        logits = model(sample_semantics, mask)
         probabilities = torch.softmax(logits, dim=1)
         predicted_symbol = torch.argmax(probabilities, dim=1)
         symbol_list = [prim.name for prim in pset.primitives[pset.ret]] + [
@@ -322,7 +340,7 @@ def decision_tree(train_loader, val_loader):
         y_val_filtered = y_val[valid_indices]
         y_pred_filtered = y_pred[valid_indices]
 
-        # Evaluate decision tree
+        # Evaluate the decision tree
         accuracy = accuracy_score(y_val_filtered, y_pred_filtered)
         print(f"Decision Tree Accuracy: {accuracy}")
 
