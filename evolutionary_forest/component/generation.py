@@ -279,6 +279,8 @@ def varAndPlus(
 
     def tree_replacement(ind: MultipleGeneGP):
         indexes = algorithm.tree_pool.clustering_indexes
+        if indexes is None:
+            indexes = list(range(len(ind.individual_semantics)))
         current_semantics = ind.individual_semantics[indexes]
         target = algorithm.y[indexes]
 
