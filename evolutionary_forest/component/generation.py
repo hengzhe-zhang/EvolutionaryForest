@@ -12,6 +12,10 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
+from evolutionary_forest.component.gradient_optimization.linear_scaling import (
+    calculate_slope,
+    calculate_intercept,
+)
 from evolutionary_forest.component.stgp.strongly_type_gp_utility import revert_back
 from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.utility.deletion_utils import *
@@ -333,10 +337,13 @@ def varAndPlus(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
             ):
                 continue
-            factor = np.dot(proposed_semantics, residual) / (
-                np.linalg.norm(proposed_semantics) ** 2
-            )
-            trail_semantics = temp_semantics + factor * proposed_semantics
+            # factor_old = np.dot(proposed_semantics, residual) / (
+            #     np.linalg.norm(proposed_semantics) ** 2
+            # )
+            factor = calculate_slope(proposed_semantics, residual)
+            intercept = calculate_intercept(proposed_semantics, residual, factor)
+            # print(factor_old, factor, intercept)
+            trail_semantics = temp_semantics + factor * proposed_semantics + intercept
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
             if trial_mse < current_mse:
