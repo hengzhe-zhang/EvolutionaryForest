@@ -3262,7 +3262,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             mode = self.mutation_configuration.library_clustering_mode
             if interval > 0 and self.current_gen % interval == 0:
                 case_fitness = np.array([ind.case_values for ind in self.pop])
-                self.tree_pool.update_hard_instance(case_fitness, mode)
+                predicted_values = np.array([ind.predicted_values for ind in self.pop])
+                self.tree_pool.update_hard_instance(
+                    case_fitness, predicted_values, mode
+                )
             self.tree_pool.update_kd_tree(self.pop, self.y)
         # self.model_size_archive.update(self.pop)
         self.validation_set_generation()

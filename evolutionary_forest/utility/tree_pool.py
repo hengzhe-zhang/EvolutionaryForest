@@ -333,13 +333,21 @@ class SemanticLibrary:
                 plt.show()
                 self.distance_distribution.clear()
 
-    def update_hard_instance(self, error: np.ndarray, mode: str):
+    def update_hard_instance(self, error: np.ndarray, semantics: np.ndarray, mode: str):
         if len(error.T) <= self.semantics_length:
             # no need to do clustering
             return None
         if mode == "K-Means":
             k_means = KMeans(n_clusters=self.semantics_length)
             k_means.fit_transform(error.T)
+            centroids = k_means.cluster_centers_  # Get centroids of each cluster
+
+            # Find the index of the nearest sample to each centroid
+            nearest_indexes, _ = pairwise_distances_argmin_min(centroids, error.T)
+            self.clustering_indexes = nearest_indexes
+        elif mode == "Semantic-K-Means":
+            k_means = KMeans(n_clusters=self.semantics_length)
+            k_means.fit_transform(semantics.T)
             centroids = k_means.cluster_centers_  # Get centroids of each cluster
 
             # Find the index of the nearest sample to each centroid
