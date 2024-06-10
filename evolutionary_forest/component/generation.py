@@ -4,6 +4,8 @@ import random
 from typing import List, TYPE_CHECKING
 
 from deap.tools import cxTwoPoint
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import cross_val_score
 
 from evolutionary_forest.component.bloat_control.simple_simplification import (
     simple_simplification,
@@ -33,9 +35,10 @@ from evolutionary_forest.multigene_gp import (
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
 
 
-def pool_mode_controller(pool_addition_mode, y):
+def pool_mode_controller(pool_addition_mode, X, y):
+    cv_score = cross_val_score(LinearRegression(), X, y, cv=5, scoring="r2")
     if pool_addition_mode == "Adaptive":
-        if len(y) >= 250:
+        if cv_score.mean() > 0.4:
             pool_addition_mode = "Best"
         else:
             pool_addition_mode = "Smallest~Auto"
