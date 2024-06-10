@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from deap import gp, base, creator, tools
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import RandomForestClassifier
@@ -12,31 +11,6 @@ from torch import optim
 from torch.nn.utils.rnn import pad_sequence
 
 from evolutionary_forest.utility.normalization_tool import normalize_vector
-
-
-class FocalLoss(nn.Module):
-    def __init__(self, alpha=1, gamma=2, reduction="mean"):
-        super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
-
-    def forward(self, inputs, targets):
-        # Compute cross entropy loss
-        ce_loss = F.cross_entropy(inputs, targets, reduction="none", ignore_index=-1)
-
-        # Compute pt
-        pt = torch.exp(-ce_loss)
-
-        # Compute focal loss
-        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
-
-        if self.reduction == "mean":
-            return focal_loss.mean()
-        elif self.reduction == "sum":
-            return focal_loss.sum()
-        else:
-            return focal_loss
 
 
 # Define GP functions and terminals
@@ -67,6 +41,62 @@ def setup_deap():
 def get_semantics(individual, inputs, toolbox):
     func = toolbox.compile(expr=individual)
     return [func(*inp) for inp in inputs]
+
+
+import torch
+import torch.nn as nn
+
+
+class TransformerSemanticLibrary(nn.Module):
+    def __init__(
+        self,
+        input_dim,
+        embed_dim,
+        num_symbols,
+        num_positions,
+        num_heads=4,
+        num_layers=2,
+    ):
+        super(TransformerSemanticLibrary, self).__init__()
+        self.embedding = nn.Linear(input_dim, embed_dim)
+        self.transformer = nn.Transformer(
+            d_model=embed_dim,
+            nhead=num_heads,
+            num_encoder_layers=num_layers,
+            num_decoder_layers=num_layers,
+        )
+        self.symbol_embeddings = nn.Parameter(
+            torch.randn(num_positions, num_symbols, embed_dim)
+        )
+
+    def forward(self, semantics, mask=None):
+        # Project input to embedding space
+        embeddings = self.embedding(semantics)
+
+        # Permute for transformer input (batch_size, seq_len, embed_dim) -> (seq_len, batch_size, embed_dim)
+        embeddings = embeddings.permute(1, 0, 2)
+
+        # Create a target sequence of zeros with the same length as the input embeddings
+        target_seq = torch.zeros_like(embeddings)
+
+        # Apply the transformer
+        transformer_output = self.transformer(
+            src=embeddings, tgt=target_seq, src_key_padding_mask=mask
+        )
+
+        # Permute back (seq_len, batch_size, embed_dim) -> (batch_size, seq_len, embed_dim)
+        transformer_output = transformer_output.permute(1, 0, 2)
+
+        # Compute logits as the product of transformer output and symbol embeddings for each position
+        logits = torch.einsum(
+            "bpe,pse->bps", transformer_output, self.symbol_embeddings
+        )
+
+        # Mask logits if mask is provided
+        if mask is not None:
+            logits = logits.masked_fill(mask.unsqueeze(0).unsqueeze(0) == 0, -1e9)
+
+        return logits
 
 
 # Neural Network-based Semantic Library

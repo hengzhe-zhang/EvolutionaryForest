@@ -86,11 +86,7 @@ def varAndPlus(
                 addition_and_deletion(i, offspring)
         if mutation_configuration.pool_based_addition:
             for i in range(len(offspring)):
-                if (
-                    random.random()
-                    < mutation_configuration.pool_based_replacement_probability
-                ):
-                    tree_replacement(offspring[i])
+                tree_replacement(offspring[i])
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -289,7 +285,14 @@ def varAndPlus(
         orders = list(range(len(ind.gene)))
         if algorithm.tree_pool.random_order_replacement:
             random.shuffle(orders)
+
         for id in orders:
+            mutation_configuration = algorithm.mutation_configuration
+            if (
+                random.random()
+                > mutation_configuration.pool_based_replacement_probability
+            ):
+                continue
             temp_semantics = current_semantics - (
                 ind.coef[id]
                 * (
@@ -298,7 +301,6 @@ def varAndPlus(
                 )
             )
             residual = target - temp_semantics
-            mutation_configuration = algorithm.mutation_configuration
             if algorithm.verbose:
                 algorithm.success_rate.add_values(0)
 
