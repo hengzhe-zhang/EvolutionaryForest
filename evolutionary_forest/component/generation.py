@@ -38,7 +38,7 @@ from evolutionary_forest.utility.multi_tree_utils import gene_addition
 def pool_mode_controller(pool_addition_mode, X, y):
     cv_score = cross_val_score(LinearRegression(), X, y, cv=5, scoring="r2")
     if pool_addition_mode == "Adaptive":
-        if cv_score.mean() > 0.4:
+        if cv_score.mean() > 0.4 and len(y) > 250:
             pool_addition_mode = "Best"
         else:
             pool_addition_mode = "Smallest~Auto"
