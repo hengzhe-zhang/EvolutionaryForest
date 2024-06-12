@@ -40,7 +40,7 @@ def pool_mode_controller(pool_addition_mode, X, y):
     cv_score = cross_val_score(LinearRegression(), X, y, cv=5, scoring="r2")
     et_cv_score = cross_val_score(ExtraTreesRegressor(), X, y, cv=5, scoring="r2")
     if pool_addition_mode == "Adaptive":
-        if cv_score.mean() <= 0.4 and et_cv_score >= 0.8:
+        if cv_score.mean() <= 0.4 and np.mean(et_cv_score) >= 0.8:
             pool_addition_mode = "Best"
         else:
             pool_addition_mode = "Smallest"
