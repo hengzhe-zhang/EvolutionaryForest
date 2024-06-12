@@ -41,7 +41,7 @@ def pool_mode_controller(pool_addition_mode, X, y):
         if cv_score.mean() > 0.4 and len(y) > 250:
             pool_addition_mode = "Best"
         else:
-            pool_addition_mode = "Smallest~Auto"
+            pool_addition_mode = "Smallest"
     return pool_addition_mode
 
 
