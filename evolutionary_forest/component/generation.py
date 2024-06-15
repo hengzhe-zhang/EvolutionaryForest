@@ -7,6 +7,7 @@ from deap.tools import cxTwoPoint
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import cross_val_score
+from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.bloat_control.simple_simplification import (
     simple_simplification,
@@ -66,7 +67,8 @@ def varAndPlus(
     def mutation_function(*population):
         if mutation_configuration.pool_based_addition:
             for ind in population:
-                ind.individual_semantics = ind.predicted_values
+                ind.individual_semantics = ind.pipe.predict(ind.semantics)
+                # ind.individual_semantics = ind.predicted_values
                 ind.scaler = ind.pipe.named_steps["Scaler"]
         offspring: List[MultipleGeneGP] = [toolbox.clone(ind) for ind in population]
 
