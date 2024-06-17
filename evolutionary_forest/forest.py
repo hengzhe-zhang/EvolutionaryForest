@@ -3552,6 +3552,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 offspring = None
 
+            print("Seed Before Selection",np.random.random(),random.random())
+
             # offspring generation
             while len(new_offspring) < individuals_to_generate:
                 if count > pop_size * 100:
@@ -3684,6 +3686,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             new_offspring.append(o)
                         else:
                             discarded_individuals += 1
+
+
+            print("Seed After Selection",np.random.random(),random.random())
 
             if self.verbose:
                 print("Discarded Individuals", discarded_individuals)
