@@ -219,7 +219,7 @@ def selAutomaticEpsilonLexicaseInverseCLFast(individuals, k):
     return selected_individuals
 
 
-# @njit(cache=True)
+@njit(cache=True)
 def selAutomaticEpsilonLexicaseNumba(case_values, fit_weights, k):
     selected_individuals = []
     avg_cases = 0

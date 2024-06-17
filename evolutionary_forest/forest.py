@@ -3553,8 +3553,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 offspring = None
 
-            print("Seed Before Selection", np.random.random(), random.random())
-
             # offspring generation
             while len(new_offspring) < individuals_to_generate:
                 if count > pop_size * 100:
@@ -3580,8 +3578,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     shm.semantic_hoist_mutation(offspring, adaptive_hoist_probability)
 
                 offspring = self.semantic_prune_and_plant(offspring)
-
-                print("Seed Before Variation", np.random.random(), random.random())
 
                 # Vary the pool of individuals
                 if self.multi_gene_mutation():
@@ -3632,8 +3628,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             )
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
-
-                print("Seed After Variation", np.random.random(), random.random())
 
                 self.torch_variable_clone(offspring)
                 # default disabled
