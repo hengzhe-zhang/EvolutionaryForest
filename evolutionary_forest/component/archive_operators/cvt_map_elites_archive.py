@@ -14,7 +14,7 @@ class CVTMAPElitesHOF(HallOfFame):
     def __init__(
         self,
         maxsize,
-        map_archive_candidate_size=3,
+        map_archive_candidate_size=100,
         clustering_method="KMeans-Cosine",
         map_elites_hof_mode="Independent",
         y=None,
