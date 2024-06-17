@@ -3397,7 +3397,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         :param verbose:
         :return:
         """
-        print("Seed Before Evolution", np.random.random(), random.random())
 
         target = self.y
         if self.verbose:
@@ -3474,7 +3473,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         discarded_individuals = 0
 
         while number_of_evaluations < total_evaluations:
-            print("Seed Before Search", np.random.random(), random.random())
 
             gen += 1
             self.current_gen = gen
@@ -3576,6 +3574,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                     offspring: List[MultipleGeneGP] = offspring[:]
 
+                print("Seed After Selection",np.random.random(), random.random())
                 if not self.bloat_control_configuration.hoist_before_selection:
                     shm = SHM(self, **self.bloat_control)
                     # deep copy and then hoist
@@ -3690,7 +3689,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             new_offspring.append(o)
                         else:
                             discarded_individuals += 1
-
 
             if self.verbose:
                 print("Discarded Individuals", discarded_individuals)
