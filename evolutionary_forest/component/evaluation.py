@@ -1057,10 +1057,10 @@ def noise_generation(noise_type, size_of_noise, random_noise_magnitude, random_s
     """
     Obviously, it's possible to use cache technique to avoid the expensive sampling process
     """
-    if random_seed == -1:
-        rng = np.random
-    else:
-        rng = np.random.RandomState(random_seed)
+    # if random_seed == -1:
+    #     rng = np.random
+    # else:
+    rng = np.random.RandomState(random_seed)
     if noise_type == "Normal":
         noise = rng.normal(0, 1, size_of_noise)
     elif noise_type == "TruncatedNormal":
