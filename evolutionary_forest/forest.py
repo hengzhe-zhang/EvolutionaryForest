@@ -3397,6 +3397,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         :param verbose:
         :return:
         """
+        print("Seed Before Evolution", np.random.random(), random.random())
+
         target = self.y
         if self.verbose:
             print("data shape", self.X.shape, target.shape)
@@ -3472,6 +3474,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         discarded_individuals = 0
 
         while number_of_evaluations < total_evaluations:
+            print("Seed Before Search", np.random.random(), random.random())
+
             gen += 1
             self.current_gen = gen
             self.evaluation_configuration.current_generation = self.current_gen
@@ -3552,7 +3556,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 offspring = None
 
-            print("Seed Before Selection",np.random.random(),random.random())
+            print("Seed Before Selection", np.random.random(), random.random())
 
             # offspring generation
             while len(new_offspring) < individuals_to_generate:
@@ -3687,8 +3691,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         else:
                             discarded_individuals += 1
 
-
-            print("Seed After Selection",np.random.random(),random.random())
 
             if self.verbose:
                 print("Discarded Individuals", discarded_individuals)
