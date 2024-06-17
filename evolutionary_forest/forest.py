@@ -3473,7 +3473,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         discarded_individuals = 0
 
         while number_of_evaluations < total_evaluations:
-
             gen += 1
             self.current_gen = gen
             self.evaluation_configuration.current_generation = self.current_gen
@@ -3574,7 +3573,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                     offspring: List[MultipleGeneGP] = offspring[:]
 
-                print("Seed After Selection",np.random.random(), random.random())
                 if not self.bloat_control_configuration.hoist_before_selection:
                     shm = SHM(self, **self.bloat_control)
                     # deep copy and then hoist
@@ -3582,6 +3580,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     shm.semantic_hoist_mutation(offspring, adaptive_hoist_probability)
 
                 offspring = self.semantic_prune_and_plant(offspring)
+
+                print("Seed Before Variation", np.random.random(), random.random())
 
                 # Vary the pool of individuals
                 if self.multi_gene_mutation():
@@ -3632,6 +3632,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             )
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
+
+                print("Seed After Variation", np.random.random(), random.random())
 
                 self.torch_variable_clone(offspring)
                 # default disabled
