@@ -7,6 +7,7 @@ from evolutionary_forest.model.cosine_kmeans import cosine_similarity
 
 
 def normalize_vector(v):
+    v = v - np.mean(v)
     norm = np.linalg.norm(v)
     if norm == 0:
         return v  # Return the zero vector as is
@@ -18,7 +19,7 @@ def normalize_vector(v):
     #         if normalized_v[i] < 0:
     #             normalized_v = -normalized_v
     #         break
-    return normalized_v - normalized_v.mean()
+    return normalized_v
 
 
 if __name__ == "__main__":

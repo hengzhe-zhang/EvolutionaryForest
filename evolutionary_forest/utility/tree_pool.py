@@ -75,6 +75,7 @@ class SemanticLibrary:
         self.normalized_semantics_list = []  # List to store normalized semantics
         # Set to store hashes of seen semantics for uniqueness
         self.seen_semantics = set()
+        self.seen_semantics_counter = 0
         self.seen_trees = set()
         self.max_trees = max_trees  # Maximum number of trees to store
         # Length of semantics to use for KD-Tree
@@ -122,6 +123,7 @@ class SemanticLibrary:
                 )  # Store the normalized semantics
 
         self.clean_when_full(normalized_target_semantics)
+        # print("Number of trees in the library: ", len(self.trees))
         # Create the KDTree with all collected points
         self.kd_tree = cKDTree(self.normalized_semantics_list)
 
@@ -137,6 +139,9 @@ class SemanticLibrary:
             return
         semantics_hash = tuple(normalized_semantics)
         if semantics_hash in self.seen_semantics:
+            # self.seen_semantics_counter += 1
+            # if self.seen_semantics_counter % 1000 == 0:
+            #     print(self.seen_semantics_counter, len(self.trees))
             return
 
         self.seen_semantics.add(semantics_hash)

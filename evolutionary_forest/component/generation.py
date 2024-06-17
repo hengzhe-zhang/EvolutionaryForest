@@ -297,13 +297,11 @@ def varAndPlus(
                 > mutation_configuration.pool_based_replacement_probability
             ):
                 continue
-            temp_semantics = current_semantics - (
-                ind.coef[id]
-                * (
-                    (ind.semantics[indexes, id] - ind.scaler.scale_[id])
-                    / ind.scaler.var_[id]
-                )
+            delete_semantics = ind.coef[id] * (
+                (ind.semantics[indexes, id] - ind.scaler.scale_[id])
+                / ind.scaler.var_[id]
             )
+            temp_semantics = current_semantics - delete_semantics
             residual = target - temp_semantics
             if algorithm.verbose:
                 algorithm.success_rate.add_values(0)
@@ -326,7 +324,8 @@ def varAndPlus(
                 # )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
-                    normalize_vector(residual), return_semantics=True
+                    normalize_vector(residual),
+                    return_semantics=True,
                 )
 
             if value is None:
@@ -348,6 +347,18 @@ def varAndPlus(
             intercept = calculate_intercept(proposed_semantics, residual, factor)
             # print(factor_old, factor, intercept)
             trail_semantics = temp_semantics + factor * proposed_semantics + intercept
+
+            # deleted_factor = calculate_slope(ind.semantics[indexes, id], residual)
+            # deleted_intercept = calculate_intercept(
+            #     ind.semantics[indexes, id], residual, factor
+            # )
+            # deleted_semantics = (
+            #     temp_semantics
+            #     + deleted_factor * ind.semantics[indexes, id]
+            #     + deleted_intercept
+            # )
+            # deleted_mse = np.mean((deleted_semantics - target) ** 2)
+
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
             if trial_mse < current_mse:
