@@ -94,7 +94,7 @@ class PACBayesianConfiguration(Configuration):
         linear_regularization=False,
         mixup_mode="",
         adaptive_knee_point_metric=None,
-        pac_bayesian_subsample=100,
+        pac_bayesian_subsample=0,
         **params
     ):
         # For dropout
@@ -338,7 +338,6 @@ def pac_bayesian_estimation(
             y_pred_on_noise = get_cv_predictions(
                 estimator, X_noise, y, direct_prediction=True
             )
-
         if (
             isinstance(configuration.objective, str)
             and "Derivative" in configuration.objective

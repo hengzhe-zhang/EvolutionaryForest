@@ -798,7 +798,7 @@ class R2PACBayesian(Fitness):
             index = np.random.randint(0, len(original_X), sample_size)
             original_X = original_X[index]
             y = y[index]
-            X_features = algorithm.feature_generation(original_X, individual)
+        X_features = algorithm.feature_generation(original_X, individual)
 
         # random generate training data
         if self.sharpness_distribution == "Normal":
