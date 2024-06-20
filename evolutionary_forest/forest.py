@@ -490,7 +490,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
-
         self.seed_with_linear_model = seed_with_linear_model
         self.init_some_logs()
         self.log_item = log_item

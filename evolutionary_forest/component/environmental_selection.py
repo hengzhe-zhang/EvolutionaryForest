@@ -189,8 +189,6 @@ class NSGA2(EnvironmentalSelection):
         first_objective_weight=1,
         max_cluster_point=True,
         handle_objective_duplication=False,
-        n_pop=0,
-        adaptive_knee_point_metric="Ratio",
         alpha_dominance_sam=False,
         **kwargs
     ):
@@ -206,8 +204,6 @@ class NSGA2(EnvironmentalSelection):
         self.selection_operator = selNSGA2
         self.validation_x = None
         self.validation_y = None
-        # golden standard
-        self.n_pop = n_pop
 
         # Std/Mean
         self.alpha_dominance_sam = alpha_dominance_sam
@@ -242,20 +238,21 @@ class NSGA2(EnvironmentalSelection):
             # )
             alpha_dominance_sam = self.alpha_dominance_sam
             fitness_normalization(individuals, classification_task, alpha_dominance_sam)
-        population[:] = self.selection_operator(individuals, self.n_pop)
+        n_pop = self.algorithm.n_pop
+        population[:] = self.selection_operator(individuals, n_pop)
         if self.algorithm.validation_size > 0:
             """
             When have validation data, the knee point is selected using the validation data.
             This has the first priority.
             """
-            first_pareto_front = sortNondominated(population, self.n_pop)[0]
+            first_pareto_front = sortNondominated(population, n_pop)[0]
             self.algorithm.hof = first_pareto_front
-        elif self.knee_point != False:
+        elif self.knee_point != False and self.knee_point != None:
             if self.knee_point == "Ensemble":
-                first_pareto_front = sortNondominated(population, self.n_pop)[0]
+                first_pareto_front = sortNondominated(population, n_pop)[0]
                 self.algorithm.hof = first_pareto_front
             elif self.knee_point == "Top-10":
-                first_pareto_front = sortNondominated(population, self.n_pop)[0]
+                first_pareto_front = sortNondominated(population, n_pop)[0]
                 best_individuals = sorted(
                     first_pareto_front, key=lambda x: x.fitness.wvalues
                 )[-10:]
@@ -265,7 +262,7 @@ class NSGA2(EnvironmentalSelection):
                 "Cluster+Ensemble+Euclidian",
                 "Cluster+Ensemble+Fitness",
             ] or self.knee_point.startswith("Cluster+Ensemble"):
-                first_pareto_front = sortNondominated(population, self.n_pop)[0]
+                first_pareto_front = sortNondominated(population, n_pop)[0]
                 if "-" in self.knee_point:
                     n_clusters = int(self.knee_point.split("-")[1])
                     knee_point_mode = self.knee_point.split("-")[0]
@@ -340,7 +337,7 @@ class NSGA2(EnvironmentalSelection):
                         best_individuals.append(best_individual)
                     self.algorithm.hof = best_individuals
             elif self.knee_point == "Validation":
-                first_pareto_front = sortNondominated(population, self.n_pop)[0]
+                first_pareto_front = sortNondominated(population, n_pop)[0]
                 scores = []
                 for ind in first_pareto_front:
                     features = self.algorithm.feature_generation(self.validation_x, ind)
@@ -375,7 +372,7 @@ class NSGA2(EnvironmentalSelection):
                 )
                 self.algorithm.hof = [population[knee]]
             else:
-                first_pareto_front = sortNondominated(population, self.n_pop)[0]
+                first_pareto_front = sortNondominated(population, n_pop)[0]
                 if self.knee_point == "Overshot-SAM":
                     first_pareto_front = []
                     for ind in population:
@@ -493,7 +490,7 @@ class NSGA2(EnvironmentalSelection):
                         # Select the knee point as the final model
                         self.algorithm.hof = [first_pareto_front[knee]]
         if self.bootstrapping_selection:
-            first_pareto_front: list = sortNondominated(population, self.n_pop)[0]
+            first_pareto_front: list = sortNondominated(population, n_pop)[0]
 
             def quick_evaluation(ind):
                 r2_scores = []
