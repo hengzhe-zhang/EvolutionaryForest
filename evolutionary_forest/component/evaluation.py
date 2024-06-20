@@ -241,13 +241,17 @@ def calculate_score(args):
 
     # ML evaluation
     start_time = time.time()
+    base_model = pipe["Ridge"]
+    regression_task = isinstance(base_model, RegressorMixin)
+
     if not configuration.cross_validation:
         pipe.fit(Yp, Y)
-        y_pred = pipe.predict(Yp)
+        if regression_task:
+            y_pred = pipe.predict(Yp)
+        else:
+            y_pred = pipe.predict_proba(Yp)
         estimators = [pipe]
     else:
-        base_model = pipe["Ridge"]
-        regression_task = isinstance(base_model, RegressorMixin)
         if configuration.ood_split:
             cv = OutOfDistributionSplit(n_splits=5, n_bins=5)
             y_pred, estimators = cross_val_predict(

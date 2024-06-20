@@ -26,6 +26,7 @@ from evolutionary_forest.component.fitness import Fitness
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 from evolutionary_forest.component.ensemble_learning.utils import GBDTLRClassifierX
+from evolutionary_forest.model.ArgMaxClassifier import MaxValueClassifier
 from evolutionary_forest.model.PLTree import LRDTClassifier
 from evolutionary_forest.model.SafetyLR import SafetyLogisticRegression
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
@@ -162,6 +163,11 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             return np.mean(predictions, axis=0)
 
     def lazy_init(self, x):
+        if self.base_learner == "ArgMaxClassifier":
+            # Some parameters are fixed
+            self.gene_num = len(np.unique(self.y))
+            self.evaluation_configuration.cross_validation = False
+            self.score_func = "ZeroOne"
         # sometimes, labels are not from 0-n-1, need to process
         self.order_encoder = LabelEncoder()
         self.y = self.order_encoder.fit_transform(self.y)
@@ -354,6 +360,8 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             ridge_model = SafetyLogisticRegression(
                 max_iter=1000, solver="liblinear", random_state=0
             )
+        elif self.base_learner == "ArgMaxClassifier":
+            ridge_model = MaxValueClassifier()
         elif (
             self.base_learner == "Balanced-LogisticRegression"
             or base_model_str == "Balanced-LogisticRegression"
