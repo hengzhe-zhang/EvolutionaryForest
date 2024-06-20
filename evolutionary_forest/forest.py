@@ -201,6 +201,9 @@ from evolutionary_forest.component.selection import (
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
 )
+from evolutionary_forest.component.selection_operators.pareto_tournament import (
+    sel_pareto_tournament,
+)
 from evolutionary_forest.component.stateful_gp import make_class
 from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
     genHalfAndHalf_STGP_constant_biased,
@@ -2278,6 +2281,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.select == "DoubleRound":
             toolbox.register("select", selDoubleRound)
+        elif self.select == "ParetoTournament":
+            toolbox.register("select", sel_pareto_tournament)
         elif self.select == "DoubleRound-Random":
             toolbox.register(
                 "select",
