@@ -35,8 +35,8 @@ def sel_pareto_tournament(pop, k, subset_ratio=0.1):
 
         # Ensure we do not exceed the required population size
         if len(breeding_stock) > k:
-            random.shuffle(breeding_stock)
-            breeding_stock = breeding_stock[:k]
+            # breeding_stock = random.sample(breeding_stock, k)
+            return breeding_stock[: len(breeding_stock) // 2 * 2]
 
-    random.shuffle(breeding_stock)
+    # random.shuffle(breeding_stock)
     return breeding_stock

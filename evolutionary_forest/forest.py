@@ -2283,8 +2283,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.select == "DoubleRound":
             toolbox.register("select", selDoubleRound)
         elif self.select.startswith("ParetoTournament"):
-            subset_ratio = float(self.select.split("-")[1])
-            toolbox.register("select", sel_pareto_tournament, subset_ratio=subset_ratio)
+            toolbox.register("select", sel_pareto_tournament, subset_ratio=0.1)
         elif self.select == "SubsetBest":
             toolbox.register("select", sel_subset_best)
         elif self.select == "DoubleRound-Random":
