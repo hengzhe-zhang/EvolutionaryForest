@@ -203,6 +203,7 @@ from evolutionary_forest.component.selection_operators.niche_base_selection impo
 )
 from evolutionary_forest.component.selection_operators.pareto_tournament import (
     sel_pareto_tournament,
+    sel_subset_best,
 )
 from evolutionary_forest.component.stateful_gp import make_class
 from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
@@ -2283,6 +2284,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selDoubleRound)
         elif self.select == "ParetoTournament":
             toolbox.register("select", sel_pareto_tournament)
+        elif self.select == "SubsetBest":
+            toolbox.register("select", sel_subset_best)
         elif self.select == "DoubleRound-Random":
             toolbox.register(
                 "select",

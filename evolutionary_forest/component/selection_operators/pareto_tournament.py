@@ -1,5 +1,18 @@
-from deap.tools import sortNondominated
+from deap.tools import sortNondominated, selBest
 import random
+
+
+def sel_subset_best(pop, k, subset_ratio=0.1):
+    # Number of models to randomly select in each subset
+    subset_size = int(len(pop) * subset_ratio)
+    # Container for the selected breeding stock
+    breeding_stock = []
+
+    while len(breeding_stock) < k:
+        # Randomly select a subset of models
+        subset = random.sample(pop, subset_size)
+        breeding_stock.append(selBest(subset, 1)[0])
+    return breeding_stock
 
 
 def sel_pareto_tournament(pop, k, subset_ratio=0.1):
