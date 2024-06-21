@@ -50,7 +50,7 @@ est = EvolutionaryForestRegressor(
     sharpness_type="Data",
     objective_normalization=True,
     # alpha value in Beta-distribution
-    perturbation_std=10,
+    perturbation_std=1,
     gene_deletion_rate=0.5,
     gene_addition_rate=0.5,
     environmental_selection="NSGA2",
