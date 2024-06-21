@@ -38,4 +38,5 @@ def sel_pareto_tournament(pop, k, subset_ratio=0.1):
             random.shuffle(breeding_stock)
             breeding_stock = breeding_stock[:k]
 
+    random.shuffle(breeding_stock)
     return breeding_stock
