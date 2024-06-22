@@ -302,7 +302,16 @@ def varAndPlus(
                 / ind.scaler.var_[id]
             )
             temp_semantics = current_semantics - delete_semantics
-            residual = target - temp_semantics
+
+            if mutation_configuration.scaling_before_replacement:
+                factor = calculate_slope(temp_semantics, target)
+                intercept = calculate_intercept(temp_semantics, target, factor)
+                temp_semantics = temp_semantics * factor + intercept
+
+            if mutation_configuration.complementary_semantic_lib:
+                residual = target + (target - temp_semantics)
+            else:
+                residual = target - temp_semantics
             if algorithm.verbose:
                 algorithm.success_rate.add_values(0)
 
@@ -347,7 +356,8 @@ def varAndPlus(
             intercept = calculate_intercept(proposed_semantics, residual, factor)
             # print(factor_old, factor, intercept)
             trail_semantics = temp_semantics + factor * proposed_semantics + intercept
-
+            if mutation_configuration.complementary_semantic_lib:
+                trail_semantics /= 2
             # deleted_factor = calculate_slope(ind.semantics[indexes, id], residual)
             # deleted_intercept = calculate_intercept(
             #     ind.semantics[indexes, id], residual, factor

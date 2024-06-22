@@ -207,6 +207,8 @@ class MutationConfiguration(Configuration):
         handle_objective_duplication=False,
         basic_primitives=None,
         pool_based_replacement_probability=1,
+        complementary_semantic_lib=False,
+        scaling_before_replacement=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -230,6 +232,8 @@ class MutationConfiguration(Configuration):
         self.handle_objective_duplication = handle_objective_duplication
         self.basic_primitives = basic_primitives
         self.pool_based_replacement_probability = pool_based_replacement_probability
+        self.complementary_semantic_lib = complementary_semantic_lib
+        self.scaling_before_replacement = scaling_before_replacement
 
 
 class ImbalancedConfiguration(Configuration):
