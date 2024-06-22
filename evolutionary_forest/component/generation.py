@@ -322,9 +322,6 @@ def varAndPlus(
                     return_semantics=True,
                     incumbent_size=incumbent_size,
                 )
-                # value = algorithm.tree_pool.retrieve_nearest_tree(
-                #     normalize_vector(residual), return_semantics=True
-                # )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
                     normalize_vector(residual),
