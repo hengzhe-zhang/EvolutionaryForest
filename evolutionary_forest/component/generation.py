@@ -7,7 +7,6 @@ from deap.tools import cxTwoPoint
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import cross_val_score
-from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.bloat_control.simple_simplification import (
     simple_simplification,
@@ -299,14 +298,9 @@ def varAndPlus(
                 continue
             delete_semantics = ind.coef[id] * (
                 (ind.semantics[indexes, id] - ind.scaler.scale_[id])
-                / ind.scaler.var_[id]
+                / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
             )
             temp_semantics = current_semantics - delete_semantics
-
-            if mutation_configuration.scaling_before_replacement:
-                factor = calculate_slope(temp_semantics, target)
-                intercept = calculate_intercept(temp_semantics, target, factor)
-                temp_semantics = temp_semantics * factor + intercept
 
             if mutation_configuration.complementary_semantic_lib:
                 residual = target + (target - temp_semantics)
@@ -349,25 +343,20 @@ def varAndPlus(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
             ):
                 continue
-            # factor_old = np.dot(proposed_semantics, residual) / (
-            #     np.linalg.norm(proposed_semantics) ** 2
-            # )
-            factor = calculate_slope(proposed_semantics, residual)
-            intercept = calculate_intercept(proposed_semantics, residual, factor)
-            # print(factor_old, factor, intercept)
-            trail_semantics = temp_semantics + factor * proposed_semantics + intercept
-            if mutation_configuration.complementary_semantic_lib:
-                trail_semantics /= 2
-            # deleted_factor = calculate_slope(ind.semantics[indexes, id], residual)
-            # deleted_intercept = calculate_intercept(
-            #     ind.semantics[indexes, id], residual, factor
-            # )
-            # deleted_semantics = (
-            #     temp_semantics
-            #     + deleted_factor * ind.semantics[indexes, id]
-            #     + deleted_intercept
-            # )
-            # deleted_mse = np.mean((deleted_semantics - target) ** 2)
+            if mutation_configuration.full_scaling_after_replacement:
+                lr = LinearRegression()
+                lr.fit(np.vstack((current_semantics, proposed_semantics)).T, target)
+                trail_semantics = lr.predict(
+                    np.vstack((current_semantics, proposed_semantics)).T
+                )
+            else:
+                factor = calculate_slope(proposed_semantics, residual)
+                intercept = calculate_intercept(proposed_semantics, residual, factor)
+                trail_semantics = (
+                    temp_semantics + factor * proposed_semantics + intercept
+                )
+                if mutation_configuration.complementary_semantic_lib:
+                    trail_semantics /= 2
 
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)

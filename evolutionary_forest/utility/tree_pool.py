@@ -219,6 +219,11 @@ class SemanticLibrary:
 
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics)
+        dist_neg, index_neg = self.kd_tree.query(-semantics)
+        if dist_neg < dist:
+            dist = dist_neg
+            index = index_neg
+
         self.plot_distance_function(dist)
         if self.library_updating_mode == "LeastFrequentUsed":
             self.frequency[index] += 1
@@ -247,6 +252,8 @@ class SemanticLibrary:
 
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics, k=top_k)
+        dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k)
+        index = np.concatenate([index, index_neg])
 
         smallest_index = -1
         for idx in range(top_k):
