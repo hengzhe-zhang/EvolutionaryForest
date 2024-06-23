@@ -74,7 +74,7 @@ class SemanticLibrary:
         self.trees = []  # List to store PrimitiveTree objects
         self.normalized_semantics_list = []  # List to store normalized semantics
         # Set to store hashes of seen semantics for uniqueness
-        self.seen_semantics = set()
+        self.seen_semantics = dict()
         self.seen_semantics_counter = 0
         self.seen_trees = set()
         self.max_trees = max_trees  # Maximum number of trees to store
@@ -108,13 +108,16 @@ class SemanticLibrary:
                     continue
 
                 semantics_hash = tuple(normalized_semantics)
-                if semantics_hash in self.seen_semantics:
+                if (
+                    semantics_hash in self.seen_semantics
+                    and len(tree) > self.seen_semantics[semantics_hash]
+                ):
                     continue
 
                 # if str(tree) in self.seen_trees:
                 #     raise ValueError("Duplicate tree")
 
-                self.seen_semantics.add(semantics_hash)
+                self.seen_semantics[semantics_hash] = len(tree)
                 self.trees.append(tree)
                 # self.seen_trees.add(str(tree))
                 # self.plain_semantics_list.append(semantics)
@@ -138,13 +141,16 @@ class SemanticLibrary:
         if np.isnan(normalized_semantics).any() or np.isinf(normalized_semantics).any():
             return
         semantics_hash = tuple(normalized_semantics)
-        if semantics_hash in self.seen_semantics:
+        if (
+            semantics_hash in self.seen_semantics
+            and len(tree) > self.seen_semantics[semantics_hash]
+        ):
             # self.seen_semantics_counter += 1
             # if self.seen_semantics_counter % 1000 == 0:
             #     print(self.seen_semantics_counter, len(self.trees))
             return
 
-        self.seen_semantics.add(semantics_hash)
+        self.seen_semantics[semantics_hash] = len(tree)
         self.trees.append(tree)
         self.normalized_semantics_list.append(
             normalized_semantics
@@ -179,7 +185,8 @@ class SemanticLibrary:
             # ]
             # Recreate seen_semantics based on the current normalized_semantics_list
             self.seen_semantics = {
-                tuple(semantics) for semantics in self.normalized_semantics_list
+                tuple(semantics): len(tree)
+                for semantics, tree in zip(self.normalized_semantics_list, self.trees)
             }
 
     def update_by_map_elites(
@@ -254,6 +261,9 @@ class SemanticLibrary:
         dist, index = self.kd_tree.query(semantics, k=top_k)
         dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k)
         index = np.concatenate([index, index_neg])
+        # From short to long
+        sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
+        index = index[sorted_index][:top_k]
 
         smallest_index = -1
         for idx in range(top_k):

@@ -302,10 +302,7 @@ def varAndPlus(
             )
             temp_semantics = current_semantics - delete_semantics
 
-            if mutation_configuration.complementary_semantic_lib:
-                residual = target + (target - temp_semantics)
-            else:
-                residual = target - temp_semantics
+            residual = target - temp_semantics
             if algorithm.verbose:
                 algorithm.success_rate.add_values(0)
 
@@ -340,20 +337,16 @@ def varAndPlus(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
             ):
                 continue
-            if mutation_configuration.full_scaling_after_replacement:
-                lr = LinearRegression()
-                lr.fit(np.vstack((current_semantics, proposed_semantics)).T, target)
-                trail_semantics = lr.predict(
-                    np.vstack((current_semantics, proposed_semantics)).T
-                )
-            else:
-                factor = calculate_slope(proposed_semantics, residual)
-                intercept = calculate_intercept(proposed_semantics, residual, factor)
-                trail_semantics = (
-                    temp_semantics + factor * proposed_semantics + intercept
-                )
-                if mutation_configuration.complementary_semantic_lib:
-                    trail_semantics /= 2
+            factor = calculate_slope(proposed_semantics, residual)
+            intercept = calculate_intercept(proposed_semantics, residual, factor)
+            trail_semantics = temp_semantics + factor * proposed_semantics + intercept
+
+            # factor = calculate_slope(delete_semantics, residual)
+            # intercept = calculate_intercept(delete_semantics, residual, factor)
+            # delete_trail_semantics = (
+            #     temp_semantics + factor * delete_semantics + intercept
+            # )
+            # trial_mse = np.mean((delete_trail_semantics - target) ** 2)
 
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
