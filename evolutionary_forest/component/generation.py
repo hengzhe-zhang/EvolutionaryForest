@@ -3,6 +3,7 @@ import math
 import random
 from typing import List, TYPE_CHECKING
 
+from deap.gp import PrimitiveTree, Terminal
 from deap.tools import cxTwoPoint
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
@@ -289,18 +290,21 @@ def varAndPlus(
         if algorithm.tree_pool.random_order_replacement:
             random.shuffle(orders)
 
+        mutation_configuration = algorithm.mutation_configuration
+        if random.random() > mutation_configuration.pool_based_replacement_probability:
+            return
+
         for id in orders:
-            mutation_configuration = algorithm.mutation_configuration
-            if (
-                random.random()
-                > mutation_configuration.pool_based_replacement_probability
-            ):
-                continue
             delete_semantics = ind.coef[id] * (
                 (ind.semantics[indexes, id] - ind.scaler.scale_[id])
                 / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
             )
             temp_semantics = current_semantics - delete_semantics
+
+            if random.random() < mutation_configuration.mask_out_probability:
+                ind.gene[id] = PrimitiveTree([Terminal(0, False, object)])
+                current_semantics = temp_semantics
+                continue
 
             residual = target - temp_semantics
             if algorithm.verbose:

@@ -207,7 +207,7 @@ class MutationConfiguration(Configuration):
         handle_objective_duplication=False,
         basic_primitives=None,
         pool_based_replacement_probability=1,
-        greedy_replacement=True,
+        mask_out_probability=0,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -231,7 +231,7 @@ class MutationConfiguration(Configuration):
         self.handle_objective_duplication = handle_objective_duplication
         self.basic_primitives = basic_primitives
         self.pool_based_replacement_probability = pool_based_replacement_probability
-        self.greedy_replacement = greedy_replacement
+        self.mask_out_probability = mask_out_probability
 
 
 class ImbalancedConfiguration(Configuration):
