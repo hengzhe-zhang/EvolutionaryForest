@@ -140,6 +140,13 @@ class DummyScaler(TransformerMixin):
 
 
 class StandardScalerWithMinMaxScaler(TransformerMixin):
+    """
+    Three kinds:
+    MixMax
+    Standard
+    Non-Scaling
+    """
+
     def __init__(self):
         self.std_scaler = StandardScaler()
         self.minmax_scaler = MinMaxScaler()
