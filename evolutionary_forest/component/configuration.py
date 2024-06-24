@@ -207,6 +207,7 @@ class MutationConfiguration(Configuration):
         handle_objective_duplication=False,
         basic_primitives=None,
         pool_based_replacement_probability=1,
+        pool_based_replacement_inner_probability=1,
         mask_out_probability=0,
         complementary_replacement=False,
         full_scaling_after_replacement=False,
@@ -234,6 +235,9 @@ class MutationConfiguration(Configuration):
         self.handle_objective_duplication = handle_objective_duplication
         self.basic_primitives = basic_primitives
         self.pool_based_replacement_probability = pool_based_replacement_probability
+        self.pool_based_replacement_inner_probability = (
+            pool_based_replacement_inner_probability
+        )
         self.mask_out_probability = mask_out_probability
         self.complementary_replacement = complementary_replacement
         self.full_scaling_after_replacement = full_scaling_after_replacement

@@ -303,6 +303,12 @@ def varAndPlus(
             )
             temp_semantics = current_semantics - delete_semantics
 
+            if (
+                random.random()
+                > mutation_configuration.pool_based_replacement_inner_probability
+            ):
+                return
+
             if random.random() < mutation_configuration.mask_out_probability:
                 ind.gene[id] = PrimitiveTree([Terminal(0, False, object)])
                 current_semantics = temp_semantics
