@@ -294,9 +294,11 @@ def varAndPlus(
         if random.random() > mutation_configuration.pool_based_replacement_probability:
             return
 
+        # prediction_validation(ind, indexes)
+
         for id in orders:
-            delete_semantics = ind.coef[id] * (
-                (ind.semantics[indexes, id] - ind.scaler.scale_[id])
+            delete_semantics = ind.pipe["Ridge"].coef_[id] * (
+                (ind.semantics[indexes, id] - ind.scaler.mean_[id])
                 / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
             )
             temp_semantics = current_semantics - delete_semantics
@@ -306,7 +308,16 @@ def varAndPlus(
                 current_semantics = temp_semantics
                 continue
 
+            if mutation_configuration.scaling_before_replacement:
+                factor = calculate_slope(temp_semantics, target)
+                intercept = calculate_intercept(temp_semantics, target, factor)
+                temp_semantics = temp_semantics * factor + intercept
+
             residual = target - temp_semantics
+
+            if mutation_configuration.complementary_replacement:
+                residual = target + (target - temp_semantics)
+
             if algorithm.verbose:
                 algorithm.success_rate.add_values(0)
 
@@ -341,9 +352,20 @@ def varAndPlus(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
             ):
                 continue
-            factor = calculate_slope(proposed_semantics, residual)
-            intercept = calculate_intercept(proposed_semantics, residual, factor)
-            trail_semantics = temp_semantics + factor * proposed_semantics + intercept
+            if mutation_configuration.full_scaling_after_replacement:
+                lr = LinearRegression()
+                lr.fit(np.vstack((temp_semantics, proposed_semantics)).T, target)
+                trail_semantics = lr.predict(
+                    np.vstack((temp_semantics, proposed_semantics)).T
+                )
+            else:
+                factor = calculate_slope(proposed_semantics, residual)
+                intercept = calculate_intercept(proposed_semantics, residual, factor)
+                trail_semantics = (
+                    temp_semantics + factor * proposed_semantics + intercept
+                )
+                if mutation_configuration.complementary_replacement:
+                    trail_semantics = trail_semantics / 2
 
             # factor = calculate_slope(delete_semantics, residual)
             # intercept = calculate_intercept(delete_semantics, residual, factor)
@@ -364,6 +386,15 @@ def varAndPlus(
             else:
                 pass
         return
+
+    def prediction_validation(ind, indexes):
+        semantics = np.zeros_like(indexes, dtype=np.float32)
+        for id in range(0, len(ind.gene)):
+            semantics += ind.pipe["Ridge"].coef_[id] * (
+                (ind.semantics[indexes, id] - ind.scaler.mean_[id])
+                / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
+            )
+        semantics += ind.pipe["Ridge"].intercept_
 
     def addition_and_deletion(i, offspring):
         if random.random() < mutation_configuration.gene_deletion_rate:

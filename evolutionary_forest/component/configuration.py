@@ -208,6 +208,9 @@ class MutationConfiguration(Configuration):
         basic_primitives=None,
         pool_based_replacement_probability=1,
         mask_out_probability=0,
+        complementary_replacement=False,
+        full_scaling_after_replacement=False,
+        scaling_before_replacement=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -232,6 +235,9 @@ class MutationConfiguration(Configuration):
         self.basic_primitives = basic_primitives
         self.pool_based_replacement_probability = pool_based_replacement_probability
         self.mask_out_probability = mask_out_probability
+        self.complementary_replacement = complementary_replacement
+        self.full_scaling_after_replacement = full_scaling_after_replacement
+        self.scaling_before_replacement = scaling_before_replacement
 
 
 class ImbalancedConfiguration(Configuration):
