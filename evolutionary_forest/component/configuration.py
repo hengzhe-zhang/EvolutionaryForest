@@ -212,6 +212,7 @@ class MutationConfiguration(Configuration):
         complementary_replacement=False,
         full_scaling_after_replacement=False,
         scaling_before_replacement=False,
+        top_k_candidates=10,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -239,9 +240,15 @@ class MutationConfiguration(Configuration):
             pool_based_replacement_inner_probability
         )
         self.mask_out_probability = mask_out_probability
+
+        """
+        Useless parameters
+        """
         self.complementary_replacement = complementary_replacement
         self.full_scaling_after_replacement = full_scaling_after_replacement
         self.scaling_before_replacement = scaling_before_replacement
+
+        self.top_k_candidates = top_k_candidates
 
 
 class ImbalancedConfiguration(Configuration):

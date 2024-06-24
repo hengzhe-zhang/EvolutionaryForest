@@ -335,10 +335,12 @@ def varAndPlus(
                     incumbent_size = len(ind.gene[id])
                 else:
                     incumbent_size = 0
+
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                     normalize_vector(residual),
                     return_semantics=True,
                     incumbent_size=incumbent_size,
+                    top_k=mutation_configuration.top_k_candidates,
                 )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
