@@ -139,25 +139,17 @@ class CVTMAPElitesHOF(HallOfFame):
                 self.map_archive_candidate_size,
             )
         # centered
-        if self.centered_cvt_map_elites:
-            """
-            Must be centered, otherwise the center is not the target semantics
-            """
-            semantics = np.array(
-                [ind.predicted_values + self.y for ind in best_candidate]
-            )
-        else:
-            semantics = np.array([ind.predicted_values for ind in best_candidate])
+        semantics = np.array([ind.predicted_values for ind in best_candidate]) - self.y
 
         # semantics_a = np.array([ind.predicted_values for ind in best_candidate])
-        # semantics_a = semantics_a + self.y
-        #
+        # semantics_a = semantics_a - self.y
+
         # semantics_b = np.array([ind.predicted_values for ind in best_candidate])
         # visualize_kmeans_clustering_separately(
         #     semantics_a[:, :2],
         #     semantics_b[:, :2],
         #     fitness=[ind.fitness.wvalues[0] for ind in best_candidate],
-        #     target=self.y[:2],
+        #     target=[0, 0],
         #     n_clusters=5,
         #     use_first_two_dims=True,
         # )
