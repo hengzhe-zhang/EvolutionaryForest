@@ -19,6 +19,7 @@ class CVTMAPElitesHOF(HallOfFame):
         map_elites_hof_mode="Independent",
         y=None,
         symmetric_map_archive_mode=False,
+        centered_cvt_map_elites=True,
         **kwargs
     ):
         super().__init__(maxsize)
@@ -28,6 +29,7 @@ class CVTMAPElitesHOF(HallOfFame):
             self.map_archive_candidate_size = maxsize
         self.clustering_method = clustering_method
         self.map_elites_hof_mode = map_elites_hof_mode
+        self.centered_cvt_map_elites = centered_cvt_map_elites
         self.y = y
         assert isinstance(self.y, np.ndarray)
 
@@ -43,7 +45,15 @@ class CVTMAPElitesHOF(HallOfFame):
                 self.map_archive_candidate_size,
             )
         # centered
-        semantics = np.array([ind.predicted_values - self.y for ind in best_candidate])
+        if self.centered_cvt_map_elites:
+            """
+            Must be centered, otherwise the center is not the target semantics
+            """
+            semantics = np.array(
+                [ind.predicted_values - self.y for ind in best_candidate]
+            )
+        else:
+            semantics = np.array([ind.predicted_values for ind in best_candidate])
 
         if self.symmetric_map_archive_mode:
             symmetric_semantics = -semantics
