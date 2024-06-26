@@ -2283,7 +2283,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.select == "DoubleRound":
             toolbox.register("select", selDoubleRound)
         elif self.select.startswith("ParetoTournament"):
-            toolbox.register("select", sel_pareto_tournament, subset_ratio=0.1)
+            if "-" in self.select:
+                subset_ratio = float(self.select.split("-")[1])
+            else:
+                subset_ratio = 0.1
+            toolbox.register("select", sel_pareto_tournament, subset_ratio=subset_ratio)
         elif self.select == "SubsetBest":
             toolbox.register("select", sel_subset_best)
         elif self.select == "DoubleRound-Random":
@@ -4786,7 +4790,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     isinstance(self.external_archive, int)
                     and self.external_archive >= 1
                 ):
-                    offspring = toolbox.select(parent + external_archive, 2)
+                    if self.select.startswith("ParetoTournament"):
+                        offspring = toolbox.select(
+                            parent + external_archive, self.n_pop
+                        )
+                    else:
+                        offspring = toolbox.select(parent + external_archive, 2)
                 else:
                     offspring = toolbox.select(parent, 2)
         return offspring

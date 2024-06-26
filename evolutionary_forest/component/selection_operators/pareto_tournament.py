@@ -1,5 +1,6 @@
-from deap.tools import sortNondominated, selBest
 import random
+
+from deap.tools import sortNondominated, selBest
 
 
 def sel_subset_best(pop, k, subset_ratio=0.1):
