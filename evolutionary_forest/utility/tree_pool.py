@@ -62,7 +62,7 @@ class SemanticLibrary:
         library_updating_mode="LeastFrequentUsed",
         semantics_length=5,
         random_order_replacement=True,
-        **params
+        **params,
     ):
         self.plain_semantics_list = []
         self.clustering_indexes = None
@@ -232,8 +232,8 @@ class SemanticLibrary:
             index = index_neg
 
         self.plot_distance_function(dist)
-        if self.library_updating_mode == "LeastFrequentUsed":
-            self.frequency[index] += 1
+        # if self.library_updating_mode == "LeastFrequentUsed":
+        self.frequency[index] += 1
         if return_semantics:
             return self.trees[index], self.normalized_semantics_list[index]
         return self.trees[index]  # Return the corresponding tree
@@ -274,8 +274,8 @@ class SemanticLibrary:
         if smallest_index == -1:
             smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
 
-        if self.library_updating_mode == "LeastFrequentUsed":
-            self.frequency[smallest_index] += 1
+        # if self.library_updating_mode == "LeastFrequentUsed":
+        self.frequency[smallest_index] += 1
 
         if return_semantics:
             return (
@@ -418,3 +418,34 @@ class SemanticLibrary:
             self.clustering_indexes = nearest_indexes
         else:
             raise ValueError("Invalid mode")
+
+    def plot_top_frequencies(self, top_n=10):
+        # Get the top N most frequently accessed trees
+        top_frequencies = sorted(
+            self.frequency.items(), key=lambda x: x[1], reverse=True
+        )[:top_n]
+        top_indices = [str(self.trees[index]) for index, freq in top_frequencies]
+        top_values = [freq for index, freq in top_frequencies]
+        # Check if both lists have the same length
+        if len(top_indices) != len(top_values):
+            print("Mismatch in lengths of top_indices and top_values")
+            return
+
+        # Ensure there are elements to plot
+        if len(top_indices) == 0:
+            print("No data to plot")
+            return
+
+        plt.figure(figsize=(15, 6))
+        # Print the top frequencies
+        print("Top Frequencies:")
+        for i, freq in enumerate(top_values):
+            print(f"Tree {top_indices[i]}: {freq} times")
+
+        # Plot the top frequencies
+        plt.barh(range(len(top_indices)), top_values, tick_label=top_indices)
+        plt.xlabel("Frequency")
+        plt.ylabel("Tree Index")
+        plt.title("Top Frequencies of Retrieved Trees")
+        plt.tight_layout()
+        plt.show()

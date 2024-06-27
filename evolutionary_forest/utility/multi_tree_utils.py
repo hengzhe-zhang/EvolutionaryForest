@@ -1,4 +1,5 @@
 import copy
+import random
 from typing import TYPE_CHECKING
 
 from deap.gp import PrimitiveTree, cxOnePoint
@@ -11,6 +12,16 @@ from evolutionary_forest.utility.normalization_tool import normalize_vector
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+
+def random_replacement(
+    individual: MultipleGeneGP, algorithm: "EvolutionaryForestRegressor", tree=None
+):
+    for i, gene in enumerate(individual.gene):
+        if random.random() < algorithm.mutation_configuration.gene_replacement_rate:
+            tree = tree_generation(individual, "", algorithm)
+            individual.gene[i] = tree
+    return individual
 
 
 def gene_addition(

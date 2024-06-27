@@ -34,7 +34,10 @@ from evolutionary_forest.multigene_gp import (
     MultipleGeneGP,
     gene_mutation,
 )
-from evolutionary_forest.utility.multi_tree_utils import gene_addition
+from evolutionary_forest.utility.multi_tree_utils import (
+    gene_addition,
+    random_replacement,
+)
 
 
 def pool_mode_controller(pool_addition_mode, X, y):
@@ -197,6 +200,8 @@ def varAndPlus(
             i += 1
 
         for o in offspring:
+            if algorithm.mutation_configuration.gene_replacement_rate > 0:
+                random_replacement(o, algorithm)
             # must delete all fitness values
             assert (
                 not hasattr(o, "fitness")
@@ -308,11 +313,6 @@ def varAndPlus(
                 > mutation_configuration.pool_based_replacement_inner_probability
             ):
                 return
-
-            if random.random() < mutation_configuration.mask_out_probability:
-                ind.gene[id] = PrimitiveTree([Terminal(0, False, object)])
-                current_semantics = temp_semantics
-                continue
 
             if mutation_configuration.scaling_before_replacement:
                 factor = calculate_slope(temp_semantics, target)

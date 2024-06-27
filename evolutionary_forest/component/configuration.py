@@ -208,7 +208,7 @@ class MutationConfiguration(Configuration):
         basic_primitives=None,
         pool_based_replacement_probability=1,
         pool_based_replacement_inner_probability=1,
-        mask_out_probability=0,
+        gene_replacement_rate=0,
         complementary_replacement=False,
         full_scaling_after_replacement=False,
         scaling_before_replacement=False,
@@ -239,7 +239,7 @@ class MutationConfiguration(Configuration):
         self.pool_based_replacement_inner_probability = (
             pool_based_replacement_inner_probability
         )
-        self.mask_out_probability = mask_out_probability
+        self.gene_replacement_rate = gene_replacement_rate
 
         """
         Useless parameters

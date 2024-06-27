@@ -3291,6 +3291,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.mutation_scheme.callback(self.pop)
         # callback function after each generation
         if self.verbose:
+            # if self.current_gen > 0 and self.current_gen % 3 == 0:
+            #     self.tree_pool.plot_top_frequencies()
             pop = self.pop
             if self.log_item != "":
                 best_ind: MultipleGeneGP = sorted(
