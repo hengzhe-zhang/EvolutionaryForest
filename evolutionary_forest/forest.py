@@ -1383,7 +1383,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             mse = np.mean(np.clip(original_mse, lower_bound, upper_bound))
             return (mse,)
         elif (
-            self.score_func == "R2"
+            self.score_func in ["R2", "ExponentialR2", "LogR2"]
             or self.score_func.startswith("EvoMAL")
             or self.score_func == "NoveltySearch"
             or self.score_func == "MAE"
@@ -1471,6 +1471,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 individual.case_values = discretize_and_replace(
                     individual.case_values, bin, strategy
                 )
+        elif self.score_func == "ExponentialR2":
+            individual.case_values = np.exp(
+                np.clip(((y_pred - Y.flatten()).flatten()) ** 2, 0, 10)
+            )
+        elif self.score_func == "LogR2":
+            individual.case_values = np.log(1 + ((y_pred - Y.flatten()).flatten()) ** 2)
         elif self.score_func == "MAE":
             individual.case_values = np.abs(((y_pred - Y.flatten()).flatten()))
         elif self.score_func == "Bounded" or self.score_func.startswith("Bounded"):
