@@ -99,6 +99,8 @@ class CrossoverMode(enum.Enum):
 class SelectionMode(enum.Enum):
     MAPElites = enum.auto()
     AngleDriven = enum.auto()
+    ResXO = enum.auto()
+    StageXO = enum.auto()
 
     @staticmethod
     def from_string(string):

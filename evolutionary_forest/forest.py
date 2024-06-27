@@ -1,3 +1,4 @@
+import copy
 import gc
 import inspect
 import random
@@ -112,6 +113,7 @@ from evolutionary_forest.component.crossover.intron_based_crossover import (
     IntronPrimitive,
     IntronTerminal,
 )
+from evolutionary_forest.component.crossover.semantic_crossover import resxo, stagexo
 from evolutionary_forest.component.crossover_mutation import (
     hoistMutation,
     individual_combination,
@@ -4202,6 +4204,23 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 available_parent = semanticFeatureCrossover(
                     offspring[0], offspring[1], target
                 )
+            elif crossover_configuration.semantic_selection_mode == SelectionMode.ResXO:
+                coef = offspring[0]["Ridge"].coef
+                _, d, best_feature_idx = resxo(
+                    offspring[0].semantics, offspring[1].semantics, coef, self.y
+                )
+                offspring[0].gene[d] = offspring[1].gene[best_feature_idx]
+                available_parent = [offspring[0]]
+            elif (
+                crossover_configuration.semantic_selection_mode == SelectionMode.StageXO
+            ):
+                _, selected_indices_p1, selected_indices_p2 = stagexo(
+                    offspring[0].semantics, offspring[1].semantics, self.y
+                )
+                offspring[0].gene = [
+                    offspring[0].gene[idx] for idx in selected_indices_p1
+                ], [offspring[1].gene[idx] for idx in selected_indices_p2]
+                available_parent = [offspring[0]]
             else:
                 raise Exception(
                     "Unsupported semantic selection mode:",

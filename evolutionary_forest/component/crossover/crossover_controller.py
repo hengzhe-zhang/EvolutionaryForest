@@ -5,6 +5,7 @@ from deap.algorithms import varAnd
 from deap.gp import mutUniform
 
 from evolutionary_forest.component.configuration import SelectionMode
+from evolutionary_forest.component.crossover.semantic_crossover import resxo, stagexo
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import (
     mapElitesCrossover,
@@ -26,6 +27,21 @@ def perform_semantic_macro_crossover(offspring, config, toolbox, y):
             target=y,
             map_elites_configuration=config.map_elites_configuration,
         )
+    elif config.semantic_selection_mode == SelectionMode.ResXO:
+        coef = offspring[0].pipe["Ridge"].coef_
+        _, d, best_feature_idx = resxo(
+            offspring[0].semantics, offspring[1].semantics, coef, y
+        )
+        offspring[0].gene[d] = offspring[1].gene[best_feature_idx]
+        offspring = [offspring[0]]
+    elif config.semantic_selection_mode == SelectionMode.StageXO:
+        _, selected_indices_p1, selected_indices_p2 = stagexo(
+            offspring[0].semantics, offspring[1].semantics, y
+        )
+        offspring[0].gene = [offspring[0].gene[idx] for idx in selected_indices_p1] + [
+            offspring[1].gene[idx] for idx in selected_indices_p2
+        ]
+        offspring = [offspring[0]]
     else:
         raise Exception("Invalid Selection Mode!")
 
