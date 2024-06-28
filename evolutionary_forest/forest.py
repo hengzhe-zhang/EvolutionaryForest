@@ -4557,7 +4557,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # ignore the first generation
                 self.mutation_successful_rate.append(successful_mutation / all_mutation)
 
-        if self.crossover_configuration.semantic_crossover_mode is not None:
+        if (
+            self.crossover_configuration.semantic_crossover_mode is not None
+            and "SuccessRate" in self.log_item
+        ):
             # if an individual is better than either of its parent, it is considered as a successful crossover
             successful_crossover = 0
             all_crossover = 0

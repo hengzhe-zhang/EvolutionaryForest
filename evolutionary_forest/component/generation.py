@@ -3,7 +3,6 @@ import math
 import random
 from typing import List, TYPE_CHECKING
 
-from deap.gp import PrimitiveTree, Terminal
 from deap.tools import cxTwoPoint
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
@@ -19,6 +18,9 @@ from evolutionary_forest.component.configuration import (
 from evolutionary_forest.component.gradient_optimization.linear_scaling import (
     calculate_slope,
     calculate_intercept,
+)
+from evolutionary_forest.component.semantic_library.scheduling_function import (
+    scheduling_controller,
 )
 from evolutionary_forest.component.stgp.strongly_type_gp_utility import revert_back
 from evolutionary_forest.component.toolbox import TypedToolbox
@@ -92,8 +94,22 @@ def varAndPlus(
             for i in range(len(offspring)):
                 addition_and_deletion(i, offspring)
         if mutation_configuration.pool_based_addition:
-            for i in range(len(offspring)):
-                tree_replacement(offspring[i])
+            mode = mutation_configuration.pool_based_replacement_mode
+            independent = ""
+            if "-" in mode:
+                mode, independent = mode.split("-")
+            current_gen = algorithm.current_gen
+            total_gen = algorithm.n_gen
+            if scheduling_controller(
+                mode,
+                current_gen,
+                total_gen,
+            ):
+                # exclusive
+                for i in range(len(offspring)):
+                    tree_replacement(offspring[i])
+                if independent == "Independent":
+                    return offspring
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -296,9 +312,6 @@ def varAndPlus(
             random.shuffle(orders)
 
         mutation_configuration = algorithm.mutation_configuration
-        if random.random() > mutation_configuration.pool_based_replacement_probability:
-            return
-
         # prediction_validation(ind, indexes)
 
         for id in orders:
