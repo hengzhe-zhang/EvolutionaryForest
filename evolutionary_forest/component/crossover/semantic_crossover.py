@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def calculate_mutation_probabilities(beta, gamma=0.5):
+def calculate_mutation_probabilities(beta, gamma=0, normalization=False):
     """
     Calculate mutation probabilities for features based on their coefficients.
 
@@ -15,9 +15,12 @@ def calculate_mutation_probabilities(beta, gamma=0.5):
     # Normalize the coefficients
     beta_normalized = np.abs(beta) / np.sum(np.abs(beta))
 
-    # Calculate the softmax-normalized probabilities
-    exp_terms = np.exp(1 - beta_normalized)
-    s = exp_terms / np.sum(exp_terms)
+    if normalization:
+        # Calculate the softmax-normalized probabilities
+        exp_terms = np.exp(1 - beta_normalized)
+        s = exp_terms / np.sum(exp_terms)
+    else:
+        s = beta_normalized
 
     # Calculate the mutation probabilities
     m = len(beta)
