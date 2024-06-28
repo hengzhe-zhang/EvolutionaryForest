@@ -96,11 +96,11 @@ def varAndPlus(
         if mutation_configuration.pool_based_addition:
             mode = mutation_configuration.pool_based_replacement_mode
             independent = ""
-            if "-" in mode:
+            if isinstance(mode, str) and "-" in mode:
                 mode, independent = mode.split("-")
             current_gen = algorithm.current_gen
             total_gen = algorithm.n_gen
-            if scheduling_controller(
+            if mode is None or scheduling_controller(
                 mode,
                 current_gen,
                 total_gen,

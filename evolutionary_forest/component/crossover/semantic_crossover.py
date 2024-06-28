@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def calculate_mutation_probabilities(beta, gamma):
+def calculate_mutation_probabilities(beta, gamma=0.5):
     """
     Calculate mutation probabilities for features based on their coefficients.
 
@@ -43,7 +43,7 @@ def resxo(phi_p1, phi_p2, beta_p1, y):
     n_samples, n_features_p1 = phi_p1.shape
 
     # Step 1: Pick a feature from phi_p1 using probabilities (assuming uniform probability for simplicity)
-    mutation_probabilities = calculate_mutation_probabilities(beta_p1, gamma)
+    mutation_probabilities = calculate_mutation_probabilities(beta_p1)
     d = np.random.choice(len(mutation_probabilities), p=mutation_probabilities)
     phi_d = phi_p1[:, d]
 

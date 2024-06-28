@@ -208,7 +208,7 @@ class MutationConfiguration(Configuration):
         include_subtree_to_lib=False,
         handle_objective_duplication=False,
         basic_primitives=None,
-        pool_based_replacement_mode=1,
+        pool_based_replacement_mode=None,
         pool_based_replacement_inner_probability=1,
         gene_replacement_rate=0,
         complementary_replacement=False,
