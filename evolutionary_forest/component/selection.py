@@ -289,6 +289,42 @@ def selLexicographicParsimonyPressure(individuals, k):
     return selected
 
 
+def plot_distribution(case_values, fit_weights):
+    index, avg_cases = selAutomaticEpsilonLexicaseNumba(
+        np.log1p(case_values), fit_weights, 1000
+    )
+    unique_indices, counts = np.unique(index, return_counts=True)
+    print("Max cases", np.max(counts))
+    plt.figure(figsize=(6, 3))
+    plt.bar(unique_indices, counts, color="skyblue")
+    plt.xlabel("Unique Indices")
+    plt.ylabel("Frequency")
+    plt.title("Frequency Distribution of Selected Indices (Log)")
+
+    plt.show()
+    index, avg_cases = selAutomaticEpsilonLexicaseNumba(case_values, fit_weights, 1000)
+    unique_indices, counts = np.unique(index, return_counts=True)
+    print("Max cases", np.max(counts))
+    plt.figure(figsize=(6, 3))
+    plt.bar(unique_indices, counts, color="skyblue")
+    plt.xlabel("Unique Indices")
+    plt.ylabel("Frequency")
+    plt.title("Frequency Distribution of Selected Indices (Normal)")
+    plt.show()
+
+    index, avg_cases = selAutomaticEpsilonLexicaseNumba(
+        np.exp(case_values), fit_weights, 1000
+    )
+    unique_indices, counts = np.unique(index, return_counts=True)
+    print("Max cases", np.max(counts))
+    plt.figure(figsize=(6, 3))
+    plt.bar(unique_indices, counts, color="skyblue")
+    plt.xlabel("Unique Indices")
+    plt.ylabel("Frequency")
+    plt.title("Frequency Distribution of Selected Indices (Exp)")
+    plt.show()
+
+
 # @timeit
 def selAutomaticEpsilonLexicaseFast(individuals, k, return_avg_cases=False):
     fit_weights = individuals[0].fitness.weights[0]
