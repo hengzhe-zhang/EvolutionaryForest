@@ -36,3 +36,7 @@ def check_number_of_unique_tree_semantics(offspring, num_of_trees):
         ],
     )
     print(len(set(individual_to_tuple(o) for o in offspring)))
+
+
+class SemanticLibPositionSuccessAnalysis:
+    pass
