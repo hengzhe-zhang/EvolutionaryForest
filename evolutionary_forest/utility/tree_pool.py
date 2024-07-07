@@ -355,7 +355,14 @@ class SemanticLibrary:
                 plt.show()
                 self.distance_distribution.clear()
 
-    def update_hard_instance(self, error: np.ndarray, semantics: np.ndarray, mode: str):
+    def update_hard_instance(
+        self,
+        error: np.ndarray,
+        semantics: np.ndarray,
+        mode: str,
+        features: np.ndarray,
+        label: np.ndarray,
+    ):
         if len(error.T) <= self.semantics_length:
             # no need to do clustering
             return None
@@ -373,6 +380,22 @@ class SemanticLibrary:
             centroids = k_means.cluster_centers_  # Get centroids of each cluster
             # Find the index of the nearest sample to each centroid
             nearest_indexes, _ = pairwise_distances_argmin_min(centroids, semantics.T)
+            self.clustering_indexes = nearest_indexes
+        elif mode == "Label-K-Means":
+            k_means = KMeans(n_clusters=self.semantics_length)
+            k_means.fit_transform(label.reshape(-1, 1))
+            centroids = k_means.cluster_centers_  # Get centroids of each cluster
+            # Find the index of the nearest sample to each centroid
+            nearest_indexes, _ = pairwise_distances_argmin_min(
+                centroids, label.reshape(-1, 1)
+            )
+            self.clustering_indexes = nearest_indexes
+        elif mode == "Feature-K-Means":
+            k_means = KMeans(n_clusters=self.semantics_length)
+            k_means.fit_transform(features)
+            centroids = k_means.cluster_centers_  # Get centroids of each cluster
+            # Find the index of the nearest sample to each centroid
+            nearest_indexes, _ = pairwise_distances_argmin_min(centroids, features)
             self.clustering_indexes = nearest_indexes
         elif mode == "Worst":
             errors = np.median(error, axis=0)
