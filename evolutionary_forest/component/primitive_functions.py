@@ -68,16 +68,13 @@ def gaussian_torch(x):
 
 
 def protected_division(x1, *x2, threshold=1e-10):
-    with np.errstate(divide="ignore", invalid="ignore"):
-        x2 = reduce(operator.mul, x2)
-        # threshold from GEPPY
-        # with np.errstate(divide="ignore", invalid="ignore"):
-        #     return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
-        try:
-            return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
-        except ZeroDivisionError as e:
-            print("Exception occurred", x1, x2)
-            raise e
+    # with np.errstate(divide="ignore", invalid="ignore"):
+    #     return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
+    x2 = reduce(operator.mul, x2)
+    # Clip to avoid division by zero
+    x2 = np.where((x2 >= 0) & (x2 < threshold), threshold, x2)
+    x2 = np.where((x2 < 0) & (x2 > -threshold), -threshold, x2)
+    return np.divide(x1, x2)
 
 
 def protected_division_torch(x1, *x2):
@@ -175,7 +172,7 @@ def analytical_log(x):
 
 
 def analytical_log_singed(x):
-    return np.log(np.sqrt(1e-10 + x**2)) * np.sign(x)
+    return np.log(np.sqrt(1 + x**2)) * np.sign(x)
 
 
 def analytical_log10(x):
