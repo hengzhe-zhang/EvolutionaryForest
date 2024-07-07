@@ -141,7 +141,7 @@ def analytical_quotient(x1, *x2):
 
 def analytical_quotient_signed(x1, *x2):
     x2 = reduce(operator.mul, x2)
-    return x1 / np.sqrt(1 + (x2**2)) * np.sign(x2)
+    return x1 / np.sqrt(1e-10 + (x2**2)) * np.sign(x2)
 
 
 def analytical_quotient_torch(x1, x2):
@@ -175,7 +175,7 @@ def analytical_log(x):
 
 
 def analytical_log_singed(x):
-    return np.log(np.sqrt(1 + x**2)) * np.sign(x)
+    return np.log(np.sqrt(1e-10 + x**2)) * np.sign(x)
 
 
 def analytical_log10(x):
