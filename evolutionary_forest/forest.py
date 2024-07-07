@@ -669,7 +669,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.y_scaler = SigmoidTransformer()
         elif normalize == "STD+MinMax":
             self.x_scaler = StandardScalerWithMinMaxScaler()
-            self.y_scaler = MinMaxScaler()
+            self.y_scaler = StandardScaler()
         elif normalize == "LN":
             self.x_scaler = Pipeline(
                 [
