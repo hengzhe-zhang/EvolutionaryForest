@@ -298,7 +298,7 @@ def gene_to_string(gene):
                 string = "("
                 if prim.name == "AQ":
                     string += f"{args[0]}/sqrt(1+{args[1]}*{args[1]})"
-                elif prim.name == "AQ-Singed":
+                elif prim.name == "AQ-Signed":
                     string += (
                         f"(sign({args[1]})*({args[0]}/sqrt(1+{args[1]}*{args[1]})))"
                     )

@@ -49,7 +49,7 @@ def get_functions(p):
             analytical_quotient,
             2,
         ),  # Analytical Quotient for symbolic differentiation
-        "AQ-Singed": (analytical_quotient_signed, 2),  # AQ
+        "AQ-Signed": (analytical_quotient_signed, 2),  # AQ
         "AQ^3": (partial(simple_reduce, analytical_quotient), 3),  # AQ
         "AQ^4": (partial(simple_reduce, analytical_quotient), 4),  # AQ
         "AQ^5": (partial(simple_reduce, analytical_quotient), 5),  # AQ
