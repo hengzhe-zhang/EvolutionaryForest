@@ -269,6 +269,9 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
+from evolutionary_forest.utility.feature_importance_util import (
+    feature_importance_process,
+)
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.metric.moving_average import MovingAverage
 from evolutionary_forest.utility.metric.visualization import *
@@ -1358,14 +1361,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual.coef = coef
             assert i == int(sum(individual.active_gene))
 
-        def coefficient_process(coefficient):
-            if sum(coefficient) == 0:
-                coefficient = np.ones_like(coefficient)
-            coefficient = coefficient / np.sum(coefficient)
-            coefficient = np.nan_to_num(coefficient, posinf=0, neginf=0)
-            return coefficient
-
-        individual.coef = coefficient_process(individual.coef)
+        individual.coef = feature_importance_process(individual.coef)
 
     def calculate_fitness_value(self, individual, estimators, Y, y_pred):
         """
@@ -1608,6 +1604,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             base_model = model["model"]["Ridge"]
         else:
             base_model = model["Ridge"]
+
+        # update feature importance after final training
         if hasattr(base_model, "feature_importances_"):
             individual.coef = base_model.feature_importances_[: self.gene_num]
         elif hasattr(base_model, "coef_"):
@@ -3281,6 +3279,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval
             mode = self.mutation_configuration.library_clustering_mode
+            if (
+                self.current_gen == 10
+                and self.mutation_configuration.lib_feature_selection
+            ):
+                self.tree_pool.update_forbidden_list(self.pop, self.X.shape[1])
             if interval > 0 and self.current_gen % interval == 0:
                 if self.current_gen > 0 and mode in [
                     "Label-K-Means",

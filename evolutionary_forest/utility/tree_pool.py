@@ -5,7 +5,8 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from deap.gp import PrimitiveTree
+from deap.gp import PrimitiveTree, Terminal
+from deap.tools import selBest
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
 from scipy.stats import pearsonr
@@ -17,6 +18,9 @@ from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 from evolutionary_forest.component.configuration import MAPElitesConfiguration
 from evolutionary_forest.multigene_gp import MultipleGeneGP, map_elites_selection
+from evolutionary_forest.utility.feature_importance_util import (
+    feature_importance_process,
+)
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 
 
@@ -83,10 +87,18 @@ class SemanticLibrary:
         self.random_order_replacement = random_order_replacement
 
         self.log_initialization()
+        self.forbidden_list = []
 
     def log_initialization(self):
         self.mismatch_times = []
         self.distance_distribution = []
+
+    def forbidden_check(self, tree):
+        for terminal_name in self.forbidden_list:
+            for node in tree:
+                if isinstance(node, Terminal) and node.name == terminal_name:
+                    return True
+        return False
 
     def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
         target_semantics = self.index_semantics(target_semantics)
@@ -112,6 +124,8 @@ class SemanticLibrary:
                     semantics_hash in self.seen_semantics
                     and len(tree) > self.seen_semantics[semantics_hash]
                 ):
+                    continue
+                if self.forbidden_check(tree):
                     continue
 
                 # if str(tree) in self.seen_trees:
@@ -354,6 +368,36 @@ class SemanticLibrary:
                 plt.grid(True)
                 plt.show()
                 self.distance_distribution.clear()
+
+    def update_forbidden_list(self, pop, total_features):
+        # Calculate the size of each feature group
+        features_per_group = total_features // 3
+        feature_group = {0: 0, 1: 0, 2: 0}
+
+        # Select the top 30 individuals
+        top_individuals = selBest(pop, 30)
+
+        # Count feature usage in each group
+        for ind in top_individuals:
+            # Currently only supporting Linear Regression with LOOCV
+            assert np.allclose(
+                feature_importance_process(abs(ind.pipe["Ridge"].coef_)), ind.coef
+            )
+            for coef, tree in zip(ind.coef, ind.gene):
+                for node in tree:
+                    if isinstance(node, Terminal) and node.name.startswith("ARG"):
+                        feature_id = int(node.name.replace("ARG", ""))
+                        group_id = feature_id // features_per_group
+                        if group_id in feature_group:
+                            feature_group[group_id] += coef
+
+        # Find the largest feature group
+        largest_group = max(feature_group, key=feature_group.get)
+
+        # Ban features from other groups
+        for f_id in range(total_features):
+            if f_id // features_per_group != largest_group:
+                self.forbidden_list.append(f"ARG{f_id}")
 
     def update_hard_instance(
         self,

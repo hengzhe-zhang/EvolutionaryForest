@@ -215,6 +215,7 @@ class MutationConfiguration(Configuration):
         full_scaling_after_replacement=False,
         scaling_before_replacement=False,
         top_k_candidates=10,
+        lib_feature_selection=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -251,6 +252,7 @@ class MutationConfiguration(Configuration):
         self.scaling_before_replacement = scaling_before_replacement
 
         self.top_k_candidates = top_k_candidates
+        self.lib_feature_selection = lib_feature_selection
 
 
 class ImbalancedConfiguration(Configuration):
