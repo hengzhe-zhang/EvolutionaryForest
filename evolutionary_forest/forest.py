@@ -3303,6 +3303,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.mutation_scheme.callback(self.pop)
         # callback function after each generation
         if self.verbose:
+            primitive_usage = defaultdict(int)
+            for p in self.pop:
+                for x in p.gene:
+                    for s in x:
+                        primitive_usage[s.name] += 1
+            # print(primitive_usage)
+
             # if self.current_gen > 0 and self.current_gen % 3 == 0:
             #     self.tree_pool.plot_top_frequencies()
             pop = self.pop

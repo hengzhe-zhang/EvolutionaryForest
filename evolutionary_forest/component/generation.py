@@ -107,7 +107,7 @@ def varAndPlus(
             ):
                 # exclusive
                 for i in range(len(offspring)):
-                    tree_replacement(offspring[i])
+                    tree_replacement(offspring[i], current_gen)
                 if independent == "Independent":
                     return offspring
         # Apply crossover and mutation on the offspring
@@ -300,7 +300,7 @@ def varAndPlus(
             else:
                 offspring[i].gene_deletion()
 
-    def tree_replacement(ind: MultipleGeneGP):
+    def tree_replacement(ind: MultipleGeneGP, current_gen: int):
         indexes = algorithm.tree_pool.clustering_indexes
         if indexes is None:
             indexes = list(range(len(ind.individual_semantics)))
@@ -340,11 +340,20 @@ def varAndPlus(
             if algorithm.verbose:
                 algorithm.success_rate.add_values(0)
 
-            if (
-                mutation_configuration.pool_addition_mode == "Smallest"
-                or mutation_configuration.pool_addition_mode == "Smallest~Auto"
+            pool_addition_mode = mutation_configuration.pool_addition_mode
+            if isinstance(pool_addition_mode, str) and pool_addition_mode.startswith(
+                "Smallest~Auto-"
             ):
-                if mutation_configuration.pool_addition_mode == "Smallest~Auto":
+                interval = int(pool_addition_mode.split("-")[1])
+                if current_gen % interval == 0:
+                    pool_addition_mode = "Smallest~Auto"
+                else:
+                    pool_addition_mode = "Best"
+            if (
+                pool_addition_mode == "Smallest"
+                or pool_addition_mode == "Smallest~Auto"
+            ):
+                if pool_addition_mode == "Smallest~Auto":
                     incumbent_size = len(ind.gene[id])
                 else:
                     incumbent_size = 0
@@ -364,9 +373,9 @@ def varAndPlus(
             if value is None:
                 continue
             tree, proposed_semantics = value
-            if mutation_configuration.pool_addition_mode.startswith("Smallest") and len(
-                tree
-            ) > len(ind.gene[id]):
+            if pool_addition_mode.startswith("Smallest") and len(tree) > len(
+                ind.gene[id]
+            ):
                 continue
 
             if np.all(
