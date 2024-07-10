@@ -3282,7 +3282,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if interval > 0 and self.current_gen % interval == 0:
                 if (
                     self.current_gen > 0
-                    and self.mutation_configuration.lib_feature_selection != ""
+                    and self.mutation_configuration.lib_feature_selection is not None
                 ):
                     self.tree_pool.update_forbidden_list(
                         self.pop,
