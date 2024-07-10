@@ -334,8 +334,9 @@ def varAndPlus(
 
             residual = target - temp_semantics
 
-            if mutation_configuration.complementary_replacement:
-                residual = target + (target - temp_semantics)
+            if mutation_configuration.complementary_replacement > 0:
+                ratio = mutation_configuration.complementary_replacement
+                residual = (1 - ratio) * target + ratio * (target - temp_semantics)
 
             if algorithm.verbose:
                 algorithm.success_rate.add_values(0)
@@ -399,8 +400,6 @@ def varAndPlus(
                 trail_semantics = (
                     temp_semantics + factor * proposed_semantics + intercept
                 )
-                if mutation_configuration.complementary_replacement:
-                    trail_semantics = trail_semantics / 2
 
             # factor = calculate_slope(delete_semantics, residual)
             # intercept = calculate_intercept(delete_semantics, residual, factor)

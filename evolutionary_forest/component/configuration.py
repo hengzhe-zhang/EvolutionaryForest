@@ -213,7 +213,7 @@ class MutationConfiguration(Configuration):
         pool_based_replacement_mode=None,
         pool_based_replacement_inner_probability=1,
         gene_replacement_rate=0,
-        complementary_replacement=False,
+        complementary_replacement=0,
         full_scaling_after_replacement=False,
         scaling_before_replacement=False,
         top_k_candidates=10,
