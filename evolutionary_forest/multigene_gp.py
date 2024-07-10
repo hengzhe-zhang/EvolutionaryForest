@@ -319,7 +319,7 @@ def get_random_from_interval(x, c):
 def cxOnePoint_multiple_gene(
     ind1: MultipleGeneGP,
     ind2: MultipleGeneGP,
-    pset=None,
+    pset: PrimitiveSet = None,
     crossover_configuration: CrossoverConfiguration = None,
 ):
     """
@@ -371,7 +371,7 @@ def cxOnePoint_multiple_gene(
         ind1.gene[id1], ind2.gene[id2] = gene2, gene1
     else:
         ind1.gene[id1], ind2.gene[id2] = gene_crossover(
-            gene1, gene2, configuration=crossover_configuration
+            gene1, gene2, configuration=crossover_configuration, pset=pset
         )
     return ind1, ind2
 
@@ -389,9 +389,28 @@ def modular_gp_crossover(ind1, ind2):
     return gene1, gene2, id1, id2
 
 
-def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration):
+def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration, pset=None):
     if configuration.safe_crossover:
         gene1, gene2 = cxOnePointSizeSafe(gene1, gene2, configuration)
+    elif configuration.merge_crossover:
+        if random.random() < 0.5:
+            pset_dict = pset.primitives[object]
+            k = random.sample(pset_dict, 1)[0]
+            tree_a = gene1
+            tree_b = gene2
+            if k.arity == 1:
+                tree_a[slice(0, len(tree_a))] = [k] + tree_a[:]
+            else:
+                tree_a[slice(0, len(tree_a))] = [k] + tree_a[:] + tree_b[:]
+            pset_dict = pset.primitives[object]
+            k = random.sample(pset_dict, 1)[0]
+            if k.arity == 1:
+                tree_b[slice(0, len(tree_b))] = [k] + tree_b[:]
+            else:
+                tree_b[slice(0, len(tree_b))] = [k] + tree_b[:] + tree_a[:]
+        else:
+            gene1, gene2 = cxOnePointWithRoot(gene1, gene2, configuration)
+
     elif configuration.root_crossover:
         gene1, gene2 = cxOnePointWithRoot(gene1, gene2, configuration)
     else:

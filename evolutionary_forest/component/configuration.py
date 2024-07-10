@@ -143,11 +143,13 @@ class CrossoverConfiguration(Configuration):
         sc_tournament_size=3,
         sc_temperature=1 / 20,
         dimension_crossover_rate=0,
+        merge_crossover=False,
         **params
     ):
         # max height after crossover
         self.max_height = max_height
         self.root_crossover = root_crossover
+        self.merge_crossover = merge_crossover
         # ensure crossover on smaller trees
         self.safe_crossover = safe_crossover
         self.macro_semantic_crossover = macro_semantic_crossover
