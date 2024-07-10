@@ -411,7 +411,7 @@ def varAndPlus(
 
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
-            if trial_mse < current_mse:
+            if trial_mse <= current_mse:
                 # replacement
                 ind.gene[id] = copy.deepcopy(tree)
                 current_semantics = trail_semantics
