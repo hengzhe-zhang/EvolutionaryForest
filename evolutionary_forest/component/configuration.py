@@ -215,7 +215,7 @@ class MutationConfiguration(Configuration):
         full_scaling_after_replacement=False,
         scaling_before_replacement=False,
         top_k_candidates=10,
-        lib_feature_selection=False,
+        lib_feature_selection="",
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval

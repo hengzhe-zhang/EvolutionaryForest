@@ -1875,7 +1875,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def lazy_init(self, x):
         self.reference_copy()
         if self.mutation_configuration.pool_based_addition:
-            self.tree_pool = SemanticLibrary(**self.param)
+            self.tree_pool = SemanticLibrary(verbose=self.verbose, **self.param)
             interval = self.mutation_configuration.pool_hard_instance_interval
             clustering_mode = self.mutation_configuration.library_clustering_mode
             if interval == 0 and clustering_mode is not False:
@@ -3279,12 +3279,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval
             mode = self.mutation_configuration.library_clustering_mode
-            if (
-                self.current_gen == 10
-                and self.mutation_configuration.lib_feature_selection
-            ):
-                self.tree_pool.update_forbidden_list(self.pop, self.X.shape[1])
             if interval > 0 and self.current_gen % interval == 0:
+                if (
+                    self.current_gen > 0
+                    and self.mutation_configuration.lib_feature_selection != ""
+                ):
+                    self.tree_pool.update_forbidden_list(
+                        self.pop,
+                        self.X.shape[1],
+                        self.mutation_configuration.lib_feature_selection,
+                    )
+
                 if self.current_gen > 0 and mode in [
                     "Label-K-Means",
                     "Feature-K-Means",

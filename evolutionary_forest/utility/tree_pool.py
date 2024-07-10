@@ -66,6 +66,7 @@ class SemanticLibrary:
         library_updating_mode="LeastFrequentUsed",
         semantics_length=5,
         random_order_replacement=True,
+        verbose=False,
         **params,
     ):
         self.plain_semantics_list = []
@@ -85,6 +86,7 @@ class SemanticLibrary:
         # Length of semantics to use for KD-Tree
         self.semantics_length = semantics_length
         self.random_order_replacement = random_order_replacement
+        self.verbose = verbose
 
         self.log_initialization()
         self.forbidden_list = []
@@ -369,14 +371,52 @@ class SemanticLibrary:
                 plt.show()
                 self.distance_distribution.clear()
 
-    def update_forbidden_list(self, pop, total_features):
+    def update_forbidden_list(self, pop, total_features, feature_selection_mode):
+        # self.group_selection(pop, total_features)
+        # Count feature usage in each group
+        features = defaultdict(float)
+        for ind in pop:
+            # Currently only supporting Linear Regression with LOOCV
+            assert np.allclose(
+                feature_importance_process(abs(ind.pipe["Ridge"].coef_)), ind.coef
+            )
+            for coef, tree in zip(ind.coef, ind.gene):
+                for node in tree:
+                    if isinstance(node, Terminal) and node.name.startswith("ARG"):
+                        feature_id = int(node.name.replace("ARG", ""))
+                        features[feature_id] += coef * ind.fitness.wvalues[0]
+
+        # Top cumulative sum 95% features
+        total_importance = sum(features.values())
+        cumulative_sum = 0
+        top_features = []
+
+        for feature_id, importance in sorted(
+            features.items(), key=lambda x: x[1], reverse=True
+        ):
+            cumulative_sum += importance
+            top_features.append((feature_id, importance))
+            threshold = feature_selection_mode
+            if cumulative_sum / total_importance >= threshold:
+                break
+
+        top_feature_ids = set([feature_id for feature_id, importance in top_features])
+        for f_id in range(total_features):
+            if f_id not in top_feature_ids:
+                self.forbidden_list.append(f"ARG{f_id}")
+
+        if self.verbose:
+            # Print the top 95% features
+            print(f"Top {int(feature_selection_mode * 100)}% features:")
+            for feature_id, importance in top_features:
+                print(f"Feature ARG{feature_id}: Importance {importance}")
+
+    def group_selection(self, pop, total_features):
         # Calculate the size of each feature group
         features_per_group = total_features // 3
         feature_group = {0: 0, 1: 0, 2: 0}
-
         # Select the top 30 individuals
         top_individuals = selBest(pop, 30)
-
         # Count feature usage in each group
         for ind in top_individuals:
             # Currently only supporting Linear Regression with LOOCV
@@ -389,11 +429,15 @@ class SemanticLibrary:
                         feature_id = int(node.name.replace("ARG", ""))
                         group_id = feature_id // features_per_group
                         if group_id in feature_group:
-                            feature_group[group_id] += coef
+                            feature_group[group_id] += coef * ind.fitness.wvalues[0]
 
+            # if self.verbose:
+            #     for ind in sorted(pop, key=lambda x: x.fitness.wvalues[0]):
+            #         print(str(ind), ind.fitness.wvalues[0])
         # Find the largest feature group
         largest_group = max(feature_group, key=feature_group.get)
-
+        if self.verbose:
+            print("Largest group: ", largest_group, "Feature group: ", feature_group)
         # Ban features from other groups
         for f_id in range(total_features):
             if f_id // features_per_group != largest_group:
