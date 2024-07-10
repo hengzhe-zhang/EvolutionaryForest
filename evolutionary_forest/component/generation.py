@@ -357,6 +357,8 @@ def varAndPlus(
                     incumbent_size = len(ind.gene[id])
                 elif pool_addition_mode == "Smallest~Auto+":
                     # Allow a larger tree, but not excessively growth
+                    incumbent_size = len(ind.gene[id]) + 5
+                elif pool_addition_mode == "Smallest~Auto++":
                     incumbent_size = len(ind.gene[id]) + 10
                 else:
                     incumbent_size = 0
