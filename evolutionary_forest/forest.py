@@ -3288,6 +3288,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         self.pop,
                         self.X.shape[1],
                         self.mutation_configuration.lib_feature_selection,
+                        self,
                     )
 
                 if self.current_gen > 0 and mode in [

@@ -1,6 +1,6 @@
 import math
 from collections import defaultdict
-from typing import List
+from typing import List, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,6 +17,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 from evolutionary_forest.component.configuration import MAPElitesConfiguration
+from evolutionary_forest.component.evaluation import single_tree_evaluation
+
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
+
 from evolutionary_forest.multigene_gp import MultipleGeneGP, map_elites_selection
 from evolutionary_forest.utility.feature_importance_util import (
     feature_importance_process,
@@ -375,7 +380,13 @@ class SemanticLibrary:
                 plt.show()
                 self.distance_distribution.clear()
 
-    def update_forbidden_list(self, pop, total_features, feature_selection_mode):
+    def update_forbidden_list(
+        self,
+        pop,
+        total_features,
+        feature_selection_mode,
+        algorithm: "EvolutionaryForestRegressor",
+    ):
         # self.group_selection(pop, total_features)
         # Count feature usage in each group
         features = defaultdict(float)
@@ -389,6 +400,7 @@ class SemanticLibrary:
                     if isinstance(node, Terminal) and node.name.startswith("ARG"):
                         feature_id = int(node.name.replace("ARG", ""))
                         features[feature_id] += coef * ind.fitness.wvalues[0]
+                # single_tree_evaluation(tree, algorithm.pset, algorithm.X)
 
         # Top cumulative sum 95% features
         total_importance = sum(features.values())
