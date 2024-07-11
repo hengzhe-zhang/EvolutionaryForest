@@ -335,18 +335,10 @@ def varAndPlus(
                 algorithm.success_rate.add_values(0)
 
             pool_addition_mode = mutation_configuration.pool_addition_mode
-            if isinstance(pool_addition_mode, str) and pool_addition_mode.startswith(
-                "Smallest~Auto-"
+            if pool_addition_mode == "Smallest" or pool_addition_mode.startswith(
+                "Smallest~Auto"
             ):
-                interval = int(pool_addition_mode.split("-")[1])
-                if current_gen % interval == 0:
-                    pool_addition_mode = "Smallest~Auto"
-                else:
-                    pool_addition_mode = "Best"
-            if (
-                pool_addition_mode == "Smallest"
-                or pool_addition_mode == "Smallest~Auto"
-            ):
+                incumbent_depth = math.inf
                 if pool_addition_mode == "Smallest~Auto":
                     incumbent_size = len(ind.gene[id])
                 elif pool_addition_mode == "Smallest~Auto+":
@@ -354,6 +346,9 @@ def varAndPlus(
                     incumbent_size = len(ind.gene[id]) + 5
                 elif pool_addition_mode == "Smallest~Auto++":
                     incumbent_size = len(ind.gene[id]) + 10
+                elif pool_addition_mode == "Smallest~Auto-Depth":
+                    incumbent_depth = ind.gene[id].height
+                    incumbent_size = math.inf
                 else:
                     incumbent_size = 0
 
@@ -361,6 +356,7 @@ def varAndPlus(
                     normalize_vector(residual),
                     return_semantics=True,
                     incumbent_size=incumbent_size,
+                    incumbent_depth=incumbent_depth,
                     top_k=mutation_configuration.top_k_candidates,
                 )
             else:
@@ -403,7 +399,7 @@ def varAndPlus(
 
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
-            if trial_mse <= current_mse:
+            if trial_mse <= current_mse and mutation_configuration.trial_check:
                 # replacement
                 ind.gene[id] = copy.deepcopy(tree)
                 current_semantics = trail_semantics

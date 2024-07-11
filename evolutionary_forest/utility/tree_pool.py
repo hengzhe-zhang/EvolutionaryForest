@@ -260,6 +260,7 @@ class SemanticLibrary:
         return_semantics=False,
         top_k=10,
         incumbent_size=math.inf,
+        incumbent_depth=math.inf,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -283,7 +284,10 @@ class SemanticLibrary:
 
         smallest_index = -1
         for idx in range(top_k):
-            if len(self.trees[index[idx]]) <= incumbent_size:
+            if (
+                len(self.trees[index[idx]]) <= incumbent_size
+                and self.trees[index[idx]].height <= incumbent_depth
+            ):
                 smallest_index = index[idx]
                 break
 
