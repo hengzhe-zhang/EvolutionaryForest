@@ -416,6 +416,7 @@ class SemanticLibrary:
                     )
                     data = algorithm.X[:3]
                     data = data[:, used_features]
+                    data = StandardScaler().fit_transform(data)
                     explainer = shap.SamplingExplainer(
                         model=evaluation_function, data=data
                     )
