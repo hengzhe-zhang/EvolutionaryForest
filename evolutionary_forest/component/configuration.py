@@ -219,6 +219,7 @@ class MutationConfiguration(Configuration):
         top_k_candidates=10,
         lib_feature_selection=None,
         trial_check=True,
+        local_search_step=int(1e10),
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -257,6 +258,7 @@ class MutationConfiguration(Configuration):
         self.top_k_candidates = top_k_candidates
         self.lib_feature_selection = lib_feature_selection
         self.trial_check = trial_check
+        self.local_search_step = local_search_step
 
 
 class ImbalancedConfiguration(Configuration):

@@ -307,7 +307,7 @@ def varAndPlus(
         mutation_configuration = algorithm.mutation_configuration
         # prediction_validation(ind, indexes)
 
-        for id in orders:
+        for id in orders[: mutation_configuration.local_search_step]:
             delete_semantics = ind.pipe["Ridge"].coef_[id] * (
                 (ind.semantics[indexes, id] - ind.scaler.mean_[id])
                 / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
