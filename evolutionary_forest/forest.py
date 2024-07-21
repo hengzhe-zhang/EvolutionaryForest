@@ -1,11 +1,8 @@
-import copy
 import gc
 import inspect
-import random
 from multiprocessing import Pool
 
 import dill
-import numpy as np
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -274,7 +271,6 @@ from evolutionary_forest.utility.feature_importance_util import (
 )
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.metric.moving_average import MovingAverage
-from evolutionary_forest.utility.metric.visualization import *
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
 from evolutionary_forest.utility.population_analysis import (
     statistical_difference_between_populations,
@@ -3288,6 +3284,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         self.pop,
                         self.X.shape[1],
                         self.mutation_configuration.lib_feature_selection,
+                        self.mutation_configuration.lib_feature_selection_mode,
                         self,
                     )
 

@@ -1,4 +1,3 @@
-import copy
 import math
 from collections import defaultdict
 from typing import List, TYPE_CHECKING
@@ -7,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import shap
-from deap import gp
 from deap.gp import PrimitiveTree, Terminal
 from deap.tools import selBest
 from scipy.spatial import cKDTree, KDTree
@@ -389,13 +387,13 @@ class SemanticLibrary:
         pop,
         total_features,
         feature_selection_mode,
+        fs_mode,
         algorithm: "EvolutionaryForestRegressor",
     ):
         # self.group_selection(pop, total_features)
         # Count feature usage in each group
         features = defaultdict(float)
         # fs_mode = "Frequency"
-        fs_mode = "Shapley"
         for ind in pop:
             # Currently only supporting Linear Regression with LOOCV
             assert np.allclose(
@@ -421,25 +419,10 @@ class SemanticLibrary:
                         model=evaluation_function, data=data
                     )
 
-                    # Step 3: Calculate Shapley values
+                    # Calculate Shapley values
                     shap_values = explainer.shap_values(data, silent=True)
                     average_abs_shap_values = np.mean(np.abs(shap_values), axis=0)
                     inverse_mapping_dict = {v: k for k, v in mapping_dict.items()}
-                    inverse_mapping_dict_copy = copy.deepcopy(inverse_mapping_dict)
-                    # cnt = defaultdict()
-                    # for node in tree_copy:
-                    #     if isinstance(node, gp.Terminal):
-                    #         cnt[node.name] = cnt.get(node.name, 0) + 1
-
-                    for node in tree_copy:
-                        if (
-                            isinstance(node, gp.Terminal)
-                            and node.name in inverse_mapping_dict_copy
-                        ):
-                            # Only rename once
-                            del inverse_mapping_dict_copy[node.name]
-                            node.name = inverse_mapping_dict[node.name]
-                            node.value = inverse_mapping_dict[node.value]
 
                     for i, feature_name in enumerate(mapping_dict.values()):
                         original_feature_name = inverse_mapping_dict[feature_name]
