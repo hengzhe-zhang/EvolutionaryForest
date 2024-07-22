@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
+from scipy.stats import spearmanr
 from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
@@ -486,6 +487,13 @@ class R2Size(Fitness):
             score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
         return (-1 * score, tree_size)
+
+
+class R2Spearman(Fitness):
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        spearman = spearmanr(Y, y_pred)[0]
+        return (-1 * score, -1 * spearman)
 
 
 class R2BootstrapError(Fitness):

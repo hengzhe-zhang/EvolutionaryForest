@@ -1,6 +1,19 @@
+import math
 import random
 
 from deap.tools import sortNondominated, selBest
+
+
+def ceil_to_even(number):
+    # Calculate the ceiling of the number
+    ceil_value = math.ceil(number)
+
+    # If the ceiling value is even, return it
+    if ceil_value % 2 == 0:
+        return ceil_value
+    else:
+        # If the ceiling value is odd, return the next even number
+        return ceil_value + 1
 
 
 def sel_subset_best(pop, k, subset_ratio=0.1):
@@ -34,10 +47,4 @@ def sel_pareto_tournament(pop, k, subset_ratio=0.1):
         # Add all models on the Pareto front to the breeding stock
         breeding_stock.extend(pareto_front)
 
-        # Ensure we do not exceed the required population size
-        if len(breeding_stock) > k:
-            # breeding_stock = random.sample(breeding_stock, k)
-            return breeding_stock[: len(breeding_stock) // 2 * 2]
-
-    # random.shuffle(breeding_stock)
-    return breeding_stock
+    return breeding_stock[: ceil_to_even(k)]
