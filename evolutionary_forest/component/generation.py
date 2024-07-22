@@ -407,23 +407,12 @@ def varAndPlus(
                     algorithm.success_rate.add_values(1)
                     # print("Success Rate", algorithm.success_rate.get_moving_averages())
             else:
-                # if (
-                #     algorithm.mutation_configuration.lib_feature_selection
-                #     and algorithm.tree_pool.forbidden_check(ind.gene[id])
-                # ):
-                #     value = algorithm.tree_pool.retrieve_nearest_tree(
-                #         normalize_vector(residual),
-                #         return_semantics=True,
-                #     )
-                #     tree, proposed_semantics = value
-                #     factor = calculate_slope(proposed_semantics, residual)
-                #     intercept = calculate_intercept(
-                #         proposed_semantics, residual, factor
-                #     )
-                #     current_semantics = (
-                #         temp_semantics + factor * proposed_semantics + intercept
-                #     )
-                #     ind.gene[id] = tree
+                if (
+                    algorithm.mutation_configuration.lib_feature_selection
+                    and algorithm.tree_pool.forbidden_check(ind.gene[id])
+                ):
+                    ind.gene[id] = copy.deepcopy(tree)
+                    current_semantics = trail_semantics
                 pass
         return
 

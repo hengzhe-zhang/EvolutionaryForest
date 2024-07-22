@@ -111,6 +111,8 @@ class SemanticLibrary:
     def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
         target_semantics = self.index_semantics(target_semantics)
         normalized_target_semantics = normalize_vector(target_semantics)
+        forbidden_counter = 0
+        total_counter = 0
 
         for ind in inds:
             for semantics, tree in zip(ind.semantics.T, ind.gene):
@@ -133,7 +135,9 @@ class SemanticLibrary:
                     and len(tree) > self.seen_semantics[semantics_hash]
                 ):
                     continue
+                total_counter += 1
                 if self.forbidden_check(tree):
+                    forbidden_counter += 1
                     continue
 
                 # if str(tree) in self.seen_trees:
