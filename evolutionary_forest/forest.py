@@ -1631,6 +1631,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "InContextLearner":
             ridge_model = InContextLearnerRegressor()
+        elif self.base_learner == "MTL-Ridge":
+            ridge_model = MTLRidgeCV()
         elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
             ridge_model = DecisionTreeRegressor(
                 min_samples_leaf=int(self.base_learner.split("-")[1])
@@ -1874,6 +1876,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def lazy_init(self, x):
         self.reference_copy()
+        if isinstance(self.score_func, str) and self.score_func == "MTL-R2":
+            self.score_func = MTLR2(self.y.shape[1])
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = SemanticLibrary(verbose=self.verbose, **self.param)
             interval = self.mutation_configuration.pool_hard_instance_interval
@@ -2810,7 +2814,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Normalize X and y if specified
         if self.normalize:
             X = self.x_scaler.fit_transform(X, y)
-            y = self.y_scaler.fit_transform(np.array(y).reshape(-1, 1))
+            if len(y.shape) == 1:
+                y = np.array(y).reshape(-1, 1)
+            y = self.y_scaler.fit_transform(y)
             X = self.add_noise_to_data(X)
 
         # Transductive Learning
@@ -2840,7 +2846,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Save X and y
         self.X: np.ndarray
         self.y: np.ndarray
-        self.X, self.y = X, y.flatten()
+        if len(y.shape) == 2 and y.shape[1] == 1:
+            y = y.flatten()
+        self.X, self.y = X, y
 
         # Initialize population with lazy initialization
         self.lazy_init(X)
@@ -3141,9 +3149,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             if self.normalize:
                 # Un-scale predicted values if normalize flag is set
-                predicted = self.y_scaler.inverse_transform(
-                    predicted.reshape(-1, 1)
-                ).flatten()
+                if len(predicted.shape) == 1:
+                    predicted = predicted.reshape(-1, 1)
+                predicted = self.y_scaler.inverse_transform(predicted)
+                if len(predicted.shape) == 2 and predicted.shape[1] == 1:
+                    predicted = predicted.flatten()
             if (
                 hasattr(self.hof, "ensemble_weight")
                 and len(self.hof.ensemble_weight) > 0
