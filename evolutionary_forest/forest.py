@@ -1002,6 +1002,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = R2GrandComplexity()
         elif isinstance(score_func, str) and score_func == "R2-Size":
             self.score_func = R2Size()
+        elif isinstance(score_func, str) and score_func == "R2-Pearson":
+            self.score_func = R2Pearson()
         elif isinstance(score_func, str) and score_func == "R2-Spearman":
             self.score_func = R2Spearman()
         elif isinstance(score_func, str) and score_func == "R2-BootstrapError":
