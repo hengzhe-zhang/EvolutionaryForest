@@ -96,17 +96,16 @@ class SemanticLibrary:
         self.verbose = verbose
 
         self.log_initialization()
-        self.forbidden_list = []
+        self.forbidden_list = set()
 
     def log_initialization(self):
         self.mismatch_times = []
         self.distance_distribution = []
 
     def forbidden_check(self, tree):
-        for terminal_name in self.forbidden_list:
-            for node in tree:
-                if isinstance(node, Terminal) and node.name == terminal_name:
-                    return True
+        for node in tree:
+            if isinstance(node, Terminal) and node.name in self.forbidden_list:
+                return True
         return False
 
     def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
@@ -150,8 +149,9 @@ class SemanticLibrary:
 
         self.clean_when_full(normalized_target_semantics)
         # print("Number of trees in the library: ", len(self.trees))
-        # Create the KDTree with all collected points
-        self.kd_tree = cKDTree(self.normalized_semantics_list)
+        if len(self.normalized_semantics_list) > 0:
+            # Create the KDTree with all collected points
+            self.kd_tree = cKDTree(self.normalized_semantics_list)
 
     def append_semantics(self, semantics: np.ndarray, tree: PrimitiveTree):
         semantics = self.index_semantics(semantics)
@@ -445,7 +445,7 @@ class SemanticLibrary:
         top_feature_ids = set([feature_id for feature_id, importance in top_features])
         for f_id in range(total_features):
             if f_id not in top_feature_ids:
-                self.forbidden_list.append(f"ARG{f_id}")
+                self.forbidden_list.add(f"ARG{f_id}")
 
         if self.verbose:
             # Print the top 95% features
@@ -483,7 +483,7 @@ class SemanticLibrary:
         # Ban features from other groups
         for f_id in range(total_features):
             if f_id // features_per_group != largest_group:
-                self.forbidden_list.append(f"ARG{f_id}")
+                self.forbidden_list.add(f"ARG{f_id}")
 
     def update_hard_instance(
         self,
