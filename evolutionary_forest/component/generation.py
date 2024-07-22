@@ -335,6 +335,11 @@ def varAndPlus(
                 algorithm.success_rate.add_values(0)
 
             pool_addition_mode = mutation_configuration.pool_addition_mode
+            # if pool_addition_mode == "Smallest~Auto-5":
+            #     if current_gen % 5 == 0:
+            #         pool_addition_mode = "Best"
+            #     else:
+            #         pool_addition_mode = "Smallest"
             if pool_addition_mode == "Smallest" or pool_addition_mode.startswith(
                 "Smallest~Auto"
             ):
@@ -407,12 +412,12 @@ def varAndPlus(
                     algorithm.success_rate.add_values(1)
                     # print("Success Rate", algorithm.success_rate.get_moving_averages())
             else:
-                if (
-                    algorithm.mutation_configuration.lib_feature_selection
-                    and algorithm.tree_pool.forbidden_check(ind.gene[id])
-                ):
-                    ind.gene[id] = copy.deepcopy(tree)
-                    current_semantics = trail_semantics
+                # if (
+                #     algorithm.mutation_configuration.lib_feature_selection
+                #     and algorithm.tree_pool.forbidden_check(ind.gene[id])
+                # ):
+                #     ind.gene[id] = copy.deepcopy(tree)
+                #     current_semantics = trail_semantics
                 pass
         return
 

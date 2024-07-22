@@ -27,6 +27,8 @@ class TypedToolbox(Toolbox):
     mutate: Callable
     # population
     population: Callable
+    # clone
+    clone: Callable
 
 
 if __name__ == "__main__":

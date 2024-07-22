@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import shap
-from deap.gp import PrimitiveTree, Terminal
+from deap.gp import PrimitiveTree, Terminal, Primitive
 from deap.tools import selBest
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
@@ -106,6 +106,8 @@ class SemanticLibrary:
         for node in tree:
             if isinstance(node, Terminal) and node.name in self.forbidden_list:
                 return True
+            # if isinstance(node, Primitive) and node.name in self.forbidden_list:
+            #     return True
         return False
 
     def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
@@ -152,6 +154,8 @@ class SemanticLibrary:
                 )  # Store the normalized semantics
 
         self.clean_when_full(normalized_target_semantics)
+        if self.verbose:
+            print("Forbidden Counter: ", forbidden_counter)
         # print("Number of trees in the library: ", len(self.trees))
         if len(self.normalized_semantics_list) > 0:
             # Create the KDTree with all collected points
@@ -409,6 +413,8 @@ class SemanticLibrary:
                         if isinstance(node, Terminal) and node.name.startswith("ARG"):
                             feature_id = int(node.name.replace("ARG", ""))
                             features[feature_id] += coef * ind.fitness.wvalues[0]
+                        # if isinstance(node, Primitive):
+                        #     features[node.name] += coef * ind.fitness.wvalues[0]
                 else:
                     tree_copy, used_features, mapping_dict = copy_and_rename_tree(tree)
                     if len(used_features) == 0:
@@ -450,6 +456,9 @@ class SemanticLibrary:
         for f_id in range(total_features):
             if f_id not in top_feature_ids:
                 self.forbidden_list.add(f"ARG{f_id}")
+        # for primitive in [p.name for p in algorithm.pset.primitives[object]]:
+        #     if primitive not in top_feature_ids:
+        #         self.forbidden_list.add(primitive)
 
         if self.verbose:
             # Print the top 95% features
