@@ -402,6 +402,8 @@ class SemanticLibrary:
         # Count feature usage in each group
         features = defaultdict(float)
         # fs_mode = "Frequency"
+        if fs_mode == "Shapley":
+            pop = sorted(pop, key=lambda x: x.fitness.wvalues[0])[:20]
         for ind in pop:
             # Currently only supporting Linear Regression with LOOCV
             assert np.allclose(
@@ -416,6 +418,8 @@ class SemanticLibrary:
                         # if isinstance(node, Primitive):
                         #     features[node.name] += coef * ind.fitness.wvalues[0]
                 else:
+                    if coef < 0.1:
+                        continue
                     tree_copy, used_features, mapping_dict = copy_and_rename_tree(tree)
                     if len(used_features) == 0:
                         continue
