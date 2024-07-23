@@ -2138,9 +2138,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.smooth_model: NearestValueTransformer = NearestValueTransformer()
             self.smooth_model.fit(self.X, self.y)
 
-        self.mutation_configuration.pool_addition_mode = pool_mode_controller(
-            self.mutation_configuration.pool_addition_mode, self.X, self.y
-        )
+        # self.mutation_configuration.pool_addition_mode = pool_mode_controller(
+        #     self.mutation_configuration.pool_addition_mode, self.X, self.y
+        # )
 
     def tree_initialization_function(self, pset, toolbox: TypedToolbox):
         if self.initial_tree_size is None:
