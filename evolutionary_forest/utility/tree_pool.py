@@ -283,6 +283,10 @@ class SemanticLibrary:
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
 
+        if len(self.normalized_semantics_list) == 0:
+            # Empty KD-Tree
+            return None
+
         semantics = self.index_semantics(semantics)
 
         # Normalize the query semantics
