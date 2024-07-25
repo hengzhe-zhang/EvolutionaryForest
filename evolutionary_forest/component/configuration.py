@@ -221,6 +221,7 @@ class MutationConfiguration(Configuration):
         trial_check=True,
         local_search_step=int(1e10),
         lib_feature_selection_mode="Frequency",
+        negative_local_search=True,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -234,7 +235,6 @@ class MutationConfiguration(Configuration):
         self.max_height = max_height
         self.addition_or_deletion = addition_or_deletion
         self.pool_based_addition = pool_based_addition
-        self.include_subtree_to_lib = include_subtree_to_lib
         self.pool_addition_mode = pool_addition_mode
         self.redundant_based_deletion = redundant_based_deletion
         self.deletion_strategy = deletion_strategy
@@ -259,8 +259,13 @@ class MutationConfiguration(Configuration):
         self.top_k_candidates = top_k_candidates
         self.lib_feature_selection = lib_feature_selection
         self.lib_feature_selection_mode = lib_feature_selection_mode
-        self.trial_check = trial_check
+
         self.local_search_step = local_search_step
+
+        # very important components
+        self.include_subtree_to_lib = include_subtree_to_lib
+        self.trial_check = trial_check
+        self.negative_local_search = negative_local_search
 
 
 class ImbalancedConfiguration(Configuration):

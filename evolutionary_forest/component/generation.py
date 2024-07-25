@@ -404,7 +404,7 @@ def varAndPlus(
 
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
-            if trial_mse <= current_mse and mutation_configuration.trial_check:
+            if trial_mse <= current_mse or (not mutation_configuration.trial_check):
                 # replacement
                 ind.gene[id] = copy.deepcopy(tree)
                 current_semantics = trail_semantics
