@@ -591,6 +591,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.n_gen = n_gen
         self.verbose = verbose
         self.success_rate = MovingAverage(window_size=100)
+        self.fs_success_rate = MovingAverage(window_size=100)
         self.initialized = False
         self.pop: List[MultipleGeneGP] = []
         self.basic_primitives: str = basic_primitives

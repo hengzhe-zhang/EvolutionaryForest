@@ -242,7 +242,9 @@ class SemanticLibrary:
         )
         return idx
 
-    def retrieve_nearest_tree(self, semantics: np.ndarray, return_semantics=False):
+    def retrieve_nearest_tree(
+        self, semantics: np.ndarray, return_semantics=False, negative_search=True
+    ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
 
@@ -258,7 +260,7 @@ class SemanticLibrary:
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics)
         dist_neg, index_neg = self.kd_tree.query(-semantics)
-        if dist_neg < dist:
+        if negative_search and dist_neg < dist:
             dist = dist_neg
             index = index_neg
 
@@ -276,6 +278,7 @@ class SemanticLibrary:
         top_k=10,
         incumbent_size=math.inf,
         incumbent_depth=math.inf,
+        negative_search=True,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -291,10 +294,13 @@ class SemanticLibrary:
 
         # Query the KDTree for the nearest point
         dist, index = self.kd_tree.query(semantics, k=top_k)
-        dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k)
-        index = np.concatenate([index, index_neg])
-        # From short to long
-        sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
+        if negative_search:
+            dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k)
+            index = np.concatenate([index, index_neg])
+            # From short to long
+            sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
+        else:
+            sorted_index = np.argsort(dist)
         index = index[sorted_index][:top_k]
 
         smallest_index = -1

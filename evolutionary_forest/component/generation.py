@@ -363,11 +363,13 @@ def varAndPlus(
                     incumbent_size=incumbent_size,
                     incumbent_depth=incumbent_depth,
                     top_k=mutation_configuration.top_k_candidates,
+                    negative_search=mutation_configuration.negative_local_search,
                 )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
                     normalize_vector(residual),
                     return_semantics=True,
+                    negative_search=mutation_configuration.negative_local_search,
                 )
 
             if value is None:
@@ -412,13 +414,41 @@ def varAndPlus(
                     algorithm.success_rate.add_values(1)
                     # print("Success Rate", algorithm.success_rate.get_moving_averages())
             else:
-                # if (
-                #     algorithm.mutation_configuration.lib_feature_selection
-                #     and algorithm.tree_pool.forbidden_check(ind.gene[id])
-                # ):
-                #     ind.gene[id] = copy.deepcopy(tree)
-                #     current_semantics = trail_semantics
+                if (
+                    algorithm.mutation_configuration.lib_feature_selection
+                    and algorithm.tree_pool.forbidden_check(ind.gene[id])
+                ):
+                    value = algorithm.tree_pool.retrieve_nearest_tree(
+                        normalize_vector(residual),
+                        return_semantics=True,
+                        negative_search=mutation_configuration.negative_local_search,
+                    )
+                    tree, proposed_semantics = value
+                    factor = calculate_slope(proposed_semantics, residual)
+                    intercept = calculate_intercept(
+                        proposed_semantics, residual, factor
+                    )
+                    trail_semantics = (
+                        temp_semantics + factor * proposed_semantics + intercept
+                    )
+                    trial_mse = np.mean((trail_semantics - target) ** 2)
+                    if trial_mse <= current_mse:
+                        ind.gene[id] = copy.deepcopy(tree)
+                        current_semantics = trail_semantics
+                        algorithm.fs_success_rate.add_values(1)
+                    else:
+                        algorithm.fs_success_rate.add_values(0)
+
+                    print(
+                        "Current Gen",
+                        current_gen,
+                        "Success Rate",
+                        algorithm.fs_success_rate.get_moving_averages(),
+                    )
+                else:
+                    pass
                 pass
+
         return
 
     def prediction_validation(ind, indexes):
