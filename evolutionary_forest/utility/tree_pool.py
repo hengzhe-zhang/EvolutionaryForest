@@ -428,8 +428,6 @@ class SemanticLibrary:
                         # if isinstance(node, Primitive):
                         #     features[node.name] += coef * ind.fitness.wvalues[0]
                 else:
-                    if coef < 0.1:
-                        continue
                     tree_copy, used_features, mapping_dict = copy_and_rename_tree(tree)
                     if len(used_features) == 0:
                         continue
@@ -467,9 +465,10 @@ class SemanticLibrary:
                 break
 
         top_feature_ids = set([feature_id for feature_id, importance in top_features])
-        for f_id in range(total_features):
+        for f_id in features.keys():
             if f_id not in top_feature_ids:
                 self.forbidden_list.add(f"ARG{f_id}")
+        # print("Number of features: ", len(features.keys()))
         # for primitive in [p.name for p in algorithm.pset.primitives[object]]:
         #     if primitive not in top_feature_ids:
         #         self.forbidden_list.add(primitive)
