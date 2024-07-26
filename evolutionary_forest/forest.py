@@ -1,4 +1,5 @@
 import gc
+import gc
 import inspect
 from multiprocessing import Pool
 
@@ -20,7 +21,7 @@ from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
 from scipy.spatial.distance import cosine
-from scipy.stats import spearmanr, kendalltau, rankdata, wilcoxon
+from scipy.stats import kendalltau, rankdata, wilcoxon
 from sklearn.base import TransformerMixin, ClassifierMixin
 from sklearn.ensemble import (
     ExtraTreesRegressor,
@@ -150,7 +151,7 @@ from evolutionary_forest.component.generalization.pac_bayesian_tool import (
     sharpness_based_dynamic_depth_limit,
 )
 from evolutionary_forest.component.generalization.wknn import R2WKNN
-from evolutionary_forest.component.generation import varAndPlus, pool_mode_controller
+from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.initialization import (
     initialize_crossover_operator,
     unique_initialization,
@@ -269,6 +270,7 @@ from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.feature_importance_util import (
     feature_importance_process,
 )
+from evolutionary_forest.utility.larmark_constant import lamarck_constant
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.metric.moving_average import MovingAverage
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
@@ -461,6 +463,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         feature_clipping=False,
         seed_with_linear_model=False,
         norevisit_strategy="",
+        lamarck_constant=False,
         **params,
     ):
         """
@@ -860,6 +863,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.evaluation_configuration.save_semantics = True
         self.feature_clipping = feature_clipping
         self.norevisit_strategy = norevisit_strategy
+        self.lamarck_constant = lamarck_constant
 
     def init_some_logs(self):
         self.duel_logs = []
@@ -4210,6 +4214,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     population, self.depth_limit_configuration.max_height
                 )
             )
+
+        if self.lamarck_constant:
+            for ind in population:
+                ind: MultipleGeneGP
+                coef = ind.pipe["Ridge"].coef_
+                ind.pipe["Scaler"].mean_ = ind.pipe["Scaler"].mean_ * coef
+                ind.gene = lamarck_constant(ind.gene, self.pset, coef)
+                ind.pipe["Ridge"].coef_ = np.ones_like(coef)
 
     def semantic_crossover_for_parent(
         self,

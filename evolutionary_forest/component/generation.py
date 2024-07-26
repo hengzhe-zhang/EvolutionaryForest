@@ -439,12 +439,12 @@ def varAndPlus(
                     else:
                         algorithm.fs_success_rate.add_values(0)
 
-                    print(
-                        "Current Gen",
-                        current_gen,
-                        "Success Rate",
-                        algorithm.fs_success_rate.get_moving_averages(),
-                    )
+                    # print(
+                    #     "Current Gen",
+                    #     current_gen,
+                    #     "Success Rate",
+                    #     algorithm.fs_success_rate.get_moving_averages(),
+                    # )
                 else:
                     pass
                 pass
