@@ -47,4 +47,5 @@ def sel_pareto_tournament(pop, k, subset_ratio=0.1):
         # Add all models on the Pareto front to the breeding stock
         breeding_stock.extend(pareto_front)
 
-    return breeding_stock[: ceil_to_even(k)]
+    # return breeding_stock[: ceil_to_even(k)]
+    return random.sample(breeding_stock, k)

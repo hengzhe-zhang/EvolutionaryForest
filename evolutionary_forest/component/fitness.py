@@ -9,7 +9,7 @@ from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
 from scipy.stats import spearmanr, pearsonr
 from sklearn.linear_model import RidgeCV
-from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
+from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error, log_loss
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.preprocessing import StandardScaler
 
@@ -482,7 +482,7 @@ class VCDimensionR2(Fitness):
 class R2Size(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
         if self.classification:
-            score = np.mean(calculate_cross_entropy(Y, y_pred))
+            score = -1 * np.mean(calculate_cross_entropy(Y, y_pred))
         else:
             score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
