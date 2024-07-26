@@ -17,6 +17,12 @@ def lamarck_constant(
     mul = find_primitive_by_name(pset, "Mul")
 
     for i, (tree, coef) in enumerate(zip(trees, coefs)):
+        if isinstance(tree[0], Primitive) and tree[0].name == "Mul":
+            if isinstance(tree[1], Terminal) and isinstance(
+                tree[1].value, (float, int)
+            ):
+                tree[1] = Terminal(tree[1].value * coef, False, object)
+                continue
         t = Terminal(coef, False, object)
         subtree = PrimitiveTree([mul, t] + list(tree))
         trees[i] = subtree
