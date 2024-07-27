@@ -3294,6 +3294,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval
             mode = self.mutation_configuration.library_clustering_mode
+            if self.current_gen == 0:
+                transformed_X = StandardScaler().fit_transform(self.X)
+                self.pearson_matrix = np.corrcoef(transformed_X, rowvar=False)
+
             if interval > 0 and self.current_gen % interval == 0:
                 if (
                     self.current_gen > 0
@@ -3303,7 +3307,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ):
                     self.tree_pool.update_forbidden_list(
                         self.pop,
-                        self.X.shape[1],
+                        self.pearson_matrix,
                         self.mutation_configuration.lib_feature_selection,
                         self.mutation_configuration.lib_feature_selection_mode,
                         self,

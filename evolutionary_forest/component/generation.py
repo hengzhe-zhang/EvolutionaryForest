@@ -94,15 +94,10 @@ def varAndPlus(
             for i in range(len(offspring)):
                 addition_and_deletion(i, offspring)
         if mutation_configuration.pool_based_addition:
-            mode = mutation_configuration.pool_based_replacement_mode
-            current_gen = algorithm.current_gen
-            total_gen = algorithm.n_gen
-            if mode is None or mode < random.random():
-                # exclusive
-                for i in range(len(offspring)):
-                    tree_replacement(offspring[i], current_gen=current_gen)
-                if mode is not None:
-                    return offspring
+            # exclusive
+            for i in range(len(offspring)):
+                tree_replacement(offspring[i])
+
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
@@ -161,6 +156,13 @@ def varAndPlus(
                 # crossover, using the smallest number of genes for a pair of individuals
                 invokes = get_number_of_invokes(gene_num)
                 for c in range(invokes):
+                    mode = mutation_configuration.pool_based_replacement_mode
+                    current_gen = algorithm.current_gen
+                    total_gen = algorithm.n_gen
+                    if not scheduling_controller(mode, current_gen, total_gen):
+                        # skip some of the crossover/mutation
+                        continue
+
                     if i % 2 == 0 and random.random() < cxpb:
                         offspring[i], offspring[i + 1] = toolbox.mate(
                             offspring[i], offspring[i + 1]
@@ -293,7 +295,7 @@ def varAndPlus(
             else:
                 offspring[i].gene_deletion()
 
-    def tree_replacement(ind: MultipleGeneGP, current_gen: int):
+    def tree_replacement(ind: MultipleGeneGP):
         indexes = algorithm.tree_pool.clustering_indexes
         if indexes is None:
             indexes = list(range(len(ind.individual_semantics)))

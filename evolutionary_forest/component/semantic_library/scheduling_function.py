@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def scheduling_controller(mode, current_gen, total_gen):
+def scheduling_controller(mode, current_gen, total_gen) -> bool:
     if mode == "Linear" and random.random() < linear_decreasing_function(
         x=current_gen, end_x=total_gen
     ):

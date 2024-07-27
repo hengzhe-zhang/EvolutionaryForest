@@ -31,6 +31,36 @@ from evolutionary_forest.utility.feature_importance_util import (
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 
 
+def get_irrelevant_features(pearson_matrix, top_features):
+    # Step 1: Create a dictionary of feature importances
+    importance_dict = {
+        feature_id: importance for feature_id, importance in top_features
+    }
+    # Step 2: Sort features by importance in descending order
+    sorted_features = sorted(importance_dict.items(), key=lambda x: x[1], reverse=True)
+    # Step 3: Initialize correlation data structure
+    correlated_variables = {i: set() for i in importance_dict.keys()}
+    # Populate correlated_variables based on the Pearson matrix
+    for row in importance_dict.keys():
+        for col in importance_dict.keys():
+            if pearson_matrix[row][col] > 0.99:
+                correlated_variables[col].add(row)
+                correlated_variables[row].add(col)
+    added_list = set()
+    forbidden_list = set()
+    # Step 5: Process features to update forbidden list
+    for feature_id, importance in sorted_features:
+        # Check if this feature is correlated with any high-importance feature
+        if any(
+            correlated_feature in added_list
+            for correlated_feature in correlated_variables.get(feature_id, [])
+        ):
+            forbidden_list.add(f"ARG{feature_id}")
+        else:
+            added_list.add(feature_id)
+    return forbidden_list
+
+
 def plot_distribution(nearest_samples):
     sns.set(style="whitegrid")
     plt.hist(nearest_samples, edgecolor="black")
@@ -403,7 +433,7 @@ class SemanticLibrary:
     def update_forbidden_list(
         self,
         pop,
-        total_features,
+        pearson_matrix,
         feature_selection_mode,
         fs_mode,
         algorithm: "EvolutionaryForestRegressor",
@@ -465,9 +495,17 @@ class SemanticLibrary:
                 break
 
         top_feature_ids = set([feature_id for feature_id, importance in top_features])
+
+        forbidden_list = get_irrelevant_features(pearson_matrix, top_features)
+        self.forbidden_list.update(forbidden_list)
+
         for f_id in features.keys():
             if f_id not in top_feature_ids:
                 self.forbidden_list.add(f"ARG{f_id}")
+
+        # for f_id in range(total_features):
+        #     if f_id not in top_feature_ids:
+        #         self.forbidden_list.add(f"ARG{f_id}")
         # print("Number of features: ", len(features.keys()))
         # for primitive in [p.name for p in algorithm.pset.primitives[object]]:
         #     if primitive not in top_feature_ids:
@@ -477,7 +515,8 @@ class SemanticLibrary:
             # Print the top 95% features
             print(f"Top {int(feature_selection_mode * 100)}% features:")
             for feature_id, importance in top_features:
-                print(f"Feature ARG{feature_id}: Importance {importance}")
+                if f"ARG{feature_id}" not in forbidden_list:
+                    print(f"Feature ARG{feature_id}: Importance {importance}")
 
     def group_selection(self, pop, total_features):
         # Calculate the size of each feature group
