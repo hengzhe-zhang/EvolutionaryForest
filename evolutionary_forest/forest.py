@@ -3294,7 +3294,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval
             mode = self.mutation_configuration.library_clustering_mode
-            if self.current_gen == 0:
+            if (
+                self.current_gen == 0
+                and self.mutation_configuration.lib_feature_selection is not None
+            ):
                 transformed_X = StandardScaler().fit_transform(self.X)
                 self.pearson_matrix = np.corrcoef(transformed_X, rowvar=False)
 
