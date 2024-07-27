@@ -29,16 +29,13 @@ def sel_subset_best(pop, k, subset_ratio=0.1):
     return breeding_stock
 
 
-def sel_pareto_tournament(pop, k, subset_ratio=0.1):
-    # Number of models to randomly select in each subset
-    subset_size = int(len(pop) * subset_ratio)
-
+def sel_pareto_tournament(pop, k, subset_size):
     # Container for the selected breeding stock
     breeding_stock = []
 
     while len(breeding_stock) < k:
         # Randomly select a subset of models
-        subset = random.sample(pop, subset_size)
+        subset = random.sample(pop, min(subset_size, len(pop)))
 
         # Identify the Pareto front of the subset
         pareto_fronts = sortNondominated(subset, len(subset), first_front_only=True)
