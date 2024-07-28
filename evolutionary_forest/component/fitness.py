@@ -492,7 +492,9 @@ class R2Size(Fitness):
 
 
 class R2Smoothness(Fitness):
-    def __init__(self, smoothness_function="", smoothness_weight=1, **params):
+    def __init__(
+        self, smoothness_function="SecondOrderDifference", smoothness_weight=1, **params
+    ):
         super().__init__()
         self.smoothness_function = smoothness_function
         self.smoothness_weight = smoothness_weight
