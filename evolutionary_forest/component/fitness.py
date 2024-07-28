@@ -9,7 +9,7 @@ from deap.gp import PrimitiveTree, Primitive, Terminal
 from deap.tools import sortNondominated
 from scipy.stats import spearmanr, pearsonr
 from sklearn.linear_model import RidgeCV
-from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error, log_loss
+from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.preprocessing import StandardScaler
 
@@ -44,7 +44,6 @@ from evolutionary_forest.component.generalization.rademacher_complexity import (
     update_historical_best,
 )
 from evolutionary_forest.component.generalization.smoothness import (
-    function_second_order_smoothness,
     function_second_order_smoothness_difference,
 )
 from evolutionary_forest.component.generalization.vc_dimension import (
@@ -54,7 +53,6 @@ from evolutionary_forest.component.generalization.wcrv import (
     calculate_WCRV,
     calculate_mic,
 )
-from evolutionary_forest.model.ASGAN import ASGAN, score
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.gradient_optimization.scaling import (
@@ -494,8 +492,16 @@ class R2Size(Fitness):
 
 
 class R2Smoothness(Fitness):
+    def __init__(self, smoothness_function="", smoothness_weight=1, **params):
+        super().__init__()
+        self.smoothness_function = smoothness_function
+        self.smoothness_weight = smoothness_weight
+
     def fitness_value(self, individual, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        mse = mean_squared_error(Y, y_pred)
         smoothness = function_second_order_smoothness_difference(y_pred, Y)
+        individual.sam_loss = mse + self.smoothness_weight * smoothness
         return (-1 * score, smoothness)
 
 
@@ -632,6 +638,8 @@ class R2PACBayesian(Fitness):
             if self.sharpness_distribution.startswith("GAN"):
                 self.gan = CTGAN()
             elif self.sharpness_distribution.startswith("ASGAN"):
+                from evolutionary_forest.model.ASGAN import ASGAN
+
                 self.gan = ASGAN(batch_size=len(self.algorithm.X))
             self.gan.fit(
                 np.concatenate(
