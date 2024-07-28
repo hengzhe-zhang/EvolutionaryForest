@@ -46,6 +46,7 @@ from evolutionary_forest.component.generalization.rademacher_complexity import (
 from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness_difference,
     function_second_order_smoothness,
+    function_first_order_smoothness_difference,
 )
 from evolutionary_forest.component.generalization.vc_dimension import (
     vc_dimension_estimation,
@@ -503,10 +504,15 @@ class R2Smoothness(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
         mse = mean_squared_error(Y, y_pred)
-        if self.smoothness_function == "SecondOrderDifference":
+        if (
+            self.smoothness_function == "SecondOrderDifference"
+            or self.smoothness_function == None
+        ):
             smoothness = function_second_order_smoothness_difference(y_pred, Y)
         elif self.smoothness_function == "SecondOrder":
             smoothness = function_second_order_smoothness(y_pred, Y)
+        elif self.smoothness_function == "FirstOrderDifference":
+            smoothness = function_first_order_smoothness_difference(y_pred, Y)
         else:
             raise Exception
         individual.sam_loss = mse + self.smoothness_weight * smoothness

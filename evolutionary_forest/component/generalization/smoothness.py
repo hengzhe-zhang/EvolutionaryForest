@@ -18,6 +18,7 @@ def function_first_order_smoothness(y, y_truth):
 def function_first_order_smoothness_difference(y, y_truth):
     index = np.argsort(y_truth)
     y = y[index]
+    y_truth = y_truth[index]
     delta_y = np.diff((y))
     delta_y_truth = np.diff((y_truth))
     return np.mean((delta_y - delta_y_truth) ** 2)
