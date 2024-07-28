@@ -43,6 +43,10 @@ from evolutionary_forest.component.generalization.rademacher_complexity import (
     calculate_bounded_mse,
     update_historical_best,
 )
+from evolutionary_forest.component.generalization.smoothness import (
+    function_second_order_smoothness,
+    function_second_order_smoothness_difference,
+)
 from evolutionary_forest.component.generalization.vc_dimension import (
     vc_dimension_estimation,
 )
@@ -50,7 +54,7 @@ from evolutionary_forest.component.generalization.wcrv import (
     calculate_WCRV,
     calculate_mic,
 )
-from evolutionary_forest.model.ASGAN import ASGAN
+from evolutionary_forest.model.ASGAN import ASGAN, score
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.gradient_optimization.scaling import (
@@ -487,6 +491,12 @@ class R2Size(Fitness):
             score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
         return (-1 * score, tree_size)
+
+
+class R2Smoothness(Fitness):
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        smoothness = function_second_order_smoothness_difference(y_pred, Y)
+        return (-1 * score, smoothness)
 
 
 class R2Pearson(Fitness):
