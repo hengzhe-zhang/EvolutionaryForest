@@ -502,7 +502,10 @@ class R2Smoothness(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
         mse = mean_squared_error(Y, y_pred)
-        smoothness = function_second_order_smoothness_difference(y_pred, Y)
+        if self.smoothness_function == "SecondOrderDifference":
+            smoothness = function_second_order_smoothness_difference(y_pred, Y)
+        else:
+            smoothness = function_second_order_smoothness_difference(y_pred, Y)
         individual.sam_loss = mse + self.smoothness_weight * smoothness
         return (-1 * score, smoothness)
 
