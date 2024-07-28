@@ -15,6 +15,12 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
+from evolutionary_forest.component.generalization.smoothness import (
+    function_second_order_smoothness,
+    function_first_order_smoothness,
+    function_second_order_relative_smoothness,
+    function_first_order_relative_smoothness,
+)
 from evolutionary_forest.component.gradient_optimization.linear_scaling import (
     calculate_slope,
     calculate_intercept,
@@ -342,17 +348,37 @@ def varAndPlus(
             #         pool_addition_mode = "Best"
             #     else:
             #         pool_addition_mode = "Smallest"
-            if pool_addition_mode == "Smallest" or pool_addition_mode.startswith(
+            if pool_addition_mode in [
+                "Smooth-First",
+                "Smooth-Second",
+                "Smooth-FirstR",
+                "Smooth-SecondR",
+            ]:
+                if pool_addition_mode == "Smooth-First":
+                    smoothness_function = function_first_order_smoothness
+                elif pool_addition_mode == "Smooth-FirstR":
+                    smoothness_function = function_first_order_relative_smoothness
+                elif pool_addition_mode == "Smooth-SecondR":
+                    smoothness_function = function_second_order_relative_smoothness
+                elif pool_addition_mode == "Smooth-Second":
+                    smoothness_function = function_second_order_smoothness
+                else:
+                    raise Exception
+                incumbent_smooth = smoothness_function(delete_semantics, target)
+                value = algorithm.tree_pool.retrieve_smooth_nearest_tree(
+                    normalize_vector(residual),
+                    return_semantics=True,
+                    incumbent_smooth=incumbent_smooth,
+                    top_k=mutation_configuration.top_k_candidates,
+                    negative_search=mutation_configuration.negative_local_search,
+                    smoothness_function=smoothness_function,
+                )
+            elif pool_addition_mode == "Smallest" or pool_addition_mode.startswith(
                 "Smallest~Auto"
             ):
                 incumbent_depth = math.inf
                 if pool_addition_mode == "Smallest~Auto":
                     incumbent_size = len(ind.gene[id])
-                elif pool_addition_mode == "Smallest~Auto+":
-                    # Allow a larger tree, but not excessively growth
-                    incumbent_size = len(ind.gene[id]) + 5
-                elif pool_addition_mode == "Smallest~Auto++":
-                    incumbent_size = len(ind.gene[id]) + 10
                 elif pool_addition_mode == "Smallest~Auto-Depth":
                     incumbent_depth = ind.gene[id].height
                     incumbent_size = math.inf

@@ -1885,6 +1885,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = MTLR2(self.y.shape[1])
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = SemanticLibrary(verbose=self.verbose, **self.param)
+            self.tree_pool.target_semantics = self.y
             interval = self.mutation_configuration.pool_hard_instance_interval
             clustering_mode = self.mutation_configuration.library_clustering_mode
             if interval == 0 and clustering_mode is not False:

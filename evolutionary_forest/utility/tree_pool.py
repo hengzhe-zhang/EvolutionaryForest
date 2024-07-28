@@ -19,6 +19,9 @@ from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 from evolutionary_forest.component.configuration import MAPElitesConfiguration
 from evolutionary_forest.component.evaluation import single_tree_evaluation
+from evolutionary_forest.component.generalization.smoothness import (
+    function_second_order_smoothness,
+)
 from evolutionary_forest.utility.shapley_tool import copy_and_rename_tree
 
 if TYPE_CHECKING:
@@ -124,6 +127,7 @@ class SemanticLibrary:
         self.semantics_length = semantics_length
         self.random_order_replacement = random_order_replacement
         self.verbose = verbose
+        self.target_semantics: np.ndarray = None
 
         self.log_initialization()
         self.forbidden_list = set()
@@ -348,6 +352,67 @@ class SemanticLibrary:
 
         if smallest_index == -1:
             smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
+
+        # if self.library_updating_mode == "LeastFrequentUsed":
+        self.frequency[smallest_index] += 1
+
+        if return_semantics:
+            return (
+                self.trees[smallest_index],
+                self.normalized_semantics_list[smallest_index],
+            )
+        return self.trees[smallest_index]  # Return the corresponding tree
+
+    def retrieve_smooth_nearest_tree(
+        self,
+        semantics: np.ndarray,
+        return_semantics=False,
+        top_k=10,
+        incumbent_smooth=math.inf,
+        negative_search=True,
+        smoothness_function=function_second_order_smoothness,
+    ):
+        if self.kd_tree is None:
+            raise ValueError("KD-Tree is empty. Please add some trees first.")
+
+        if len(self.normalized_semantics_list) == 0:
+            # Empty KD-Tree
+            return None
+
+        semantics = self.index_semantics(semantics)
+
+        # Normalize the query semantics
+        norm = np.linalg.norm(semantics)
+        if norm > 0:
+            semantics = semantics / norm
+        else:
+            return None
+
+        # Query the KDTree for the nearest point
+        dist, index = self.kd_tree.query(semantics, k=top_k)
+        if negative_search:
+            dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k)
+            index = np.concatenate([index, index_neg])
+            # From short to long
+            sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
+        else:
+            sorted_index = np.argsort(dist)
+        index = index[sorted_index][:top_k]
+
+        smallest_index = -1
+        for idx in range(top_k):
+            if (
+                smoothness_function(
+                    self.normalized_semantics_list[index[idx]],
+                    self.target_semantics[self.clustering_indexes],
+                )
+                <= incumbent_smooth
+            ):
+                smallest_index = index[idx]
+                break
+
+        if smallest_index == -1:
+            return None
 
         # if self.library_updating_mode == "LeastFrequentUsed":
         self.frequency[smallest_index] += 1
