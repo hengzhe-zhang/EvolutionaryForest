@@ -516,7 +516,7 @@ class R2Smoothness(Fitness):
         else:
             raise Exception
         individual.sam_loss = mse + self.smoothness_weight * smoothness
-        # print("Smoothness", smoothness, "MSE", mse)
+        # print("Smoothness", self.smoothness_weight * smoothness, "MSE", mse)
         return (-1 * score, smoothness)
 
 
