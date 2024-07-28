@@ -364,7 +364,9 @@ def varAndPlus(
                     smoothness_function = function_second_order_smoothness
                 else:
                     raise Exception
-                incumbent_smooth = smoothness_function(delete_semantics, target)
+                incumbent_smooth = smoothness_function(
+                    normalize_vector(delete_semantics), target
+                )
                 value = algorithm.tree_pool.retrieve_smooth_nearest_tree(
                     normalize_vector(residual),
                     return_semantics=True,
