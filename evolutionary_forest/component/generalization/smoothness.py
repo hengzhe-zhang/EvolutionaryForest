@@ -1,6 +1,5 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from sklearn.metrics import mean_squared_error
 
 
 def function_second_order_smoothness(y, y_truth):
@@ -51,6 +50,7 @@ def function_first_order_smoothness_difference(y, y_truth):
 
 
 def function_second_order_smoothness_difference(y, y_truth):
+    # y, y_truth = copy.deepcopy(y), copy.deepcopy(y_truth)
     index = np.argsort(y_truth)
     y = y[index]
     y_truth = y_truth[index]

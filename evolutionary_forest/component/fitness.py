@@ -495,7 +495,7 @@ class R2Size(Fitness):
 
 class R2Smoothness(Fitness):
     def __init__(
-        self, smoothness_function="SecondOrderDifference", smoothness_weight=1, **params
+        self, smoothness_function="SecondOrderDifference", smoothness_weight=0, **params
     ):
         super().__init__()
         self.smoothness_function = smoothness_function
@@ -515,9 +515,12 @@ class R2Smoothness(Fitness):
             smoothness = function_first_order_smoothness_difference(y_pred, Y)
         else:
             raise Exception
-        individual.sam_loss = mse + self.smoothness_weight * smoothness
+        if self.smoothness_weight == 0:
+            individual.sam_loss = mse
+        else:
+            individual.sam_loss = mse + self.smoothness_weight * smoothness
         # print("Smoothness", self.smoothness_weight * smoothness, "MSE", mse)
-        return (-1 * score, smoothness)
+        return (-1 * score,)
 
 
 class R2Pearson(Fitness):
