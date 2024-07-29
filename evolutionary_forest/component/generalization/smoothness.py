@@ -7,20 +7,27 @@ def function_second_order_smoothness(y, y_truth):
     index = np.argsort(y_truth)
     y = y[index]
     delta_y = np.diff(np.diff(y))
-    return np.mean((delta_y) ** 2)
+    smoothness_a = np.mean((delta_y) ** 2)
+
+    index = np.argsort(y)
+    y_truth = y_truth[index]
+    delta_y = np.diff(np.diff(y_truth))
+    smoothness_b = np.mean((delta_y) ** 2)
+
+    return min(smoothness_a, smoothness_b)
 
 
 def function_first_order_smoothness(y, y_truth):
     index = np.argsort(y_truth)
     y = y[index]
     delta_y = np.diff(y)
-    # index = np.argsort(y)
-    # y_truth = y_truth[index]
-    # delta_y = np.diff(y_truth)
-    # plt.plot(y)
-    # plt.plot(y_truth)
-    # plt.show()
-    return np.mean((delta_y) ** 2)
+    smoothness_a = np.mean((delta_y) ** 2)
+
+    index = np.argsort(y)
+    y_truth = y_truth[index]
+    delta_y = np.diff(y_truth)
+    smoothness_b = np.mean((delta_y) ** 2)
+    return min(smoothness_a, smoothness_b)
 
 
 def function_first_order_smoothness_difference(y, y_truth):
