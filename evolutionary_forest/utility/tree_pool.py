@@ -406,7 +406,7 @@ class SemanticLibrary:
                     self.normalized_semantics_list[index[idx]],
                     self.target_semantics[self.clustering_indexes],
                 )
-                <= incumbent_smooth
+                > incumbent_smooth
             ):
                 smallest_index = index[idx]
                 break
