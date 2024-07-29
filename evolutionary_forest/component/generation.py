@@ -162,13 +162,6 @@ def varAndPlus(
                 # crossover, using the smallest number of genes for a pair of individuals
                 invokes = get_number_of_invokes(gene_num)
                 for c in range(invokes):
-                    mode = mutation_configuration.pool_based_replacement_mode
-                    current_gen = algorithm.current_gen
-                    total_gen = algorithm.n_gen
-                    if not scheduling_controller(mode, current_gen, total_gen):
-                        # skip some of the crossover/mutation
-                        continue
-
                     if i % 2 == 0 and random.random() < cxpb:
                         offspring[i], offspring[i + 1] = toolbox.mate(
                             offspring[i], offspring[i + 1]
