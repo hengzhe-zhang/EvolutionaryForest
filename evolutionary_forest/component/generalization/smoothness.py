@@ -6,24 +6,27 @@ from sklearn.metrics import mean_squared_error
 def function_second_order_smoothness(y, y_truth):
     index = np.argsort(y_truth)
     y = y[index]
+    y_truth = y_truth[index]
     delta_y = np.diff(np.diff(y))
     smoothness_a = np.mean((delta_y) ** 2)
 
     index = np.argsort(y)
+    y = y[index]
     y_truth = y_truth[index]
     delta_y = np.diff(np.diff(y_truth))
     smoothness_b = np.mean((delta_y) ** 2)
-
     return min(smoothness_a, smoothness_b)
 
 
 def function_first_order_smoothness(y, y_truth):
     index = np.argsort(y_truth)
     y = y[index]
+    y_truth = y_truth[index]
     delta_y = np.diff(y)
     smoothness_a = np.mean((delta_y) ** 2)
 
     index = np.argsort(y)
+    y = y[index]
     y_truth = y_truth[index]
     delta_y = np.diff(y_truth)
     smoothness_b = np.mean((delta_y) ** 2)
@@ -109,11 +112,15 @@ if __name__ == "__main__":
     # y_truth = np.arange(0, 100) * 0.1
     # y, y_truth = y_truth, y
 
-    plt.plot(y)
-    plt.plot(y_truth)
+    plt.plot(y, label="Predicted")
+    plt.plot(y_truth, label="True Values")
+    plt.legend()
     plt.show()
-    print(mean_squared_error(y, y_truth))
     # print(function_first_order_smoothness_difference(y, y_truth))
-    print(function_second_order_smoothness_difference(y, y_truth))
-    # print(function_first_order_smoothness_difference(y, y_truth))
-    # print(function_first_order_smoothness(y, y_truth))
+    # print(function_first_order_smoothness_difference(y_truth, y))
+    print(function_first_order_smoothness(y, y_truth))
+    plt.plot(y_truth, label="Predicted")
+    plt.plot(y, label="True Values")
+    plt.legend()
+    plt.show()
+    print(function_first_order_smoothness(y_truth, y))

@@ -411,6 +411,9 @@ class SemanticLibrary:
                 smallest_index = index[idx]
                 break
 
+        # for idx in range(top_k):
+        #     print(idx, self.trees[index[idx]])
+
         if smallest_index == -1:
             return None
 
