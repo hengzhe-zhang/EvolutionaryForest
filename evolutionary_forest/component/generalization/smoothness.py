@@ -17,9 +17,10 @@ def function_second_order_smoothness(y, y_truth):
     return min(smoothness_a, smoothness_b)
 
 
-def function_first_order_smoothness(y, y_truth, plot=False):
-    y = mean_of_parts(np.asarray(y))
-    y_truth = mean_of_parts(np.asarray(y_truth))
+def function_first_order_smoothness(y, y_truth, plot=False, average_version=True):
+    if average_version:
+        y = mean_of_parts(np.asarray(y))
+        y_truth = mean_of_parts(np.asarray(y_truth))
     index = np.argsort(y_truth)
     y = y[index]
     y_truth = y_truth[index]

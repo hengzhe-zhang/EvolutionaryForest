@@ -1,6 +1,7 @@
 import copy
 import math
 import random
+from functools import partial
 from typing import List, TYPE_CHECKING
 
 from deap.tools import cxTwoPoint
@@ -357,6 +358,10 @@ def varAndPlus(
             ]:
                 if pool_addition_mode == "Smooth-First":
                     smoothness_function = function_first_order_smoothness
+                elif pool_addition_mode == "Smooth-FirstRaw":
+                    smoothness_function = partial(
+                        function_first_order_smoothness, average_version=False
+                    )
                 elif pool_addition_mode == "Smooth-Second":
                     smoothness_function = function_second_order_smoothness
                 else:
