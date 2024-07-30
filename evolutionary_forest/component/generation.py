@@ -337,12 +337,17 @@ def varAndPlus(
 
             pool_addition_mode = mutation_configuration.pool_addition_mode
             if pool_addition_mode == "Smooth-Smallest":
-                if algorithm.current_gen > 0.8 * algorithm.n_gen:
+                if algorithm.current_gen > 0.5 * algorithm.n_gen:
+                    pool_addition_mode = "Smallest~Auto"
+                else:
+                    pool_addition_mode = "Smooth-First"
+            if pool_addition_mode == "Smooth-Smallest-I":
+                if algorithm.current_gen % 2 == 0:
                     pool_addition_mode = "Smallest~Auto"
                 else:
                     pool_addition_mode = "Smooth-First"
             if pool_addition_mode == "Best-Smallest":
-                if algorithm.current_gen > 0.8 * algorithm.n_gen:
+                if algorithm.current_gen > 0.5 * algorithm.n_gen:
                     pool_addition_mode = "Smallest~Auto"
                 else:
                     pool_addition_mode = "Best"
