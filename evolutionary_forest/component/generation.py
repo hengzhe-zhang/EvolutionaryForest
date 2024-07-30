@@ -352,13 +352,20 @@ def varAndPlus(
                     pool_addition_mode = "Smallest~Auto"
             if pool_addition_mode in [
                 "Smooth-First",
+                "Smooth-FirstRaw",
+                "Smooth-FirstRaw-",
+                "Smooth-FirstRaw-B",
                 "Smooth-Second",
                 "Smooth-FirstR",
                 "Smooth-SecondR",
             ]:
                 if pool_addition_mode == "Smooth-First":
                     smoothness_function = function_first_order_smoothness
-                elif pool_addition_mode == "Smooth-FirstRaw":
+                elif (
+                    pool_addition_mode == "Smooth-FirstRaw"
+                    or pool_addition_mode == "Smooth-FirstRaw-"
+                    or pool_addition_mode == "Smooth-FirstRaw-B"
+                ):
                     smoothness_function = partial(
                         function_first_order_smoothness, average_version=False
                     )
@@ -367,16 +374,17 @@ def varAndPlus(
                 else:
                     raise Exception
                 incumbent_smooth = smoothness_function(
-                    # normalize_vector(delete_semantics), normalize_vector(target)
-                    normalize_vector(delete_semantics),
-                    normalize_vector(residual),
+                    normalize_vector(delete_semantics), normalize_vector(residual)
                 )
                 value = algorithm.tree_pool.retrieve_smooth_nearest_tree(
                     normalize_vector(residual),
                     return_semantics=True,
+                    incumbent_size=len(ind.gene[id]),
                     incumbent_smooth=incumbent_smooth,
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
+                    or_criterion=pool_addition_mode.endswith("-"),
+                    best_one=pool_addition_mode.endswith("-B"),
                     smoothness_function=smoothness_function,
                 )
             elif pool_addition_mode == "Smallest" or pool_addition_mode.startswith(
@@ -446,7 +454,12 @@ def varAndPlus(
                 current_semantics = trail_semantics
                 if algorithm.verbose:
                     algorithm.success_rate.add_values(1)
-                    # print("Success Rate", algorithm.success_rate.get_moving_averages())
+                    if algorithm.success_rate.get_total_count() % 1000 == 0:
+                        print(
+                            "Success Rate",
+                            algorithm.success_rate.get_moving_averages(),
+                            algorithm.success_rate.get_total_count(),
+                        )
             else:
                 if (
                     algorithm.mutation_configuration.lib_feature_selection

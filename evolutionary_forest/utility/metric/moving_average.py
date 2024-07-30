@@ -8,6 +8,7 @@ class MovingAverage:
         self.cumulative_sums = [0] * num_values
         self.counts = [0] * num_values
         self.values = [[] for _ in range(num_values)]
+        self.total_count = 0  # Initialize total count
 
     def add_values(self, values: Union[int, List[int]]):
         if isinstance(values, (int, float)):
@@ -25,6 +26,9 @@ class MovingAverage:
                 self.cumulative_sums[i] += values[i] - self.values[i].pop(0)
                 self.values[i].append(values[i])
 
+        # Update the total count of values added
+        self.total_count += self.num_values
+
         return self.get_moving_averages()
 
     def get_moving_averages(self):
@@ -37,6 +41,9 @@ class MovingAverage:
                     self.cumulative_sums[i] / min(self.counts[i], self.window_size)
                 )
         return moving_averages if self.num_values > 1 else moving_averages[0]
+
+    def get_total_count(self):
+        return self.total_count
 
 
 if __name__ == "__main__":
