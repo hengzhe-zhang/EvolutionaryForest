@@ -15,6 +15,9 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
+from evolutionary_forest.component.external_archive.semantic_library_mode_controller import (
+    semantic_library_mode_controller,
+)
 from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness,
     function_first_order_smoothness,
@@ -336,21 +339,16 @@ def varAndPlus(
                 algorithm.success_rate.add_values(0)
 
             pool_addition_mode = mutation_configuration.pool_addition_mode
-            if pool_addition_mode == "Smooth-Smallest":
-                if algorithm.current_gen > 0.5 * algorithm.n_gen:
-                    pool_addition_mode = "Smallest~Auto"
-                else:
-                    pool_addition_mode = "Smooth-Second"
-            if pool_addition_mode == "Smooth-Smallest-I":
-                if algorithm.current_gen > 0.5 * algorithm.n_gen:
-                    pool_addition_mode = "Smooth-Second"
-                else:
-                    pool_addition_mode = "Smallest~Auto"
+            pool_addition_mode = semantic_library_mode_controller(
+                pool_addition_mode,
+                current_gen=algorithm.current_gen,
+                n_gen=algorithm.n_gen,
+            )
             if pool_addition_mode == "Best-Smallest":
                 if algorithm.current_gen > 0.5 * algorithm.n_gen:
-                    pool_addition_mode = "Smallest~Auto"
-                else:
                     pool_addition_mode = "Best"
+                else:
+                    pool_addition_mode = "Smallest~Auto"
             if pool_addition_mode in [
                 "Smooth-First",
                 "Smooth-Second",

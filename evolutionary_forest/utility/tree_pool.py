@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import shap
-from deap.gp import PrimitiveTree, Terminal, Primitive
+from deap.gp import PrimitiveTree, Terminal
 from deap.tools import selBest
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
@@ -415,9 +415,9 @@ class SemanticLibrary:
         #     finding = self.normalized_semantics_list[index[idx]]
         #     target = normalize_vector(self.target_semantics[self.clustering_indexes])
         #     idxs = np.argsort(semantics)
-        #     plt.plot(finding[idxs])
-        #     plt.plot(target[idxs])
-        #     plt.plot(semantics[idxs])
+        #     plt.plot(mean_of_parts(finding[idxs], 5))
+        #     plt.plot(mean_of_parts(target[idxs], 5))
+        #     plt.plot(mean_of_parts(semantics[idxs], 5))
         #     plt.legend(["Finding", "Target", "Query"])
         #     plt.title(
         #         f"Smoothness: {idx}, Tree Size:{len(self.trees[index[idx]])}, Smoothness: {smoothness_function(finding, semantics)}\n Tree:{str(self.trees[index[idx]])}"
