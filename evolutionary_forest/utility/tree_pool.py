@@ -404,12 +404,25 @@ class SemanticLibrary:
             if (
                 smoothness_function(
                     self.normalized_semantics_list[index[idx]],
-                    self.target_semantics[self.clustering_indexes],
+                    # normalize_vector(self.target_semantics[self.clustering_indexes]),
+                    semantics,
                 )
                 <= incumbent_smooth
             ):
                 smallest_index = index[idx]
                 break
+        # for idx in range(10):
+        #     finding = self.normalized_semantics_list[index[idx]]
+        #     target = normalize_vector(self.target_semantics[self.clustering_indexes])
+        #     idxs = np.argsort(semantics)
+        #     plt.plot(finding[idxs])
+        #     plt.plot(target[idxs])
+        #     plt.plot(semantics[idxs])
+        #     plt.legend(["Finding", "Target", "Query"])
+        #     plt.title(
+        #         f"Smoothness: {idx}, Tree Size:{len(self.trees[index[idx]])}, Smoothness: {smoothness_function(finding, semantics)}\n Tree:{str(self.trees[index[idx]])}"
+        #     )
+        #     plt.show()
 
         # for idx in range(top_k):
         #     print(idx, self.trees[index[idx]])

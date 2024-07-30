@@ -340,12 +340,12 @@ def varAndPlus(
                 if algorithm.current_gen > 0.5 * algorithm.n_gen:
                     pool_addition_mode = "Smallest~Auto"
                 else:
-                    pool_addition_mode = "Smooth-First"
+                    pool_addition_mode = "Smooth-Second"
             if pool_addition_mode == "Smooth-Smallest-I":
-                if algorithm.current_gen % 2 == 0:
-                    pool_addition_mode = "Smallest~Auto"
+                if algorithm.current_gen > 0.5 * algorithm.n_gen:
+                    pool_addition_mode = "Smooth-Second"
                 else:
-                    pool_addition_mode = "Smooth-First"
+                    pool_addition_mode = "Smallest~Auto"
             if pool_addition_mode == "Best-Smallest":
                 if algorithm.current_gen > 0.5 * algorithm.n_gen:
                     pool_addition_mode = "Smallest~Auto"
@@ -364,7 +364,9 @@ def varAndPlus(
                 else:
                     raise Exception
                 incumbent_smooth = smoothness_function(
-                    normalize_vector(delete_semantics), target
+                    # normalize_vector(delete_semantics), normalize_vector(target)
+                    normalize_vector(delete_semantics),
+                    normalize_vector(residual),
                 )
                 value = algorithm.tree_pool.retrieve_smooth_nearest_tree(
                     normalize_vector(residual),
