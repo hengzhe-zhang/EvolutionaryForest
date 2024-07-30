@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from scipy.stats import pearsonr
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
@@ -7,6 +8,8 @@ from evolutionary_forest.model.cosine_kmeans import cosine_similarity
 
 
 def normalize_vector(v):
+    if isinstance(v, torch.Tensor):
+        v = v.detach().numpy()
     v = v - np.mean(v)
     norm = np.linalg.norm(v)
     if norm == 0:

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import shap
+import torch
 from deap.gp import PrimitiveTree, Terminal
 from deap.tools import selBest
 from scipy.spatial import cKDTree, KDTree
@@ -153,6 +154,8 @@ class SemanticLibrary:
         for ind in inds:
             for semantics, tree in zip(ind.semantics.T, ind.gene):
                 semantics = self.index_semantics(semantics)
+                if isinstance(semantics, torch.Tensor):
+                    semantics = semantics.detach().numpy()
                 # Normalize semantics and skip if norm is 0
                 norm = np.linalg.norm(semantics)
                 if norm == 0:
