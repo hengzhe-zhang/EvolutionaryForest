@@ -371,10 +371,8 @@ class SemanticLibrary:
         semantics: np.ndarray,
         return_semantics=False,
         top_k=10,
-        incumbent_size=math.inf,
         incumbent_smooth=math.inf,
         negative_search=True,
-        or_criterion=None,
         smoothness_function=function_second_order_smoothness,
         best_one=False,
         focus_one_target=False,
@@ -428,41 +426,11 @@ class SemanticLibrary:
         smallest_index = -1
         for idx in range(top_k):
             if (
-                (
-                    or_criterion == "Or"
-                    and (
-                        (
-                            smoothness_function(
-                                self.normalized_semantics_list[index[idx]],
-                                reference,
-                            )
-                            <= incumbent_smooth
-                        )
-                        or len(self.trees[index[idx]]) <= incumbent_size
-                    )
+                smoothness_function(
+                    self.normalized_semantics_list[index[idx]],
+                    reference,
                 )
-                or (
-                    or_criterion == "And"
-                    and (
-                        (
-                            smoothness_function(
-                                self.normalized_semantics_list[index[idx]],
-                                reference,
-                            )
-                            <= incumbent_smooth
-                        )
-                        and len(self.trees[index[idx]]) <= incumbent_size
-                    )
-                )
-                or (
-                    (
-                        smoothness_function(
-                            self.normalized_semantics_list[index[idx]],
-                            reference,
-                        )
-                        <= incumbent_smooth
-                    )
-                )
+                <= incumbent_smooth
             ):
                 smallest_index = index[idx]
                 break

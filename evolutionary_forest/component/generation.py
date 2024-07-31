@@ -346,37 +346,9 @@ def varAndPlus(
                 current_gen=algorithm.current_gen,
                 n_gen=algorithm.n_gen,
             )
-            if pool_addition_mode == "Best-Smallest":
-                if algorithm.current_gen > 0.5 * algorithm.n_gen:
-                    pool_addition_mode = "Best"
-                else:
-                    pool_addition_mode = "Smallest~Auto"
-            if pool_addition_mode in [
-                "Smooth-First",
-                "Smooth-FirstRaw",
-                "Smooth-Variance",
-                "Smooth-Target",
-                "Smooth-FirstRaw-",
-                "Smooth-FirstRaw-B",
-                "Smooth-Second",
-                "Smooth-FirstR",
-                "Smooth-SecondR",
-            ]:
+            if pool_addition_mode.startswith("Smooth"):
                 if pool_addition_mode == "Smooth-First":
                     smoothness_function = function_first_order_smoothness
-                elif pool_addition_mode == "Smooth-Variance":
-                    smoothness_function = function_first_order_variance
-                elif (
-                    pool_addition_mode == "Smooth-FirstRaw"
-                    or pool_addition_mode == "Smooth-FirstRaw-"
-                    or pool_addition_mode == "Smooth-FirstRaw-B"
-                    or pool_addition_mode == "Smooth-Target"
-                ):
-                    smoothness_function = partial(
-                        function_first_order_smoothness, average_version=False
-                    )
-                elif pool_addition_mode == "Smooth-Second":
-                    smoothness_function = function_second_order_smoothness
                 else:
                     raise Exception
                 if pool_addition_mode == "Smooth-Target":
@@ -394,8 +366,6 @@ def varAndPlus(
                     incumbent_smooth=incumbent_smooth,
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
-                    or_criterion=pool_addition_mode.endswith("-"),
-                    best_one=pool_addition_mode.endswith("-B"),
                     smoothness_function=smoothness_function,
                     focus_one_target=pool_addition_mode == "Smooth-Target",
                 )

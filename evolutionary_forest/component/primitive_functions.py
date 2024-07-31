@@ -175,6 +175,10 @@ def analytical_log_singed(x):
     return np.log(np.sqrt(1 + x**2)) * np.sign(x)
 
 
+def abs_log_singed(x):
+    return np.log(1 + np.abs(x)) * np.sign(x)
+
+
 def analytical_log10(x):
     return np.log10(np.sqrt(1 + x**2))
 

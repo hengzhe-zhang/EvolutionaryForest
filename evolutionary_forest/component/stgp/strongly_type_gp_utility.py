@@ -22,11 +22,14 @@ from sklearn.preprocessing import (
     OrdinalEncoder,
 )
 
+from evolutionary_forest.component.configuration import EvaluationConfiguration
 from evolutionary_forest.component.primitive_functions import (
     analytical_log,
     analytical_quotient,
     radian_sin,
     radian_cos,
+    sqrt_signed,
+    analytical_log_singed,
 )
 from evolutionary_forest.component.stgp.categorical_processor import *
 from evolutionary_forest.component.stgp.fast_binary_encoder import BinaryEncoder
@@ -360,6 +363,11 @@ def add_smooth_math_operators(pset, flag):
             [float, Parameter],
             float,
         ),
+        "Sqrt+": (
+            partial_wrapper(smooth_operator_1, operator=sqrt_signed),
+            [float, Parameter],
+            float,
+        ),
         "Log": (
             partial_wrapper(smooth_operator_1, operator=_protected_log),
             [float, Parameter],
@@ -415,6 +423,11 @@ def add_smooth_math_operators(pset, flag):
             [float, Parameter],
             float,
         ),
+        "ALog+": (
+            partial_wrapper(smooth_operator_1, operator=analytical_log_singed),
+            [float, Parameter],
+            float,
+        ),
     }
     for operator in operators:
         a, b, c = tools[operator]
@@ -426,10 +439,13 @@ def multi_tree_evaluation_typed(
     gp_trees: List[PrimitiveTree],
     pset,
     data: np.ndarray,
+    evaluation_configuration: EvaluationConfiguration,
 ):
     results = []
     for tree in gp_trees:
-        result = quick_evaluate(tree, pset, data)
+        result = quick_evaluate(
+            tree, pset, data, evaluation_configuration=evaluation_configuration
+        )
         if isinstance(result, np.ndarray) and len(result.shape) == 2:
             # 2D array
             results.extend(list(result.T))
@@ -439,7 +455,13 @@ def multi_tree_evaluation_typed(
     return results.T
 
 
-def quick_evaluate(expr: PrimitiveTree, pset, data, prefix="ARG"):
+def quick_evaluate(
+    expr: PrimitiveTree,
+    pset,
+    data,
+    prefix="ARG",
+    evaluation_configuration: EvaluationConfiguration = None,
+):
     result = None
     stack = []
     for idx, node in enumerate(expr):
@@ -476,6 +498,15 @@ def quick_evaluate(expr: PrimitiveTree, pset, data, prefix="ARG"):
                     result = pset.context[prim.name](*updated_args)
                 else:
                     result = pset.context[prim.name](*arg_values)
+                if (
+                    evaluation_configuration is not None
+                    and evaluation_configuration.semantic_library is not None
+                ):
+                    # Add subtree to semantic lib
+                    if isinstance(result, np.ndarray) and result.size > 1:
+                        evaluation_configuration.semantic_library.append_semantics(
+                            result, PrimitiveTree(expr[expr.searchSubtree(node_idx)])
+                        )
             elif isinstance(prim, gp.Terminal):
                 if prefix in prim.name:
                     result = data[:, int(prim.name.replace(prefix, ""))]

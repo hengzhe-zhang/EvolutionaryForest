@@ -175,6 +175,7 @@ def calculate_score(args):
             func,
             pset,
             X,
+            evaluation_configuration=configuration,
         )
         hash_result = None
         correlation_results = None

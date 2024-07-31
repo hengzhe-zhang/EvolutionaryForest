@@ -24,7 +24,7 @@ def function_first_order_variance(y, y_truth=None):
     return np.mean((delta_y) ** 2)
 
 
-def function_first_order_smoothness(y, y_truth, plot=False, average_version=True):
+def function_first_order_smoothness(y, y_truth, plot=False, average_version=False):
     if average_version:
         y = mean_of_parts(np.asarray(y))
         y_truth = mean_of_parts(np.asarray(y_truth))
