@@ -1,5 +1,4 @@
 import gc
-import gc
 import inspect
 from multiprocessing import Pool
 
@@ -4871,17 +4870,32 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # cross between different models
                 # 0.5-> AA BB
                 # 0.5-> AB BA
-                parent_a = self.sample_model_name(parent_pool)
+                model_name_a, parent_a = self.sample_model_name(parent_pool)
                 offspring_a = toolbox.select(parent_a, 1)
-                parent_b = self.sample_model_name(parent_pool)
+                model_name_b, parent_b = self.sample_model_name(parent_pool)
                 offspring_b = toolbox.select(parent_b, 1)
-                if len(parent_a) > 1 or len(parent_b) > 1:
-                    combinations = list(itertools.product(parent_a, parent_b))
-                    offspring = [item for sublist in combinations for item in sublist]
+                # plot_pareto_front(parent_a)
+                if self.select.startswith("ParetoTournament"):
+                    if model_name_a == model_name_b:
+                        if len(offspring_a) > 2:
+                            offspring_a = pareto_tournament_controller(
+                                offspring_a, self.select.split("~")[1]
+                            )
+                        if len(offspring_b) > 2:
+                            offspring_b = pareto_tournament_controller(
+                                offspring_b, self.select.split("~")[1]
+                            )
+                        offspring = offspring_a + offspring_b
+                    else:
+                        combinations = list(itertools.product(offspring_a, offspring_b))
+                        offspring = [
+                            item for sublist in combinations for item in sublist
+                        ]
+                    offspring = offspring[: len(offspring) // 2 * 2]
                 else:
                     offspring = [offspring_a[0], offspring_b[0]]
             else:
-                parent_a = self.sample_model_name(parent_pool)
+                model_name, parent_a = self.sample_model_name(parent_pool)
                 offspring = toolbox.select(parent_a, 2)
                 if len(offspring) > 2:
                     offspring = pareto_tournament_controller(
@@ -4904,6 +4918,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     if self.select.startswith("ParetoTournament"):
                         offspring = toolbox.select(
                             parent + external_archive, self.n_pop
+                        )
+                        offspring = pareto_tournament_controller(
+                            offspring, self.select.split("~")[1]
                         )
                     else:
                         offspring = toolbox.select(parent + external_archive, 2)
@@ -5153,7 +5170,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Randomly select either one population
         model = random.choice(models)
         parent = list(filter(lambda x: x.base_model == model, parent))
-        return parent
+        return model, parent
 
     def survival_selection(self, gen, population, offspring):
         # Using NSGA-II or other operators to select parent individuals
