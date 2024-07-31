@@ -2432,6 +2432,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.constant_type is None:
             pass
+        elif isinstance(
+            self.basic_primitives, str
+        ) and self.basic_primitives.startswith("Pipeline"):
+            pass
         elif self.basic_primitives == False:
             pset.addEphemeralConstant(
                 "rand101", lambda: random.randint(-1, 1), NumericalFeature
@@ -3163,6 +3167,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # Un-scale predicted values if normalize flag is set
                 if len(predicted.shape) == 1:
                     predicted = predicted.reshape(-1, 1)
+                # predicted -= predicted.mean()
+                # predicted /= predicted.std()
                 predicted = self.y_scaler.inverse_transform(predicted)
                 if len(predicted.shape) == 2 and predicted.shape[1] == 1:
                     predicted = predicted.flatten()

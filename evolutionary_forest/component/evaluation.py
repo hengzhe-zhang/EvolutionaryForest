@@ -179,6 +179,8 @@ def calculate_score(args):
         hash_result = None
         correlation_results = None
         introns_results = None
+        if configuration.save_semantics:
+            semantic_results = Yp
     else:
         Yp, results = multi_tree_evaluation(
             func,
