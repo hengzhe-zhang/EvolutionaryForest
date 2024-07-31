@@ -374,9 +374,10 @@ class SemanticLibrary:
         incumbent_size=math.inf,
         incumbent_smooth=math.inf,
         negative_search=True,
-        or_criterion=True,
+        or_criterion=None,
         smoothness_function=function_second_order_smoothness,
-        best_one=True,
+        best_one=False,
+        focus_one_target=False,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -405,13 +406,16 @@ class SemanticLibrary:
             sorted_index = np.argsort(dist)
         index = index[sorted_index][:top_k]
 
+        reference = semantics
+        if focus_one_target:
+            reference = self.target_semantics[self.clustering_indexes]
         if best_one:
             # choose the minimum one
             smallest_index = np.argmin(
                 [
                     smoothness_function(
                         self.normalized_semantics_list[index[idx]],
-                        semantics,
+                        reference,
                     )
                     for idx in range(top_k)
                 ]
@@ -424,28 +428,40 @@ class SemanticLibrary:
         smallest_index = -1
         for idx in range(top_k):
             if (
-                or_criterion
-                and (
-                    (
-                        smoothness_function(
-                            self.normalized_semantics_list[index[idx]],
-                            semantics,
+                (
+                    or_criterion == "Or"
+                    and (
+                        (
+                            smoothness_function(
+                                self.normalized_semantics_list[index[idx]],
+                                reference,
+                            )
+                            <= incumbent_smooth
                         )
-                        <= incumbent_smooth
+                        or len(self.trees[index[idx]]) <= incumbent_size
                     )
-                    or len(self.trees[index[idx]]) <= incumbent_size
                 )
-            ) or (
-                not or_criterion
-                and (
+                or (
+                    or_criterion == "And"
+                    and (
+                        (
+                            smoothness_function(
+                                self.normalized_semantics_list[index[idx]],
+                                reference,
+                            )
+                            <= incumbent_smooth
+                        )
+                        and len(self.trees[index[idx]]) <= incumbent_size
+                    )
+                )
+                or (
                     (
                         smoothness_function(
                             self.normalized_semantics_list[index[idx]],
-                            semantics,
+                            reference,
                         )
                         <= incumbent_smooth
                     )
-                    and len(self.trees[index[idx]]) <= incumbent_size
                 )
             ):
                 smallest_index = index[idx]

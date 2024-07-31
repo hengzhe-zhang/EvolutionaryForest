@@ -17,6 +17,13 @@ def function_second_order_smoothness(y, y_truth):
     return min(smoothness_a, smoothness_b)
 
 
+def function_first_order_variance(y, y_truth=None):
+    index = np.argsort(y)
+    y = y[index]
+    delta_y = np.diff(y)
+    return np.mean((delta_y) ** 2)
+
+
 def function_first_order_smoothness(y, y_truth, plot=False, average_version=True):
     if average_version:
         y = mean_of_parts(np.asarray(y))
@@ -155,7 +162,7 @@ if __name__ == "__main__":
         plt.show()
 
         # Calculate smoothness
-        smoothness_y = function_first_order_smoothness(y, y_truth)
+        smoothness_y = function_first_order_variance(y, y_truth)
         print(f"Configuration {i + 1}:")
         print(f"  First-order smoothness of y: {smoothness_y}")
         print()
