@@ -378,6 +378,10 @@ def varAndPlus(
                 elif pool_addition_mode == "Smallest~Auto-Depth":
                     incumbent_depth = ind.gene[id].height
                     incumbent_size = math.inf
+                elif pool_addition_mode.startswith("Smallest~Auto-Depth+"):
+                    step = int(pool_addition_mode.split("+")[1])
+                    incumbent_depth = ind.gene[id].height + step
+                    incumbent_size = math.inf
                 else:
                     incumbent_size = 0
 
