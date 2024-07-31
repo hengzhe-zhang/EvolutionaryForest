@@ -204,6 +204,7 @@ from evolutionary_forest.component.selection_operators.niche_base_selection impo
 from evolutionary_forest.component.selection_operators.pareto_tournament import (
     sel_pareto_tournament,
     sel_subset_best,
+    pareto_tournament_controller,
 )
 from evolutionary_forest.component.stateful_gp import make_class
 from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
@@ -4874,10 +4875,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 offspring_a = toolbox.select(parent_a, 1)
                 parent_b = self.sample_model_name(parent_pool)
                 offspring_b = toolbox.select(parent_b, 1)
-                offspring = [offspring_a[0], offspring_b[0]]
+                if len(parent_a) > 1 or len(parent_b) > 1:
+                    combinations = list(itertools.product(parent_a, parent_b))
+                    offspring = [item for sublist in combinations for item in sublist]
+                else:
+                    offspring = [offspring_a[0], offspring_b[0]]
             else:
                 parent_a = self.sample_model_name(parent_pool)
                 offspring = toolbox.select(parent_a, 2)
+                if len(offspring) > 2:
+                    offspring = pareto_tournament_controller(
+                        offspring, self.select.split("~")[1]
+                    )
         else:
             if self.number_of_parents > 0:
                 # multi-parent generation, which is particularly useful for modular multi-tree GP

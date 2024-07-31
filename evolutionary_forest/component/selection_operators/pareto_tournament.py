@@ -1,3 +1,4 @@
+import itertools
 import math
 import random
 
@@ -44,5 +45,22 @@ def sel_pareto_tournament(pop, k, subset_size):
         # Add all models on the Pareto front to the breeding stock
         breeding_stock.extend(pareto_front)
 
-    # return breeding_stock[: ceil_to_even(k)]
-    return random.sample(breeding_stock, k)
+    return breeding_stock[: ceil_to_even(k)]
+    # return random.sample(breeding_stock, k)
+
+
+def pareto_tournament_controller(offspring, version="Product"):
+    if version == "Product":
+        combinations = list(itertools.product(offspring, offspring))
+        offspring = [item for sublist in combinations for item in sublist]
+    elif version == "Adjacent":
+        offspring = [
+            [offspring[i], offspring[i + 1]] for i in range(len(offspring) - 1)
+        ]
+    elif version == "Consecution":
+        offspring = [
+            [offspring[i], offspring[i + 1]] for i in range(0, len(offspring) - 1, 2)
+        ]
+    else:
+        raise Exception("Invalid version")
+    return offspring
