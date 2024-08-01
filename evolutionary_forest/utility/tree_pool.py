@@ -351,6 +351,7 @@ class SemanticLibrary:
                 and self.trees[index[idx]].height <= incumbent_depth
             ):
                 smallest_index = index[idx]
+                # str(self.trees[index[idx]])
                 break
 
         if smallest_index == -1:

@@ -2432,16 +2432,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.constant_type is None:
             pass
-        elif isinstance(
-            self.basic_primitives, str
-        ) and self.basic_primitives.startswith("Pipeline"):
-            pass
         elif self.basic_primitives == False:
             pset.addEphemeralConstant(
                 "rand101", lambda: random.randint(-1, 1), NumericalFeature
             )
         elif self.constant_type == "Float":
-            pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
+            if self.basic_primitives.startswith("Pipeline"):
+                pset.addEphemeralConstant(
+                    "rand101", lambda: random.uniform(-1, 1), float
+                )
+            else:
+                pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
         elif self.constant_type in ["GD", "GD+", "GD-", "GD--"]:
 
             def random_variable():

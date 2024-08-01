@@ -384,6 +384,7 @@ def varAndPlus(
                     incumbent_size = math.inf
                 else:
                     incumbent_size = 0
+                # str(ind.gene[id])
 
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                     normalize_vector(residual),
