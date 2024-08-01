@@ -69,4 +69,5 @@ if __name__ == "__main__":
     print("Transformed Data:", without_transform[:5])
     transformed_data = transformer.transform(without_transform)
     print("Original Data:", data[:5])
+    print("Original Data:", transformer.transform(data[:5]))
     print("Transformed Data:", transformed_data[:5])

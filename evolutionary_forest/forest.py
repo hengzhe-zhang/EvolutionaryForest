@@ -222,7 +222,7 @@ from evolutionary_forest.component.toolbox import TypedToolbox
 from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
-from evolutionary_forest.model.FeatureClipper import FeatureClipper
+from evolutionary_forest.model.FeatureClipper import FeatureClipper, FeatureSmoother
 from evolutionary_forest.model.MTL import MTLRidgeCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
 from evolutionary_forest.model.PLTree import (
@@ -1849,6 +1849,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.feature_clipping:
             scaler = FeatureClipper()
+        if self.evaluation_configuration.feature_smoothing:
+            scaler = FeatureSmoother()
         components = [
             ("Scaler", scaler),
             ("Ridge", ridge_model),

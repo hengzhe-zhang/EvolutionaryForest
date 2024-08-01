@@ -307,9 +307,11 @@ class EvaluationConfiguration(Configuration):
         loss_discretization=None,
         semantic_library=None,
         constant_type=None,
+        feature_smoothing=False,
         **params
     ):
         # prediction results of the neural network
+        self.feature_smoothing = feature_smoothing
         self.loss_discretization = loss_discretization
         self.ood_split = ood_split
         self.constant_type = constant_type
