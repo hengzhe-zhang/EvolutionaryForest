@@ -1,7 +1,6 @@
 import copy
 import math
 import random
-from functools import partial
 from typing import List, TYPE_CHECKING
 
 from deap.tools import cxTwoPoint
@@ -20,18 +19,11 @@ from evolutionary_forest.component.external_archive.semantic_library_mode_contro
     semantic_library_mode_controller,
 )
 from evolutionary_forest.component.generalization.smoothness import (
-    function_second_order_smoothness,
     function_first_order_smoothness,
-    function_second_order_relative_smoothness,
-    function_first_order_relative_smoothness,
-    function_first_order_variance,
 )
 from evolutionary_forest.component.gradient_optimization.linear_scaling import (
     calculate_slope,
     calculate_intercept,
-)
-from evolutionary_forest.component.semantic_library.scheduling_function import (
-    scheduling_controller,
 )
 from evolutionary_forest.component.stgp.strongly_type_gp_utility import revert_back
 from evolutionary_forest.component.toolbox import TypedToolbox
@@ -375,6 +367,13 @@ def varAndPlus(
                 incumbent_depth = math.inf
                 if pool_addition_mode == "Smallest~Auto":
                     incumbent_size = len(ind.gene[id])
+                    # incumbent_size = len(
+                    #     [
+                    #         node
+                    #         for node in ind.gene[id]
+                    #         if isinstance(node, (Parameter, LearnedParameter))
+                    #     ]
+                    # )
                 elif pool_addition_mode == "Smallest~Auto-Depth":
                     incumbent_depth = ind.gene[id].height
                     incumbent_size = math.inf
