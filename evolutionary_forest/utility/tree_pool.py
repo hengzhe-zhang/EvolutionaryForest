@@ -666,6 +666,8 @@ class SemanticLibrary:
         mode: str,
         features: np.ndarray,
         label: np.ndarray,
+        current_generation,
+        total_generations,
     ):
         if len(error.T) <= self.semantics_length:
             # no need to do clustering
@@ -708,13 +710,15 @@ class SemanticLibrary:
             self.clustering_indexes = np.random.choice(
                 np.arange(error.shape[1]), self.semantics_length, replace=False
             )
-        elif mode.startswith("adaptive"):
+        elif mode.startswith("adaptive") or mode.startswith("curriculum"):
             self.clustering_indexes = adaptive_selection_strategy_controller(
                 mode,
                 error,
                 np.arange(error.shape[1]),
                 self.previous_loss_matrix,
                 self.semantics_length,
+                current_generation,
+                total_generations,
             )
             self.previous_loss_matrix = error
         else:

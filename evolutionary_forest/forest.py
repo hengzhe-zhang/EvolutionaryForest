@@ -3343,7 +3343,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         [ind.predicted_values for ind in self.pop]
                     )
                     self.tree_pool.update_hard_instance(
-                        case_fitness, predicted_values, mode, self.X, self.y
+                        case_fitness,
+                        predicted_values,
+                        mode,
+                        self.X,
+                        self.y,
+                        self.current_gen,
+                        self.n_gen,
                     )
             self.tree_pool.update_kd_tree(self.pop, self.y)
         # self.model_size_archive.update(self.pop)
