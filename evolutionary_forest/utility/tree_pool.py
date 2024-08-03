@@ -24,6 +24,9 @@ from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness,
 )
 from evolutionary_forest.utility.shapley_tool import copy_and_rename_tree
+from evolutionary_forest.utility.tree_pool_util.adaptive_instance_selection import (
+    adaptive_selection_strategy_controller,
+)
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -132,6 +135,7 @@ class SemanticLibrary:
 
         self.log_initialization()
         self.forbidden_list = set()
+        self.previous_loss_matrix = None
 
     def log_initialization(self):
         self.mismatch_times = []
@@ -704,6 +708,15 @@ class SemanticLibrary:
             self.clustering_indexes = np.random.choice(
                 np.arange(error.shape[1]), self.semantics_length, replace=False
             )
+        elif mode.startswith("adaptive"):
+            self.clustering_indexes = adaptive_selection_strategy_controller(
+                mode,
+                error,
+                np.arange(error.shape[1]),
+                self.previous_loss_matrix,
+                self.semantics_length,
+            )
+            self.previous_loss_matrix = error
         else:
             raise Exception("Invalid mode")
         self.clear_all()

@@ -1,0 +1,116 @@
+import numpy as np
+
+
+def calculate_hardness(loss_matrix):
+    return np.median(loss_matrix, axis=0)
+
+
+def adaptive_hard_easy_selection(loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+    hardness = calculate_hardness(loss_matrix)
+    mean_loss = np.mean(loss_matrix)
+
+    if mean_loss > np.median(hardness):
+        # Focus on harder instances
+        selected_indices = np.argsort(hardness)[-selection_number:]
+    else:
+        # Focus on easier instances
+        selected_indices = np.argsort(hardness)[:selection_number]
+
+    return selected_indices
+
+
+def adaptive_weighted_selection(loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+    hardness = calculate_hardness(loss_matrix)
+    mean_loss = np.mean(loss_matrix)
+
+    weight = mean_loss / (mean_loss + np.median(hardness))
+    num_hard_instances = int(selection_number * weight)
+    num_easy_instances = selection_number - num_hard_instances
+
+    hard_indices = np.argsort(hardness)[-num_hard_instances:]
+    easy_indices = np.argsort(hardness)[:num_easy_instances]
+
+    selected_indices = np.concatenate((hard_indices, easy_indices))
+    return selected_indices
+
+
+def adaptive_progress_selection(loss_matrix, prev_loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+
+    if prev_loss_matrix is None:
+        selected_indices = np.random.choice(
+            num_instances, selection_number, replace=False
+        )
+    else:
+        improvement = np.mean(prev_loss_matrix - loss_matrix, axis=0)
+        if np.mean(improvement) > 0:
+            # Focus on instances with the least improvement
+            selected_indices = np.argsort(improvement)[:selection_number]
+        else:
+            # Focus on instances with the most improvement
+            selected_indices = np.argsort(improvement)[-selection_number:]
+
+    return selected_indices
+
+
+def adaptive_stability_selection(loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+    stability = np.std(loss_matrix, axis=0)
+
+    if np.mean(stability) > np.median(stability):
+        # Focus on the least stable instances
+        selected_indices = np.argsort(stability)[-selection_number:]
+    else:
+        # Focus on the most stable instances
+        selected_indices = np.argsort(stability)[:selection_number]
+
+    return selected_indices
+
+
+def adaptive_ensemble_selection(loss_matrix, prev_loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+
+    if prev_loss_matrix is None:
+        selected_indices = np.random.choice(
+            num_instances, selection_number, replace=False
+        )
+    else:
+        hardness = calculate_hardness(loss_matrix)
+        stability = np.std(loss_matrix, axis=0)
+        improvement = np.mean(prev_loss_matrix - loss_matrix, axis=0)
+
+        combined_score = hardness + stability - improvement
+
+        selected_indices = np.argsort(combined_score)[-selection_number:]
+
+    return selected_indices
+
+
+def adaptive_selection_strategy_controller(
+    strategy,
+    loss_matrix,
+    instances,
+    prev_loss_matrix=None,
+    selection_number=10,
+):
+    if strategy == "adaptive_hard_easy":
+        selected_indices = adaptive_hard_easy_selection(loss_matrix, selection_number)
+    elif strategy == "adaptive_weighted":
+        selected_indices = adaptive_weighted_selection(loss_matrix, selection_number)
+    elif strategy == "adaptive_progress":
+        selected_indices = adaptive_progress_selection(
+            loss_matrix, prev_loss_matrix, selection_number
+        )
+    elif strategy == "adaptive_stability":
+        selected_indices = adaptive_stability_selection(loss_matrix, selection_number)
+    elif strategy == "adaptive_ensemble":
+        selected_indices = adaptive_ensemble_selection(
+            loss_matrix, prev_loss_matrix, selection_number
+        )
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
+
+    selected_instances = [instances[i] for i in selected_indices]
+    return selected_instances
