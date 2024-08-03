@@ -88,6 +88,87 @@ def adaptive_ensemble_selection(loss_matrix, prev_loss_matrix, selection_number)
     return selected_indices
 
 
+def adaptive_diversity_selection(loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+    diversity = np.var(loss_matrix, axis=0)  # Measure diversity as variance in losses
+
+    if np.mean(diversity) > np.median(diversity):
+        # Focus on more diverse instances
+        selected_indices = np.argsort(diversity)[-selection_number:]
+    else:
+        # Focus on less diverse instances
+        selected_indices = np.argsort(diversity)[:selection_number]
+
+    return selected_indices
+
+
+def adaptive_mixed_hardness_selection(loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+    hardness = calculate_hardness(loss_matrix)
+
+    num_half = selection_number // 2
+    hard_indices = np.argsort(hardness)[-num_half:]
+    easy_indices = np.argsort(hardness)[: selection_number - num_half]
+
+    selected_indices = np.concatenate((hard_indices, easy_indices))
+    return selected_indices
+
+
+def adaptive_confidence_selection(loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+    mean_losses = np.mean(loss_matrix, axis=0)
+
+    if np.mean(mean_losses) > np.median(mean_losses):
+        # Focus on least confident (highest loss) instances
+        selected_indices = np.argsort(mean_losses)[-selection_number:]
+    else:
+        # Focus on most confident (lowest loss) instances
+        selected_indices = np.argsort(mean_losses)[:selection_number]
+
+    return selected_indices
+
+
+def adaptive_temporal_stability_selection(
+    loss_matrix, prev_loss_matrix, selection_number
+):
+    num_instances = loss_matrix.shape[1]
+
+    if prev_loss_matrix is None:
+        selected_indices = np.random.choice(
+            num_instances, selection_number, replace=False
+        )
+    else:
+        temporal_stability = np.abs(
+            np.mean(loss_matrix, axis=0) - np.mean(prev_loss_matrix, axis=0)
+        )
+        if np.mean(temporal_stability) > np.median(temporal_stability):
+            # Focus on instances with the most change
+            selected_indices = np.argsort(temporal_stability)[-selection_number:]
+        else:
+            # Focus on instances with the least change
+            selected_indices = np.argsort(temporal_stability)[:selection_number]
+
+    return selected_indices
+
+
+def adaptive_hybrid_selection(loss_matrix, prev_loss_matrix, selection_number):
+    num_instances = loss_matrix.shape[1]
+
+    if prev_loss_matrix is None:
+        selected_indices = np.random.choice(
+            num_instances, selection_number, replace=False
+        )
+    else:
+        hardness = calculate_hardness(loss_matrix)
+        stability = np.std(loss_matrix, axis=0)
+        diversity = np.var(loss_matrix, axis=0)
+
+        combined_score = hardness + stability + diversity
+        selected_indices = np.argsort(combined_score)[-selection_number:]
+
+    return selected_indices
+
+
 def adaptive_selection_strategy_controller(
     strategy,
     loss_matrix,
@@ -107,6 +188,22 @@ def adaptive_selection_strategy_controller(
         selected_indices = adaptive_stability_selection(loss_matrix, selection_number)
     elif strategy == "adaptive_ensemble":
         selected_indices = adaptive_ensemble_selection(
+            loss_matrix, prev_loss_matrix, selection_number
+        )
+    elif strategy == "adaptive_diversity":
+        selected_indices = adaptive_diversity_selection(loss_matrix, selection_number)
+    elif strategy == "adaptive_mixed_hardness":
+        selected_indices = adaptive_mixed_hardness_selection(
+            loss_matrix, selection_number
+        )
+    elif strategy == "adaptive_confidence":
+        selected_indices = adaptive_confidence_selection(loss_matrix, selection_number)
+    elif strategy == "adaptive_temporal_stability":
+        selected_indices = adaptive_temporal_stability_selection(
+            loss_matrix, prev_loss_matrix, selection_number
+        )
+    elif strategy == "adaptive_hybrid":
+        selected_indices = adaptive_hybrid_selection(
             loss_matrix, prev_loss_matrix, selection_number
         )
     else:
