@@ -719,6 +719,9 @@ class SemanticLibrary:
         elif mode == "Worst":
             errors = np.median(error, axis=0)
             self.clustering_indexes = np.argsort(errors)[-self.semantics_length :]
+        elif mode == "Easy":
+            errors = np.median(error, axis=0)
+            self.clustering_indexes = np.argsort(errors)[: self.semantics_length]
         elif mode == "Random":
             self.clustering_indexes = np.random.choice(
                 np.arange(error.shape[1]), self.semantics_length, replace=False
