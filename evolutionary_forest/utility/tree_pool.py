@@ -363,13 +363,20 @@ class SemanticLibrary:
             dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k)
             index = np.concatenate([index, index_neg])
             # From short to long
-            sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
+            dist = np.concatenate([dist, dist_neg])
+            sorted_index = np.argsort(dist)
         else:
             sorted_index = np.argsort(dist)
 
         if curiosity_driven:
-            curiosity = [self.curiosity[idx] for idx in index]
-            sorted_index = np.argsort(curiosity)
+            curiosity = np.array(
+                [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
+            )
+            first_column = curiosity[:, 0]
+            second_column = curiosity[:, 1]
+
+            # Perform lexicographic sort
+            sorted_index = np.lexsort((second_column, first_column))
 
         index = index[sorted_index][:top_k]
 
