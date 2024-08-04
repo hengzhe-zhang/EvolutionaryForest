@@ -361,22 +361,19 @@ def varAndPlus(
                     smoothness_function=smoothness_function,
                     focus_one_target=pool_addition_mode == "Smooth-Target",
                 )
-            elif pool_addition_mode == "Smallest" or pool_addition_mode.startswith(
-                "Smallest~Auto"
+            elif (
+                pool_addition_mode == "Smallest"
+                or pool_addition_mode.startswith("Smallest~Auto")
+                or pool_addition_mode.startswith("Smallest~Curiosity")
             ):
                 incumbent_depth = math.inf
                 if pool_addition_mode == "Smallest~Auto":
                     incumbent_size = len(ind.gene[id])
-                    # incumbent_size = len(
-                    #     [
-                    #         node
-                    #         for node in ind.gene[id]
-                    #         if isinstance(node, (Parameter, LearnedParameter))
-                    #     ]
-                    # )
                 elif pool_addition_mode == "Smallest~Auto-Depth":
                     incumbent_depth = ind.gene[id].height
                     incumbent_size = math.inf
+                elif mutation_configuration.pool_addition_mode == "Smallest~Curiosity":
+                    incumbent_size = len(ind.gene[id])
                 elif pool_addition_mode.startswith("Smallest~Auto-Depth+"):
                     step = int(pool_addition_mode.split("+")[1])
                     incumbent_depth = ind.gene[id].height + step
@@ -392,6 +389,7 @@ def varAndPlus(
                     incumbent_depth=incumbent_depth,
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
+                    curiosity_driven=pool_addition_mode == "Smallest~Curiosity",
                 )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(

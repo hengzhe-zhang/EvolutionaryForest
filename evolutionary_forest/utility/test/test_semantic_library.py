@@ -12,7 +12,7 @@ class TestSemanticLibrary(unittest.TestCase):
         self.tree = PrimitiveTree("ADD")
 
     def test_append_semantics(self):
-        self.library.append_semantics(self.semantics, self.tree)
+        self.library.append_subtree(self.semantics, self.tree)
         self.assertEqual(len(self.library.trees), 1)
         self.assertEqual(len(self.library.normalized_semantics_list), 1)
         self.assertIn(
@@ -25,7 +25,7 @@ class TestSemanticLibrary(unittest.TestCase):
         for i in range(6):
             semantics = np.array([i, i + 1, i + 2])
             tree = PrimitiveTree(f"ADD_{i}")
-            self.library.append_semantics(semantics, tree)
+            self.library.append_subtree(semantics, tree)
         self.library.clean_when_full(self.semantics)
         self.assertEqual(len(self.library.trees), 5)
         self.assertEqual(len(self.library.normalized_semantics_list), 5)
@@ -35,8 +35,8 @@ class TestSemanticLibrary(unittest.TestCase):
         for i in range(3):
             semantics = np.array([i, i + 1, i + 2])
             tree = PrimitiveTree(f"ADD_{i}")
-            self.library.append_semantics(semantics, tree)
-        self.library.update_kd_tree([], self.semantics)
+            self.library.append_subtree(semantics, tree)
+        self.library.append_full_tree([], self.semantics)
         nearest_tree = self.library.retrieve_nearest_tree(self.semantics)
         self.assertIsNotNone(nearest_tree)
 
@@ -55,8 +55,8 @@ class TestSemanticLibrary(unittest.TestCase):
         for i in range(3):
             semantics = np.array([i, i + 1, i + 2])
             tree = PrimitiveTree(f"ADD_{i}")
-            self.library.append_semantics(semantics, tree)
-        self.library.update_kd_tree([], self.semantics)
+            self.library.append_subtree(semantics, tree)
+        self.library.append_full_tree([], self.semantics)
         nearest_tree = self.library.retrieve_smallest_nearest_tree(self.semantics)
         self.assertIsNotNone(nearest_tree)
 

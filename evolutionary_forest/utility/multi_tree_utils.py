@@ -46,18 +46,6 @@ def gene_addition(
                 tree = copy.deepcopy(
                     algorithm.tree_pool.retrieve_nearest_tree(residual)
                 )
-            elif mutation_configuration.pool_addition_mode.startswith("Smallest"):
-                tree = copy.deepcopy(
-                    algorithm.tree_pool.retrieve_smallest_nearest_tree(residual)
-                )
-            elif mutation_configuration.pool_addition_mode.startswith("Weighted"):
-                top_k = int(mutation_configuration.pool_addition_mode.split("-")[1])
-                std = float(mutation_configuration.pool_addition_mode.split("-")[2])
-                tree = copy.deepcopy(
-                    algorithm.tree_pool.retrieve_nearest_trees_weighted(
-                        residual, top_k, std
-                    )
-                )
             else:
                 raise ValueError("Invalid pool addition mode")
         else:

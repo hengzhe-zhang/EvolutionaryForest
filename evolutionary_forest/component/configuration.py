@@ -3,6 +3,7 @@ from typing import Union
 
 from deap.gp import PrimitiveSet
 
+
 semantic_based_bloat_control = ["hoist_mutation"]
 
 

@@ -122,6 +122,7 @@ class SemanticLibrary:
         self.kd_tree: KDTree = None  # This will be a cKDTree instance
         self.trees = []  # List to store PrimitiveTree objects
         self.normalized_semantics_list = []  # List to store normalized semantics
+        self.curiosity = []
         # Set to store hashes of seen semantics for uniqueness
         self.seen_semantics = dict()
         self.seen_semantics_counter = 0
@@ -149,7 +150,9 @@ class SemanticLibrary:
             #     return True
         return False
 
-    def update_kd_tree(self, inds: List[MultipleGeneGP], target_semantics: np.ndarray):
+    def append_full_tree(
+        self, inds: List[MultipleGeneGP], target_semantics: np.ndarray
+    ):
         target_semantics = self.index_semantics(target_semantics)
         normalized_target_semantics = normalize_vector(target_semantics)
         forbidden_counter = 0
@@ -188,6 +191,7 @@ class SemanticLibrary:
 
                 self.seen_semantics[semantics_hash] = len(tree)
                 self.trees.append(tree)
+                self.curiosity.append(0)
                 # self.seen_trees.add(str(tree))
                 # self.plain_semantics_list.append(semantics)
                 self.normalized_semantics_list.append(
@@ -202,7 +206,7 @@ class SemanticLibrary:
             # Create the KDTree with all collected points
             self.kd_tree = cKDTree(self.normalized_semantics_list)
 
-    def append_semantics(self, semantics: np.ndarray, tree: PrimitiveTree):
+    def append_subtree(self, semantics: np.ndarray, tree: PrimitiveTree):
         semantics = self.index_semantics(semantics)
         # Normalize semantics and skip if norm is 0
         norm = np.linalg.norm(semantics)
@@ -227,6 +231,7 @@ class SemanticLibrary:
         self.normalized_semantics_list.append(
             normalized_semantics
         )  # Store the normalized semantics
+        self.curiosity.append(0)
 
     def clean_when_full(self, normalized_target_semantics):
         # Handle excess trees
@@ -252,6 +257,7 @@ class SemanticLibrary:
             self.normalized_semantics_list = [
                 self.normalized_semantics_list[idx] for idx in indexes
             ]
+            self.curiosity = [self.curiosity[idx] for idx in indexes]
             # self.plain_semantics_list = [
             #     self.plain_semantics_list[idx] for idx in indexes
             # ]
@@ -320,6 +326,7 @@ class SemanticLibrary:
         incumbent_size=math.inf,
         incumbent_depth=math.inf,
         negative_search=True,
+        curiosity_driven=False,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -346,6 +353,11 @@ class SemanticLibrary:
             sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
         else:
             sorted_index = np.argsort(dist)
+
+        if curiosity_driven:
+            curiosity = [self.curiosity[idx] for idx in index]
+            sorted_index = np.argsort(curiosity)
+
         index = index[sorted_index][:top_k]
 
         smallest_index = -1
@@ -363,6 +375,7 @@ class SemanticLibrary:
 
         # if self.library_updating_mode == "LeastFrequentUsed":
         self.frequency[smallest_index] += 1
+        self.curiosity[smallest_index] += 1
 
         if return_semantics:
             return (
@@ -727,6 +740,7 @@ class SemanticLibrary:
 
     def clear_all(self):
         self.frequency.clear()
+        self.curiosity.clear()
         self.trees.clear()
         self.normalized_semantics_list.clear()
         self.plain_semantics_list.clear()

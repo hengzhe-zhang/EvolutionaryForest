@@ -504,7 +504,7 @@ def quick_evaluate(
                 ):
                     # Add subtree to semantic lib
                     if isinstance(result, np.ndarray) and result.size > 1:
-                        evaluation_configuration.semantic_library.append_semantics(
+                        evaluation_configuration.semantic_library.append_subtree(
                             result, PrimitiveTree(expr[expr.searchSubtree(node_idx)])
                         )
             elif isinstance(prim, gp.Terminal):

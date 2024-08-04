@@ -3351,7 +3351,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         self.current_gen,
                         self.n_gen,
                     )
-            self.tree_pool.update_kd_tree(self.pop, self.y)
+            self.tree_pool.append_full_tree(self.pop, self.y)
         # self.model_size_archive.update(self.pop)
         self.validation_set_generation()
         gc.collect()
