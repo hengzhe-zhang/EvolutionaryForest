@@ -374,6 +374,12 @@ def varAndPlus(
                     incumbent_size = math.inf
                 elif mutation_configuration.pool_addition_mode == "Smallest~Curiosity":
                     incumbent_size = len(ind.gene[id])
+                elif (
+                    mutation_configuration.pool_addition_mode
+                    == "Smallest~Curiosity-Depth"
+                ):
+                    incumbent_size = math.inf
+                    incumbent_depth = ind.gene[id].height
                 elif pool_addition_mode.startswith("Smallest~Auto-Depth+"):
                     step = int(pool_addition_mode.split("+")[1])
                     incumbent_depth = ind.gene[id].height + step
@@ -401,10 +407,6 @@ def varAndPlus(
             if value is None:
                 continue
             tree, proposed_semantics = value
-            if pool_addition_mode.startswith("Smallest") and len(tree) > len(
-                ind.gene[id]
-            ):
-                continue
 
             if np.all(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics

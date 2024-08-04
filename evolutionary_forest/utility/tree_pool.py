@@ -380,18 +380,27 @@ class SemanticLibrary:
 
         index = index[sorted_index][:top_k]
 
-        smallest_index = -1
-        for idx in range(top_k):
-            if (
-                len(self.trees[index[idx]]) <= incumbent_size
-                and self.trees[index[idx]].height <= incumbent_depth
-            ):
-                smallest_index = index[idx]
-                # str(self.trees[index[idx]])
-                break
+        if incumbent_size == 0:
+            smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
+            if len(self.trees[smallest_index]) > incumbent_size:
+                # If the smallest tree is larger than the incumbent size,
+                # return None
+                return None
+        else:
+            # Find the smallest tree that satisfies the constraints
+            smallest_index = -1
+            for idx in range(top_k):
+                if (
+                    len(self.trees[index[idx]]) <= incumbent_size
+                    and self.trees[index[idx]].height <= incumbent_depth
+                ):
+                    smallest_index = index[idx]
+                    # str(self.trees[index[idx]])
+                    break
 
         if smallest_index == -1:
-            smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
+            # Non suitable tree
+            return None
 
         # if self.library_updating_mode == "LeastFrequentUsed":
         self.frequency[smallest_index] += 1
