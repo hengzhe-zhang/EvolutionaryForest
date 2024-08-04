@@ -100,7 +100,7 @@ def varAndPlus(
             # exclusive
             for i in range(len(offspring)):
                 tree_replacement(offspring[i])
-
+            algorithm.tree_pool.callback()
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0

@@ -142,6 +142,14 @@ class SemanticLibrary:
         self.mismatch_times = []
         self.distance_distribution = []
 
+    def callback(self):
+        pass
+        # if self.verbose:
+        #     print(
+        #         "Max Curiosity: ",
+        #         np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]],
+        #     )
+
     def forbidden_check(self, tree):
         for node in tree:
             if isinstance(node, Terminal) and node.name in self.forbidden_list:
@@ -218,8 +226,9 @@ class SemanticLibrary:
             return
         semantics_hash = tuple(normalized_semantics)
         if (
-            semantics_hash in self.seen_semantics
-            and len(tree) > self.seen_semantics[semantics_hash]
+            semantics_hash
+            in self.seen_semantics
+            # and len(tree) > self.seen_semantics[semantics_hash]
         ):
             # self.seen_semantics_counter += 1
             # if self.seen_semantics_counter % 1000 == 0:
@@ -250,6 +259,10 @@ class SemanticLibrary:
                     indexes, key=lambda x: (self.frequency.get(x, 0), x), reverse=True
                 )[: self.max_trees]
                 self.frequency.clear()
+            elif self.library_updating_mode == "Curiosity":
+                indexes = sorted(
+                    indexes, key=lambda x: self.curiosity[x], reverse=True
+                )[: self.max_trees]
             else:
                 raise ValueError("Invalid updating mode")
             # Remove the oldest trees
