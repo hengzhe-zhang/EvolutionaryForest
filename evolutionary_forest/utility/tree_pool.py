@@ -147,10 +147,13 @@ class SemanticLibrary:
         pass
         if self.verbose:
             pass
+            if len(self.frequency) == 0:
+                return
+            # frequency = np.array(list(self.frequency.values()))
             # print(
             #     "Max Curiosity: ",
             #     # np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]],
-            #     np.sum(np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]]),
+            #     np.sum(frequency[np.argsort(frequency)[-10:]]),
             # )
 
     def forbidden_check(self, tree):
@@ -213,6 +216,7 @@ class SemanticLibrary:
         if len(self.normalized_semantics_list) > 0:
             # Create the KDTree with all collected points
             self.kd_tree = cKDTree(self.normalized_semantics_list)
+        self.frequency.clear()
 
     def append_subtree(self, semantics: np.ndarray, tree: PrimitiveTree):
         semantics = self.index_semantics(semantics)
@@ -368,7 +372,7 @@ class SemanticLibrary:
 
         if random.random() < curiosity_driven:
             curiosity = np.array(
-                [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
+                [(self.frequency[idx], dis) for idx, dis in zip(index, dist)]
             )
             first_column = curiosity[:, 0]
             second_column = curiosity[:, 1]
@@ -376,7 +380,7 @@ class SemanticLibrary:
             # Perform lexicographic sort
             sorted_index = np.lexsort((second_column, first_column))
 
-        index = index[sorted_index][:top_k]
+        index = index[sorted_index]
 
         if incumbent_size == 0:
             smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
@@ -387,7 +391,7 @@ class SemanticLibrary:
         else:
             # Find the smallest tree that satisfies the constraints
             smallest_index = -1
-            for idx in range(top_k):
+            for idx in range(len(index)):
                 if (
                     len(self.trees[index[idx]]) <= incumbent_size
                     and self.trees[index[idx]].height <= incumbent_depth
@@ -447,8 +451,7 @@ class SemanticLibrary:
             sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
         else:
             sorted_index = np.argsort(dist)
-        index = index[sorted_index]
-        # index = index[sorted_index][:top_k]
+        index = index[sorted_index][:top_k]
 
         reference = semantics
         if focus_one_target:
