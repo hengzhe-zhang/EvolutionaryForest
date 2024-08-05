@@ -403,7 +403,9 @@ def varAndPlus(
                     incumbent_depth=incumbent_depth,
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
-                    curiosity_driven=pool_addition_mode == "Smallest~Curiosity",
+                    curiosity_driven=pool_addition_mode.startswith(
+                        "Smallest~Curiosity"
+                    ),
                 )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
