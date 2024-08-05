@@ -372,7 +372,9 @@ def varAndPlus(
                 elif pool_addition_mode == "Smallest~Auto-Depth":
                     incumbent_depth = ind.gene[id].height
                     incumbent_size = math.inf
-                elif mutation_configuration.pool_addition_mode == "Smallest~Curiosity":
+                elif mutation_configuration.pool_addition_mode.startswith(
+                    "Smallest~Curiosity"
+                ):
                     incumbent_size = len(ind.gene[id])
                 elif (
                     mutation_configuration.pool_addition_mode
@@ -397,7 +399,7 @@ def varAndPlus(
                 # str(ind.gene[id])
 
                 if pool_addition_mode.startswith("Smallest~Curiosity"):
-                    curiosity_driven = pool_addition_mode.split("-")[-1]
+                    curiosity_driven = float(pool_addition_mode.split("-")[-1])
                 else:
                     curiosity_driven = 0
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
