@@ -144,11 +144,12 @@ class SemanticLibrary:
 
     def callback(self):
         pass
-        # if self.verbose:
-        #     print(
-        #         "Max Curiosity: ",
-        #         np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]],
-        #     )
+        if self.verbose:
+            print(
+                "Max Curiosity: ",
+                # np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]],
+                np.sum(np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]]),
+            )
 
     def forbidden_check(self, tree):
         for node in tree:
@@ -184,10 +185,7 @@ class SemanticLibrary:
                     continue
 
                 semantics_hash = tuple(normalized_semantics)
-                if (
-                    semantics_hash in self.seen_semantics
-                    and len(tree) > self.seen_semantics[semantics_hash]
-                ):
+                if semantics_hash in self.seen_semantics:
                     continue
                 total_counter += 1
                 if self.forbidden_check(tree):
@@ -225,11 +223,7 @@ class SemanticLibrary:
         if np.isnan(normalized_semantics).any() or np.isinf(normalized_semantics).any():
             return
         semantics_hash = tuple(normalized_semantics)
-        if (
-            semantics_hash
-            in self.seen_semantics
-            # and len(tree) > self.seen_semantics[semantics_hash]
-        ):
+        if semantics_hash in self.seen_semantics:
             # self.seen_semantics_counter += 1
             # if self.seen_semantics_counter % 1000 == 0:
             #     print(self.seen_semantics_counter, len(self.trees))
@@ -245,6 +239,8 @@ class SemanticLibrary:
     def clean_when_full(self, normalized_target_semantics):
         # Handle excess trees
         if len(self.trees) > self.max_trees:
+            assert len(self.trees) == len(self.normalized_semantics_list)
+            assert len(self.trees) == len(self.curiosity)
             indexes = np.arange(len(self.trees))
             if self.library_updating_mode == "MAP-Elites":
                 indexes = self.update_by_map_elites(

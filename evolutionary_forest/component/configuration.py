@@ -220,6 +220,7 @@ class MutationConfiguration(Configuration):
         top_k_candidates=10,
         lib_feature_selection=None,
         trial_check=True,
+        trial_check_ratio=1,
         local_search_step=int(1e10),
         lib_feature_selection_mode="Frequency",
         negative_local_search=True,
@@ -266,6 +267,7 @@ class MutationConfiguration(Configuration):
         # very important components
         self.include_subtree_to_lib = include_subtree_to_lib
         self.trial_check = trial_check
+        self.trial_check_ratio = trial_check_ratio
         self.negative_local_search = negative_local_search
 
 

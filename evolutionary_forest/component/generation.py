@@ -435,16 +435,10 @@ def varAndPlus(
                     temp_semantics + factor * proposed_semantics + intercept
                 )
 
-            # factor = calculate_slope(delete_semantics, residual)
-            # intercept = calculate_intercept(delete_semantics, residual, factor)
-            # delete_trail_semantics = (
-            #     temp_semantics + factor * delete_semantics + intercept
-            # )
-            # trial_mse = np.mean((delete_trail_semantics - target) ** 2)
-
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
-            if trial_mse <= current_mse or (not mutation_configuration.trial_check):
+            if (trial_mse <= mutation_configuration.trial_check_ratio*current_mse
+                or (not mutation_configuration.trial_check)):
                 # replacement
                 ind.gene[id] = copy.deepcopy(tree)
                 current_semantics = trail_semantics
