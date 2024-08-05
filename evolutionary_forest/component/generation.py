@@ -382,14 +382,6 @@ def varAndPlus(
                 ):
                     incumbent_size = math.inf
                     incumbent_depth = ind.gene[id].height
-                elif mutation_configuration.pool_addition_mode == "Smallest~Curiosity+":
-                    incumbent_size = math.inf
-                    incumbent_depth = max(ind.gene[id].height, 1)
-                elif (
-                    mutation_configuration.pool_addition_mode == "Smallest~Curiosity++"
-                ):
-                    incumbent_size = math.inf
-                    incumbent_depth = max(ind.gene[id].height, 2)
                 elif pool_addition_mode.startswith("Smallest~Auto-Depth+"):
                     step = int(pool_addition_mode.split("+")[1])
                     incumbent_depth = ind.gene[id].height + step
@@ -397,8 +389,23 @@ def varAndPlus(
                 else:
                     incumbent_size = 0
                 # str(ind.gene[id])
-
-                if pool_addition_mode.startswith("Smallest~Curiosity"):
+                if pool_addition_mode.startswith("Smallest~CuriosityIS"):
+                    curiosity_driven = float(pool_addition_mode.split("-")[-1])
+                    if algorithm.current_gen < curiosity_driven * algorithm.n_gen:
+                        # explore first
+                        curiosity_driven = 1
+                    else:
+                        # then exploit
+                        curiosity_driven = 0
+                elif pool_addition_mode.startswith("Smallest~CuriosityS"):
+                    curiosity_driven = float(pool_addition_mode.split("-")[-1])
+                    if algorithm.current_gen < curiosity_driven * algorithm.n_gen:
+                        # exploit first
+                        curiosity_driven = 0
+                    else:
+                        # then explore
+                        curiosity_driven = 1
+                elif pool_addition_mode.startswith("Smallest~Curiosity"):
                     curiosity_driven = float(pool_addition_mode.split("-")[-1])
                 else:
                     curiosity_driven = 0
