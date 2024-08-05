@@ -447,7 +447,8 @@ class SemanticLibrary:
             sorted_index = np.argsort(np.concatenate([dist, dist_neg]))
         else:
             sorted_index = np.argsort(dist)
-        index = index[sorted_index][:top_k]
+        index = index[sorted_index]
+        # index = index[sorted_index][:top_k]
 
         reference = semantics
         if focus_one_target:
