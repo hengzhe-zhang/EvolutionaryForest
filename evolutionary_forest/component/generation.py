@@ -376,16 +376,9 @@ def varAndPlus(
                     "Smallest~Curiosity"
                 ):
                     incumbent_size = len(ind.gene[id])
-                elif (
-                    mutation_configuration.pool_addition_mode
-                    == "Smallest~Curiosity-Depth"
-                ):
-                    incumbent_size = math.inf
-                    incumbent_depth = ind.gene[id].height
-                elif pool_addition_mode.startswith("Smallest~Auto-Depth+"):
-                    step = int(pool_addition_mode.split("+")[1])
-                    incumbent_depth = ind.gene[id].height + step
-                    incumbent_size = math.inf
+                    if "Depth" in mutation_configuration.pool_addition_mode:
+                        incumbent_size = math.inf
+                        incumbent_depth = ind.gene[id].height
                 else:
                     incumbent_size = 0
                 # str(ind.gene[id])
