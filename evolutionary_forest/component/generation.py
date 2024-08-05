@@ -396,6 +396,10 @@ def varAndPlus(
                     incumbent_size = 0
                 # str(ind.gene[id])
 
+                if pool_addition_mode.startswith("Smallest~Curiosity"):
+                    curiosity_driven = pool_addition_mode.split("-")[-1]
+                else:
+                    curiosity_driven = 0
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                     normalize_vector(residual),
                     return_semantics=True,
@@ -403,9 +407,7 @@ def varAndPlus(
                     incumbent_depth=incumbent_depth,
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
-                    curiosity_driven=pool_addition_mode.startswith(
-                        "Smallest~Curiosity"
-                    ),
+                    curiosity_driven=curiosity_driven,
                 )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
@@ -437,8 +439,9 @@ def varAndPlus(
 
             trial_mse = np.mean((trail_semantics - target) ** 2)
             current_mse = np.mean((current_semantics - target) ** 2)
-            if (trial_mse <= mutation_configuration.trial_check_ratio*current_mse
-                or (not mutation_configuration.trial_check)):
+            if trial_mse <= mutation_configuration.trial_check_ratio * current_mse or (
+                not mutation_configuration.trial_check
+            ):
                 # replacement
                 ind.gene[id] = copy.deepcopy(tree)
                 current_semantics = trail_semantics
