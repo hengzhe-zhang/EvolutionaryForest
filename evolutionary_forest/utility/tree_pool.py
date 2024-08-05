@@ -1,4 +1,5 @@
 import math
+import random
 from collections import defaultdict
 from typing import List, TYPE_CHECKING
 
@@ -145,11 +146,12 @@ class SemanticLibrary:
     def callback(self):
         pass
         if self.verbose:
-            print(
-                "Max Curiosity: ",
-                # np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]],
-                np.sum(np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]]),
-            )
+            pass
+            # print(
+            #     "Max Curiosity: ",
+            #     # np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]],
+            #     np.sum(np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]]),
+            # )
 
     def forbidden_check(self, tree):
         for node in tree:
@@ -364,7 +366,7 @@ class SemanticLibrary:
         else:
             sorted_index = np.argsort(dist)
 
-        if curiosity_driven:
+        if random.random() < curiosity_driven:
             curiosity = np.array(
                 [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
             )
