@@ -422,7 +422,7 @@ def varAndPlus(
 
             if value is None:
                 continue
-            tree, proposed_semantics = value
+            tree, proposed_semantics, proposed_index = value
 
             if np.all(
                 normalize_vector(ind.semantics[indexes, id]) == proposed_semantics
@@ -449,6 +449,8 @@ def varAndPlus(
                 # replacement
                 ind.gene[id] = copy.deepcopy(tree)
                 current_semantics = trail_semantics
+                algorithm.tree_pool.frequency[proposed_index] += 1
+                algorithm.tree_pool.curiosity[proposed_index] += 1
                 if algorithm.verbose:
                     algorithm.success_rate.add_values(1)
                     if algorithm.success_rate.get_total_count() % 1000 == 0:

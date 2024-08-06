@@ -372,7 +372,7 @@ class SemanticLibrary:
 
         if curiosity_driven in [1, -1]:
             curiosity = np.array(
-                [(self.frequency[idx], dis) for idx, dis in zip(index, dist)]
+                [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
             )
             first_column = curiosity_driven * curiosity[:, 0]
             second_column = curiosity[:, 1]
@@ -382,6 +382,8 @@ class SemanticLibrary:
 
         index = index[sorted_index]
         # [len(self.trees[index[idx]]) for idx in range(len(index))]
+        # for idx in index[sorted_index]:
+        #     print(self.trees[idx], self.frequency[idx])
 
         if incumbent_size == 0:
             smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
@@ -397,6 +399,11 @@ class SemanticLibrary:
                     len(self.trees[index[idx]]) <= incumbent_size
                     and self.trees[index[idx]].height <= incumbent_depth
                 ):
+                    if len(self.trees[index[idx]]) == 1 and isinstance(
+                        self.trees[index[idx]][0], Terminal
+                    ):
+                        # not a meaningful tree
+                        continue
                     smallest_index = index[idx]
                     # str(self.trees[index[idx]])
                     break
@@ -406,13 +413,12 @@ class SemanticLibrary:
             return None
 
         # if self.library_updating_mode == "LeastFrequentUsed":
-        self.frequency[smallest_index] += 1
-        self.curiosity[smallest_index] += 1
 
         if return_semantics:
             return (
                 self.trees[smallest_index],
                 self.normalized_semantics_list[smallest_index],
+                smallest_index,
             )
         return self.trees[smallest_index]  # Return the corresponding tree
 
