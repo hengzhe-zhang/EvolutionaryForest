@@ -340,6 +340,7 @@ class SemanticLibrary:
         top_k=10,
         incumbent_size=math.inf,
         incumbent_depth=math.inf,
+        incumbent_distance=math.inf,
         negative_search=True,
         curiosity_driven=0,
     ):
@@ -398,6 +399,7 @@ class SemanticLibrary:
                 if (
                     len(self.trees[index[idx]]) <= incumbent_size
                     and self.trees[index[idx]].height <= incumbent_depth
+                    and dist[idx] <= incumbent_distance
                 ):
                     if len(self.trees[index[idx]]) == 1 and isinstance(
                         self.trees[index[idx]][0], Terminal

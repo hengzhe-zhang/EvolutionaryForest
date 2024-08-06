@@ -404,11 +404,15 @@ def varAndPlus(
                     curiosity_driven = 1
                 else:
                     curiosity_driven = 0
+                incumbent_distance = np.linalg.norm(
+                    normalize_vector(residual) - normalize_vector(delete_semantics)
+                )
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                     normalize_vector(residual),
                     return_semantics=True,
                     incumbent_size=incumbent_size,
                     incumbent_depth=incumbent_depth,
+                    incumbent_distance=incumbent_distance,
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
                     curiosity_driven=curiosity_driven,
