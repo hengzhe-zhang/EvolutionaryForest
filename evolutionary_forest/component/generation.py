@@ -398,8 +398,10 @@ def varAndPlus(
                     else:
                         # then explore
                         curiosity_driven = 1
-                elif pool_addition_mode.startswith("Smallest~Curiosity"):
+                elif pool_addition_mode.startswith("Smallest~CuriosityR"):
                     curiosity_driven = -1
+                elif pool_addition_mode.startswith("Smallest~Curiosity"):
+                    curiosity_driven = 1
                 else:
                     curiosity_driven = 0
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
