@@ -388,6 +388,7 @@ class SemanticLibrary:
             sorted_index = np.lexsort((second_column, first_column))
 
         index = index[sorted_index]
+        dist = dist[sorted_index]
         # [len(self.trees[index[idx]]) for idx in range(len(index))]
         # for idx in index[sorted_index]:
         #     print(self.trees[idx], self.frequency[idx])
