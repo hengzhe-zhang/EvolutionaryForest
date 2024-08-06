@@ -343,6 +343,7 @@ class SemanticLibrary:
         incumbent_distance=math.inf,
         negative_search=True,
         curiosity_driven=0,
+        multi_generation_curiosity=False,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -372,9 +373,14 @@ class SemanticLibrary:
             sorted_index = np.argsort(dist)
 
         if curiosity_driven in [1, -1]:
-            curiosity = np.array(
-                [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
-            )
+            if multi_generation_curiosity:
+                curiosity = np.array(
+                    [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
+                )
+            else:
+                curiosity = np.array(
+                    [(self.frequency[idx], dis) for idx, dis in zip(index, dist)]
+                )
             first_column = curiosity_driven * curiosity[:, 0]
             second_column = curiosity[:, 1]
 

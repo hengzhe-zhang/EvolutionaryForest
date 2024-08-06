@@ -382,6 +382,7 @@ def varAndPlus(
                 else:
                     incumbent_size = 0
                 # str(ind.gene[id])
+                multi_generation_curiosity = True
                 if pool_addition_mode.startswith("Smallest~CuriosityIS"):
                     curiosity_driven = float(pool_addition_mode.split("-")[-1])
                     if algorithm.current_gen < curiosity_driven * algorithm.n_gen:
@@ -391,15 +392,8 @@ def varAndPlus(
                         # then exploit
                         curiosity_driven = -1
                 elif pool_addition_mode.startswith("Smallest~CuriosityS"):
-                    curiosity_driven = float(pool_addition_mode.split("-")[-1])
-                    if algorithm.current_gen < curiosity_driven * algorithm.n_gen:
-                        # exploit first
-                        curiosity_driven = -1
-                    else:
-                        # then explore
-                        curiosity_driven = 1
-                elif pool_addition_mode.startswith("Smallest~CuriosityR"):
-                    curiosity_driven = -1
+                    curiosity_driven = 1
+                    multi_generation_curiosity = False
                 elif pool_addition_mode.startswith("Smallest~Curiosity"):
                     curiosity_driven = 1
                 else:
@@ -416,6 +410,7 @@ def varAndPlus(
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
                     curiosity_driven=curiosity_driven,
+                    multi_generation_curiosity=multi_generation_curiosity,
                 )
             else:
                 value = algorithm.tree_pool.retrieve_nearest_tree(
