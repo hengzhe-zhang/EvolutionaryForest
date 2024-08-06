@@ -389,17 +389,17 @@ def varAndPlus(
                         curiosity_driven = 1
                     else:
                         # then exploit
-                        curiosity_driven = 0
+                        curiosity_driven = -1
                 elif pool_addition_mode.startswith("Smallest~CuriosityS"):
                     curiosity_driven = float(pool_addition_mode.split("-")[-1])
                     if algorithm.current_gen < curiosity_driven * algorithm.n_gen:
                         # exploit first
-                        curiosity_driven = 0
+                        curiosity_driven = -1
                     else:
                         # then explore
                         curiosity_driven = 1
                 elif pool_addition_mode.startswith("Smallest~Curiosity"):
-                    curiosity_driven = float(pool_addition_mode.split("-")[-1])
+                    curiosity_driven = -1
                 else:
                     curiosity_driven = 0
                 value = algorithm.tree_pool.retrieve_smallest_nearest_tree(

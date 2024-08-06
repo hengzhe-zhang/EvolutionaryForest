@@ -341,7 +341,7 @@ class SemanticLibrary:
         incumbent_size=math.inf,
         incumbent_depth=math.inf,
         negative_search=True,
-        curiosity_driven=False,
+        curiosity_driven=0,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -370,17 +370,18 @@ class SemanticLibrary:
         else:
             sorted_index = np.argsort(dist)
 
-        if random.random() < curiosity_driven:
+        if curiosity_driven in [1, -1]:
             curiosity = np.array(
                 [(self.frequency[idx], dis) for idx, dis in zip(index, dist)]
             )
-            first_column = curiosity[:, 0]
+            first_column = curiosity_driven * curiosity[:, 0]
             second_column = curiosity[:, 1]
 
             # Perform lexicographic sort
             sorted_index = np.lexsort((second_column, first_column))
 
         index = index[sorted_index]
+        # [len(self.trees[index[idx]]) for idx in range(len(index))]
 
         if incumbent_size == 0:
             smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
