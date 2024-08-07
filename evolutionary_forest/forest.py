@@ -3883,6 +3883,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     "Average number of features",
                     np.mean([o.gene_num for o in offspring]),
                 )
+                if len(self.pop_diversity_history) > 0:
+                    print("Diversity", self.pop_diversity_history[-1])
                 if self.num_of_active_trees == 0:
                     num_of_trees = self.gene_num
                 else:

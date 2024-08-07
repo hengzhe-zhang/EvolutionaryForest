@@ -330,7 +330,7 @@ class SemanticLibrary:
         # if self.library_updating_mode == "LeastFrequentUsed":
         self.frequency[index] += 1
         if return_semantics:
-            return self.trees[index], self.normalized_semantics_list[index]
+            return self.trees[index], self.normalized_semantics_list[index], index
         return self.trees[index]  # Return the corresponding tree
 
     def retrieve_smallest_nearest_tree(

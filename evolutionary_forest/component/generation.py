@@ -383,17 +383,17 @@ def varAndPlus(
                     incumbent_size = 0
                 # str(ind.gene[id])
                 multi_generation_curiosity = True
-                if pool_addition_mode.startswith("Smallest~CuriosityIS"):
-                    curiosity_driven = float(pool_addition_mode.split("-")[-1])
-                    if algorithm.current_gen < curiosity_driven * algorithm.n_gen:
-                        # explore first
-                        curiosity_driven = 1
-                    else:
-                        # then exploit
-                        curiosity_driven = -1
-                elif pool_addition_mode.startswith("Smallest~CuriosityS"):
+                if pool_addition_mode.startswith("Smallest~CuriosityS"):
                     curiosity_driven = 1
                     multi_generation_curiosity = False
+                    if "Depth+" in pool_addition_mode:
+                        plus_depth = int(pool_addition_mode.split("+")[1])
+                        incumbent_size = math.inf
+                        incumbent_depth = ind.gene[id].height + plus_depth
+                    if "Size+" in pool_addition_mode:
+                        plus_size = int(pool_addition_mode.split("+")[1])
+                        incumbent_size = len(ind.gene[id]) + plus_size
+                        incumbent_depth = math.inf
                 elif pool_addition_mode.startswith("Smallest~Curiosity"):
                     curiosity_driven = 1
                 else:
