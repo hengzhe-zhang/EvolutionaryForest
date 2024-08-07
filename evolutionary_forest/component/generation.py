@@ -367,6 +367,8 @@ def varAndPlus(
                 or pool_addition_mode.startswith("Smallest~Curiosity")
             ):
                 incumbent_depth = math.inf
+                multi_generation_curiosity = True
+                curiosity_driven = False
                 if pool_addition_mode == "Smallest~Auto":
                     incumbent_size = len(ind.gene[id])
                 elif pool_addition_mode == "Smallest~Auto-Depth":
@@ -376,16 +378,9 @@ def varAndPlus(
                     "Smallest~Curiosity"
                 ):
                     incumbent_size = len(ind.gene[id])
-                    if "Depth" in mutation_configuration.pool_addition_mode:
-                        incumbent_size = math.inf
-                        incumbent_depth = ind.gene[id].height
-                else:
-                    incumbent_size = 0
-                # str(ind.gene[id])
-                multi_generation_curiosity = True
-                if pool_addition_mode.startswith("Smallest~CuriosityS"):
-                    curiosity_driven = 1
-                    multi_generation_curiosity = False
+                    curiosity_driven = True
+                    if pool_addition_mode.startswith("Smallest~CuriosityS"):
+                        multi_generation_curiosity = False
                     if "Depth+" in pool_addition_mode:
                         plus_depth = int(pool_addition_mode.split("+")[1])
                         incumbent_size = math.inf
@@ -394,10 +389,9 @@ def varAndPlus(
                         plus_size = int(pool_addition_mode.split("+")[1])
                         incumbent_size = len(ind.gene[id]) + plus_size
                         incumbent_depth = math.inf
-                elif pool_addition_mode.startswith("Smallest~Curiosity"):
-                    curiosity_driven = 1
                 else:
-                    curiosity_driven = 0
+                    incumbent_size = 0
+
                 incumbent_distance = np.linalg.norm(
                     normalize_vector(residual) - normalize_vector(delete_semantics)
                 )

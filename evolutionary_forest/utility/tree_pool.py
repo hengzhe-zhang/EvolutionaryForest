@@ -342,7 +342,7 @@ class SemanticLibrary:
         incumbent_depth=math.inf,
         incumbent_distance=math.inf,
         negative_search=True,
-        curiosity_driven=0,
+        curiosity_driven=False,
         multi_generation_curiosity=False,
     ):
         if self.kd_tree is None:
@@ -372,7 +372,7 @@ class SemanticLibrary:
         else:
             sorted_index = np.argsort(dist)
 
-        if curiosity_driven in [1, -1]:
+        if curiosity_driven:
             if multi_generation_curiosity:
                 curiosity_and_distance = np.array(
                     [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
@@ -381,7 +381,7 @@ class SemanticLibrary:
                 curiosity_and_distance = np.array(
                     [(self.frequency[idx], dis) for idx, dis in zip(index, dist)]
                 )
-            first_column = curiosity_driven * curiosity_and_distance[:, 0]
+            first_column = curiosity_and_distance[:, 0]
             second_column = curiosity_and_distance[:, 1]
 
             # Perform lexicographic sort
