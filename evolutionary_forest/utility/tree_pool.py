@@ -12,7 +12,7 @@ from deap.gp import PrimitiveTree, Terminal
 from deap.tools import selBest
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, rankdata
 from sklearn.cluster import KMeans
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import pairwise_distances_argmin_min
@@ -384,8 +384,15 @@ class SemanticLibrary:
             first_column = curiosity_and_distance[:, 0]
             second_column = curiosity_and_distance[:, 1]
 
-            # Perform lexicographic sort
-            sorted_index = np.lexsort((second_column, first_column))
+            # Rank the columns
+            first_column_rank = rankdata(first_column, method="average") - 1
+            second_column_rank = rankdata(second_column, method="average") - 1
+
+            # Compute the sum of ranks
+            sum_of_ranks = first_column_rank + second_column_rank
+
+            # Get the sorted indices based on the sum of ranks
+            sorted_index = np.argsort(sum_of_ranks)
 
         index = index[sorted_index]
         dist = dist[sorted_index]
