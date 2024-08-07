@@ -367,11 +367,11 @@ def varAndPlus(
                         incumbent_size = len(ind.gene[id]) + plus_size
                         incumbent_depth = math.inf
                     if "Depth~" in pool_addition_mode:
-                        plus_depth = int(pool_addition_mode.split("+")[-1])
+                        plus_depth = int(pool_addition_mode.split("~")[-1])
                         incumbent_size = math.inf
                         incumbent_depth = max(ind.gene[id].height, plus_depth)
                     if "Size~" in pool_addition_mode:
-                        plus_size = int(pool_addition_mode.split("+")[-1])
+                        plus_size = int(pool_addition_mode.split("~")[-1])
                         incumbent_size = max(len(ind.gene[id]), plus_size)
                         incumbent_depth = math.inf
                     if "LastHalf" in pool_addition_mode:
