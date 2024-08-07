@@ -378,6 +378,19 @@ def varAndPlus(
                         # Only To Explore in Later Generations
                         if algorithm.current_gen < algorithm.n_gen // 2:
                             curiosity_driven = False
+                    if "FirstHalf" in pool_addition_mode:
+                        # Only To Explore in Early Generations
+                        if algorithm.current_gen > algorithm.n_gen // 2:
+                            curiosity_driven = False
+                    if "Probability" in pool_addition_mode:
+                        enable_prob = 1
+                        for param in pool_addition_mode.split("-"):
+                            if "Probability" in param:
+                                enable_prob = float(param.split("+")[-1])
+                                break
+                        if random.random() > enable_prob:
+                            # with probability to disable
+                            curiosity_driven = False
                 else:
                     incumbent_size = 0
 
@@ -392,6 +405,7 @@ def varAndPlus(
                     incumbent_distance=incumbent_distance,
                     top_k=mutation_configuration.top_k_candidates,
                     negative_search=mutation_configuration.negative_local_search,
+                    # curiosity_driven
                     curiosity_driven=curiosity_driven,
                     multi_generation_curiosity=multi_generation_curiosity,
                 )
