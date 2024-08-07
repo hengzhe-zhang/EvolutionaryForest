@@ -338,30 +338,7 @@ def varAndPlus(
                 current_gen=algorithm.current_gen,
                 n_gen=algorithm.n_gen,
             )
-            if pool_addition_mode.startswith("Smooth"):
-                if pool_addition_mode == "Smooth-First":
-                    smoothness_function = function_first_order_smoothness
-                else:
-                    raise Exception
-                if pool_addition_mode == "Smooth-Target":
-                    incumbent_smooth = smoothness_function(
-                        normalize_vector(delete_semantics), normalize_vector(target)
-                    )
-                else:
-                    incumbent_smooth = smoothness_function(
-                        normalize_vector(delete_semantics), normalize_vector(residual)
-                    )
-                value = algorithm.tree_pool.retrieve_smooth_nearest_tree(
-                    normalize_vector(residual),
-                    return_semantics=True,
-                    incumbent_size=len(ind.gene[id]),
-                    incumbent_smooth=incumbent_smooth,
-                    top_k=mutation_configuration.top_k_candidates,
-                    negative_search=mutation_configuration.negative_local_search,
-                    smoothness_function=smoothness_function,
-                    focus_one_target=pool_addition_mode == "Smooth-Target",
-                )
-            elif (
+            if (
                 pool_addition_mode == "Smallest"
                 or pool_addition_mode.startswith("Smallest~Auto")
                 or pool_addition_mode.startswith("Smallest~Curiosity")
@@ -382,13 +359,25 @@ def varAndPlus(
                     if pool_addition_mode.startswith("Smallest~CuriosityS"):
                         multi_generation_curiosity = False
                     if "Depth+" in pool_addition_mode:
-                        plus_depth = int(pool_addition_mode.split("+")[1])
+                        plus_depth = int(pool_addition_mode.split("+")[-1])
                         incumbent_size = math.inf
                         incumbent_depth = ind.gene[id].height + plus_depth
                     if "Size+" in pool_addition_mode:
-                        plus_size = int(pool_addition_mode.split("+")[1])
+                        plus_size = int(pool_addition_mode.split("+")[-1])
                         incumbent_size = len(ind.gene[id]) + plus_size
                         incumbent_depth = math.inf
+                    if "Depth~" in pool_addition_mode:
+                        plus_depth = int(pool_addition_mode.split("+")[-1])
+                        incumbent_size = math.inf
+                        incumbent_depth = max(ind.gene[id].height, plus_depth)
+                    if "Size~" in pool_addition_mode:
+                        plus_size = int(pool_addition_mode.split("+")[-1])
+                        incumbent_size = max(len(ind.gene[id]), plus_size)
+                        incumbent_depth = math.inf
+                    if "LastHalf" in pool_addition_mode:
+                        # Only To Explore in Later Generations
+                        if algorithm.current_gen < algorithm.n_gen // 2:
+                            curiosity_driven = False
                 else:
                     incumbent_size = 0
 
