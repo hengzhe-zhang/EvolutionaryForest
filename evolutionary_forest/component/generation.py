@@ -45,6 +45,19 @@ from evolutionary_forest.utility.multi_tree_utils import (
 )
 
 
+def remove_semantically_redundant_tree(offspring):
+    # remove redundant
+    for x in offspring:
+        x: MultipleGeneGP
+        ele = set()
+        indicies = []
+        for k, v in enumerate(x.hash_result):
+            if v not in ele:
+                ele.add(v)
+                indicies.append(k)
+        x.gene: list = [x.gene[i] for i in indicies]
+
+
 def pool_mode_controller(pool_addition_mode, X, y):
     cv_score = cross_val_score(LinearRegression(), X, y, cv=5, scoring="r2")
     et_cv_score = cross_val_score(ExtraTreesRegressor(), X, y, cv=5, scoring="r2")
@@ -84,15 +97,7 @@ def varAndPlus(
             # only execute crossover *or* mutation
             return varOr(offspring)
         # if mutation_configuration.addition_or_deletion:
-        #     # remove redundant
-        #     for x in offspring:
-        #         ele = set()
-        #         indicies = []
-        #         for k, v in enumerate(x.hash_result):
-        #             if v not in ele:
-        #                 ele.add(v)
-        #                 indicies.append(k)
-        #         x.gene: list = [x.gene[i] for i in indicies]
+        #     remove_semantically_redundant_tree(offspring)
         if not mutation_configuration.addition_or_deletion:
             for i in range(len(offspring)):
                 addition_and_deletion(i, offspring)
