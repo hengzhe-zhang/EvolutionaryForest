@@ -232,10 +232,6 @@ def varAndPlus(
             <= 1
         )
         if addition_and_deletion < mutation_configuration.gene_addition_rate:
-            # new_trees = random.randint(
-            #     1, offspring[i].max_gene_num - len(offspring[i].gene) + 1
-            # )
-            # for _ in range(new_trees):
             gene_addition(offspring[i], algorithm)
         elif (
             addition_and_deletion
@@ -287,15 +283,6 @@ def varAndPlus(
                 offspring[i].gene_deletion(weighted=True)
             else:
                 offspring[i].gene_deletion()
-
-    def prediction_validation(ind, indexes):
-        semantics = np.zeros_like(indexes, dtype=np.float32)
-        for id in range(0, len(ind.gene)):
-            semantics += ind.pipe["Ridge"].coef_[id] * (
-                (ind.semantics[indexes, id] - ind.scaler.mean_[id])
-                / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
-            )
-        semantics += ind.pipe["Ridge"].intercept_
 
     def addition_and_deletion(i, offspring):
         if random.random() < mutation_configuration.gene_deletion_rate:
