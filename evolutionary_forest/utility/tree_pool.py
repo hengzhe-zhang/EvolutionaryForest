@@ -344,6 +344,8 @@ class SemanticLibrary:
         negative_search=True,
         curiosity_driven=False,
         multi_generation_curiosity=False,
+        negative_distance=False,
+        negative_curiosity=False,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -369,6 +371,8 @@ class SemanticLibrary:
             # From short to long
             dist = np.concatenate([dist, dist_neg])
             sorted_index = np.argsort(dist)
+            if negative_distance:
+                sorted_index = sorted_index[::-1]
         else:
             sorted_index = np.argsort(dist)
 
@@ -385,6 +389,10 @@ class SemanticLibrary:
             second_column = curiosity_and_distance[:, 1]
 
             # Rank the columns
+            if negative_distance:
+                second_column *= -1
+            if negative_curiosity:
+                first_column *= -1
             first_column_rank = rankdata(first_column, method="average") - 1
             second_column_rank = rankdata(second_column, method="average") - 1
 
