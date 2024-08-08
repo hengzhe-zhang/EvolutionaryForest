@@ -211,7 +211,7 @@ class MutationConfiguration(Configuration):
         include_subtree_to_lib=False,
         handle_objective_duplication=False,
         basic_primitives=None,
-        pool_based_replacement_mode=None,
+        semantic_local_search_pb: int = 1,
         pool_based_replacement_inner_probability=1,
         gene_replacement_rate=0,
         complementary_replacement=0,
@@ -245,7 +245,7 @@ class MutationConfiguration(Configuration):
         # handle syntax duplication
         self.handle_objective_duplication = handle_objective_duplication
         self.basic_primitives = basic_primitives
-        self.pool_based_replacement_mode = pool_based_replacement_mode
+        self.semantic_local_search_pb = semantic_local_search_pb
         self.pool_based_replacement_inner_probability = (
             pool_based_replacement_inner_probability
         )

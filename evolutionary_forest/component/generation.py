@@ -92,10 +92,14 @@ def varAndPlus(
             for i in range(len(offspring)):
                 addition_and_deletion(i, offspring)
         if mutation_configuration.pool_based_addition:
-            # exclusive
-            for i in range(len(offspring)):
-                tree_replacement(offspring[i], algorithm)
-            algorithm.tree_pool.callback()
+            if random.random() < mutation_configuration.semantic_local_search_pb:
+                # exclusive
+                for i in range(len(offspring)):
+                    tree_replacement(offspring[i], algorithm)
+                algorithm.tree_pool.callback()
+                if mutation_configuration.semantic_local_search_pb < 1:
+                    # independent mode
+                    return offspring
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
