@@ -346,6 +346,7 @@ class SemanticLibrary:
         multi_generation_curiosity=False,
         negative_distance=False,
         negative_curiosity=False,
+        lexicase_sort=False,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -393,14 +394,18 @@ class SemanticLibrary:
                 second_column *= -1
             if negative_curiosity:
                 first_column *= -1
-            first_column_rank = rankdata(first_column, method="average") - 1
-            second_column_rank = rankdata(second_column, method="average") - 1
 
-            # Compute the sum of ranks
-            sum_of_ranks = first_column_rank + second_column_rank
+            if lexicase_sort:
+                sorted_index = np.lexsort((second_column, first_column))
+            else:
+                first_column_rank = rankdata(first_column, method="average") - 1
+                second_column_rank = rankdata(second_column, method="average") - 1
 
-            # Get the sorted indices based on the sum of ranks
-            sorted_index = np.argsort(sum_of_ranks)
+                # Compute the sum of ranks
+                sum_of_ranks = first_column_rank + second_column_rank
+
+                # Get the sorted indices based on the sum of ranks
+                sorted_index = np.argsort(sum_of_ranks)
 
         index = index[sorted_index]
         dist = dist[sorted_index]

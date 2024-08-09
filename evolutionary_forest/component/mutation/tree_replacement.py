@@ -77,6 +77,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             curiosity_driven = False
             negative_distance = False
             negative_curiosity = False
+            lexicase_sort = False
             if pool_addition_mode == "Smallest~Auto":
                 incumbent_size = len(ind.gene[id])
             elif pool_addition_mode == "Smallest~Auto-Depth":
@@ -126,6 +127,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                     negative_distance = True
                 if "NegCur" in pool_addition_mode:
                     negative_curiosity = True
+                if "Lex" in pool_addition_mode:
+                    lexicase_sort = True
             else:
                 incumbent_size = 0
 
@@ -145,6 +148,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 multi_generation_curiosity=multi_generation_curiosity,
                 negative_distance=negative_distance,
                 negative_curiosity=negative_curiosity,
+                lexicase_sort=lexicase_sort,
             )
         else:
             value = algorithm.tree_pool.retrieve_nearest_tree(
