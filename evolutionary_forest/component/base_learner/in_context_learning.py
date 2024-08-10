@@ -7,7 +7,7 @@ from sklearn.linear_model import LinearRegression, Ridge
 
 
 class InContextLearnerRegressor(BaseEstimator, RegressorMixin):
-    def __init__(self, k=3, nn_dimensions=1, use_average=True):
+    def __init__(self, k=3, nn_dimensions=1, use_average=True, **param):
         self.k = k
         self.nn_dimensions = nn_dimensions
         self.use_average = use_average

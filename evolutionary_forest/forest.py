@@ -1639,7 +1639,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 min_samples_leaf=self.min_samples_leaf,
             )
         elif self.base_learner == "InContextLearner":
-            ridge_model = InContextLearnerRegressor()
+            ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner == "MTL-Ridge":
             ridge_model = MTLRidgeCV()
         elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
