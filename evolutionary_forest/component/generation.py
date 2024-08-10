@@ -97,7 +97,10 @@ def varAndPlus(
                 for i in range(len(offspring)):
                     tree_replacement(offspring[i], algorithm)
                 algorithm.tree_pool.callback()
-                if mutation_configuration.semantic_local_search_pb < 1:
+                if mutation_configuration.semantic_local_search_pb < 1 and (
+                    mutation_configuration.independent_local_search is None
+                    or mutation_configuration.independent_local_search is True
+                ):
                     # independent mode
                     return offspring
         # Apply crossover and mutation on the offspring

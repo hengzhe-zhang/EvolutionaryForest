@@ -224,6 +224,7 @@ class MutationConfiguration(Configuration):
         local_search_step=int(1e10),
         lib_feature_selection_mode="Frequency",
         negative_local_search=True,
+        independent_local_search=True,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -269,6 +270,7 @@ class MutationConfiguration(Configuration):
         self.trial_check = trial_check
         self.trial_check_ratio = trial_check_ratio
         self.negative_local_search = negative_local_search
+        self.independent_local_search = independent_local_search
 
 
 class ImbalancedConfiguration(Configuration):
