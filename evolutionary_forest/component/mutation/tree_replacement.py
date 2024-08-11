@@ -4,6 +4,7 @@ import random
 from typing import TYPE_CHECKING
 
 import numpy as np
+from scipy.special import softmax
 from sklearn.linear_model import LinearRegression
 
 from evolutionary_forest.component.external_archive.semantic_library_mode_controller import (
@@ -71,18 +72,36 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             pool_addition_mode == "Smallest"
             or pool_addition_mode.startswith("Smallest~Auto")
             or pool_addition_mode.startswith("Smallest~Curiosity")
+            or pool_addition_mode.startswith("Smallest~Curriculum")
         ):
+            incumbent_size = len(ind.gene[id])
             incumbent_depth = math.inf
             multi_generation_curiosity = True
             curiosity_driven = False
             negative_distance = False
             negative_curiosity = False
             lexicase_sort = False
+            incumbent_distance = np.linalg.norm(
+                normalize_vector(residual) - normalize_vector(delete_semantics)
+            )
+            weight_vector = None
             if pool_addition_mode == "Smallest~Auto":
                 incumbent_size = len(ind.gene[id])
             elif pool_addition_mode == "Smallest~Auto-Depth":
                 incumbent_depth = ind.gene[id].height
                 incumbent_size = math.inf
+            elif mutation_configuration.pool_addition_mode.startswith(
+                "Smallest~Curriculum"
+            ):
+                std = float(mutation_configuration.pool_addition_mode.split("-")[-1])
+                weight_vector = np.random.normal(
+                    loc=0, scale=std, size=delete_semantics.shape
+                )
+                weight_vector = softmax(weight_vector)
+                incumbent_distance = np.linalg.norm(
+                    (normalize_vector(residual) - normalize_vector(delete_semantics))
+                    * weight_vector
+                )
             elif mutation_configuration.pool_addition_mode.startswith(
                 "Smallest~Curiosity"
             ):
@@ -132,9 +151,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             else:
                 incumbent_size = 0
 
-            incumbent_distance = np.linalg.norm(
-                normalize_vector(residual) - normalize_vector(delete_semantics)
-            )
             value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                 normalize_vector(residual),
                 return_semantics=True,
@@ -149,6 +165,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 negative_distance=negative_distance,
                 negative_curiosity=negative_curiosity,
                 lexicase_sort=lexicase_sort,
+                weight_vector=weight_vector,
             )
         else:
             value = algorithm.tree_pool.retrieve_nearest_tree(
@@ -176,6 +193,9 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
 
         trial_mse = np.mean((trail_semantics - target) ** 2)
         current_mse = np.mean((current_semantics - target) ** 2)
+        if pool_addition_mode.startswith("Smallest~Curriculum"):
+            trial_mse = np.sum((trail_semantics - target) ** 2 * weight_vector)
+            current_mse = np.sum((current_semantics - target) ** 2 * weight_vector)
         if trial_mse <= mutation_configuration.trial_check_ratio * current_mse or (
             not mutation_configuration.trial_check
         ):

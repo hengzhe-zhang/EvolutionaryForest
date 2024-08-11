@@ -347,6 +347,7 @@ class SemanticLibrary:
         negative_distance=False,
         negative_curiosity=False,
         lexicase_sort=False,
+        weight_vector=None,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -406,6 +407,17 @@ class SemanticLibrary:
 
                 # Get the sorted indices based on the sum of ranks
                 sorted_index = np.argsort(sum_of_ranks)
+
+        if weight_vector is not None:
+            dist = np.array(
+                [
+                    np.linalg.norm(
+                        (semantics - self.normalized_semantics_list[idx])
+                        * weight_vector
+                    )
+                    for idx in index
+                ]
+            )
 
         index = index[sorted_index]
         dist = dist[sorted_index]
