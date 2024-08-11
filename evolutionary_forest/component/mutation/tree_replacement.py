@@ -56,7 +56,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 (ind.semantics[indexes, new_id] - ind.scaler.mean_[new_id])
                 / np.where(ind.scaler.scale_[new_id] == 0, 1, ind.scaler.scale_[new_id])
             )
-            incumbent_size += len(ind.gene[new_id])
             skip_id.add(new_id)
         temp_semantics = current_semantics - delete_semantics
 
@@ -251,13 +250,15 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 pass
             pass
 
-    useful_features = [
-        gene
-        for gene in ind.gene
-        if not (
-            isinstance(gene[0], Terminal) and isinstance(gene[0].value, (float, int))
-        )
-    ]
-    if len(ind.gene) >= 1:
-        ind.gene = useful_features
+    if len(skip_id) > 0:
+        useful_features = [
+            gene
+            for gene in ind.gene
+            if not (
+                isinstance(gene[0], Terminal)
+                and isinstance(gene[0].value, (float, int))
+            )
+        ]
+        if len(ind.gene) >= 1:
+            ind.gene = useful_features
     return

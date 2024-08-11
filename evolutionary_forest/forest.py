@@ -2064,7 +2064,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         )
 
         random_fix = self.random_fix and (
-            not self.mutation_configuration.pool_based_addition
+            self.mutation_configuration.local_search_dropout == 0
         )
         self.static_limit_function = staticLimit_multiple_gene(
             key=operator.attrgetter("height"),
