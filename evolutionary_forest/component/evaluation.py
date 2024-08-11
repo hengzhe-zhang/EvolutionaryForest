@@ -783,6 +783,9 @@ def single_tree_evaluation(
             equivalent_subtree = -1
             if isinstance(prim, Primitive):
                 try:
+                    # for idx in range(len(args)):
+                    #     if isinstance(args[idx], (float, int)):
+                    #         args[idx] = np.full(len(data), args[idx])
                     result = pset.context[prim.name](*args)
                     if (
                         evaluation_configuration.enable_library

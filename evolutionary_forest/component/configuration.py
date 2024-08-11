@@ -221,10 +221,10 @@ class MutationConfiguration(Configuration):
         lib_feature_selection=None,
         trial_check=True,
         trial_check_ratio=1,
-        local_search_step=int(1e10),
         lib_feature_selection_mode="Frequency",
         negative_local_search=True,
         independent_local_search=True,
+        local_search_dropout=0,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -262,8 +262,7 @@ class MutationConfiguration(Configuration):
         self.top_k_candidates = top_k_candidates
         self.lib_feature_selection = lib_feature_selection
         self.lib_feature_selection_mode = lib_feature_selection_mode
-
-        self.local_search_step = local_search_step
+        self.local_search_dropout = local_search_dropout
 
         # very important components
         self.include_subtree_to_lib = include_subtree_to_lib

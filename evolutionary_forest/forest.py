@@ -2569,6 +2569,31 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 comparison_function=comparison,
                 key_metric=lambda x: sum(x.fitness.wvalues),
             )
+        elif self.ensemble_selection in ["Statistical", "Statistical-FewTree"]:
+            # Automatically determine the ensemble size
+            def get_meaningful_tree(a):
+                return len([x for x in a.gene if not isinstance(x[0], Terminal)])
+
+            def comparison(a, b):
+                return (
+                    # A significantly better in fitness
+                    (
+                        a.fitness.wvalues[0] > b.fitness.wvalues[0]
+                        and wilcoxon(a.case_values, b.case_values).pvalue <= 0.05
+                    )
+                    or (
+                        # A significantly better in number of features
+                        self.ensemble_cooperation == "Statistical-FewTree"
+                        and get_meaningful_tree(a) < get_meaningful_tree(b)
+                        and wilcoxon(a.case_values, b.case_values).pvalue > 0.05
+                    )
+                )
+
+            self.hof = CustomHOF(
+                self.ensemble_size,
+                comparison_function=comparison,
+                key_metric=lambda x: sum(x.fitness.wvalues),
+            )
         elif self.validation_ratio > 0 or self.ensemble_selection == "VS":
             # Automatically determine the ensemble size
             def comparison(a, b):

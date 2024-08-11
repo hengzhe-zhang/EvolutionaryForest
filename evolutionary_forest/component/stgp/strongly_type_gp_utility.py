@@ -46,6 +46,10 @@ from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransfo
 from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 
 
+def check_is_scaler(x):
+    return isinstance(x, float) or (isinstance(x, np.ndarray) and x.size == 1)
+
+
 def standardize(x, scaler):
     # standardize the input
     return scaler.transform(x.reshape(-1, 1)).flatten()
@@ -246,6 +250,7 @@ def get_typed_pset(
         )
         # has_numerical_features = True
         has_categorical_features = np.sum(categorical_features) != 0
+        add_scaling_primitives(pset)
         if has_numerical_features:
             pset.addPrimitive(identity, [float], FeatureLayer)
             add_math_operators(pset)

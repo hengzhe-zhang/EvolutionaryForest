@@ -4,6 +4,7 @@ import random
 from typing import TYPE_CHECKING
 
 import numpy as np
+from deap.gp import Terminal, PrimitiveTree
 from scipy.special import softmax
 from sklearn.linear_model import LinearRegression
 
@@ -34,12 +35,29 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
 
     mutation_configuration = algorithm.mutation_configuration
     # prediction_validation(ind, indexes)
+    skip_id = set()
 
-    for id in orders[: mutation_configuration.local_search_step]:
+    for sorted_idx, id in enumerate(orders):
+        if id in skip_id:
+            continue
+
+        incumbent_size = len(ind.gene[id])
         delete_semantics = ind.pipe["Ridge"].coef_[id] * (
             (ind.semantics[indexes, id] - ind.scaler.mean_[id])
             / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
         )
+        dropout_mode = (
+            random.random() < mutation_configuration.local_search_dropout
+            and sorted_idx + 1 < len(orders)
+        )
+        if dropout_mode:
+            new_id = orders[sorted_idx + 1]
+            delete_semantics += ind.pipe["Ridge"].coef_[new_id] * (
+                (ind.semantics[indexes, new_id] - ind.scaler.mean_[new_id])
+                / np.where(ind.scaler.scale_[new_id] == 0, 1, ind.scaler.scale_[new_id])
+            )
+            incumbent_size += len(ind.gene[new_id])
+            skip_id.add(new_id)
         temp_semantics = current_semantics - delete_semantics
 
         if (
@@ -72,9 +90,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             pool_addition_mode == "Smallest"
             or pool_addition_mode.startswith("Smallest~Auto")
             or pool_addition_mode.startswith("Smallest~Curiosity")
-            or pool_addition_mode.startswith("Smallest~Curriculum")
         ):
-            incumbent_size = len(ind.gene[id])
             incumbent_depth = math.inf
             multi_generation_curiosity = True
             curiosity_driven = False
@@ -86,26 +102,13 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             )
             weight_vector = None
             if pool_addition_mode == "Smallest~Auto":
-                incumbent_size = len(ind.gene[id])
+                pass
             elif pool_addition_mode == "Smallest~Auto-Depth":
                 incumbent_depth = ind.gene[id].height
                 incumbent_size = math.inf
             elif mutation_configuration.pool_addition_mode.startswith(
-                "Smallest~Curriculum"
-            ):
-                std = float(mutation_configuration.pool_addition_mode.split("-")[-1])
-                weight_vector = np.random.normal(
-                    loc=0, scale=std, size=delete_semantics.shape
-                )
-                weight_vector = softmax(weight_vector)
-                incumbent_distance = np.linalg.norm(
-                    (normalize_vector(residual) - normalize_vector(delete_semantics))
-                    * weight_vector
-                )
-            elif mutation_configuration.pool_addition_mode.startswith(
                 "Smallest~Curiosity"
             ):
-                incumbent_size = len(ind.gene[id])
                 curiosity_driven = True
                 if pool_addition_mode.startswith("Smallest~CuriosityS"):
                     multi_generation_curiosity = False
@@ -115,7 +118,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                     incumbent_depth = ind.gene[id].height + plus_depth
                 if "Size+" in pool_addition_mode:
                     plus_size = int(pool_addition_mode.split("+")[-1])
-                    incumbent_size = len(ind.gene[id]) + plus_size
+                    incumbent_size = incumbent_size + plus_size
                     incumbent_depth = math.inf
                 if "Depth~" in pool_addition_mode:
                     plus_depth = int(pool_addition_mode.split("~")[-1])
@@ -204,6 +207,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             current_semantics = trail_semantics
             algorithm.tree_pool.frequency[proposed_index] += 1
             algorithm.tree_pool.curiosity[proposed_index] += 1
+            if dropout_mode:
+                ind.gene[new_id] = PrimitiveTree([Terminal(0, False, object)])
             if algorithm.verbose:
                 algorithm.success_rate.add_values(1)
                 if algorithm.success_rate.get_total_count() % 1000 == 0:
