@@ -46,10 +46,15 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             (ind.semantics[indexes, id] - ind.scaler.mean_[id])
             / np.where(ind.scaler.scale_[id] == 0, 1, ind.scaler.scale_[id])
         )
-        dropout_mode = (
+        dropout_trigger_flag = (
+            algorithm.current_gen
+            >= algorithm.n_gen * mutation_configuration.local_search_dropout_trigger
+        )
+        drop_probability_flag = (
             random.random() < mutation_configuration.local_search_dropout
             and sorted_idx + 1 < len(orders)
         )
+        dropout_mode = dropout_trigger_flag and drop_probability_flag
         if dropout_mode:
             new_id = orders[sorted_idx + 1]
             delete_semantics += ind.pipe["Ridge"].coef_[new_id] * (
