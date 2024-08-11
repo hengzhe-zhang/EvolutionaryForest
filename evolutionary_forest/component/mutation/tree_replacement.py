@@ -251,4 +251,13 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 pass
             pass
 
+    useful_features = [
+        gene
+        for gene in ind.gene
+        if not (
+            isinstance(gene[0], Terminal) and isinstance(gene[0].value, (float, int))
+        )
+    ]
+    if len(ind.gene) >= 1:
+        ind.gene = useful_features
     return

@@ -2571,9 +2571,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.ensemble_selection in ["Statistical", "Statistical-FewTree"]:
             # Automatically determine the ensemble size
-            def get_meaningful_tree(a):
-                return len([x for x in a.gene if not isinstance(x[0], Terminal)])
-
             def comparison(a, b):
                 return (
                     # A significantly better in fitness
@@ -2583,8 +2580,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     )
                     or (
                         # A significantly better in number of features
-                        self.ensemble_cooperation == "Statistical-FewTree"
-                        and get_meaningful_tree(a) < get_meaningful_tree(b)
+                        self.ensemble_selection == "Statistical-FewTree"
+                        and len(a.gene) < len(b.gene)
                         and wilcoxon(a.case_values, b.case_values).pvalue > 0.05
                     )
                 )
