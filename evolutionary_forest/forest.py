@@ -2063,7 +2063,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             or self.mutation_configuration.gene_deletion_rate > 0
         )
 
-        random_fix = self.random_fix or self.mutation_configuration.pool_based_addition
+        random_fix = self.random_fix and (
+            not self.mutation_configuration.pool_based_addition
+        )
         self.static_limit_function = staticLimit_multiple_gene(
             key=operator.attrgetter("height"),
             max_value=self.depth_limit_configuration.max_height,
