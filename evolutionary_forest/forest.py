@@ -1905,7 +1905,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.score_func, str) and self.score_func == "MTL-R2":
             self.score_func = MTLR2(self.y.shape[1])
         elif isinstance(self.score_func, str) and self.score_func == "MTL-R2Size":
-            self.score_func = MTLR2Size(self.y.shape[1])
+            if len(self.y.shape) == 1:
+                self.score_func = R2Size()
+            else:
+                self.score_func = MTLR2Size(self.y.shape[1])
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = SemanticLibrary(verbose=self.verbose, **self.param)
             self.tree_pool.target_semantics = self.y
