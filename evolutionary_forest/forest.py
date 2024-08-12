@@ -1015,8 +1015,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = R2Spearman()
         elif isinstance(score_func, str) and score_func == "R2-BootstrapError":
             self.score_func = R2BootstrapError()
-        elif isinstance(score_func, str) and score_func == "R2-FeatureCount":
-            self.score_func = R2FeatureCount()
+        elif isinstance(score_func, str) and (
+            score_func == "R2-FeatureCount" or score_func.startswith("R2-FeatureCount")
+        ):
+            weight = float(score_func.split("-")[-1])
+            self.score_func = R2FeatureCount(weight=weight)
         elif isinstance(score_func, str) and score_func == "R2-Size-Scaler":
             self.score_func = R2SizeScaler(self, **params)
         elif isinstance(score_func, str) and score_func == "R2-GAP":

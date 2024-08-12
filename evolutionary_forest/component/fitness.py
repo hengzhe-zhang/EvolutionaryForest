@@ -11,7 +11,7 @@ from scipy.stats import spearmanr, pearsonr
 from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score, pairwise_distances, mean_squared_error
 from sklearn.metrics.pairwise import rbf_kernel
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from evolutionary_forest.component.evaluation import (
     multi_tree_evaluation,
@@ -559,9 +559,28 @@ class R2BootstrapError(Fitness):
 
 
 class R2FeatureCount(Fitness):
+    def __init__(self, weight=0.01):
+        super().__init__()
+        self.weight = weight
+
     def fitness_value(self, individual: MultipleGeneGP, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
         return (-1 * score, individual.gene_num)
+
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
+        candidate = population
+        if parent is not None:
+            candidate = candidate + parent
+        if hall_of_fame is not None:
+            candidate = candidate + list(hall_of_fame)
+        if elite_archive is not None:
+            candidate = candidate + elite_archive
+        objectives = np.array(
+            [(-1 * ind.fitness.wvalues[0], len(ind.gene)) for ind in candidate]
+        )
+        objectives = MinMaxScaler().fit_transform(objectives)
+        for i, ind in enumerate(candidate):
+            ind.sam_loss = objectives[i][0] + self.weight * objectives[i][1]
 
 
 class R2SizeScaler(Fitness):
