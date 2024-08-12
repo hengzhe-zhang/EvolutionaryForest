@@ -63,6 +63,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 (ind.semantics[indexes, new_id] - ind.scaler.mean_[new_id])
                 / np.where(ind.scaler.scale_[new_id] == 0, 1, ind.scaler.scale_[new_id])
             )
+            if mutation_configuration.local_search_dropout_bloat:
+                incumbent_size += len(ind.gene[new_id])
         temp_semantics = current_semantics - delete_semantics
 
         if (

@@ -227,6 +227,7 @@ class MutationConfiguration(Configuration):
         local_search_dropout=0,
         local_search_dropout_trigger=0,
         local_search_dropout_ensemble=False,
+        local_search_dropout_bloat=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -267,6 +268,7 @@ class MutationConfiguration(Configuration):
         self.local_search_dropout = local_search_dropout
         self.local_search_dropout_trigger = local_search_dropout_trigger
         self.local_search_dropout_ensemble = local_search_dropout_ensemble
+        self.local_search_dropout_bloat = local_search_dropout_bloat
 
         # very important components
         self.include_subtree_to_lib = include_subtree_to_lib
