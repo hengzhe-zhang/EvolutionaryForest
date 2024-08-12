@@ -615,6 +615,7 @@ class R2SizeScaler(Fitness):
         score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
         individual.fitness_list = ((score, 1), (tree_size, -1))
+        # minimize
         fitness = -1 * score + self.weight * tree_size
         return (fitness,)
 
