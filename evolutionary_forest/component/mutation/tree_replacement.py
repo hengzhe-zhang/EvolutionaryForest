@@ -63,7 +63,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 (ind.semantics[indexes, new_id] - ind.scaler.mean_[new_id])
                 / np.where(ind.scaler.scale_[new_id] == 0, 1, ind.scaler.scale_[new_id])
             )
-            skip_id.add(new_id)
         temp_semantics = current_semantics - delete_semantics
 
         if (
@@ -222,6 +221,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 dropout_mode
                 and not mutation_configuration.local_search_dropout_ensemble
             ):
+                skip_id.add(new_id)
                 ind.gene[new_id] = PrimitiveTree([Terminal(0, False, object)])
             if algorithm.verbose:
                 algorithm.success_rate.add_values(1)
