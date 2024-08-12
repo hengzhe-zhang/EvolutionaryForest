@@ -595,29 +595,31 @@ class R2FeatureCountScaler(R2FeatureCount):
     def fitness_value(self, individual: MultipleGeneGP, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
         individual.r2_score = score
-        return (-1 * score,)
+        fitness = -1 * score + len(individual.gene)
+        return (fitness,)
 
-    def post_processing(self, parent, population, hall_of_fame, elite_archive):
-        candidate = super().post_processing(
-            parent, population, hall_of_fame, elite_archive
-        )
-        for ind in candidate:
-            ind.fitness.values = (ind.sam_loss,)
+    # def post_processing(self, parent, population, hall_of_fame, elite_archive):
+    #     candidate = super().post_processing(
+    #         parent, population, hall_of_fame, elite_archive
+    #     )
+    #     for ind in candidate:
+    #         ind.fitness.values = (ind.sam_loss,)
 
 
 class R2SizeScaler(Fitness):
-    def __init__(self, algorithm: "EvolutionaryForestRegressor", **params):
+    def __init__(self, weight=0):
         super().__init__()
-        self.algorithm = algorithm
+        self.weight = weight
 
     def fitness_value(self, individual, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
         individual.fitness_list = ((score, 1), (tree_size, -1))
-        return (-1 * score,)
+        fitness = -1 * score + self.weight * tree_size
+        return (fitness,)
 
-    def post_processing(self, parent, population, hall_of_fame, elite_archive):
-        assign_rank(population, hall_of_fame, elite_archive)
+    # def post_processing(self, parent, population, hall_of_fame, elite_archive):
+    #     assign_rank(population, hall_of_fame, elite_archive)
 
 
 class R2CVGap(Fitness):
