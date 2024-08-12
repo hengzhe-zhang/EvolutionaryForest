@@ -218,7 +218,10 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             current_semantics = trail_semantics
             algorithm.tree_pool.frequency[proposed_index] += 1
             algorithm.tree_pool.curiosity[proposed_index] += 1
-            if dropout_mode:
+            if (
+                dropout_mode
+                and not mutation_configuration.local_search_dropout_ensemble
+            ):
                 ind.gene[new_id] = PrimitiveTree([Terminal(0, False, object)])
             if algorithm.verbose:
                 algorithm.success_rate.add_values(1)
