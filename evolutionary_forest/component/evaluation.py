@@ -69,7 +69,7 @@ from evolutionary_forest.component.stgp.strongly_type_gp_utility import (
 from evolutionary_forest.component.tree_utils import (
     node_depths_top_down,
 )
-from evolutionary_forest.model.MTL import MTLRidgeCV
+from evolutionary_forest.model.MTL import MTLRidgeCV, MTLLassoCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
 from evolutionary_forest.multigene_gp import (
@@ -253,6 +253,8 @@ def calculate_score(args):
             y_pred = pipe.predict(Yp)
         else:
             y_pred = pipe.predict_proba(Yp)
+        if isinstance(base_model, (MTLRidgeCV, MTLLassoCV)):
+            y_pred = y_pred.flatten()
         estimators = [pipe]
     else:
         if configuration.ood_split:

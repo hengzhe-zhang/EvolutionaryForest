@@ -110,6 +110,13 @@ class MTLR2(Fitness):
         return (-1 * np.mean(r_squared_values),)
 
 
+class MTLR2Size(MTLR2):
+    def fitness_value(self, individual, estimators, Y, y_pred):
+        fitness = super().fitness_value(individual, estimators, Y, y_pred)
+        fitness = (fitness[0], sum([len(tree) for tree in individual.gene]))
+        return fitness
+
+
 class RademacherComplexityR2(Fitness):
     def __init__(
         self,

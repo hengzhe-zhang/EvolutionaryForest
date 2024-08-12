@@ -223,7 +223,7 @@ from evolutionary_forest.component.verification.configuration_check import (
     consistency_check,
 )
 from evolutionary_forest.model.FeatureClipper import FeatureClipper, FeatureSmoother
-from evolutionary_forest.model.MTL import MTLRidgeCV
+from evolutionary_forest.model.MTL import MTLRidgeCV, MTLLassoCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
 from evolutionary_forest.model.PLTree import (
     SoftPLTreeRegressor,
@@ -1093,7 +1093,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def fitness_evaluation(self, individual: MultipleGeneGP):
         # single individual evaluation
         X, Y = self.X, self.y
-        Y = Y.flatten()
+        if len(Y.shape) == 2 and Y.shape[1] == 1:
+            Y = Y.flatten()
 
         # func = self.toolbox.compile(individual)
         pipe: GPPipeline
@@ -1650,6 +1651,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner == "MTL-Ridge":
             ridge_model = MTLRidgeCV()
+        elif self.base_learner == "MTL-Lasso":
+            ridge_model = MTLLassoCV()
         elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
             ridge_model = DecisionTreeRegressor(
                 min_samples_leaf=int(self.base_learner.split("-")[1])
@@ -1897,6 +1900,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.reference_copy()
         if isinstance(self.score_func, str) and self.score_func == "MTL-R2":
             self.score_func = MTLR2(self.y.shape[1])
+        elif isinstance(self.score_func, str) and self.score_func == "MTL-R2Size":
+            self.score_func = MTLR2Size(self.y.shape[1])
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = SemanticLibrary(verbose=self.verbose, **self.param)
             self.tree_pool.target_semantics = self.y

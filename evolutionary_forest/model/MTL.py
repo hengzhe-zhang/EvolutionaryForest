@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import RidgeCV, LassoCV, Lasso
 from sklearn.metrics import r2_score, make_scorer
 from sklearn.multioutput import MultiOutputRegressor
 
@@ -34,3 +34,20 @@ class MTLRidgeCV(RidgeCV):
             real_p = cv_prediction_from_ridge(y_true, model)
             predictions.append(real_p)
         return np.concatenate(np.array(predictions).T, axis=0)
+
+
+class MTLLassoCV(LassoCV):
+    def __init__(self):
+        super().__init__()
+        self.mtl_lasso = MultiOutputRegressor(Lasso())
+        self.coef_ = None
+
+    def fit(self, X, y=None):
+        if len(X) != len(y):
+            y = np.reshape(y, (len(X), -1))
+        self.mtl_lasso.fit(X, y)
+        self.coef_ = np.mean([e.coef_ for e in self.mtl_lasso.estimators_], axis=0)
+        return self
+
+    def predict(self, X, y=None):
+        return self.mtl_lasso.predict(X)
