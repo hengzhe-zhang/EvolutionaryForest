@@ -595,7 +595,7 @@ class R2FeatureCountScaler(R2FeatureCount):
             parent, population, hall_of_fame, elite_archive
         )
         for ind in candidate:
-            ind.fitness.wvalues = (ind.sam_loss,)
+            ind.fitness.values = (ind.sam_loss,)
 
 
 class R2SizeScaler(Fitness):
