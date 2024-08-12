@@ -1,7 +1,7 @@
 import time
 from abc import abstractmethod
 from functools import partial, lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import numpy as np
 import torch
@@ -565,6 +565,7 @@ class R2FeatureCount(Fitness):
 
     def fitness_value(self, individual: MultipleGeneGP, estimators, Y, y_pred):
         score = r2_score(Y, y_pred)
+        individual.r2_score = score
         return (-1 * score, individual.gene_num)
 
     def post_processing(self, parent, population, hall_of_fame, elite_archive):
@@ -575,12 +576,26 @@ class R2FeatureCount(Fitness):
             candidate = candidate + list(hall_of_fame)
         if elite_archive is not None:
             candidate = candidate + elite_archive
-        objectives = np.array(
-            [(-1 * ind.fitness.wvalues[0], len(ind.gene)) for ind in candidate]
-        )
+        candidate: List[MultipleGeneGP]
+        objectives = np.array([(-1 * ind.r2_score, len(ind.gene)) for ind in candidate])
         objectives = MinMaxScaler().fit_transform(objectives)
         for i, ind in enumerate(candidate):
             ind.sam_loss = objectives[i][0] + self.weight * objectives[i][1]
+        return candidate
+
+
+class R2FeatureCountScaler(R2FeatureCount):
+    def fitness_value(self, individual: MultipleGeneGP, estimators, Y, y_pred):
+        score = r2_score(Y, y_pred)
+        individual.r2_score = score
+        return (-1 * score,)
+
+    def post_processing(self, parent, population, hall_of_fame, elite_archive):
+        candidate = super().post_processing(
+            parent, population, hall_of_fame, elite_archive
+        )
+        for ind in candidate:
+            ind.fitness.wvalues = (ind.sam_loss,)
 
 
 class R2SizeScaler(Fitness):

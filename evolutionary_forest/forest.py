@@ -1016,6 +1016,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif isinstance(score_func, str) and score_func == "R2-BootstrapError":
             self.score_func = R2BootstrapError()
         elif isinstance(score_func, str) and (
+            score_func.startswith("R2-FeatureCountScaler")
+        ):
+            weight = float(score_func.split("-")[-1])
+            self.score_func = R2FeatureCountScaler(weight=weight)
+        elif isinstance(score_func, str) and (
             score_func == "R2-FeatureCount" or score_func.startswith("R2-FeatureCount")
         ):
             weight = float(score_func.split("-")[-1])

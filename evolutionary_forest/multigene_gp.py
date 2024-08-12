@@ -115,6 +115,7 @@ class MultipleGeneGP:
     fitness_list: List[Tuple]
     # for sharpness estimation
     sam_loss: float
+    r2_score: float
     scaler: StandardScaler
 
     @property
