@@ -1093,8 +1093,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def fitness_evaluation(self, individual: MultipleGeneGP):
         # single individual evaluation
         X, Y = self.X, self.y
-        if len(Y.shape) == 2 and Y.shape[1] == 1:
-            Y = Y.flatten()
+        Y = Y.flatten()
 
         # func = self.toolbox.compile(individual)
         pipe: GPPipeline
@@ -1650,7 +1649,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == "InContextLearner":
             ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner == "MTL-Ridge":
-            ridge_model = MTLRidgeCV()
+            if len(self.y.shape) == 1:
+                ridge_model = RidgeCV(
+                    store_cv_values=True, scoring=make_scorer(r2_score)
+                )
+            else:
+                ridge_model = MTLRidgeCV()
         elif self.base_learner == "MTL-Lasso":
             ridge_model = MTLLassoCV()
         elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
