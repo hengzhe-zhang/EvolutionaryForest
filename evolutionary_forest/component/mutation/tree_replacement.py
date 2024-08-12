@@ -38,7 +38,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
     skip_id = set()
 
     for sorted_idx, id in enumerate(orders):
-        if id in skip_id:
+        if id in skip_id and not mutation_configuration.local_search_dropout_ensemble:
             continue
 
         incumbent_size = len(ind.gene[id])
@@ -55,6 +55,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             and sorted_idx + 1 < len(orders)
         )
         dropout_mode = dropout_trigger_flag and drop_probability_flag
+        if mutation_configuration.local_search_dropout_ensemble:
+            just_one_delete_semantics = delete_semantics
         if dropout_mode:
             new_id = orders[sorted_idx + 1]
             delete_semantics += ind.pipe["Ridge"].coef_[new_id] * (
@@ -187,6 +189,11 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
 
         if np.all(normalize_vector(ind.semantics[indexes, id]) == proposed_semantics):
             continue
+
+        if dropout_mode and mutation_configuration.local_search_dropout_ensemble:
+            temp_semantics = current_semantics - just_one_delete_semantics
+            residual = target - temp_semantics
+
         if mutation_configuration.full_scaling_after_replacement:
             lr = LinearRegression()
             lr.fit(np.vstack((temp_semantics, proposed_semantics)).T, target)
@@ -255,7 +262,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 pass
             pass
 
-    if len(skip_id) > 0:
+    if len(skip_id) > 0 and not mutation_configuration.local_search_dropout_ensemble:
         useful_features = [
             gene
             for gene in ind.gene
