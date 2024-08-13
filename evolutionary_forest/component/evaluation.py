@@ -548,10 +548,11 @@ def split_and_combine_data_decorator(
                 data_arg_name,
                 args[data_arg_position] if len(args) > data_arg_position else None,
             )
+            need_hash = kwargs.get("need_hash", False)
 
             # Check if data needs to be split
             step_size = 20000
-            if data is not None and len(data) > step_size:
+            if data is not None and len(data) > step_size and not need_hash:
                 # Split the data into slices of 50000 elements
                 slices = [
                     data[i : i + step_size] for i in range(0, len(data), step_size)
