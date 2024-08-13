@@ -366,9 +366,10 @@ class SemanticLibrary:
             return None
 
         # Query the KDTree for the nearest point
-        dist, index = self.kd_tree.query(semantics, k=top_k)
         if negative_search:
-            dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k)
+            # Reduce the query set to half
+            dist, index = self.kd_tree.query(semantics, k=top_k // 2)
+            dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k // 2)
             index = np.concatenate([index, index_neg])
             # From short to long
             dist = np.concatenate([dist, dist_neg])
@@ -376,6 +377,7 @@ class SemanticLibrary:
             if negative_distance:
                 sorted_index = sorted_index[::-1]
         else:
+            dist, index = self.kd_tree.query(semantics, k=top_k)
             sorted_index = np.argsort(dist)
 
         if curiosity_driven:
