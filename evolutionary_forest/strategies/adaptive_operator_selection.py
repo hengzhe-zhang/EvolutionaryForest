@@ -13,7 +13,10 @@ if TYPE_CHECKING:
 class MultiArmBandit:
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **kwargs):
         self.algorithm = algorithm
-        self.mab_configuration = MABConfiguration(**algorithm.mab_parameter)
+        if algorithm.mab_parameter is None:
+            self.mab_configuration = MABConfiguration()
+        else:
+            self.mab_configuration = MABConfiguration(**algorithm.mab_parameter)
         self.selection_operators = self.mab_configuration.selection_operators.split(",")
         self.selection_data = np.ones((2, len(self.selection_operators)))
         self.operator_selection_history = []
@@ -90,10 +93,6 @@ class MultiArmBandit:
                 [np.min([p.case_values for p in population], axis=0), self.best_value],
                 axis=0,
             )
-            worst_value = np.max(
-                [np.max([p.case_values for p in population], axis=0), self.best_value],
-                axis=0,
-            )
         if comparison_criterion == "Fitness":
             # historical best fitness values
             best_value = max(
@@ -124,17 +123,21 @@ class MultiArmBandit:
                 raise Exception
 
     def select(self, parent):
+        selection_operator, selection_operator_id = self.one_step_sample()
+
+        offspring = self.algorithm.custom_selection(parent, selection_operator)
+        for o in offspring:
+            o.selection_operator = selection_operator_id
+        return offspring
+
+    def one_step_sample(self):
         selection_operators = self.selection_operators
         selection_data = self.selection_data
         selection_operator_id = np.argmax(
             np.random.beta(selection_data[0], selection_data[1])
         )
         selection_operator = selection_operators[selection_operator_id]
-
-        offspring = self.algorithm.custom_selection(parent, selection_operator)
-        for o in offspring:
-            o.selection_operator = selection_operator_id
-        return offspring
+        return selection_operator, selection_operator_id
 
 
 class MCTS(MultiArmBandit):

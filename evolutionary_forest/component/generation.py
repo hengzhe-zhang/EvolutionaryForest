@@ -92,12 +92,26 @@ def varAndPlus(
             for i in range(len(offspring)):
                 addition_and_deletion(i, offspring)
         if mutation_configuration.pool_based_addition:
-            if random.random() < mutation_configuration.semantic_local_search_pb:
+            if mutation_configuration.semantic_local_search_pb == "Adaptive":
+                (
+                    selection_operator,
+                    selection_operator_id,
+                ) = algorithm.aos.one_step_sample()
+                local_search_flag = selection_operator == "LocalSearch"
+                for o in offspring:
+                    o.selection_operator = selection_operator_id
+                # print(f"Selection Operator: {selection_operator}")
+            else:
+                local_search_flag = (
+                    random.random() < mutation_configuration.semantic_local_search_pb
+                )
+
+            if local_search_flag:
                 # exclusive
                 for i in range(len(offspring)):
                     tree_replacement(offspring[i], algorithm)
                 algorithm.tree_pool.callback()
-                if mutation_configuration.semantic_local_search_pb < 1 and (
+                if (mutation_configuration.semantic_local_search_pb != 1) and (
                     mutation_configuration.independent_local_search is None
                     or mutation_configuration.independent_local_search is True
                 ):

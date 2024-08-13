@@ -783,13 +783,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             self.base_model_list = None
 
-        if self.select == "Auto":
-            self.aos = MultiArmBandit(self, **self.param)
-        elif self.select == "Auto-MCTS":
-            self.aos = MCTS(self, **self.param)
-        else:
-            self.aos = None
-
         delete_keys = []
         for k in params.keys():
             if k in vars(self):
@@ -864,6 +857,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.feature_clipping = feature_clipping
         self.norevisit_strategy = norevisit_strategy
         self.lamarck_constant = lamarck_constant
+
+        self.automatic_operator_selection_initialization()
+        self.automatic_local_search_initialization()
+
+    def automatic_operator_selection_initialization(self):
+        if self.select == "Auto":
+            self.aos = MultiArmBandit(self, **self.param)
+        elif self.select == "Auto-MCTS":
+            self.aos = MCTS(self, **self.param)
+        else:
+            self.aos = None
+
+    def automatic_local_search_initialization(self):
+        if self.mutation_configuration.pool_based_addition == True:
+            self.aos = MultiArmBandit(self, **self.param)
+            self.aos.mab_configuration.selection_operators = "LocalSearch,GlobalSearch"
+            self.aos.selection_operators = "LocalSearch,GlobalSearch".split(",")
+        else:
+            self.aos = None
 
     def init_some_logs(self):
         self.duel_logs = []
@@ -3906,8 +3918,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 offspring, elite_map, pop_pool
             )
 
-            if self.select in ["Auto", "Auto-MCTS"]:
-                self.aos.update(population, offspring)
+            self.adaptive_operator_selection_update(offspring, population)
 
             # Update the hall of fame with the generated individuals
             if self.stage_flag:
@@ -4076,6 +4087,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert not self.base_learner.startswith("Fast-")
         self.post_prune(self.hof)
         return population, logbook
+
+    def adaptive_operator_selection_update(self, offspring, population):
+        # if self.select in ["Auto", "Auto-MCTS"]:
+        #     self.aos.update(population, offspring)
+        if self.aos is not None:
+            self.aos.update(population, offspring)
 
     def fix_very_trivial_trees_mode(self, offspring):
         """
