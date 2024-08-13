@@ -107,6 +107,9 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             incumbent_distance = np.linalg.norm(
                 normalize_vector(residual) - normalize_vector(delete_semantics)
             )
+            if not mutation_configuration.trial_check:
+                # No need to check better than current
+                incumbent_distance = np.inf
             weight_vector = None
             if pool_addition_mode == "Smallest~Auto":
                 pass
