@@ -14,7 +14,7 @@ class MultiArmBandit:
     def __init__(self, algorithm: "EvolutionaryForestRegressor", **kwargs):
         self.algorithm = algorithm
         if algorithm.mab_parameter is None:
-            self.mab_configuration = MABConfiguration()
+            self.mab_configuration = MABConfiguration(**kwargs)
         else:
             self.mab_configuration = MABConfiguration(**algorithm.mab_parameter)
         self.selection_operators = self.mab_configuration.selection_operators.split(",")
