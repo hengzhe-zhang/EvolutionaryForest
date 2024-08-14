@@ -119,12 +119,12 @@ class MultiArmBandit:
         )
 
         selection_data = self.selection_data
-        mode = self.mab_configuration.mode
+        mode = self.mab_configuration.aos_mode
         cnt = Counter({id: 0 for id in range(0, len(selection_data[0]))})
         if mode == "Decay":
             selection_data[0] *= self.mab_configuration.decay_ratio
             selection_data[1] *= self.mab_configuration.decay_ratio
-        C = self.mab_configuration.threshold
+        C = self.mab_configuration.aos_capped_threshold
 
         if self.mab_configuration.selection_operators == "LocalSearch,GlobalSearch":
             # niching to avoid overly favor local-search
@@ -250,7 +250,7 @@ class MCTS(MultiArmBandit):
     def update(self, population, offspring):
         comparison_criterion = self.mab_configuration.comparison_criterion
         mcts_dict = self.mcts_dict
-        C = self.mab_configuration.threshold
+        C = self.mab_configuration.aos_capped_threshold
         selection_operator_counter = defaultdict(int)
         survival_operator_counter = defaultdict(int)
 
@@ -285,7 +285,7 @@ class MCTS(MultiArmBandit):
         if self.algorithm.verbose:
             print(selection_operator_counter, survival_operator_counter)
 
-        mode = self.mab_configuration.mode
+        mode = self.mab_configuration.aos_mode
         # fixed threshold
         for k, data in mcts_dict.items():
             if mode == "Threshold":

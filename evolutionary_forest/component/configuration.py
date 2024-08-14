@@ -59,22 +59,22 @@ class NoiseConfiguration(Configuration):
 class MABConfiguration(Configuration):
     def __init__(
         self,
-        mode="Decay",
+        aos_mode="Decay",
         decay_ratio=0.5,
         selection_operators="AutomaticLexicase,Tournament-7",
         comparison_criterion="Case",
-        threshold=100,
+        aos_capping_threshold=100,
         bandit_clip_lower_bound=1e-2,
         **kwargs
     ) -> None:
-        self.mode = mode
+        self.aos_mode = aos_mode
         # Decay or Threshold Mode
         self.decay_ratio = decay_ratio
         # Selection
         self.selection_operators = selection_operators
         # Improvement on any case
         self.comparison_criterion = comparison_criterion
-        self.threshold = threshold
+        self.aos_capped_threshold = aos_capping_threshold
         self.bandit_clip_lower_bound = bandit_clip_lower_bound
 
 
