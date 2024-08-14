@@ -2,15 +2,48 @@ from collections import Counter, defaultdict
 from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 from deap.tools import selNSGA2, selBest
+from sklearn.preprocessing import StandardScaler
 
 from evolutionary_forest.component.configuration import MABConfiguration
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+from sklearn.cluster import KMeans
+import numpy as np
+
+
+def niching(offspring):
+    # Extract features for clustering
+    features = np.array([o.case_values for o in offspring])
+
+    # Normalize features
+    scaler = StandardScaler()
+    normalized_features = scaler.fit_transform(features)
+
+    # Perform clustering
+    kmeans = KMeans(n_clusters=10)
+    cluster_labels = kmeans.fit_predict(features)
+
+    # Prepare to collect best individuals from each cluster
+    all_best_inds = []
+
+    # Iterate over each cluster
+    unique_labels = np.unique(cluster_labels)
+    for label in unique_labels:
+        # Select individuals in the current cluster
+        cluster_individuals = [
+            o for i, o in enumerate(offspring) if cluster_labels[i] == label
+        ]
+
+        # Find the best individual based on fitness
+        best_ind = max(cluster_individuals, key=lambda ind: ind.fitness.weights[0])
+        all_best_inds.append(best_ind)
+
+    return all_best_inds
 
 
 def plot_selection_data(selection_data):
@@ -93,6 +126,9 @@ class MultiArmBandit:
             selection_data[1] *= self.mab_configuration.decay_ratio
         C = self.mab_configuration.threshold
 
+        if self.mab_configuration.selection_operators == "LocalSearch,GlobalSearch":
+            # niching to avoid overly favor local-search
+            offspring = niching(offspring)
         for o in offspring:
             cnt[o.selection_operator] += 1
             if (
@@ -134,7 +170,7 @@ class MultiArmBandit:
             selection_data, self.mab_configuration.bandit_clip_lower_bound, None
         )
         self.selection_data = selection_data
-        # plot_selection_data(self.selection_data)
+        plot_selection_data(self.selection_data)
 
     def best_value_update(self, comparison_criterion, population):
         best_value = self.best_value

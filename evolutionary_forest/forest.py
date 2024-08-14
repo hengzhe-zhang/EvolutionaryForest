@@ -870,7 +870,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.aos = None
 
     def automatic_local_search_initialization(self):
-        if self.mutation_configuration.pool_based_addition == True:
+        if (
+            self.mutation_configuration.pool_based_addition == True
+            and self.mutation_configuration.semantic_local_search_pb == "Adaptive"
+        ):
             self.aos = MultiArmBandit(self, **self.param)
             self.aos.mab_configuration.selection_operators = "LocalSearch,GlobalSearch"
             self.aos.selection_operators = "LocalSearch,GlobalSearch".split(",")
