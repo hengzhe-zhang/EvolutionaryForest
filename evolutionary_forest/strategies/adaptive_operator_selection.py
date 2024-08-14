@@ -130,7 +130,9 @@ class MultiArmBandit:
                     selection_data[0][op] = selection_data[0][op] / sum_data * C
                     selection_data[1][op] = selection_data[1][op] / sum_data * C
         # avoid trivial probability
-        selection_data = np.clip(selection_data, 1e-2, None)
+        selection_data = np.clip(
+            selection_data, self.mab_configuration.bandit_clip_lower_bound, None
+        )
         self.selection_data = selection_data
         # plot_selection_data(self.selection_data)
 

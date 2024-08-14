@@ -64,6 +64,7 @@ class MABConfiguration(Configuration):
         selection_operators="AutomaticLexicase,Tournament-7",
         comparison_criterion="Case",
         threshold=100,
+        bandit_clip_lower_bound=1e-2,
         **kwargs
     ) -> None:
         self.mode = mode
@@ -74,6 +75,7 @@ class MABConfiguration(Configuration):
         # Improvement on any case
         self.comparison_criterion = comparison_criterion
         self.threshold = threshold
+        self.bandit_clip_lower_bound = bandit_clip_lower_bound
 
 
 class ArchiveConfiguration(Configuration):
