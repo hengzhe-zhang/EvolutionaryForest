@@ -1,13 +1,62 @@
 from collections import Counter, defaultdict
 from typing import TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 from deap.tools import selNSGA2, selBest
 
 from evolutionary_forest.component.configuration import MABConfiguration
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+
+def plot_selection_data(selection_data):
+    if selection_data.shape[0] != 2:
+        raise ValueError(
+            "Selection data should have 2 rows: one for success counts and one for failure counts."
+        )
+
+    num_operators = selection_data.shape[1]
+
+    # Define labels for the plot
+    operator_names = [f"Operator 0", f"Operator 1"] * num_operators
+
+    # Prepare data for Seaborn
+    data = {
+        "Operator": operator_names,
+        "Counts": selection_data.flatten(),
+        "Type": ["Success"] * num_operators + ["Failure"] * num_operators,
+    }
+    df = pd.DataFrame(data)
+
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    palette = sns.color_palette("pastel")  # Use Seaborn's pastel color palette
+    ax = sns.barplot(x="Operator", y="Counts", hue="Type", data=df, palette=palette)
+
+    # Add number annotations above bars
+    for p in ax.patches:
+        height = p.get_height()
+        if height > 0:  # Only annotate bars with a positive height
+            ax.annotate(
+                format(height, ".0f"),
+                (p.get_x() + p.get_width() / 2.0, height),
+                ha="center",
+                va="center",
+                xytext=(0, 5),
+                textcoords="offset points",
+            )
+
+    plt.xlabel("Operators")
+    plt.ylabel("Counts")
+    plt.title("Selection Data for Different Operators")
+    plt.legend(title="Type")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
 
 
 class MultiArmBandit:
@@ -22,6 +71,7 @@ class MultiArmBandit:
         self.operator_selection_history = []
         self.best_value = None
         self.worst_value = None
+        self.sample_counter = defaultdict(int)
 
     def update(self, population, offspring):
         comparison_criterion = self.mab_configuration.comparison_criterion
@@ -82,6 +132,7 @@ class MultiArmBandit:
         # avoid trivial probability
         selection_data = np.clip(selection_data, 1e-2, None)
         self.selection_data = selection_data
+        # plot_selection_data(self.selection_data)
 
     def best_value_update(self, comparison_criterion, population):
         best_value = self.best_value
