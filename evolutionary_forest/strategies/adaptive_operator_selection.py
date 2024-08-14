@@ -170,7 +170,7 @@ class MultiArmBandit:
             selection_data, self.mab_configuration.bandit_clip_lower_bound, None
         )
         self.selection_data = selection_data
-        plot_selection_data(self.selection_data)
+        # plot_selection_data(self.selection_data)
 
     def best_value_update(self, comparison_criterion, population):
         best_value = self.best_value
