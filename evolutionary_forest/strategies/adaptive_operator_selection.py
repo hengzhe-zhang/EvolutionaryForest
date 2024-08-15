@@ -55,7 +55,7 @@ def plot_selection_data(selection_data):
     num_operators = selection_data.shape[1]
 
     # Define labels for the plot
-    operator_names = [f"Operator 0", f"Operator 1"] * num_operators
+    operator_names = [f"Local Search", f"Global Search"] * num_operators
 
     # Prepare data for Seaborn
     data = {
@@ -66,7 +66,7 @@ def plot_selection_data(selection_data):
     df = pd.DataFrame(data)
 
     # Create the plot
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(12 * 0.5, 6 * 0.65))
     palette = sns.color_palette("pastel")  # Use Seaborn's pastel color palette
     ax = sns.barplot(x="Operator", y="Counts", hue="Type", data=df, palette=palette)
 
@@ -85,9 +85,10 @@ def plot_selection_data(selection_data):
 
     plt.xlabel("Operators")
     plt.ylabel("Counts")
-    plt.title("Selection Data for Different Operators")
+    plt.title("Different Operators")
     plt.legend(title="Type")
     plt.xticks(rotation=45)
+    plt.savefig("result/operator_selection.eps", format="eps")
     plt.tight_layout()
     plt.show()
 
@@ -126,9 +127,9 @@ class MultiArmBandit:
             selection_data[1] *= self.mab_configuration.decay_ratio
         C = self.mab_configuration.aos_capped_threshold
 
-        if self.mab_configuration.selection_operators == "LocalSearch,GlobalSearch":
-            # niching to avoid overly favor local-search
-            offspring = niching(offspring)
+        # if self.mab_configuration.selection_operators == "LocalSearch,GlobalSearch":
+        #     # niching to avoid overly favor local-search
+        #     offspring = niching(offspring)
         for o in offspring:
             cnt[o.selection_operator] += 1
             if (
@@ -170,7 +171,9 @@ class MultiArmBandit:
             selection_data, self.mab_configuration.bandit_clip_lower_bound, None
         )
         self.selection_data = selection_data
-        # plot_selection_data(self.selection_data)
+        if self.algorithm.verbose:
+            if self.algorithm.current_gen % 10 == 0:
+                plot_selection_data(self.selection_data)
 
     def best_value_update(self, comparison_criterion, population):
         best_value = self.best_value
