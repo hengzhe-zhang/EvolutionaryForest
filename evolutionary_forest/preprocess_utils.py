@@ -165,7 +165,10 @@ class StandardScalerWithMinMaxScaler(TransformerMixin):
         minmax_scaled_data = self.minmax_scaler.transform(X)
         combined_data = np.hstack((combined_data, minmax_scaled_data))
 
-        return combined_data
+        # Remove duplicate columns
+        _, unique_indices = np.unique(combined_data, axis=1, return_index=True)
+        unique_data = combined_data[:, np.sort(unique_indices)]
+        return unique_data
 
 
 if __name__ == "__main__":

@@ -1942,7 +1942,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(self.gene_num, str) and "Max" in self.gene_num:
             self.gene_num = min(int(self.gene_num.replace("Max-", "")), x.shape[1])
         if isinstance(self.n_pop, str) and "N" in self.n_pop:
-            self.n_pop = extract_numbers(x.shape[1], self.n_pop)
+            # based on the shape before extension
+            self.n_pop = extract_numbers(self.x_shape[1], self.n_pop)
         if self.semantic_repair > 0:
             # Sampling some data point for semantic repair
             id = np.random.randint(0, self.X.shape[0], 20)
@@ -2890,6 +2891,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # whether input data is standardized
         # self.standardized_flag = is_standardized(X)
 
+        self.x_shape = X.shape
         self.y_shape = y.shape
         if isinstance(X, pd.DataFrame):
             self.columns = X.columns.tolist()  # store column names
