@@ -12,8 +12,19 @@ def calculate_mutation_probabilities(beta, gamma=0, normalization=False):
     Returns:
     - mutation_probabilities: numpy array of shape (n_features,), mutation probabilities for each feature
     """
-    # Normalize the coefficients
-    beta_normalized = np.abs(beta) / np.sum(np.abs(beta))
+    # Replace NaN values with zero
+    beta = np.nan_to_num(beta, nan=0.0)
+
+    # Calculate the sum of absolute values of beta
+    sum_abs_beta = np.sum(np.abs(beta))
+
+    # Check if the sum of absolute values of beta is zero
+    if sum_abs_beta == 0:
+        # Assign equal probabilities if all beta are zero
+        beta_normalized = np.ones_like(beta) / len(beta)
+    else:
+        # Normalize the coefficients
+        beta_normalized = np.abs(beta) / sum_abs_beta
 
     if normalization:
         # Calculate the softmax-normalized probabilities
