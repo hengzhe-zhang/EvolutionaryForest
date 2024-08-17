@@ -20,6 +20,7 @@ from evolutionary_forest.sklearn_utils import cross_val_predict
 from evolutionary_forest.utility.tree_parsing import (
     gp_tree_clustering,
     gp_tree_prediction,
+    HistoricalData,
 )
 
 if TYPE_CHECKING:
@@ -33,7 +34,19 @@ class SurrogateModel:
     1. simple-task: A simple surrogate task
     """
 
-    def __init__(self, algorithm, brood_generation_ratio=3, **params):
+    def __init__(
+        self,
+        algorithm,
+        brood_generation_ratio=3,
+        surrogate_min_samples_split=10,
+        surrogate_history=1000,
+        surrogate_retrain_interval=1,
+        **params
+    ):
+        self.surrogate_model = None
+        self.historical_best = HistoricalData(max_size=surrogate_history)
+        self.surrogate_min_samples_split = surrogate_min_samples_split
+        self.surrogate_retrain_interval = surrogate_retrain_interval
         self.algorithm: "EvolutionaryForestRegressor" = algorithm
         self.brood_generation_ratio = brood_generation_ratio
 
@@ -97,7 +110,20 @@ class SurrogateModel:
         if algorithm.pre_selection == "Clustering":
             return gp_tree_clustering(offspring, n_clusters=algorithm.n_pop)
         if algorithm.pre_selection == "RandomForest":
-            return gp_tree_prediction(parents, offspring, top_inds=algorithm.n_pop)
+            min_samples_split = self.surrogate_min_samples_split
+            if algorithm.current_gen % self.surrogate_retrain_interval == 0:
+                # clear
+                self.surrogate_model = None
+            offspring, surrogate_model = gp_tree_prediction(
+                parents,
+                offspring,
+                self.historical_best,
+                self.surrogate_model,
+                top_inds=algorithm.n_pop,
+                min_samples_split=min_samples_split,
+            )
+            self.surrogate_model = surrogate_model
+            return offspring
         predicted_values = self.pre_selection_score(offspring, parents)
         final_offspring = []
         if algorithm.pre_selection == "model-size-medium":

@@ -14,6 +14,7 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.manifold import TSNE
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 
@@ -231,7 +232,7 @@ def sort_tree(nodes_list: List[List[str]]) -> List[str]:
 
 
 def gp_tree_clustering(inds, n_clusters=3):
-    one_hot_encoded, _ = extract_gp_tree_features(inds)
+    one_hot_encoded = extract_gp_tree_features(inds)
 
     # Clustering
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
@@ -251,43 +252,104 @@ def gp_tree_clustering(inds, n_clusters=3):
 
 
 def extract_gp_tree_features(inds, encoder=None):
-    all_features = []
-    # Extract and process features from each individual's gene
-    for ind in inds:
-        features = []
-        for tree in ind.gene:
-            feature = process_tree_and_concat_levels(tree, cutoff=5)
-            # Ensure each feature list has exactly 5 elements by appending empty strings if necessary
-            if len(feature) < 5:
-                feature.extend([""] * (5 - len(feature)))
-            features.append(feature)
-        features = sort_tree(features)
-        all_features.append(features)
+    all_features = feature_extraction(inds)
+    encoder, one_hot_encoded = feature_encoding(all_features, encoder)
+    return one_hot_encoded
+
+
+def feature_encoding(all_features, encoder=None):
     # One-hot encoding
     if encoder is None:
         encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         one_hot_encoded = encoder.fit_transform(all_features)
     else:
         one_hot_encoded = encoder.transform(all_features)
-    return one_hot_encoded, encoder
+    return encoder, one_hot_encoded
 
 
-def gp_tree_prediction(parents, inds, top_inds=10):
-    # Extract features and prepare labels for training data
-    one_hot_encoded_training, encoder = extract_gp_tree_features(parents)
+def feature_extraction(inds):
+    all_features = []
+    # Extract and process features from each individual's gene
+    for ind in inds:
+        features = []
+        for tree in ind.gene:
+            cutoff = 3
+            feature = process_tree_and_concat_levels(tree, cutoff=cutoff)
+            # Ensure each feature list has exactly 5 elements by appending empty strings if necessary
+            if len(feature) < cutoff:
+                feature.extend([""] * (cutoff - len(feature)))
+            features.append(feature)
+        features = sort_tree(features)
+        all_features.append(features)
+    return all_features
+
+
+class HistoricalData:
+    def __init__(self, max_size=10):
+        self.max_size = max_size
+        self.data = []
+        self.labels = []
+
+    def extend(self, data, labels):
+        # Extend the data and labels lists
+        self.data.extend(data)
+        self.labels.extend(labels)
+
+        # Ensure that the size of data and labels does not exceed max_size
+        if len(self.data) > self.max_size:
+            # Calculate the number of elements to remove
+            excess = len(self.data) - self.max_size
+
+            # Remove the oldest elements to maintain the size
+            self.data = self.data[excess:]
+            self.labels = self.labels[excess:]
+
+    def get_data_and_labels(self):
+        return self.data, self.labels
+
+
+def gp_tree_prediction(
+    parents,
+    inds,
+    historical_best: HistoricalData,
+    surrogate_model,
+    top_inds=10,
+    min_samples_split=10,
+):
+    all_features = feature_extraction(parents)
     labels = [ind.fitness.wvalues[0] for ind in parents]
+    historical_best.extend(all_features, labels)
 
-    # Train Random Forest Regressor
-    rf = RandomForestRegressor()
-    rf.fit(one_hot_encoded_training, labels)
+    all_features, labels = historical_best.get_data_and_labels()
 
-    # Extract features for test data
-    one_hot_encoded_test, _ = extract_gp_tree_features(inds, encoder)
+    if surrogate_model is None:
+        # Create a pipeline with OneHotEncoder and RandomForestRegressor
+        model_pipeline = Pipeline(
+            [
+                ("onehot", OneHotEncoder(sparse=False, handle_unknown="ignore")),
+                ("rf", RandomForestRegressor(min_samples_split=min_samples_split)),
+            ]
+        )
+    else:
+        model_pipeline = surrogate_model
 
-    # Make predictions and get prediction uncertainties
-    predictions = rf.predict(one_hot_encoded_test)
+    # Train the pipeline on the training data
+    model_pipeline.fit(all_features, labels)
+
+    # Extract features for test data (automatically encoded by the pipeline)
+    all_features_test = feature_extraction(inds)
+    predictions = model_pipeline.predict(all_features_test)
+
+    # Calculate prediction uncertainties
+    rf = model_pipeline.named_steps["rf"]
     uncertainties = np.std(
-        [tree.predict(one_hot_encoded_test) for tree in rf.estimators_], axis=0
+        [
+            tree.predict(
+                model_pipeline.named_steps["onehot"].transform(all_features_test)
+            )
+            for tree in rf.estimators_
+        ],
+        axis=0,
     )
 
     # Combine predictions and uncertainties
@@ -297,7 +359,7 @@ def gp_tree_prediction(parents, inds, top_inds=10):
     top_indices = np.argsort(combined_scores)[-top_inds:]
     selected_inds = [inds[i] for i in top_indices]
 
-    return selected_inds
+    return selected_inds, model_pipeline
 
 
 if __name__ == "__main__":
