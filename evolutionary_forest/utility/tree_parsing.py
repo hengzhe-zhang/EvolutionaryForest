@@ -231,7 +231,7 @@ def sort_tree(nodes_list: List[List[str]]) -> List[str]:
 
 
 def gp_tree_clustering(inds, n_clusters=3):
-    one_hot_encoded = extract_gp_tree_features(inds)
+    one_hot_encoded, _ = extract_gp_tree_features(inds)
 
     # Clustering
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
