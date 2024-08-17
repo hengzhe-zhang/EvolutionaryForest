@@ -17,6 +17,10 @@ from xgboost import XGBRegressor
 from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.multigene_gp import result_calculation
 from evolutionary_forest.sklearn_utils import cross_val_predict
+from evolutionary_forest.utility.tree_parsing import (
+    gp_tree_clustering,
+    gp_tree_prediction,
+)
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -29,8 +33,9 @@ class SurrogateModel:
     1. simple-task: A simple surrogate task
     """
 
-    def __init__(self, algorithm):
+    def __init__(self, algorithm, brood_generation_ratio=3, **params):
         self.algorithm: "EvolutionaryForestRegressor" = algorithm
+        self.brood_generation_ratio = brood_generation_ratio
 
     def feature_surrogate_model(self):
         algorithm = self.algorithm
@@ -89,6 +94,10 @@ class SurrogateModel:
 
     def pre_selection_individuals(self, parents, offspring, pop_size):
         algorithm = self.algorithm
+        if algorithm.pre_selection == "Clustering":
+            return gp_tree_clustering(offspring, n_clusters=algorithm.n_pop)
+        if algorithm.pre_selection == "RandomForest":
+            return gp_tree_prediction(parents, offspring, top_inds=algorithm.n_pop)
         predicted_values = self.pre_selection_score(offspring, parents)
         final_offspring = []
         if algorithm.pre_selection == "model-size-medium":
@@ -100,7 +109,7 @@ class SurrogateModel:
             index = np.argsort(-1 * predicted_values)[:pop_size]
         for i in index:
             final_offspring.append(offspring[i])
-        return final_offspring, predicted_values[index]
+        return final_offspring
 
     def pre_selection_score(self, offspring, parents):
         algorithm = self.algorithm

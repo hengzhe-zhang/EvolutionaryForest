@@ -841,7 +841,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **vars(self),
         )
         self.multi_fidelity_evaluation = MultiFidelityEvaluation(**params, **vars(self))
-        self.surrogate_model = SurrogateModel(self)
+        self.surrogate_model = SurrogateModel(self, **params)
         self.estimation_of_distribution = EstimationOfDistribution(
             algorithm=self, **params, **vars(self)
         )
@@ -3696,6 +3696,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # determine the number of individuals to generate
             individuals_to_generate = pop_size
+            if self.pre_selection != None:
+                individuals_to_generate *= self.surrogate_model.brood_generation_ratio
 
             if self.norevisit_strategy == "Crossover+Mutation":
                 offspring = []
@@ -3848,6 +3850,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             if self.verbose:
                 print("Discarded Individuals", discarded_individuals)
+
+            if self.pre_selection != None:
+                new_offspring = self.surrogate_model.pre_selection_individuals(
+                    population, new_offspring, self.n_pop
+                )
+                assert len(new_offspring) == self.n_pop, f"{len(offspring), self.n_pop}"
+            else:
+                new_offspring = new_offspring
+
             assert len(new_offspring) == pop_size, f"{len(new_offspring), pop_size}"
             new_offspring = self.semantic_approximation(new_offspring)
             new_offspring = self.tarpeian(new_offspring)
@@ -3862,16 +3873,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     if hasattr(ind, attr):
                         delattr(ind, attr)
 
-            if self.pre_selection != None:
-                (
-                    offspring,
-                    predicted_values,
-                ) = self.surrogate_model.pre_selection_individuals(
-                    population, new_offspring, self.n_pop
-                )
-                assert len(offspring) == self.n_pop, f"{len(offspring), self.n_pop}"
-            else:
-                offspring = new_offspring
+            offspring = new_offspring
 
             self.multi_fidelity_evaluation.update_evaluation_mode(self.current_gen)
             if self.reduction_ratio >= 1:
