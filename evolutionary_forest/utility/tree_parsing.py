@@ -1,3 +1,6 @@
+import operator
+import random
+from collections import defaultdict
 from typing import List
 
 import matplotlib.pyplot as plt
@@ -6,6 +9,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from category_encoders import OneHotEncoder
+from deap import base, creator, gp, tools
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor
@@ -139,9 +143,6 @@ def plot_tree(individual):
     nx.draw(g, pos, with_labels=False, arrows=False)
     nx.draw_networkx_labels(g, pos, labels)
     plt.show()
-
-
-from collections import defaultdict
 
 
 def mark_node_levels_recursive(individual, index=0, level=0):
@@ -300,10 +301,6 @@ def gp_tree_prediction(parents, inds, top_inds=10):
 
 
 if __name__ == "__main__":
-    import operator
-    import random
-    from deap import base, creator, gp, tools
-
     # Step 1: Define the primitive set
     pset = gp.PrimitiveSet("MAIN", 1)  # 1 input variable
     pset.addPrimitive(operator.add, 2)  # Add function with arity 2
