@@ -38,14 +38,14 @@ class SurrogateModel:
         self,
         algorithm,
         brood_generation_ratio=3,
-        surrogate_min_samples_split=10,
+        surrogate_min_samples_leaf=10,
         surrogate_history=1000,
         surrogate_retrain_interval=1,
         **params
     ):
         self.surrogate_model = None
         self.historical_best = HistoricalData(max_size=surrogate_history)
-        self.surrogate_min_samples_split = surrogate_min_samples_split
+        self.surrogate_min_samples_leaf = surrogate_min_samples_leaf
         self.surrogate_retrain_interval = surrogate_retrain_interval
         self.algorithm: "EvolutionaryForestRegressor" = algorithm
         self.brood_generation_ratio = brood_generation_ratio
@@ -110,7 +110,7 @@ class SurrogateModel:
         if algorithm.pre_selection == "Clustering":
             return gp_tree_clustering(offspring, n_clusters=algorithm.n_pop)
         if algorithm.pre_selection == "RandomForest":
-            min_samples_split = self.surrogate_min_samples_split
+            min_samples_split = self.surrogate_min_samples_leaf
             if algorithm.current_gen % self.surrogate_retrain_interval == 0:
                 # clear
                 self.surrogate_model = None
