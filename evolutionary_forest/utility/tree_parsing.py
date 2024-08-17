@@ -265,7 +265,7 @@ def extract_gp_tree_features(inds, encoder=None):
         all_features.append(features)
     # One-hot encoding
     if encoder is None:
-        encoder = OneHotEncoder(handle_unknown="ignore")
+        encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         one_hot_encoded = encoder.fit_transform(all_features)
     else:
         one_hot_encoded = encoder.transform(all_features)
