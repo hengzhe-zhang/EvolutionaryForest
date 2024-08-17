@@ -110,7 +110,7 @@ class SurrogateModel:
         if algorithm.pre_selection == "Clustering":
             return gp_tree_clustering(offspring, n_clusters=algorithm.n_pop)
         if algorithm.pre_selection == "RandomForest":
-            min_samples_split = self.surrogate_min_samples_leaf
+            min_samples_leaf = self.surrogate_min_samples_leaf
             if algorithm.current_gen % self.surrogate_retrain_interval == 0:
                 # clear
                 self.surrogate_model = None
@@ -120,7 +120,7 @@ class SurrogateModel:
                 self.historical_best,
                 self.surrogate_model,
                 top_inds=algorithm.n_pop,
-                min_samples_split=min_samples_split,
+                min_samples_leaf=min_samples_leaf,
             )
             self.surrogate_model = surrogate_model
             return offspring

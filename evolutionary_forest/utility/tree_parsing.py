@@ -314,7 +314,7 @@ def gp_tree_prediction(
     historical_best: HistoricalData,
     surrogate_model,
     top_inds=10,
-    min_samples_split=10,
+    min_samples_leaf=10,
 ):
     all_features = feature_extraction(parents)
     labels = [ind.fitness.wvalues[0] for ind in parents]
@@ -327,7 +327,7 @@ def gp_tree_prediction(
         model_pipeline = Pipeline(
             [
                 ("onehot", OneHotEncoder(sparse=False, handle_unknown="ignore")),
-                ("rf", RandomForestRegressor(min_samples_split=min_samples_split)),
+                ("rf", RandomForestRegressor(min_samples_leaf=min_samples_leaf)),
             ]
         )
     else:
