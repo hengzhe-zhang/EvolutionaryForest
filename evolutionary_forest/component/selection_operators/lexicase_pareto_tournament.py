@@ -8,6 +8,7 @@ from evolutionary_forest.component.selection_operators.non_dominated_sorting imp
 
 def sel_lexicase_pareto_tournament_weighted_subset(pop, k, subset_size):
     weights = np.median([ind.case_values for ind in pop], axis=0)
+    weights = weights / np.sum(weights)
     subset = np.random.choice(
         len(pop[0].case_values), subset_size, replace=False, p=weights
     )
