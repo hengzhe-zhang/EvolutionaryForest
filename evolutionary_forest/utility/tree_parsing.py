@@ -330,11 +330,11 @@ def gp_tree_prediction(
                 ("rf", RandomForestRegressor(min_samples_leaf=min_samples_leaf)),
             ]
         )
+
+        # Train the pipeline on the training data
+        model_pipeline.fit(all_features, labels)
     else:
         model_pipeline = surrogate_model
-
-    # Train the pipeline on the training data
-    model_pipeline.fit(all_features, labels)
 
     # Extract features for test data (automatically encoded by the pipeline)
     all_features_test = feature_extraction(inds)
