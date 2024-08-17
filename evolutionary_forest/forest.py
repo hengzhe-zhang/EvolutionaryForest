@@ -197,6 +197,10 @@ from evolutionary_forest.component.selection import (
     selLexicaseKNN,
     hybrid_lexicase_dcd,
 )
+from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
+    sel_lexicase_pareto_tournament_random_subset,
+    sel_lexicase_pareto_tournament_weighted_subset,
+)
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
 )
@@ -2347,6 +2351,23 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.select == "DoubleRound":
             toolbox.register("select", selDoubleRound)
+        elif self.select.startswith("LexicaseParetoTournament"):
+            if "-" in self.select:
+                subset_size = int(self.select.split("-")[1])
+            else:
+                subset_size = 2
+            if self.select.startswith("LexicaseParetoTournamentWeighted"):
+                toolbox.register(
+                    "select",
+                    sel_lexicase_pareto_tournament_weighted_subset,
+                    subset_size=subset_size,
+                )
+            else:
+                toolbox.register(
+                    "select",
+                    sel_lexicase_pareto_tournament_random_subset,
+                    subset_size=subset_size,
+                )
         elif self.select.startswith("ParetoTournament"):
             if "-" in self.select:
                 subset_ratio = float(self.select.split("-")[1])
@@ -5002,9 +5023,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     if self.select.startswith("ParetoTournament"):
                         offspring = toolbox.select(
                             parent + external_archive, self.n_pop
-                        )
-                        offspring = pareto_tournament_controller(
-                            offspring, self.select.split("~")[1]
                         )
                     else:
                         offspring = toolbox.select(parent + external_archive, 2)
