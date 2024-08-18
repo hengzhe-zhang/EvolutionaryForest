@@ -326,7 +326,7 @@ def gp_tree_prediction(
     historical_best.extend(current_all_features, current_labels)
     current_labels = np.array(current_labels)
     if current_samples == 0:
-        return parents[:top_inds], None
+        return inds[:top_inds], None
 
     if surrogate_model is None:
         # Create a pipeline with OneHotEncoder and RandomForestRegressor
@@ -345,7 +345,7 @@ def gp_tree_prediction(
     # Calculate the Spearman correlation coefficient
     spearman_score = spearmanr(current_labels, prediction)[0]
     if spearman_score < threshold:
-        return parents[:top_inds], None
+        return inds[:top_inds], None
 
     # Extract features for test data (automatically encoded by the pipeline)
     all_features_test = feature_extraction(inds)
