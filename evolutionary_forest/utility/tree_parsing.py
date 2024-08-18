@@ -13,7 +13,7 @@ from deap import base, creator, gp, tools
 from scipy.stats import spearmanr
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.manifold import TSNE
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
@@ -317,6 +317,7 @@ def gp_tree_prediction(
     top_inds=10,
     min_samples_leaf=10,
     threshold=0.2,
+    surrogate_model_type="RandomForest",
 ):
     all_features, labels = historical_best.get_data_and_labels()
     current_samples = len(all_features)
@@ -330,10 +331,16 @@ def gp_tree_prediction(
 
     if surrogate_model is None:
         # Create a pipeline with OneHotEncoder and RandomForestRegressor
+        if surrogate_model_type == "RandomForest":
+            model = RandomForestRegressor(min_samples_leaf=min_samples_leaf)
+        elif surrogate_model_type == "ExtraTrees":
+            model = ExtraTreesRegressor(min_samples_leaf=min_samples_leaf)
+        else:
+            raise ValueError("Invalid surrogate model type")
         model_pipeline = Pipeline(
             [
                 ("onehot", OneHotEncoder(sparse=False, handle_unknown="ignore")),
-                ("rf", RandomForestRegressor(min_samples_leaf=min_samples_leaf)),
+                ("rf", model),
             ]
         )
         # Train the pipeline on the training data
