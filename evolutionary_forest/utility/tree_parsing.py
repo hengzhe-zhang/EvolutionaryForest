@@ -10,6 +10,7 @@ import pandas as pd
 import seaborn as sns
 from category_encoders import OneHotEncoder
 from deap import base, creator, gp, tools
+from scipy.stats import spearmanr
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor
@@ -315,12 +316,17 @@ def gp_tree_prediction(
     surrogate_model,
     top_inds=10,
     min_samples_leaf=10,
+    threshold=0.2,
 ):
-    all_features = feature_extraction(parents)
-    labels = [ind.fitness.wvalues[0] for ind in parents]
-    historical_best.extend(all_features, labels)
-
     all_features, labels = historical_best.get_data_and_labels()
+    current_samples = len(all_features)
+
+    current_all_features = feature_extraction(parents)
+    current_labels = [ind.fitness.wvalues[0] for ind in parents]
+    historical_best.extend(current_all_features, current_labels)
+    current_labels = np.array(current_labels)
+    if current_samples == 0:
+        return parents[:top_inds], None
 
     if surrogate_model is None:
         # Create a pipeline with OneHotEncoder and RandomForestRegressor
@@ -330,11 +336,16 @@ def gp_tree_prediction(
                 ("rf", RandomForestRegressor(min_samples_leaf=min_samples_leaf)),
             ]
         )
-
         # Train the pipeline on the training data
-        model_pipeline.fit(all_features, labels)
+        model_pipeline.fit(all_features[:current_samples], labels[:current_samples])
     else:
         model_pipeline = surrogate_model
+
+    prediction = model_pipeline.predict(current_all_features)
+    # Calculate the Spearman correlation coefficient
+    spearman_score = spearmanr(current_labels, prediction)[0]
+    if spearman_score < threshold:
+        return parents[:top_inds], None
 
     # Extract features for test data (automatically encoded by the pipeline)
     all_features_test = feature_extraction(inds)

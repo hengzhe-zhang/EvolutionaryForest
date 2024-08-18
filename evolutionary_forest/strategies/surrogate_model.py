@@ -41,8 +41,10 @@ class SurrogateModel:
         surrogate_min_samples_leaf=10,
         surrogate_history=1000,
         surrogate_retrain_interval=1,
+        surrogate_threshold=0.2,
         **params
     ):
+        self.surrogate_threshold = surrogate_threshold
         self.surrogate_model = None
         self.historical_best = HistoricalData(max_size=surrogate_history)
         self.surrogate_min_samples_leaf = surrogate_min_samples_leaf
@@ -111,9 +113,9 @@ class SurrogateModel:
             return gp_tree_clustering(offspring, n_clusters=algorithm.n_pop)
         if algorithm.pre_selection == "RandomForest":
             min_samples_leaf = self.surrogate_min_samples_leaf
-            if algorithm.current_gen % self.surrogate_retrain_interval == 0:
-                # clear
-                self.surrogate_model = None
+            # if algorithm.current_gen % self.surrogate_retrain_interval == 0:
+            #     # clear
+            #     self.surrogate_model = None
             offspring, surrogate_model = gp_tree_prediction(
                 parents,
                 offspring,
@@ -121,6 +123,7 @@ class SurrogateModel:
                 self.surrogate_model,
                 top_inds=algorithm.n_pop,
                 min_samples_leaf=min_samples_leaf,
+                threshold=self.surrogate_threshold,
             )
             self.surrogate_model = surrogate_model
             return offspring
