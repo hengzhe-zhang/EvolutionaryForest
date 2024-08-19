@@ -1,7 +1,5 @@
 from functools import partial
 
-import torch
-
 from evolutionary_forest.component.primitive_functions import *
 
 simple_reduce = lambda function, *x: reduce(function, x)
@@ -13,6 +11,7 @@ def get_functions(p):
         "Add": (np.add, 2),  # Addition
         "Sub": (np.subtract, 2),  # Subtraction
         "Mul": (np.multiply, 2),  # Multiplication
+        "Div-O": (np.divide, 2),
         "Div": (
             protected_division,
             2,
@@ -54,6 +53,7 @@ def get_functions(p):
         "AQ^4": (partial(simple_reduce, analytical_quotient), 4),  # AQ
         "AQ^5": (partial(simple_reduce, analytical_quotient), 5),  # AQ
         "Sqrt": (protect_sqrt, 1),  # Protected square root for handling negative values
+        "Sqrt-O": (np.sqrt, 1),
         "Sqrt-Signed": (
             sqrt_signed,
             1,
@@ -62,6 +62,7 @@ def get_functions(p):
             analytical_log,
             1,
         ),  # Analytical Logarithm for symbolic differentiation
+        "Log-O": (np.log, 1),
         "ALog-Signed": (
             analytical_log_singed,
             1,
