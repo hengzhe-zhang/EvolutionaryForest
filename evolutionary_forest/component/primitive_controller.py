@@ -58,6 +58,7 @@ def get_functions(p):
             sqrt_signed,
             1,
         ),  # Protected square root for handling negative values
+        "Log": (protect_log, 1),
         "ALog": (
             analytical_log,
             1,
@@ -88,7 +89,6 @@ def get_functions(p):
         "FourthPower": (fourth_power, 1),  # Square function
         "FifthPower": (fifth_power, 1),  # Cube function
         "LogXY": (protected_log_xy, 2),
-        "Log": (protected_log, 1),
         "Log2": (protected_log2, 1),
         "Log10": (protected_log10, 1),
         "Exp2": (protected_exp2, 1),

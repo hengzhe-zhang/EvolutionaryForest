@@ -215,6 +215,10 @@ def protect_sqrt(a):
     return np.sqrt(np.abs(a))
 
 
+def protect_log(a):
+    return np.log(np.abs(a))
+
+
 def protect_sqrt_torch(a):
     return torch.sqrt(torch.abs(a))
 
