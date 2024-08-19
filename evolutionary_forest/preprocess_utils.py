@@ -171,5 +171,26 @@ class StandardScalerWithMinMaxScaler(TransformerMixin):
         return unique_data
 
 
+class StandardScalerWithMinMaxScalerAndBounds(StandardScalerWithMinMaxScaler):
+    """
+    Extends StandardScalerWithMinMaxScaler to include feature bounding.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.feature_min_ = None
+        self.feature_max_ = None
+
+    def fit(self, X, y=None):
+        self.feature_min_ = np.min(X, axis=0)
+        self.feature_max_ = np.max(X, axis=0)
+        super().fit(X, y)
+        return self
+
+    def transform(self, X, y=None):
+        X = np.clip(X, self.feature_min_, self.feature_max_)
+        return super().transform(X)
+
+
 if __name__ == "__main__":
     pass
