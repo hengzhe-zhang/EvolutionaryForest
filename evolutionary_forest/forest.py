@@ -1935,17 +1935,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.score_func = R2Size()
             else:
                 self.score_func = MTLR2Size(self.y.shape[1])
-        if self.mutation_configuration.pool_based_addition:
-            self.tree_pool = SemanticLibrary(verbose=self.verbose, **self.param)
-            self.tree_pool.target_semantics = self.y
-            interval = self.mutation_configuration.pool_hard_instance_interval
-            clustering_mode = self.mutation_configuration.library_clustering_mode
-            if interval == 0 and clustering_mode is not False:
-                self.tree_pool.set_clustering_based_semantics(self.y, clustering_mode)
-            if self.mutation_configuration.include_subtree_to_lib:
-                self.evaluation_configuration.semantic_library = self.tree_pool
-        else:
-            self.tree_pool = None
 
         if isinstance(self.gene_num, str) and "Max" in self.gene_num:
             self.gene_num = min(int(self.gene_num.replace("Max-", "")), x.shape[1])
@@ -2201,6 +2190,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.smooth_model: NearestValueTransformer = NearestValueTransformer()
             self.smooth_model.fit(self.X, self.y)
 
+        if self.mutation_configuration.pool_based_addition:
+            self.tree_pool = SemanticLibrary(
+                verbose=self.verbose, pset=pset, **self.param
+            )
+            self.tree_pool.target_semantics = self.y
+            interval = self.mutation_configuration.pool_hard_instance_interval
+            clustering_mode = self.mutation_configuration.library_clustering_mode
+            if interval == 0 and clustering_mode is not False:
+                self.tree_pool.set_clustering_based_semantics(self.y, clustering_mode)
+            if self.mutation_configuration.include_subtree_to_lib:
+                self.evaluation_configuration.semantic_library = self.tree_pool
         # self.mutation_configuration.pool_addition_mode = pool_mode_controller(
         #     self.mutation_configuration.pool_addition_mode, self.X, self.y
         # )
@@ -3443,6 +3443,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         self.n_gen,
                     )
             self.tree_pool.append_full_tree(self.pop, self.y)
+            self.tree_pool.train_nn()
         # self.model_size_archive.update(self.pop)
         self.validation_set_generation()
         gc.collect()

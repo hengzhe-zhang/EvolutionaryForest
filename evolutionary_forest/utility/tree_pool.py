@@ -1,5 +1,4 @@
 import math
-import random
 from collections import defaultdict
 from typing import List, TYPE_CHECKING
 
@@ -23,6 +22,10 @@ from evolutionary_forest.component.configuration import MAPElitesConfiguration
 from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness,
+)
+from evolutionary_forest.utility.mlp_library import (
+    NeuralSemanticLibrary,
+    filter_train_data_by_node_count,
 )
 from evolutionary_forest.utility.shapley_tool import copy_and_rename_tree
 from evolutionary_forest.utility.tree_pool_util.adaptive_instance_selection import (
@@ -111,6 +114,7 @@ class SemanticLibrary:
         library_updating_mode="LeastFrequentUsed",
         semantics_length=5,
         random_order_replacement=True,
+        pset=None,
         verbose=False,
         **params,
     ):
@@ -138,6 +142,13 @@ class SemanticLibrary:
         self.log_initialization()
         self.forbidden_list = set()
         self.previous_loss_matrix = None
+        self.mlp = NeuralSemanticLibrary(
+            input_size=semantics_length,
+            num_layers=1,
+            dropout=0,
+            pset=pset,
+            output_primitive_length=3,
+        )
 
     def log_initialization(self):
         self.mismatch_times = []
@@ -887,3 +898,13 @@ class SemanticLibrary:
         plt.title("Top Frequencies of Retrieved Trees")
         plt.tight_layout()
         plt.show()
+
+    def train_nn(self):
+        train_data = [
+            (tree, semantics)
+            for tree, semantics in zip(self.trees, self.normalized_semantics_list)
+        ]
+        train_data = filter_train_data_by_node_count(
+            train_data, max_nodes=self.mlp.output_primitive_length
+        )
+        self.mlp.train(train_data)

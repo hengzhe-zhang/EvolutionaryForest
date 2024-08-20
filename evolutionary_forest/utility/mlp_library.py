@@ -4,7 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from deap.gp import PrimitiveSet, PrimitiveTree
+from deap.gp import PrimitiveSet, PrimitiveTree, Primitive
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.probability_gp import genHalfAndHalf
@@ -65,7 +66,7 @@ class PrimitiveSetUtils:
 
         return functions, terminals
 
-    def extract_targets(self, train_data):
+    def extract_targets(self, train_data, max_length):
         """
         Extract targets from GP trees in the training data and pad them to have the same length.
 
@@ -73,8 +74,6 @@ class PrimitiveSetUtils:
         :return: List of padded target tensors.
         """
         targets = []
-
-        max_length = 0  # Determine the maximum length for padding
 
         # First pass: Extract tree indices and determine max length
         tree_indices_list = []
@@ -94,7 +93,6 @@ class PrimitiveSetUtils:
 
             # Store the tree indices and update max_length
             tree_indices_list.append(tree_indices)
-            max_length = max(max_length, len(tree_indices))
 
         # Second pass: Pad tree indices and convert to tensors
         for tree_indices in tree_indices_list:
@@ -117,6 +115,107 @@ class PrimitiveSetUtils:
         terminals = self.pset.terminals[object]
         return functions, terminals
 
+    def convert_node_names_to_gp_tree(self, node_names):
+        """
+        Convert a list of node names into a DEAP GP tree.
+
+        :param node_names: List of node names corresponding to functions and terminals.
+        :return: DEAP GP tree constructed from the node names.
+        """
+        # Create a dictionary to map function names to their DEAP functions
+        func_dict = {func.name: func for func in self.pset.primitives[object]}
+        term_dict = {term.name: term for term in self.pset.terminals[object]}
+
+        def build_tree(node_names):
+            track = 0
+            if not node_names:
+                return None
+
+            stack = []
+            for idx, name in enumerate(node_names):
+                if idx > 0 and track == 0:
+                    break
+                if name in func_dict:
+                    func = func_dict[name]
+                    arity = func.arity
+                    if track != 0:
+                        track -= 1
+                    track += arity
+                    stack.append(func_dict[name])
+                elif name in term_dict:
+                    track -= 1
+                    terminal = term_dict[name]
+                    if callable(terminal):
+                        terminal = terminal()
+                    stack.append(terminal)
+                else:
+                    raise ValueError(f"Node name '{name}' not found in PrimitiveSet")
+            return stack
+
+        def reorder_node_names_recursive(node_names):
+            """
+            Reorder a list of node names such that each function is followed by its arguments using recursion.
+
+            :param node_names: List of node names corresponding to functions and terminals.
+            :return: Reordered list of node names.
+            """
+            if not node_names:
+                return []
+
+            # Take the first node from the list
+            first = node_names.pop(0)
+
+            # If it's a function (Primitive), it will have arguments
+            if isinstance(first, Primitive):
+                # Recursively get the reordered arguments based on the arity of the function
+                args = [
+                    reorder_node_names_recursive(node_names) for _ in range(first.arity)
+                ]
+                # Flatten the list of arguments and append the function at the beginning
+                return [first] + [item for sublist in args for item in sublist]
+            else:
+                # If it's a terminal, just return it
+                return [first]
+
+        return reorder_node_names_recursive(build_tree(node_names))
+
+
+def get_max_arity(pset):
+    """
+    Extract the maximum arity of functions from the DEAP PrimitiveSet.
+
+    :param pset: DEAP PrimitiveSet object containing functions and terminals.
+    :return: Maximum arity of functions in the PrimitiveSet.
+    """
+    max_arity = 0
+
+    # Iterate over functions in the PrimitiveSet
+    for func in pset.primitives[object]:
+        if hasattr(func, "arity"):
+            max_arity = max(max_arity, func.arity)
+
+    return max_arity
+
+
+def calculate_terminals_needed(num_functions, pset):
+    """
+    Calculate the number of terminals needed to ensure a complete tree in GEP.
+
+    :param num_functions: Number of primitive functions.
+    :param max_arity: Maximum arity of the functions.
+    :return: Number of terminals required.
+    """
+    max_arity = get_max_arity(pset)
+    if num_functions < 0 or max_arity <= 0:
+        raise ValueError(
+            "Number of functions must be non-negative and maximum arity must be positive."
+        )
+
+    # Calculate the number of terminals required
+    num_terminals = 1 + (num_functions * (max_arity - 1))
+
+    return num_functions + num_terminals
+
 
 class NeuralSemanticLibrary(nn.Module):
     def __init__(
@@ -126,7 +225,7 @@ class NeuralSemanticLibrary(nn.Module):
         output_size=20,
         num_layers=1,
         dropout=0.1,
-        output_sequence_length=7,
+        output_primitive_length=3,
         pset=None,  # Add pset parameter
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -135,7 +234,9 @@ class NeuralSemanticLibrary(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.output_sequence_length = output_sequence_length
+        self.output_primitive_length = output_primitive_length
+        max_nodes = calculate_terminals_needed(output_primitive_length, pset)
+        self.output_sequence_length = max_nodes
 
         self.pset_utils = (
             PrimitiveSetUtils(pset) if pset else None
@@ -155,7 +256,7 @@ class NeuralSemanticLibrary(nn.Module):
             layers.append(nn.Dropout(dropout))
             input_size = hidden_size
 
-        layers.append(nn.Linear(hidden_size, output_sequence_length * output_size))
+        layers.append(nn.Linear(hidden_size, self.output_sequence_length * output_size))
         self.mlp = nn.Sequential(*layers)
 
         # Define the embedding layer
@@ -178,6 +279,8 @@ class NeuralSemanticLibrary(nn.Module):
         return dot_products
 
     def generate_gp_tree(self, semantics):
+        number_of_terminals = self.output_sequence_length - self.output_primitive_length
+
         # Convert semantics to tensor
         semantics_tensor = torch.tensor(semantics, dtype=torch.float32).unsqueeze(
             0
@@ -193,9 +296,9 @@ class NeuralSemanticLibrary(nn.Module):
             )  # Shape: (batch_size, output_sequence_length, num_symbols)
 
             # Set the mask values for terminals and non-terminals
-            mask[:, -4:, :] = 0
+            mask[:, -number_of_terminals:, :] = 0
             mask[
-                :, -4:, -self.num_terminals :
+                :, -number_of_terminals:, -self.num_terminals :
             ] = 1  # Ensure last four positions are terminals
 
             # Apply the mask to the output vector
@@ -215,22 +318,52 @@ class NeuralSemanticLibrary(nn.Module):
             node_name = index_to_node_name.get(idx, "Unknown")
             tree_node_names.append(node_name)
 
-        print(tree_node_names)
+        return tree_node_names
 
-    def train(self, train_data, batch_size=32, epochs=10, lr=0.001):
+    def train(
+        self,
+        train_data,
+        batch_size=32,
+        epochs=1000,
+        lr=0.001,
+        val_split=0.2,
+        patience=20,
+        verbose=False,
+    ):
+        """
+        Train the neural network with optional validation and early stopping.
+
+        :param train_data: List of tuples (gp_tree, target_semantics).
+        :param batch_size: Batch size for training.
+        :param epochs: Number of epochs for training.
+        :param lr: Learning rate.
+        :param val_split: Fraction of training data to use as validation.
+        :param patience: Number of epochs to wait for improvement before early stopping.
+        """
         optimizer = optim.Adam(self.parameters(), lr=lr)
         criterion = nn.CrossEntropyLoss()
 
+        # Extract targets and tensors
         tensors = [torch.tensor(d[1], dtype=torch.float32) for d in train_data]
-        targets = self.pset_utils.extract_targets(train_data) if self.pset_utils else []
-        targets = [
-            torch.tensor(t, dtype=torch.long) for t in targets
-        ]  # Convert targets to LongTensor
+        targets = self.pset_utils.extract_targets(
+            train_data, self.output_sequence_length
+        )
+        targets = [torch.tensor(t, dtype=torch.long) for t in targets]
+
+        # Split data into training and validation sets if val_split > 0
+        if val_split > 0:
+            train_tensors, val_tensors, train_targets, val_targets = train_test_split(
+                tensors, targets, test_size=val_split, random_state=0
+            )
+            train_data = list(zip(train_tensors, train_targets))
+            val_data = list(zip(val_tensors, val_targets))
+        else:
+            val_data = None
 
         # Stack tensors and targets to create a dataset
-        stacked_tensors = torch.stack(tensors)  # Shape: (num_samples, input_size)
+        stacked_tensors = torch.stack(train_tensors)  # Shape: (num_samples, input_size)
         # Reshape targets to (num_samples, output_sequence_length) if needed
-        stacked_targets = torch.stack(targets).view(
+        stacked_targets = torch.stack(train_targets).view(
             -1, self.output_sequence_length
         )  # Shape: (num_samples, output_sequence_length)
 
@@ -238,8 +371,12 @@ class NeuralSemanticLibrary(nn.Module):
         dataset = TensorDataset(stacked_tensors, stacked_targets)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
+        best_val_loss = float("inf")
+        patience_counter = 0
+
         for epoch in range(epochs):
             total_loss = 0
+            self.mlp.train()  # Set the model to training mode
             for batch_x, batch_y in dataloader:
                 # Ensure batch_x has shape (batch_size, input_size)
                 output = self.forward(batch_x)
@@ -267,7 +404,55 @@ class NeuralSemanticLibrary(nn.Module):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss / len(dataloader)}")
+
+            avg_loss = total_loss / len(dataloader)
+            if verbose:
+                print(f"Epoch {epoch + 1}/{epochs}, Training Loss: {avg_loss}")
+
+            # Validation
+            if val_data:
+                self.mlp.eval()  # Set the model to evaluation mode
+                val_tensors, val_targets = zip(*val_data)
+                val_tensors = torch.stack(val_tensors)
+                val_targets = torch.stack(val_targets).view(
+                    -1, self.output_sequence_length
+                )
+
+                val_output = self.forward(val_tensors)
+                val_mask = torch.ones_like(val_output)
+                val_masked_output = val_output * val_mask
+
+                val_targets = val_targets.view(-1)
+                val_masked_output = val_masked_output.view(-1, self.num_symbols)
+
+                val_loss = criterion(val_masked_output, val_targets).item()
+                if verbose:
+                    print(f"Epoch {epoch + 1}/{epochs}, Validation Loss: {val_loss}")
+
+                # Early stopping
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                    # Optionally save the model here
+                else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        if verbose:
+                            print(
+                                "Early stopping due to no improvement in validation loss."
+                            )
+                        break
+
+    def convert_to_primitive_tree(self, semantics):
+        """
+        Convert semantics to a GP tree and then to a PrimitiveTree.
+
+        :param semantics: List of node names representing the GP tree.
+        :return: PrimitiveTree constructed from the generated GP tree.
+        """
+        node_names = self.generate_gp_tree(semantics)
+        gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names)
+        return PrimitiveTree(gp_tree)
 
 
 def generate_synthetic_data(pset, num_samples=100):
@@ -294,7 +479,7 @@ def generate_synthetic_data(pset, num_samples=100):
     return data
 
 
-def create_random_gp_tree(pset, min_depth=0, max_depth=2, population_size=10):
+def create_random_gp_tree(pset, min_depth=1, max_depth=2):
     toolbox = base.Toolbox()
     # Initialize ramped half-and-half method
     toolbox.register(
@@ -321,7 +506,22 @@ def subtract(x, y):
     return x - y
 
 
+def filter_train_data_by_node_count(train_data, max_nodes=7):
+    """
+    Filter out GP trees from train_data with more than a specified number of nodes.
+
+    :param train_data: List of tuples (gp_tree, target_semantics), where gp_tree is a DEAP Individual.
+    :param max_nodes: Maximum number of nodes allowed in the GP trees.
+    :return: List of tuples (gp_tree, target_semantics) with GP trees having nodes count <= max_nodes.
+    """
+    filtered_train_data = [
+        (tree, semantics) for tree, semantics in train_data if len(tree) <= max_nodes
+    ]
+    return filtered_train_data
+
+
 if __name__ == "__main__":
+    np.random.seed(0)
     # Example usage
     input_size = 10  # Must be divisible by num_heads
     hidden_size = 64
@@ -340,8 +540,9 @@ if __name__ == "__main__":
 
     # Generate synthetic training data
     train_data = generate_synthetic_data(pset, num_samples=100)
+    train_data = filter_train_data_by_node_count(train_data)
 
     # Train the neural network
     nl.train(train_data, epochs=100, lr=0.001)
-    print(nl.generate_gp_tree(train_data[0][1]))
+    print(str(nl.convert_to_primitive_tree(train_data[0][1])))
     print(str(PrimitiveTree(train_data[0][0])))
