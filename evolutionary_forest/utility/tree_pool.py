@@ -120,6 +120,7 @@ class SemanticLibrary:
         pset=None,
         verbose=False,
         mutation_configuration: MutationConfiguration = None,
+        x_shape=0,
         **params,
     ):
         self.plain_semantics_list = []
@@ -149,7 +150,7 @@ class SemanticLibrary:
         self.mutation_configuration = mutation_configuration
         if mutation_configuration.neural_pool != 0:
             self.mlp = NeuralSemanticLibrary(
-                input_size=semantics_length,
+                input_size=min(semantics_length, x_shape),
                 hidden_size=64,
                 num_layers=3,
                 dropout=0,
@@ -917,4 +918,4 @@ class SemanticLibrary:
             train_data = filter_train_data_by_node_count(
                 train_data, max_nodes=self.mlp.output_primitive_length
             )
-            self.mlp.train(train_data, lr=0.01, verbose=True, patience=5)
+            self.mlp.train(train_data, lr=0.01, verbose=False, patience=5)

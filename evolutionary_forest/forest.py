@@ -2195,6 +2195,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 verbose=self.verbose,
                 pset=pset,
                 mutation_configuration=self.mutation_configuration,
+                x_shape=self.X.shape[0],
                 **self.param,
             )
             self.tree_pool.target_semantics = self.y
