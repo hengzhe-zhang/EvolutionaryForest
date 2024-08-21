@@ -149,7 +149,7 @@ class SemanticLibrary:
         self.previous_loss_matrix = None
         self.mutation_configuration = mutation_configuration
         if mutation_configuration.neural_pool != 0:
-            self.mlp = NeuralSemanticLibrary(
+            self.mlp_pool = NeuralSemanticLibrary(
                 input_size=min(semantics_length, x_shape),
                 hidden_size=64,
                 num_layers=3,
@@ -158,7 +158,7 @@ class SemanticLibrary:
                 output_primitive_length=3,
             )
         else:
-            self.mlp = 0
+            self.mlp_pool = 0
 
     def log_initialization(self):
         self.mismatch_times = []
@@ -916,6 +916,6 @@ class SemanticLibrary:
                 for tree, semantics in zip(self.trees, self.normalized_semantics_list)
             ]
             train_data = filter_train_data_by_node_count(
-                train_data, max_nodes=self.mlp.output_primitive_length
+                train_data, max_nodes=self.mlp_pool.output_primitive_length
             )
-            self.mlp.train(train_data, lr=0.01, verbose=False, patience=5)
+            self.mlp_pool.train(train_data, lr=0.01, verbose=False, patience=5)

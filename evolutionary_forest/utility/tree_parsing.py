@@ -147,7 +147,7 @@ def plot_tree(individual):
     plt.show()
 
 
-def mark_node_levels_recursive(individual, index=0, level=0):
+def mark_node_levels_recursive(individual, index=0, level=0, original_primitive=False):
     """
     Recursively parses a GP tree and marks the level of each node.
 
@@ -164,16 +164,19 @@ def mark_node_levels_recursive(individual, index=0, level=0):
         return [], index
 
     node = individual[index]
-    node_levels = [
-        (node.name if isinstance(node, gp.Primitive) else str(node.value), level)
-    ]
+    if original_primitive:
+        node_levels = [(node, level)]
+    else:
+        node_levels = [
+            (node.name if isinstance(node, gp.Primitive) else str(node.value), level)
+        ]
 
     if isinstance(node, gp.Primitive):  # If it's a function node
         child_index = index + 1
         for _ in range(node.arity):
             # Recursively process each child node
             child_levels, child_index = mark_node_levels_recursive(
-                individual, child_index, level + 1
+                individual, child_index, level + 1, original_primitive
             )
             node_levels.extend(child_levels)
     else:

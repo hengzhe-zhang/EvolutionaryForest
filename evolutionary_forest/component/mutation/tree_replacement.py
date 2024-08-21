@@ -87,7 +87,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
         residual = target - temp_semantics
 
         if neural_pool_global:
-            tree = algorithm.tree_pool.mlp.convert_to_primitive_tree(
+            tree = algorithm.tree_pool.mlp_pool.convert_to_primitive_tree(
                 normalize_vector(residual)
             )
             ind.gene[id] = tree

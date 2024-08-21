@@ -13,6 +13,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.probability_gp import genHalfAndHalf
+from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
 
 
 class PrimitiveSetUtils:
@@ -92,6 +93,7 @@ class PrimitiveSetUtils:
         tree_indices_list = []
         for tree, _ in train_data:
             tree: creator.Individual
+            tree = self.convert_gp_tree_to_node_names(tree)
 
             # Extract node names and convert to indices
             tree_indices = []
@@ -199,6 +201,11 @@ class PrimitiveSetUtils:
             return reorder_node_names_recursive(first, node_names)
 
         return pre_recursive(build_tree(node_names))
+
+    def convert_gp_tree_to_node_names(self, gp_tree):
+        level, _ = mark_node_levels_recursive(gp_tree, original_primitive=True)
+        reordered_list = list(map(lambda x: x[0], sorted(level, key=lambda x: x[1])))
+        return reordered_list
 
 
 def get_max_arity(pset):
@@ -637,18 +644,6 @@ if __name__ == "__main__":
     # np.random.seed(0)
 
     # ['subtract', 'add', 'ARG0', 'ARG1', 'subtract', 'ARG0', 'ARG1']
-
-    # utils = PrimitiveSetUtils(pset)
-    # print(
-    #     str(
-    #         PrimitiveTree(
-    #             utils.convert_node_names_to_gp_tree(
-    #                 ["subtract", "add", "subtract", "ARG0", "ARG1", "ARG0", "ARG1"]
-    #             )
-    #         )
-    #     )
-    # )
-
     # Example usage
     data = load_diabetes().data[:30]
 
@@ -663,8 +658,18 @@ if __name__ == "__main__":
     pset.addPrimitive(sqrt, 1)
     pset.addPrimitive(multiply, 2)
 
+    utils = PrimitiveSetUtils(pset)
+    generated_tree = PrimitiveTree(
+        utils.convert_node_names_to_gp_tree(
+            ["subtract", "add", "subtract", "ARG0", "ARG1", "ARG0", "ARG1"]
+        )
+    )
+    utils.convert_gp_tree_to_node_names(generated_tree)
+    print([node.name for node in generated_tree])
+    print(str(generated_tree))
+
     # Generate synthetic training data
-    fix_depth = 1
+    fix_depth = 2
     train_data = generate_synthetic_data(
         pset, num_samples=5000, min_depth=fix_depth, max_depth=fix_depth
     )
