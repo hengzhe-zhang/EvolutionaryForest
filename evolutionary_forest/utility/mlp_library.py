@@ -4,8 +4,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from deap import gp
 from deap.gp import PrimitiveSet, PrimitiveTree, Primitive
+from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.probability_gp import genHalfAndHalf
@@ -32,7 +36,9 @@ class PrimitiveSetUtils:
         node_names = [func.name for func in functions] + [
             term.name for term in terminals
         ]
-        return {name: idx for idx, name in enumerate(node_names)}
+        return {
+            name: idx + 1 for idx, name in enumerate(node_names)
+        }  # Start indexing from 1
 
     def get_index_to_node_name(self):
         """
@@ -40,7 +46,13 @@ class PrimitiveSetUtils:
 
         :return: Dictionary mapping indices to node names.
         """
-        return {index: name for name, index in self.node_name_to_index.items()}
+        index_to_node_name = {
+            0: ""
+        }  # Index 0 is reserved for padding and mapped to an empty string or None
+        index_to_node_name.update(
+            {idx: name for name, idx in self.node_name_to_index.items()}
+        )
+        return index_to_node_name
 
     def decode_to_functions_and_terminals(self, indices):
         """
@@ -74,6 +86,7 @@ class PrimitiveSetUtils:
         :return: List of padded target tensors.
         """
         targets = []
+        padding_index = 0  # Use 0 as the padding index
 
         # First pass: Extract tree indices and determine max length
         tree_indices_list = []
@@ -96,8 +109,10 @@ class PrimitiveSetUtils:
 
         # Second pass: Pad tree indices and convert to tensors
         for tree_indices in tree_indices_list:
-            # Pad the indices
-            padded_indices = tree_indices + [0] * (max_length - len(tree_indices))
+            # Pad the indices with the padding index
+            padded_indices = tree_indices + [padding_index] * (
+                max_length - len(tree_indices)
+            )
 
             # Convert to tensor and add to targets
             target_tensor = torch.tensor(padded_indices, dtype=torch.long)
@@ -233,6 +248,9 @@ class NeuralSemanticLibrary(nn.Module):
         dropout=0.1,
         output_primitive_length=3,
         pset=None,  # Add pset parameter
+        batch_norm=True,  # Add batch_norm parameter
+        residual=True,  # Add residual connection parameter
+        padding_idx=0,  # Padding index for embedding
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -241,6 +259,9 @@ class NeuralSemanticLibrary(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.output_primitive_length = output_primitive_length
+        self.batch_norm = batch_norm  # Store batch_norm flag
+        self.residual = residual  # Store residual connection flag
+
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
 
@@ -248,8 +269,8 @@ class NeuralSemanticLibrary(nn.Module):
             PrimitiveSetUtils(pset) if pset else None
         )  # Initialize PrimitiveSetUtils
         self.num_symbols = (
-            len(self.pset_utils.node_name_to_index) if self.pset_utils else 0
-        )  # Dynamically determine number of symbols
+            len(self.pset_utils.node_name_to_index) + 1 if self.pset_utils else 0
+        )  # Dynamically determine number of symbols (+1 for padding)
         self.num_terminals = (
             len(self.pset_utils.pset.terminals[object]) if self.pset_utils else 0
         )  # Store num_terminals as class attribute
@@ -258,19 +279,39 @@ class NeuralSemanticLibrary(nn.Module):
         layers = []
         for _ in range(num_layers):
             layers.append(nn.Linear(input_size, hidden_size))
-            layers.append(nn.ReLU())
+            if self.batch_norm:
+                layers.append(nn.BatchNorm1d(hidden_size))
+            layers.append(nn.GELU())
             layers.append(nn.Dropout(dropout))
             input_size = hidden_size
 
         layers.append(nn.Linear(hidden_size, self.output_sequence_length * output_size))
         self.mlp = nn.Sequential(*layers)
+        self._initialize_weights()  # Initialize weights
 
-        # Define the embedding layer
-        self.embedding = nn.Embedding(self.num_symbols, output_size)
+        # Define the embedding layer with padding
+        self.embedding = nn.Embedding(
+            self.num_symbols, output_size, padding_idx=padding_idx
+        )
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         # Ensure x has shape (batch_size, input_size)
-        x = self.mlp(x)
+        x = self.mlp[0](x)
+        residual = x  # Save input for residual connection
+        for layer in self.mlp[1:-1]:
+            if isinstance(layer, nn.Linear) and self.residual:
+                x = layer(x) + residual  # Apply residual connection
+                residual = x  # Update residual for next layer
+            else:
+                x = layer(x)
+        x = self.mlp[-1](x)
 
         # Reshape the output to (batch_size, output_sequence_length, output_size)
         x = x.view(-1, self.output_sequence_length, self.output_size)
@@ -284,7 +325,7 @@ class NeuralSemanticLibrary(nn.Module):
 
         return dot_products
 
-    def generate_gp_tree(self, semantics):
+    def predict(self, semantics):
         number_of_terminals = self.output_sequence_length - self.output_primitive_length
 
         # Convert semantics to tensor
@@ -292,24 +333,37 @@ class NeuralSemanticLibrary(nn.Module):
             0
         )  # Add batch dimension
 
+        # Normalize the input semantics using the same scaler as in training
+        semantics_tensor = torch.tensor(
+            self.scaler.transform(semantics_tensor.numpy()), dtype=torch.float32
+        )
+
+        self.mlp.eval()
+
         # Perform forward pass
         with torch.no_grad():
             output_vector = self.forward(semantics_tensor)
 
             # Create a mask to ensure that the last four positions are terminals
             mask = torch.full_like(
-                output_vector, 10
-            )  # Shape: (batch_size, output_sequence_length, num_symbols)
+                output_vector, -float("inf")
+            )  # Initialize mask with a large negative value
 
             # Set the mask values for terminals and non-terminals
-            mask[:, -number_of_terminals:, :] = 0
+            mask[
+                :,
+                :-number_of_terminals,
+            ] = 0
             mask[
                 :, -number_of_terminals:, -self.num_terminals :
-            ] = 10  # Ensure last four positions are terminals
+            ] = 0  # Allow terminals in last positions
+            mask[:, :, self.embedding.padding_idx] = -float(
+                "inf"
+            )  # Mask out padding index
 
             # Apply the mask to the output vector
             masked_output_vector = torch.softmax(output_vector, dim=2) + mask
-            # masked_output_vector.detach().squeeze(0).numpy()
+            masked_output_vector.squeeze(0).detach().numpy()
             # Get the index of the maximum value along the num_symbols dimension for each time step
             output_indices = (
                 torch.argmax(masked_output_vector, dim=2).squeeze(0).numpy()
@@ -329,7 +383,7 @@ class NeuralSemanticLibrary(nn.Module):
     def train(
         self,
         train_data,
-        batch_size=32,
+        batch_size=64,
         epochs=1000,
         lr=0.001,
         val_split=0.2,
@@ -346,8 +400,15 @@ class NeuralSemanticLibrary(nn.Module):
         :param val_split: Fraction of training data to use as validation.
         :param patience: Number of epochs to wait for improvement before early stopping.
         """
-        optimizer = optim.Adam(self.parameters(), lr=lr)
-        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.AdamW(self.parameters(), lr=lr, weight_decay=1e-4)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            T_0=10,  # Number of epochs for the first restart
+            T_mult=2,  # Factor to increase the number of epochs between restarts
+            eta_min=1e-6,  # Minimum learning rate
+        )
+        criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
+        # criterion = nn.CrossEntropyLoss()
 
         # Extract targets and tensors
         tensors = [torch.tensor(d[1], dtype=torch.float32) for d in train_data]
@@ -355,6 +416,13 @@ class NeuralSemanticLibrary(nn.Module):
             train_data, self.output_sequence_length
         )
         targets = [torch.tensor(t, dtype=torch.long) for t in targets]
+
+        # Normalize tensors
+        scaler = StandardScaler()
+        self.scaler = scaler
+        tensors = torch.tensor(
+            scaler.fit_transform(torch.stack(tensors).numpy()), dtype=torch.float32
+        )
 
         # Split data into training and validation sets if val_split > 0
         if val_split > 0:
@@ -364,11 +432,12 @@ class NeuralSemanticLibrary(nn.Module):
             train_data = list(zip(train_tensors, train_targets))
             val_data = list(zip(val_tensors, val_targets))
         else:
+            train_tensors = tensors
+            train_targets = targets
             val_data = None
 
         # Stack tensors and targets to create a dataset
-        stacked_tensors = torch.stack(train_tensors)  # Shape: (num_samples, input_size)
-        # Reshape targets to (num_samples, output_sequence_length) if needed
+        stacked_tensors = train_tensors  # Tensors are already stacked and normalized
         stacked_targets = torch.stack(train_targets).view(
             -1, self.output_sequence_length
         )  # Shape: (num_samples, output_sequence_length)
@@ -415,6 +484,9 @@ class NeuralSemanticLibrary(nn.Module):
             if verbose:
                 print(f"Epoch {epoch + 1}/{epochs}, Training Loss: {avg_loss}")
 
+            # Step the learning rate scheduler
+            scheduler.step()
+
             # Validation
             if val_data:
                 self.mlp.eval()  # Set the model to evaluation mode
@@ -456,7 +528,7 @@ class NeuralSemanticLibrary(nn.Module):
         :param semantics: List of node names representing the GP tree.
         :return: PrimitiveTree constructed from the generated GP tree.
         """
-        node_names = self.generate_gp_tree(semantics)
+        node_names = self.predict(semantics)
         gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names)
         return PrimitiveTree(gp_tree)
 
@@ -479,13 +551,19 @@ def generate_synthetic_data(pset, num_samples=100):
         gp_tree = create_random_gp_tree(pset)
 
         # Generate synthetic semantics (e.g., applying the GP tree to a synthetic dataset)
-        target_semantics = generate_target_semantics(gp_tree)
+        target_semantics = generate_target_semantics(gp_tree, pset)
 
         data.append((gp_tree, target_semantics))
+
+    # sorting
+    # all_semantics = np.argsort(np.median([s for _, s in data], axis=0))
+    # for i, (gp_tree, target_semantics) in enumerate(data):
+    #     data[i] = (gp_tree, target_semantics[all_semantics])
+
     return data
 
 
-def create_random_gp_tree(pset, min_depth=1, max_depth=2):
+def create_random_gp_tree(pset, min_depth=2, max_depth=2):
     toolbox = base.Toolbox()
     # Initialize ramped half-and-half method
     toolbox.register(
@@ -499,9 +577,14 @@ def create_random_gp_tree(pset, min_depth=1, max_depth=2):
     return toolbox.individual()
 
 
-def generate_target_semantics(gp_tree):
-    # Generate synthetic target semantics based on GP tree
-    return np.random.randn(10).tolist()  # Example of random semantics
+def generate_target_semantics(gp_tree, pset):
+    # Compile the GP tree into a callable function
+    func = gp.compile(PrimitiveTree(gp_tree), pset)
+
+    # Apply the compiled function to each row of the dataset
+    target_semantics = func(*data.T)
+
+    return target_semantics
 
 
 def add(x, y):
@@ -510,6 +593,22 @@ def add(x, y):
 
 def subtract(x, y):
     return x - y
+
+
+def sqrt(x):
+    return np.sqrt(np.abs(x))
+
+
+def sin(x):
+    return np.sin(x)
+
+
+def cos(x):
+    return np.cos(x)
+
+
+def multiply(x, y):
+    return x * y
 
 
 def filter_train_data_by_node_count(train_data, max_nodes=7):
@@ -521,56 +620,72 @@ def filter_train_data_by_node_count(train_data, max_nodes=7):
     :return: List of tuples (gp_tree, target_semantics) with GP trees having nodes count <= max_nodes.
     """
     filtered_train_data = [
-        (tree, semantics) for tree, semantics in train_data if len(tree) <= max_nodes
+        (
+            tree,
+            semantics / np.linalg.norm(semantics)
+            if np.linalg.norm(semantics) > 0
+            else semantics,
+        )
+        for tree, semantics in train_data
+        if len(tree) <= max_nodes
     ]
     return filtered_train_data
 
 
 if __name__ == "__main__":
-    np.random.seed(0)
-    # Example usage
-    input_size = 10  # Must be divisible by num_heads
-    hidden_size = 64
-    output_size = 20  # Number of symbols
-
-    # Define DEAP PrimitiveSet
-    pset = PrimitiveSet("MAIN", 2)  # Example, replace with your specific pset
-    pset.addPrimitive(add, 2)
-    pset.addPrimitive(subtract, 2)
-    pset.addTerminal(1)
-    pset.addTerminal(2)
-
-    # Example string representing a GP tree
-    expr_str = "subtract(add(ARG0, ARG1), subtract(ARG0, ARG1))"
-
-    # Generate synthetic training data
-    train_data = generate_synthetic_data(pset, num_samples=100)
-
-    train_data = filter_train_data_by_node_count(train_data)
-
-    # Construct the GP tree from the string
-    individual = PrimitiveTree.from_string(expr_str, pset)
-
-    nl = NeuralSemanticLibrary(
-        input_size, hidden_size, output_size, num_layers=1, dropout=0, pset=pset
-    )
+    # np.random.seed(0)
 
     # ['subtract', 'add', 'ARG0', 'ARG1', 'subtract', 'ARG0', 'ARG1']
 
-    utils = PrimitiveSetUtils(pset)
-    print(
-        str(
-            PrimitiveTree(
-                utils.convert_node_names_to_gp_tree(
-                    # ["subtract", "add", "subtract", "ARG0", "ARG1", "ARG0", "ARG1"]
-                    # ["subtract", "ARG1", "add", "ARG0", "ARG0"]
-                    ["subtract", "ARG1", "ARG0"]
-                )
-            )
-        )
+    # utils = PrimitiveSetUtils(pset)
+    # print(
+    #     str(
+    #         PrimitiveTree(
+    #             utils.convert_node_names_to_gp_tree(
+    #                 ["subtract", "add", "subtract", "ARG0", "ARG1", "ARG0", "ARG1"]
+    #             )
+    #         )
+    #     )
+    # )
+
+    # Example usage
+    input_size = 10  # Must be divisible by num_heads
+    hidden_size = 16
+    output_size = 16  # Number of symbols
+    data = load_diabetes().data[:30]
+
+    # Define DEAP PrimitiveSet
+    pset = PrimitiveSet(
+        "MAIN", data.shape[1]
+    )  # Example, replace with your specific pset
+    pset.addPrimitive(add, 2)
+    pset.addPrimitive(subtract, 2)
+    pset.addPrimitive(sin, 1)
+    pset.addPrimitive(cos, 1)
+    pset.addPrimitive(sqrt, 1)
+    pset.addPrimitive(multiply, 2)
+
+    # Generate synthetic training data
+    train_data = generate_synthetic_data(pset, num_samples=5000)
+
+    # Filter training data by node count
+    train_data = filter_train_data_by_node_count(train_data)
+
+    # Split data into training and test sets
+    train_data, test_data = train_test_split(train_data, test_size=0.2, random_state=0)
+
+    # Initialize the NeuralSemanticLibrary model
+    nl = NeuralSemanticLibrary(
+        data.shape[0],
+        hidden_size,
+        output_size,
+        dropout=0,
+        num_layers=3,
+        pset=pset,
     )
 
     # Train the neural network
-    # nl.train(train_data, epochs=100, lr=0.001)
-    # print(str(nl.convert_to_primitive_tree(train_data[0][1])))
-    # print(str(PrimitiveTree(train_data[0][0])))
+    nl.train(train_data, epochs=1000, lr=0.01, val_split=0.2, verbose=True)
+    for tid in range(0, 5):
+        print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")
+        print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
