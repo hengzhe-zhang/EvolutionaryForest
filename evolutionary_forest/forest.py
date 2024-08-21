@@ -2192,7 +2192,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool = SemanticLibrary(
-                verbose=self.verbose, pset=pset, **self.param
+                verbose=self.verbose,
+                pset=pset,
+                mutation_configuration=self.mutation_configuration,
+                **self.param,
             )
             self.tree_pool.target_semantics = self.y
             interval = self.mutation_configuration.pool_hard_instance_interval

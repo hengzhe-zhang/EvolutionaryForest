@@ -18,7 +18,10 @@ from sklearn.metrics import pairwise_distances_argmin_min
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
-from evolutionary_forest.component.configuration import MAPElitesConfiguration
+from evolutionary_forest.component.configuration import (
+    MAPElitesConfiguration,
+    MutationConfiguration,
+)
 from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness,
@@ -116,6 +119,7 @@ class SemanticLibrary:
         random_order_replacement=True,
         pset=None,
         verbose=False,
+        mutation_configuration: MutationConfiguration = None,
         **params,
     ):
         self.plain_semantics_list = []
@@ -142,13 +146,18 @@ class SemanticLibrary:
         self.log_initialization()
         self.forbidden_list = set()
         self.previous_loss_matrix = None
-        self.mlp = NeuralSemanticLibrary(
-            input_size=semantics_length,
-            num_layers=1,
-            dropout=0,
-            pset=pset,
-            output_primitive_length=3,
-        )
+        self.mutation_configuration = mutation_configuration
+        if mutation_configuration.neural_pool != 0:
+            self.mlp = NeuralSemanticLibrary(
+                input_size=semantics_length,
+                hidden_size=64,
+                num_layers=3,
+                dropout=0,
+                pset=pset,
+                output_primitive_length=3,
+            )
+        else:
+            self.mlp = 0
 
     def log_initialization(self):
         self.mismatch_times = []
@@ -900,11 +909,12 @@ class SemanticLibrary:
         plt.show()
 
     def train_nn(self):
-        train_data = [
-            (tree, semantics)
-            for tree, semantics in zip(self.trees, self.normalized_semantics_list)
-        ]
-        train_data = filter_train_data_by_node_count(
-            train_data, max_nodes=self.mlp.output_primitive_length
-        )
-        self.mlp.train(train_data)
+        if self.mutation_configuration.neural_pool != 0:
+            train_data = [
+                (tree, semantics)
+                for tree, semantics in zip(self.trees, self.normalized_semantics_list)
+            ]
+            train_data = filter_train_data_by_node_count(
+                train_data, max_nodes=self.mlp.output_primitive_length
+            )
+            self.mlp.train(train_data, lr=0.01, verbose=True, patience=5)

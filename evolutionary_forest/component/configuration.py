@@ -231,6 +231,7 @@ class MutationConfiguration(Configuration):
         local_search_dropout_ensemble=False,
         local_search_dropout_bloat=False,
         neural_pool=0,
+        neural_pool_start_generation=0,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -254,6 +255,7 @@ class MutationConfiguration(Configuration):
         self.basic_primitives = basic_primitives
         self.semantic_local_search_pb = semantic_local_search_pb
         self.neural_pool = neural_pool
+        self.neural_pool_start_generation = neural_pool_start_generation
         self.pool_based_replacement_inner_probability = (
             pool_based_replacement_inner_probability
         )

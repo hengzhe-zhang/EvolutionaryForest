@@ -36,17 +36,12 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
     # prediction_validation(ind, indexes)
     skip_id = set()
 
-    if isinstance(mutation_configuration.neural_pool, str):
-        options = mutation_configuration.neural_pool.split("-")
-        inner_hybrid = "Inner" in options
-        neural_pool_prob = float(options[-1])
-
-        if inner_hybrid:
-            neural_pool_global = False
-    else:
-        inner_hybrid = False
-        neural_pool_global = random.random() < mutation_configuration.neural_pool
-        neural_pool_prob = 0
+    neural_pool_global = random.random() < mutation_configuration.neural_pool
+    if (
+        algorithm.current_gen
+        <= mutation_configuration.neural_pool_start_generation * algorithm.n_gen
+    ):
+        neural_pool_global = 0
 
     for sorted_idx, id in enumerate(orders):
         if id in skip_id and not mutation_configuration.local_search_dropout_ensemble:
@@ -91,10 +86,10 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
 
         residual = target - temp_semantics
 
-        if (neural_pool_global) or (
-            inner_hybrid and random.random() < neural_pool_prob
-        ):
-            tree = algorithm.tree_pool.mlp.convert_to_primitive_tree(residual)
+        if neural_pool_global:
+            tree = algorithm.tree_pool.mlp.convert_to_primitive_tree(
+                normalize_vector(residual)
+            )
             ind.gene[id] = tree
             continue
 

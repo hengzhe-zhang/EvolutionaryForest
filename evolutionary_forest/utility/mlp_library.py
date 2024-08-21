@@ -242,10 +242,10 @@ class NeuralSemanticLibrary(nn.Module):
     def __init__(
         self,
         input_size=10,
-        hidden_size=64,
-        output_size=20,
+        hidden_size=16,
+        output_size=16,
         num_layers=1,
-        dropout=0.1,
+        dropout=0.0,
         output_primitive_length=3,
         pset=None,  # Add pset parameter
         batch_norm=True,  # Add batch_norm parameter
@@ -322,7 +322,6 @@ class NeuralSemanticLibrary(nn.Module):
         dot_products = torch.matmul(
             x, embedding_vectors.T
         )  # Shape: (batch_size, output_sequence_length, num_symbols)
-
         return dot_products
 
     def predict(self, semantics):
@@ -444,7 +443,9 @@ class NeuralSemanticLibrary(nn.Module):
 
         # Create TensorDataset and DataLoader
         dataset = TensorDataset(stacked_tensors, stacked_targets)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataloader = DataLoader(
+            dataset, batch_size=batch_size, shuffle=True, drop_last=True
+        )
 
         best_val_loss = float("inf")
         patience_counter = 0
@@ -533,7 +534,7 @@ class NeuralSemanticLibrary(nn.Module):
         return PrimitiveTree(gp_tree)
 
 
-def generate_synthetic_data(pset, num_samples=100):
+def generate_synthetic_data(pset, num_samples=100, min_depth=2, max_depth=2):
     """
     Generate synthetic training data with random GP trees and their target semantics.
 
@@ -548,7 +549,7 @@ def generate_synthetic_data(pset, num_samples=100):
     data = []
     for _ in range(num_samples):
         # Generate a random GP tree
-        gp_tree = create_random_gp_tree(pset)
+        gp_tree = create_random_gp_tree(pset, min_depth=min_depth, max_depth=max_depth)
 
         # Generate synthetic semantics (e.g., applying the GP tree to a synthetic dataset)
         target_semantics = generate_target_semantics(gp_tree, pset)
@@ -649,9 +650,6 @@ if __name__ == "__main__":
     # )
 
     # Example usage
-    input_size = 10  # Must be divisible by num_heads
-    hidden_size = 16
-    output_size = 16  # Number of symbols
     data = load_diabetes().data[:30]
 
     # Define DEAP PrimitiveSet
@@ -666,7 +664,10 @@ if __name__ == "__main__":
     pset.addPrimitive(multiply, 2)
 
     # Generate synthetic training data
-    train_data = generate_synthetic_data(pset, num_samples=5000)
+    fix_depth = 1
+    train_data = generate_synthetic_data(
+        pset, num_samples=5000, min_depth=fix_depth, max_depth=fix_depth
+    )
 
     # Filter training data by node count
     train_data = filter_train_data_by_node_count(train_data)
@@ -677,9 +678,9 @@ if __name__ == "__main__":
     # Initialize the NeuralSemanticLibrary model
     nl = NeuralSemanticLibrary(
         data.shape[0],
-        hidden_size,
-        output_size,
-        dropout=0,
+        128,
+        128,
+        dropout=0.2,
         num_layers=3,
         pset=pset,
     )
