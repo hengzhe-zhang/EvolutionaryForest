@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from deap.gp import Terminal, PrimitiveTree
-from scipy.special import softmax
 from sklearn.linear_model import LinearRegression
 
 from evolutionary_forest.component.external_archive.semantic_library_mode_controller import (
@@ -36,7 +35,18 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
     mutation_configuration = algorithm.mutation_configuration
     # prediction_validation(ind, indexes)
     skip_id = set()
-    neural_pool = random.random() < mutation_configuration.neural_pool
+
+    if isinstance(mutation_configuration.neural_pool, str):
+        options = mutation_configuration.neural_pool.split("-")
+        inner_hybrid = "Inner" in options
+        neural_pool_prob = float(options[-1])
+
+        if inner_hybrid:
+            neural_pool_global = False
+    else:
+        inner_hybrid = False
+        neural_pool_global = random.random() < mutation_configuration.neural_pool
+        neural_pool_prob = 0
 
     for sorted_idx, id in enumerate(orders):
         if id in skip_id and not mutation_configuration.local_search_dropout_ensemble:
@@ -81,7 +91,9 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
 
         residual = target - temp_semantics
 
-        if neural_pool:
+        if (neural_pool_global) or (
+            inner_hybrid and random.random() < neural_pool_prob
+        ):
             tree = algorithm.tree_pool.mlp.convert_to_primitive_tree(residual)
             ind.gene[id] = tree
             continue

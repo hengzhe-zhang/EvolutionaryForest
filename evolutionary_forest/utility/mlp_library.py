@@ -152,32 +152,38 @@ class PrimitiveSetUtils:
                     raise ValueError(f"Node name '{name}' not found in PrimitiveSet")
             return stack
 
-        def reorder_node_names_recursive(node_names):
+        def reorder_node_names_recursive(first, node_names):
             """
             Reorder a list of node names such that each function is followed by its arguments using recursion.
 
             :param node_names: List of node names corresponding to functions and terminals.
             :return: Reordered list of node names.
             """
-            if not node_names:
-                return []
-
-            # Take the first node from the list
-            first = node_names.pop(0)
-
             # If it's a function (Primitive), it will have arguments
             if isinstance(first, Primitive):
-                # Recursively get the reordered arguments based on the arity of the function
-                args = [
-                    reorder_node_names_recursive(node_names) for _ in range(first.arity)
-                ]
-                # Flatten the list of arguments and append the function at the beginning
-                return [first] + [item for sublist in args for item in sublist]
+                args = []
+                root_args = []
+                for ix in range(first.arity):
+                    a = node_names.pop(0)
+                    # print(first.name, a.name)
+                    root_args.append(a)
+
+                for ix, a in enumerate(root_args):
+                    nodes = reorder_node_names_recursive(a, node_names)
+                    # print(first.name, [n.name for n in nodes])
+                    args.extend(nodes)
+
+                # Return the function followed by its arguments
+                return [first] + args
             else:
                 # If it's a terminal, just return it
                 return [first]
 
-        return reorder_node_names_recursive(build_tree(node_names))
+        def pre_recursive(node_names):
+            first = node_names.pop(0)
+            return reorder_node_names_recursive(first, node_names)
+
+        return pre_recursive(build_tree(node_names))
 
 
 def get_max_arity(pset):
@@ -291,19 +297,19 @@ class NeuralSemanticLibrary(nn.Module):
             output_vector = self.forward(semantics_tensor)
 
             # Create a mask to ensure that the last four positions are terminals
-            mask = torch.ones_like(
-                output_vector
+            mask = torch.full_like(
+                output_vector, 10
             )  # Shape: (batch_size, output_sequence_length, num_symbols)
 
             # Set the mask values for terminals and non-terminals
             mask[:, -number_of_terminals:, :] = 0
             mask[
                 :, -number_of_terminals:, -self.num_terminals :
-            ] = 1  # Ensure last four positions are terminals
+            ] = 10  # Ensure last four positions are terminals
 
             # Apply the mask to the output vector
-            masked_output_vector = output_vector * mask
-
+            masked_output_vector = torch.softmax(output_vector, dim=2) + mask
+            # masked_output_vector.detach().squeeze(0).numpy()
             # Get the index of the maximum value along the num_symbols dimension for each time step
             output_indices = (
                 torch.argmax(masked_output_vector, dim=2).squeeze(0).numpy()
@@ -534,15 +540,37 @@ if __name__ == "__main__":
     pset.addTerminal(1)
     pset.addTerminal(2)
 
+    # Example string representing a GP tree
+    expr_str = "subtract(add(ARG0, ARG1), subtract(ARG0, ARG1))"
+
+    # Generate synthetic training data
+    train_data = generate_synthetic_data(pset, num_samples=100)
+
+    train_data = filter_train_data_by_node_count(train_data)
+
+    # Construct the GP tree from the string
+    individual = PrimitiveTree.from_string(expr_str, pset)
+
     nl = NeuralSemanticLibrary(
         input_size, hidden_size, output_size, num_layers=1, dropout=0, pset=pset
     )
 
-    # Generate synthetic training data
-    train_data = generate_synthetic_data(pset, num_samples=100)
-    train_data = filter_train_data_by_node_count(train_data)
+    # ['subtract', 'add', 'ARG0', 'ARG1', 'subtract', 'ARG0', 'ARG1']
+
+    utils = PrimitiveSetUtils(pset)
+    print(
+        str(
+            PrimitiveTree(
+                utils.convert_node_names_to_gp_tree(
+                    # ["subtract", "add", "subtract", "ARG0", "ARG1", "ARG0", "ARG1"]
+                    # ["subtract", "ARG1", "add", "ARG0", "ARG0"]
+                    ["subtract", "ARG1", "ARG0"]
+                )
+            )
+        )
+    )
 
     # Train the neural network
-    nl.train(train_data, epochs=100, lr=0.001)
-    print(str(nl.convert_to_primitive_tree(train_data[0][1])))
-    print(str(PrimitiveTree(train_data[0][0])))
+    # nl.train(train_data, epochs=100, lr=0.001)
+    # print(str(nl.convert_to_primitive_tree(train_data[0][1])))
+    # print(str(PrimitiveTree(train_data[0][0])))
