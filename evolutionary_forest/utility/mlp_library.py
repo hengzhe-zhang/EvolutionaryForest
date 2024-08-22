@@ -3,6 +3,7 @@ import deap.creator as creator
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from deap import gp
 from deap.gp import PrimitiveSet, PrimitiveTree, Primitive
@@ -346,7 +347,54 @@ class NeuralSemanticLibrary(nn.Module):
         dot_products = torch.matmul(
             x, embedding_vectors.T
         )  # Shape: (batch_size, output_sequence_length, num_symbols)
-        return dot_products
+        return dot_products, x  # Return both the final output and the feature vectors
+
+    def contrastive_loss(self, features, target_features, margin=0.5):
+        """
+        Compute contrastive loss to enforce that pairwise cosine distances between instances using features
+        should correlate with pairwise cosine distances using target_features.
+
+        :param features: The learned feature vectors with shape [batch_size, sequence_length, feature_dim].
+        :param target_features: The original input features with shape [batch_size, input_dim].
+        :param margin: Margin for contrastive loss.
+        :return: Calculated contrastive loss.
+        """
+        # Normalize the feature vectors
+        features = F.normalize(
+            features, p=2, dim=-1
+        )  # Normalize across the feature_dim
+        target_features = F.normalize(
+            target_features, p=2, dim=-1
+        )  # Normalize across the input_dim
+
+        # Compute mean feature vector for each sample in the batch
+        features_mean = features.mean(dim=1)  # Shape: [batch_size, feature_dim]
+
+        # Compute pairwise cosine similarity matrices
+        cosine_similarity_features = torch.matmul(
+            features_mean, features_mean.T
+        )  # Shape: [batch_size, batch_size]
+        cosine_similarity_target_features = torch.matmul(
+            target_features, target_features.T
+        )  # Shape: [batch_size, batch_size]
+
+        # Convert cosine similarity to cosine distance
+        cosine_distance_features = 1 - cosine_similarity_features
+        cosine_distance_target_features = 1 - cosine_similarity_target_features
+
+        # Calculate the margin-based contrastive loss
+        # The margin term penalizes large deviations where the learned distance is larger than the target distance by a margin
+        margin_loss = F.relu(
+            cosine_distance_features - cosine_distance_target_features + margin
+        ).mean()
+
+        # Calculate the loss as the MSE loss combined with the margin loss
+        loss = (
+            F.mse_loss(cosine_distance_features, cosine_distance_target_features)
+            + margin_loss
+        )
+
+        return loss
 
     def train(
         self,
@@ -357,6 +405,7 @@ class NeuralSemanticLibrary(nn.Module):
         val_split=0.2,
         patience=20,
         verbose=False,
+        loss_weight=0.5,  # Add a parameter to balance contrastive and ce loss
     ):
         """
         Train the neural network with optional validation and early stopping.
@@ -367,6 +416,7 @@ class NeuralSemanticLibrary(nn.Module):
         :param lr: Learning rate.
         :param val_split: Fraction of training data to use as validation.
         :param patience: Number of epochs to wait for improvement before early stopping.
+        :param loss_weight: Weight to balance contrastive and ce loss. Set to 0 to ignore contrastive loss.
         """
         optimizer = optim.AdamW(self.parameters(), lr=lr, weight_decay=1e-4)
         scheduler = lr_scheduler.CosineAnnealingWarmRestarts(
@@ -424,7 +474,7 @@ class NeuralSemanticLibrary(nn.Module):
             self.mlp.train()  # Set the model to training mode
             for batch_x, batch_y in dataloader:
                 # Ensure batch_x has shape (batch_size, input_size)
-                output = self.forward(batch_x)
+                output, features = self.forward(batch_x)
 
                 # Create a mask to ensure that the last four positions are terminals
                 mask = torch.ones_like(
@@ -443,8 +493,19 @@ class NeuralSemanticLibrary(nn.Module):
                     -1, self.num_symbols
                 )  # Shape: (batch_size * output_sequence_length, num_symbols)
 
-                # Calculate loss only for masked positions
-                loss = criterion(masked_output, batch_y)
+                # Calculate cross-entropy loss only for masked positions
+                ce_loss = criterion(masked_output, batch_y)
+
+                if loss_weight > 0:
+                    # Calculate contrastive loss
+                    contrastive_loss = self.contrastive_loss(features, batch_x)
+
+                    # Combine losses
+                    loss = ce_loss + loss_weight * contrastive_loss
+                else:
+                    # If loss_weight is 0, only use cross-entropy loss
+                    loss = ce_loss
+
                 total_loss += loss.item()
                 optimizer.zero_grad()
                 loss.backward()
@@ -466,14 +527,26 @@ class NeuralSemanticLibrary(nn.Module):
                     -1, self.output_sequence_length
                 )
 
-                val_output = self.forward(val_tensors)
+                val_output, val_features = self.forward(val_tensors)
                 val_mask = torch.ones_like(val_output)
                 val_masked_output = val_output * val_mask
 
                 val_targets = val_targets.view(-1)
                 val_masked_output = val_masked_output.view(-1, self.num_symbols)
 
-                val_loss = criterion(val_masked_output, val_targets).item()
+                val_ce_loss = criterion(val_masked_output, val_targets).item()
+
+                if loss_weight > 0:
+                    # Calculate contrastive loss for validation
+                    val_contrastive_loss = self.contrastive_loss(
+                        val_features, val_tensors
+                    ).item()
+
+                    # Combine the losses for validation loss
+                    val_loss = val_ce_loss + loss_weight * val_contrastive_loss
+                else:
+                    val_loss = val_ce_loss
+
                 if verbose:
                     print(f"Epoch {epoch + 1}/{epochs}, Validation Loss: {val_loss}")
 
@@ -515,7 +588,7 @@ class NeuralSemanticLibrary(nn.Module):
 
         # Perform forward pass
         with torch.no_grad():
-            output_vector = self.forward(semantics_tensor)
+            output_vector, _ = self.forward(semantics_tensor)
 
             # Create a mask to ensure that the last four positions are terminals
             mask = torch.full_like(
@@ -728,7 +801,9 @@ if __name__ == "__main__":
     )
 
     # Train the neural network
-    nl.train(train_data, epochs=1000, lr=0.01, val_split=0.2, verbose=True)
+    nl.train(
+        train_data, epochs=1000, lr=0.01, val_split=0.2, verbose=True, loss_weight=0.2
+    )
     for tid in range(0, 5):
         print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")
         print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")

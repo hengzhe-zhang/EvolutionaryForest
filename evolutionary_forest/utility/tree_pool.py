@@ -919,4 +919,10 @@ class SemanticLibrary:
             train_data = filter_train_data_by_node_count(
                 train_data, max_function_nodes=self.mlp_pool.output_primitive_length
             )
-            self.mlp_pool.train(train_data, lr=0.01, verbose=False, patience=5)
+            self.mlp_pool.train(
+                train_data,
+                lr=0.01,
+                verbose=False,
+                patience=5,
+                loss_weight=self.mutation_configuration.weight_of_contrastive_learning,
+            )
