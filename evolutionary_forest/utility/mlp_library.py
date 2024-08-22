@@ -348,80 +348,6 @@ class NeuralSemanticLibrary(nn.Module):
         )  # Shape: (batch_size, output_sequence_length, num_symbols)
         return dot_products
 
-    def predict(self, semantics, mode="greedy"):
-        """
-        Predict the output sequence based on the input semantics.
-
-        Parameters:
-        - semantics: Input semantics for prediction.
-        - mode: Mode of prediction ('greedy' or 'probability').
-        """
-        number_of_terminals = self.output_sequence_length - self.output_primitive_length
-
-        # Convert semantics to tensor
-        semantics_tensor = torch.tensor(semantics, dtype=torch.float32).unsqueeze(
-            0
-        )  # Add batch dimension
-
-        # Normalize the input semantics using the same scaler as in training
-        semantics_tensor = torch.tensor(
-            self.scaler.transform(semantics_tensor.numpy()), dtype=torch.float32
-        )
-
-        self.mlp.eval()
-
-        # Perform forward pass
-        with torch.no_grad():
-            output_vector = self.forward(semantics_tensor)
-
-            # Create a mask to ensure that the last four positions are terminals
-            mask = torch.full_like(
-                output_vector, -float("inf")
-            )  # Initialize mask with a large negative value
-
-            # Set the mask values for terminals and non-terminals
-            mask[:, :-number_of_terminals] = 0
-            mask[
-                :, -number_of_terminals:, -self.num_terminals :
-            ] = 0  # Allow terminals in last positions
-            mask[:, :, self.embedding.padding_idx] = -float(
-                "inf"
-            )  # Mask out padding index
-
-            # Apply the mask to the output vector
-        masked_output_vector = output_vector + mask
-
-        if mode == "probability":
-            # Probability sampling mode with resampling
-            valid_indices = []
-            for i in range(masked_output_vector.size(1)):
-                while True:
-                    probabilities = torch.softmax(masked_output_vector[:, i, :], dim=1)
-                    sampled_index = torch.multinomial(
-                        probabilities, num_samples=1
-                    ).item()
-                    if mask[0, i, sampled_index] != -float("inf"):
-                        valid_indices.append(sampled_index)
-                        break
-            output_indices = np.array(valid_indices)
-
-        elif mode == "greedy":
-            # Greedy mode (argmax)
-            output_indices = (
-                torch.argmax(masked_output_vector, dim=2).squeeze(0).numpy()
-            )
-
-        # Get the reverse mapping from indices to node names
-        index_to_node_name = self.pset_utils.get_index_to_node_name()
-
-        # Decode indices to node names
-        tree_node_names = []
-        for i, idx in enumerate(output_indices):
-            node_name = index_to_node_name.get(idx, "Unknown")
-            tree_node_names.append(node_name)
-
-        return tree_node_names
-
     def train(
         self,
         train_data,
@@ -564,6 +490,80 @@ class NeuralSemanticLibrary(nn.Module):
                                 "Early stopping due to no improvement in validation loss."
                             )
                         break
+
+    def predict(self, semantics, mode="greedy"):
+        """
+        Predict the output sequence based on the input semantics.
+
+        Parameters:
+        - semantics: Input semantics for prediction.
+        - mode: Mode of prediction ('greedy' or 'probability').
+        """
+        number_of_terminals = self.output_sequence_length - self.output_primitive_length
+
+        # Convert semantics to tensor
+        semantics_tensor = torch.tensor(semantics, dtype=torch.float32).unsqueeze(
+            0
+        )  # Add batch dimension
+
+        # Normalize the input semantics using the same scaler as in training
+        semantics_tensor = torch.tensor(
+            self.scaler.transform(semantics_tensor.numpy()), dtype=torch.float32
+        )
+
+        self.mlp.eval()
+
+        # Perform forward pass
+        with torch.no_grad():
+            output_vector = self.forward(semantics_tensor)
+
+            # Create a mask to ensure that the last four positions are terminals
+            mask = torch.full_like(
+                output_vector, -float("inf")
+            )  # Initialize mask with a large negative value
+
+            # Set the mask values for terminals and non-terminals
+            mask[:, :-number_of_terminals] = 0
+            mask[
+                :, -number_of_terminals:, -self.num_terminals :
+            ] = 0  # Allow terminals in last positions
+            mask[:, :, self.embedding.padding_idx] = -float(
+                "inf"
+            )  # Mask out padding index
+
+            # Apply the mask to the output vector
+        masked_output_vector = output_vector + mask
+
+        if mode == "probability":
+            # Probability sampling mode with resampling
+            valid_indices = []
+            for i in range(masked_output_vector.size(1)):
+                while True:
+                    probabilities = torch.softmax(masked_output_vector[:, i, :], dim=1)
+                    sampled_index = torch.multinomial(
+                        probabilities, num_samples=1
+                    ).item()
+                    if mask[0, i, sampled_index] != -float("inf"):
+                        valid_indices.append(sampled_index)
+                        break
+            output_indices = np.array(valid_indices)
+
+        elif mode == "greedy":
+            # Greedy mode (argmax)
+            output_indices = (
+                torch.argmax(masked_output_vector, dim=2).squeeze(0).numpy()
+            )
+
+        # Get the reverse mapping from indices to node names
+        index_to_node_name = self.pset_utils.get_index_to_node_name()
+
+        # Decode indices to node names
+        tree_node_names = []
+        for i, idx in enumerate(output_indices):
+            node_name = index_to_node_name.get(idx, "Unknown")
+            tree_node_names.append(node_name)
+
+        return tree_node_names
 
     def convert_to_primitive_tree(self, semantics, mode="probability"):
         """
