@@ -16,6 +16,23 @@ from evolutionary_forest.probability_gp import genHalfAndHalf
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
 
 
+class DataInputLayer(nn.Module):
+    def __init__(self, b, num_weights):
+        super(DataInputLayer, self).__init__()
+        # Create a linear layer with multiple sets of weights (num_weights) of size b
+        self.linear = nn.Linear(b, num_weights)
+
+    def forward(self, x):
+        # x should have shape [batch_size, a, b]
+        # Apply the linear layer to each line of a (along the last dimension)
+        x = self.linear(x)  # Shape: [batch_size, a, num_weights]
+
+        # Apply max pooling along the dimension corresponding to a
+        x, _ = torch.max(x, dim=1)  # Shape: [batch_size, num_weights]
+
+        return x
+
+
 class PrimitiveSetUtils:
     def __init__(self, pset):
         """
