@@ -232,11 +232,11 @@ class MutationConfiguration(Configuration):
         local_search_dropout_bloat=False,
         neural_pool=0,
         neural_pool_start_generation=0,
-        mix_neural_pool_mode=False,
-        neural_pool_num_of_functions=3,
+        neural_pool_num_of_functions=5,
+        mix_neural_pool_mode=True,
         neural_pool_continue=True,
         neural_pool_delete_semantics=True,
-        neural_pool_greedy=False,
+        neural_pool_greedy=True,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
