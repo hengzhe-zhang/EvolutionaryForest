@@ -69,12 +69,30 @@ def gaussian_torch(x):
 
 def protected_division(x1, *x2, threshold=1e-10):
     # with np.errstate(divide="ignore", invalid="ignore"):
-    #     return np.where(np.abs(x2) > threshold, np.divide(x1, x2), 1.0)
     x2 = reduce(operator.mul, x2)
-    # Clip to avoid division by zero
-    x2 = np.where((x2 >= 0) & (x2 < threshold), threshold, x2)
-    x2 = np.where((x2 < 0) & (x2 > -threshold), -threshold, x2)
+
+    # Identify small positive values that are less than the threshold
+    small_positive_values = (x2 >= 0) & (x2 < threshold)
+
+    # Identify small negative values that are greater than the negative threshold
+    small_negative_values = (x2 < 0) & (x2 > -threshold)
+
+    # Apply threshold to small positive values
+    x2 = np.where(small_positive_values, threshold, x2)
+
+    # Apply negative threshold to small negative values
+    x2 = np.where(small_negative_values, -threshold, x2)
     return np.divide(x1, x2)
+
+
+def smooth_protected_division(x, y, epsilon=1e-6):
+    """Smooth protected division that handles division by zero by adding a small epsilon to the denominator."""
+    return x / (y + np.sign(y) * epsilon)
+
+
+def smooth_protected_log(x, shift=1e-6):
+    """Smooth protected logarithm that handles non-positive values by shifting and taking the absolute value."""
+    return np.log(np.abs(x) + shift)
 
 
 def protected_division_torch(x1, *x2):

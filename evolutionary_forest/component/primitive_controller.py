@@ -12,6 +12,7 @@ def get_functions(p):
         "Sub": (np.subtract, 2),  # Subtraction
         "Mul": (np.multiply, 2),  # Multiplication
         "Div-O": (np.divide, 2),
+        "Div-S": (smooth_protected_division, 2),
         "Div": (
             protected_division,
             2,
@@ -64,6 +65,7 @@ def get_functions(p):
             1,
         ),  # Analytical Logarithm for symbolic differentiation
         "Log-O": (np.log, 1),
+        "Log-S": (smooth_protected_log, 1),
         "ALog-Signed": (
             analytical_log_singed,
             1,
