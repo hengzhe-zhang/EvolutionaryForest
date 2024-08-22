@@ -42,6 +42,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
         <= mutation_configuration.neural_pool_start_generation * algorithm.n_gen
     ):
         neural_pool_global = 0
+    if mutation_configuration.mix_neural_pool_mode:
+        neural_pool_global = 0
 
     for sorted_idx, id in enumerate(orders):
         if id in skip_id and not mutation_configuration.local_search_dropout_ensemble:
@@ -86,12 +88,25 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
 
         residual = target - temp_semantics
 
-        if neural_pool_global:
+        if neural_pool_global or (
+            random.random() < mutation_configuration.neural_pool
+            and mutation_configuration.mix_neural_pool_mode
+        ):
             tree = algorithm.tree_pool.mlp_pool.convert_to_primitive_tree(
-                normalize_vector(residual)
+                normalize_vector(residual),
+                mode="greedy"
+                if mutation_configuration.neural_pool_greedy
+                else "probability",
             )
             ind.gene[id] = tree
-            continue
+
+            if mutation_configuration.neural_pool_delete_semantics:
+                current_semantics = temp_semantics
+
+            if mutation_configuration.neural_pool_continue:
+                continue
+            else:
+                break
 
         if mutation_configuration.complementary_replacement > 0:
             ratio = mutation_configuration.complementary_replacement

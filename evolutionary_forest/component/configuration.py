@@ -232,6 +232,11 @@ class MutationConfiguration(Configuration):
         local_search_dropout_bloat=False,
         neural_pool=0,
         neural_pool_start_generation=0,
+        mix_neural_pool_mode=False,
+        neural_pool_num_of_functions=3,
+        neural_pool_continue=True,
+        neural_pool_delete_semantics=True,
+        neural_pool_greedy=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -282,6 +287,15 @@ class MutationConfiguration(Configuration):
         self.trial_check_ratio = trial_check_ratio
         self.negative_local_search = negative_local_search
         self.independent_local_search = independent_local_search
+
+        """
+        Some parameters related to neural pool
+        """
+        self.mix_neural_pool_mode = mix_neural_pool_mode
+        self.neural_pool_continue = neural_pool_continue
+        self.neural_pool_delete_semantics = neural_pool_delete_semantics
+        self.neural_pool_num_of_functions = neural_pool_num_of_functions
+        self.neural_pool_greedy = neural_pool_greedy
 
 
 class ImbalancedConfiguration(Configuration):

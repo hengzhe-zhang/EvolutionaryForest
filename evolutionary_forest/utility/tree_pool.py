@@ -120,7 +120,7 @@ class SemanticLibrary:
         pset=None,
         verbose=False,
         mutation_configuration: MutationConfiguration = None,
-        x_shape=0,
+        x_columns=0,
         **params,
     ):
         self.plain_semantics_list = []
@@ -149,13 +149,13 @@ class SemanticLibrary:
         self.previous_loss_matrix = None
         self.mutation_configuration = mutation_configuration
         if mutation_configuration.neural_pool != 0:
-            self.mlp_pool = NeuralSemanticLibrary(
-                input_size=min(semantics_length, x_shape),
+            self.mlp_pool: NeuralSemanticLibrary = NeuralSemanticLibrary(
+                input_size=min(semantics_length, x_columns),
                 hidden_size=64,
                 num_layers=3,
                 dropout=0,
                 pset=pset,
-                output_primitive_length=3,
+                output_primitive_length=self.mutation_configuration.neural_pool_num_of_functions,
             )
         else:
             self.mlp_pool = 0
@@ -911,11 +911,12 @@ class SemanticLibrary:
 
     def train_nn(self):
         if self.mutation_configuration.neural_pool != 0:
+            self.mlp_pool: NeuralSemanticLibrary
             train_data = [
                 (tree, semantics)
                 for tree, semantics in zip(self.trees, self.normalized_semantics_list)
             ]
             train_data = filter_train_data_by_node_count(
-                train_data, max_nodes=self.mlp_pool.output_primitive_length
+                train_data, max_function_nodes=self.mlp_pool.output_primitive_length
             )
             self.mlp_pool.train(train_data, lr=0.01, verbose=False, patience=5)

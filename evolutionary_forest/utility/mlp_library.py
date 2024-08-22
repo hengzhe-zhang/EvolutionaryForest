@@ -94,7 +94,7 @@ class PrimitiveSetUtils:
         for tree, _ in train_data:
             tree: creator.Individual
             tree = self.convert_gp_tree_to_node_names(tree)
-
+            # self.convert_node_names_to_gp_tree([node.name for node in tree])
             # Extract node names and convert to indices
             tree_indices = []
             for node in tree:
@@ -331,7 +331,14 @@ class NeuralSemanticLibrary(nn.Module):
         )  # Shape: (batch_size, output_sequence_length, num_symbols)
         return dot_products
 
-    def predict(self, semantics):
+    def predict(self, semantics, mode="greedy"):
+        """
+        Predict the output sequence based on the input semantics.
+
+        Parameters:
+        - semantics: Input semantics for prediction.
+        - mode: Mode of prediction ('greedy' or 'probability').
+        """
         number_of_terminals = self.output_sequence_length - self.output_primitive_length
 
         # Convert semantics to tensor
@@ -356,10 +363,7 @@ class NeuralSemanticLibrary(nn.Module):
             )  # Initialize mask with a large negative value
 
             # Set the mask values for terminals and non-terminals
-            mask[
-                :,
-                :-number_of_terminals,
-            ] = 0
+            mask[:, :-number_of_terminals] = 0
             mask[
                 :, -number_of_terminals:, -self.num_terminals :
             ] = 0  # Allow terminals in last positions
@@ -368,12 +372,27 @@ class NeuralSemanticLibrary(nn.Module):
             )  # Mask out padding index
 
             # Apply the mask to the output vector
-            masked_output_vector = torch.softmax(output_vector, dim=2) + mask
-            masked_output_vector.squeeze(0).detach().numpy()
-            # Get the index of the maximum value along the num_symbols dimension for each time step
+        masked_output_vector = output_vector + mask
+
+        if mode == "probability":
+            # Probability sampling mode with resampling
+            valid_indices = []
+            for i in range(masked_output_vector.size(1)):
+                while True:
+                    probabilities = torch.softmax(masked_output_vector[:, i, :], dim=1)
+                    sampled_index = torch.multinomial(
+                        probabilities, num_samples=1
+                    ).item()
+                    if mask[0, i, sampled_index] != -float("inf"):
+                        valid_indices.append(sampled_index)
+                        break
+            output_indices = np.array(valid_indices)
+
+        elif mode == "greedy":
+            # Greedy mode (argmax)
             output_indices = (
                 torch.argmax(masked_output_vector, dim=2).squeeze(0).numpy()
-            )  # Shape: (output_sequence_length,)
+            )
 
         # Get the reverse mapping from indices to node names
         index_to_node_name = self.pset_utils.get_index_to_node_name()
@@ -529,14 +548,14 @@ class NeuralSemanticLibrary(nn.Module):
                             )
                         break
 
-    def convert_to_primitive_tree(self, semantics):
+    def convert_to_primitive_tree(self, semantics, mode="probability"):
         """
         Convert semantics to a GP tree and then to a PrimitiveTree.
 
         :param semantics: List of node names representing the GP tree.
         :return: PrimitiveTree constructed from the generated GP tree.
         """
-        node_names = self.predict(semantics)
+        node_names = self.predict(semantics, mode=mode)
         gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names)
         return PrimitiveTree(gp_tree)
 
@@ -619,12 +638,12 @@ def multiply(x, y):
     return x * y
 
 
-def filter_train_data_by_node_count(train_data, max_nodes=7):
+def filter_train_data_by_node_count(train_data, max_function_nodes=3):
     """
     Filter out GP trees from train_data with more than a specified number of nodes.
 
     :param train_data: List of tuples (gp_tree, target_semantics), where gp_tree is a DEAP Individual.
-    :param max_nodes: Maximum number of nodes allowed in the GP trees.
+    :param max_function_nodes: Maximum number of nodes allowed in the GP trees.
     :return: List of tuples (gp_tree, target_semantics) with GP trees having nodes count <= max_nodes.
     """
     filtered_train_data = [
@@ -635,7 +654,8 @@ def filter_train_data_by_node_count(train_data, max_nodes=7):
             else semantics,
         )
         for tree, semantics in train_data
-        if len(tree) <= max_nodes
+        if len([primitive for primitive in tree if isinstance(primitive, Primitive)])
+        <= max_function_nodes
     ]
     return filtered_train_data
 
@@ -669,7 +689,7 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 2
+    fix_depth = 3
     train_data = generate_synthetic_data(
         pset, num_samples=5000, min_depth=fix_depth, max_depth=fix_depth
     )
@@ -685,7 +705,7 @@ if __name__ == "__main__":
         data.shape[0],
         128,
         128,
-        dropout=0.2,
+        dropout=0,
         num_layers=3,
         pset=pset,
     )
