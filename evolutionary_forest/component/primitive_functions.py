@@ -189,6 +189,10 @@ def analytical_log(x):
     return np.log(np.sqrt(1 + x**2))
 
 
+def abs_log(x):
+    return np.log(1 + np.abs(x))
+
+
 def analytical_log_singed(x):
     return np.log(np.sqrt(1 + x**2)) * np.sign(x)
 
