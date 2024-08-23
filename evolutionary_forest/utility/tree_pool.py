@@ -153,9 +153,10 @@ class SemanticLibrary:
                 input_size=min(semantics_length, x_columns),
                 hidden_size=64,
                 num_layers=3,
-                dropout=0,
+                dropout=self.mutation_configuration.neural_pool_dropout,
                 pset=pset,
                 output_primitive_length=self.mutation_configuration.neural_pool_num_of_functions,
+                use_transformer=self.mutation_configuration.neural_pool_transformer_layer,
             )
         else:
             self.mlp_pool = 0

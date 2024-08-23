@@ -10,6 +10,7 @@ from deap.gp import PrimitiveSet, PrimitiveTree, Primitive
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -276,6 +277,9 @@ class NeuralSemanticLibrary(nn.Module):
         batch_norm=True,  # Add batch_norm parameter
         residual=True,  # Add residual connection parameter
         padding_idx=0,  # Padding index for embedding
+        num_heads=4,  # Add number of attention heads
+        transformer_layers=2,  # Add number of transformer layers
+        use_transformer=True,  # Flag to enable or disable transformer layer
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -286,6 +290,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.output_primitive_length = output_primitive_length
         self.batch_norm = batch_norm  # Store batch_norm flag
         self.residual = residual  # Store residual connection flag
+        self.use_transformer = use_transformer  # Store use_transformer flag
 
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
@@ -314,6 +319,19 @@ class NeuralSemanticLibrary(nn.Module):
         self.mlp = nn.Sequential(*layers)
         self._initialize_weights()  # Initialize weights
 
+        if self.use_transformer:
+            # Define the Transformer layer
+            transformer_encoder_layer = TransformerEncoderLayer(
+                d_model=output_size,
+                nhead=num_heads,
+                dim_feedforward=hidden_size,
+                dropout=dropout,
+                activation="gelu",
+            )
+            self.transformer = TransformerEncoder(
+                transformer_encoder_layer, num_layers=transformer_layers
+            )
+
         # Define the embedding layer with padding
         self.embedding = nn.Embedding(
             self.num_symbols, output_size, padding_idx=padding_idx
@@ -340,6 +358,14 @@ class NeuralSemanticLibrary(nn.Module):
 
         # Reshape the output to (batch_size, output_sequence_length, output_size)
         x = x.view(-1, self.output_sequence_length, self.output_size)
+
+        if self.use_transformer:
+            # Pass through the Transformer layer
+            x = x.permute(
+                1, 0, 2
+            )  # Transformer expects (sequence_length, batch_size, embed_dim)
+            x = self.transformer(x)
+            x = x.permute(1, 0, 2)  # Back to (batch_size, sequence_length, embed_dim)
 
         # Compute dot product with embedding vectors
         embedding_vectors = self.embedding.weight  # Shape: (num_symbols, output_size)
@@ -795,14 +821,15 @@ if __name__ == "__main__":
         data.shape[0],
         128,
         128,
-        dropout=0,
+        dropout=0.1,
         num_layers=3,
         pset=pset,
+        use_transformer=True,
     )
 
     # Train the neural network
     nl.train(
-        train_data, epochs=1000, lr=0.01, val_split=0.2, verbose=True, loss_weight=0.2
+        train_data, epochs=1000, lr=0.01, val_split=0.2, verbose=True, loss_weight=0
     )
     for tid in range(0, 5):
         print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")
