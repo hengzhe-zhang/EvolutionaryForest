@@ -151,7 +151,7 @@ class SemanticLibrary:
         if mutation_configuration.neural_pool != 0:
             self.mlp_pool: NeuralSemanticLibrary = NeuralSemanticLibrary(
                 input_size=min(semantics_length, x_columns),
-                hidden_size=64,
+                hidden_size=self.mutation_configuration.neural_pool_hidden_size,
                 num_layers=3,
                 dropout=self.mutation_configuration.neural_pool_dropout,
                 pset=pset,
