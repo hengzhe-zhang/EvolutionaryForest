@@ -280,6 +280,7 @@ class NeuralSemanticLibrary(nn.Module):
         num_heads=4,  # Add number of attention heads
         transformer_layers=2,  # Add number of transformer layers
         use_transformer=True,  # Flag to enable or disable transformer layer
+        contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -336,6 +337,8 @@ class NeuralSemanticLibrary(nn.Module):
         self.embedding = nn.Embedding(
             self.num_symbols, output_size, padding_idx=padding_idx
         )
+
+        self.contrastive_loss_in_val = contrastive_loss_in_val
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -562,7 +565,7 @@ class NeuralSemanticLibrary(nn.Module):
 
                 val_ce_loss = criterion(val_masked_output, val_targets).item()
 
-                if loss_weight > 0:
+                if loss_weight > 0 and self.contrastive_loss_in_val:
                     # Calculate contrastive loss for validation
                     val_contrastive_loss = self.contrastive_loss(
                         val_features, val_tensors
@@ -825,6 +828,7 @@ if __name__ == "__main__":
         num_layers=3,
         pset=pset,
         use_transformer=True,
+        contrastive_loss_in_val=False,
     )
 
     # Train the neural network
