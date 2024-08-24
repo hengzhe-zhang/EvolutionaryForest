@@ -152,11 +152,11 @@ class SemanticLibrary:
             self.mlp_pool: NeuralSemanticLibrary = NeuralSemanticLibrary(
                 input_size=min(semantics_length, x_columns),
                 hidden_size=self.mutation_configuration.neural_pool_hidden_size,
-                num_layers=3,
+                num_layers=self.mutation_configuration.neural_pool_mlp_layers,
                 dropout=self.mutation_configuration.neural_pool_dropout,
                 pset=pset,
                 output_primitive_length=self.mutation_configuration.neural_pool_num_of_functions,
-                use_transformer=self.mutation_configuration.neural_pool_transformer_layer,
+                transformer_layers=self.mutation_configuration.neural_pool_transformer_layer,
                 contrastive_loss_in_val=self.mutation_configuration.contrastive_loss_in_val,
             )
         else:

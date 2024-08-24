@@ -238,10 +238,11 @@ class MutationConfiguration(Configuration):
         neural_pool_delete_semantics=True,
         neural_pool_greedy=True,
         weight_of_contrastive_learning=0,
-        neural_pool_transformer_layer=False,
+        neural_pool_transformer_layer=2,
         neural_pool_dropout=0,
         neural_pool_hidden_size=64,
         contrastive_loss_in_val=True,
+        neural_pool_mlp_layers=3,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -304,6 +305,7 @@ class MutationConfiguration(Configuration):
         self.weight_of_contrastive_learning = weight_of_contrastive_learning
         self.neural_pool_transformer_layer = neural_pool_transformer_layer
         self.neural_pool_hidden_size = neural_pool_hidden_size
+        self.neural_pool_mlp_layers = neural_pool_mlp_layers
         self.neural_pool_dropout = neural_pool_dropout
         self.contrastive_loss_in_val = contrastive_loss_in_val
 
