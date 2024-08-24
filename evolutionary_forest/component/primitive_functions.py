@@ -90,9 +90,14 @@ def smooth_protected_division(x, y, epsilon=1e-6):
     return x / (y + np.sign(y) * epsilon)
 
 
-def smooth_protected_log(x, shift=1e-6):
-    """Smooth protected logarithm that handles non-positive values by shifting and taking the absolute value."""
-    return np.log(np.abs(x) + shift)
+def clip_protected_log(x, min_value=1e-10):
+    x = np.clip(np.abs(x), min_value, None)
+    return np.log(x)
+
+
+def clip_protected_log_signed(x, min_value=1e-10):
+    x = np.clip(np.abs(x), min_value, None)
+    return np.log(x) * np.sign(x)
 
 
 def protected_division_torch(x1, *x2):
@@ -156,7 +161,7 @@ def analytical_quotient(x1, *x2):
 
 def analytical_quotient_signed(x1, *x2):
     x2 = reduce(operator.mul, x2)
-    return x1 / np.sqrt(1e-10 + (x2**2)) * np.sign(x2)
+    return x1 / np.sqrt(1 + (x2**2)) * np.sign(x2)
 
 
 def analytical_quotient_torch(x1, x2):
@@ -189,15 +194,15 @@ def analytical_log(x):
     return np.log(np.sqrt(1 + x**2))
 
 
+def analytical_log_signed(x):
+    return np.log(np.sqrt(1 + x**2)) * np.sign(x)
+
+
 def abs_log(x):
     return np.log(1 + np.abs(x))
 
 
-def analytical_log_singed(x):
-    return np.log(np.sqrt(1 + x**2)) * np.sign(x)
-
-
-def abs_log_singed(x):
+def abs_log_signed(x):
     return np.log(1 + np.abs(x)) * np.sign(x)
 
 

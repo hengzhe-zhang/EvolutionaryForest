@@ -64,16 +64,21 @@ def get_functions(p):
             analytical_log,
             1,
         ),  # Analytical Logarithm for symbolic differentiation
+        "ALog-Signed": (
+            analytical_log_signed,
+            1,
+        ),
         "AbsLog": (
             abs_log,
             1,
         ),
-        "Log-O": (np.log, 1),
-        "Log-S": (smooth_protected_log, 1),
-        "ALog-Signed": (
-            analytical_log_singed,
+        "AbsLog-Signed": (
+            abs_log_signed,
             1,
         ),
+        "Log-O": (np.log, 1),
+        "Log-C": (clip_protected_log, 1),
+        "Log-C-Signed": (clip_protected_log_signed, 1),
         "ALog10": (
             analytical_log10,
             1,

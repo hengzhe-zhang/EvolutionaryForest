@@ -450,7 +450,7 @@ def statistical_best_alpha(base_model, Y, new_best_index):
     errors = (Y.reshape(-1, 1) - all_y_pred) ** 2
     b_idx = None
     for idx in range(new_best_index + 1, errors.shape[1]):
-        # singed rank test
+        # signed rank test
         if wilcoxon(errors[:, new_best_index], errors[:, idx])[1] > 0.05:
             b_idx = idx
     if b_idx is not None:

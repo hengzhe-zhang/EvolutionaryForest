@@ -29,7 +29,7 @@ from evolutionary_forest.component.primitive_functions import (
     radian_sin,
     radian_cos,
     sqrt_signed,
-    analytical_log_singed,
+    analytical_log_signed,
 )
 from evolutionary_forest.component.stgp.categorical_processor import *
 from evolutionary_forest.component.stgp.fast_binary_encoder import BinaryEncoder
@@ -429,7 +429,7 @@ def add_smooth_math_operators(pset, flag):
             float,
         ),
         "ALog+": (
-            partial_wrapper(smooth_operator_1, operator=analytical_log_singed),
+            partial_wrapper(smooth_operator_1, operator=analytical_log_signed),
             [float, Parameter],
             float,
         ),
