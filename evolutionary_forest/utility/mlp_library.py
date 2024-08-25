@@ -1,6 +1,8 @@
 import deap.base as base
 import deap.creator as creator
+import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,6 +18,52 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.probability_gp import genHalfAndHalf
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
+
+
+def plot_similarity_matrices(
+    cosine_similarity_features,
+    cosine_similarity_target_features,
+    title_features="Cosine Similarity (Features)",
+    title_target="Cosine Similarity (Target Features)",
+):
+    """
+    Visualize and compare cosine similarity matrices side by side.
+
+    :param cosine_similarity_features: Cosine similarity matrix computed from features.
+    :param cosine_similarity_target_features: Cosine similarity matrix computed from target_features.
+    :param title_features: Title for the features similarity matrix plot.
+    :param title_target: Title for the target features similarity matrix plot.
+    """
+    # Convert tensors to numpy arrays for plotting
+    cosine_similarity_features = cosine_similarity_features.detach().cpu().numpy()
+    cosine_similarity_target_features = (
+        cosine_similarity_target_features.detach().cpu().numpy()
+    )
+
+    # Create a figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6), constrained_layout=True)
+
+    # Plot the cosine similarity matrix for features
+    sns.heatmap(
+        cosine_similarity_features, ax=axes[0], cmap="viridis", cbar=True, annot=False
+    )
+    axes[0].set_title(title_features)
+    axes[0].set_xlabel("Batch Index")
+    axes[0].set_ylabel("Batch Index")
+
+    # Plot the cosine similarity matrix for target features
+    sns.heatmap(
+        cosine_similarity_target_features,
+        ax=axes[1],
+        cmap="viridis",
+        cbar=True,
+        annot=False,
+    )
+    axes[1].set_title(title_target)
+    axes[1].set_xlabel("Batch Index")
+    axes[1].set_ylabel("Batch Index")
+
+    plt.show()
 
 
 class DataInputLayer(nn.Module):
@@ -281,6 +329,7 @@ class NeuralSemanticLibrary(nn.Module):
         transformer_layers=2,  # Add number of transformer layers
         use_transformer=True,  # Flag to enable or disable transformer layer
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
+        flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -292,6 +341,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.batch_norm = batch_norm  # Store batch_norm flag
         self.residual = residual  # Store residual connection flag
         self.use_transformer = use_transformer  # Store use_transformer flag
+        self.flatten_before_similarity = flatten_before_similarity  # Store flatten flag
 
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
@@ -388,7 +438,13 @@ class NeuralSemanticLibrary(nn.Module):
         :param margin: Margin for contrastive loss.
         :return: Calculated contrastive loss.
         """
-        # Normalize the feature vectors
+        # Flatten or mean features across sequence length before calculating similarity
+        if self.flatten_before_similarity:
+            features = features.reshape(features.size(0), -1)  # Flatten features
+        else:
+            features = features.mean(dim=1)  # Shape: [batch_size, feature_dim]
+
+        # Normalize the feature vectors after mean or flatten
         features = F.normalize(
             features, p=2, dim=-1
         )  # Normalize across the feature_dim
@@ -396,17 +452,16 @@ class NeuralSemanticLibrary(nn.Module):
             target_features, p=2, dim=-1
         )  # Normalize across the input_dim
 
-        # Compute mean feature vector for each sample in the batch
-        features_mean = features.mean(dim=1)  # Shape: [batch_size, feature_dim]
-
         # Compute pairwise cosine similarity matrices
         cosine_similarity_features = torch.matmul(
-            features_mean, features_mean.T
+            features, features.T
         )  # Shape: [batch_size, batch_size]
         cosine_similarity_target_features = torch.matmul(
             target_features, target_features.T
         )  # Shape: [batch_size, batch_size]
-
+        # plot_similarity_matrices(
+        #     cosine_similarity_features, cosine_similarity_target_features
+        # )
         # Convert cosine similarity to cosine distance
         cosine_distance_features = 1 - cosine_similarity_features
         cosine_distance_target_features = 1 - cosine_similarity_target_features
@@ -424,6 +479,7 @@ class NeuralSemanticLibrary(nn.Module):
         )
 
         return loss
+        # return torch.Tensor([0])
 
     def train(
         self,
@@ -822,18 +878,22 @@ if __name__ == "__main__":
     # Initialize the NeuralSemanticLibrary model
     nl = NeuralSemanticLibrary(
         data.shape[0],
-        128,
-        128,
+        32,
+        32,
         dropout=0.1,
         num_layers=3,
         pset=pset,
         use_transformer=True,
-        contrastive_loss_in_val=False,
     )
 
     # Train the neural network
     nl.train(
-        train_data, epochs=1000, lr=0.01, val_split=0.2, verbose=True, loss_weight=0
+        train_data,
+        epochs=1000,
+        lr=0.01,
+        val_split=0.2,
+        verbose=True,
+        loss_weight=0.1,
     )
     for tid in range(0, 5):
         print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")
