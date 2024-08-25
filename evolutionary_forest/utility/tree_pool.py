@@ -158,6 +158,7 @@ class SemanticLibrary:
                 output_primitive_length=self.mutation_configuration.neural_pool_num_of_functions,
                 transformer_layers=self.mutation_configuration.neural_pool_transformer_layer,
                 contrastive_loss_in_val=self.mutation_configuration.contrastive_loss_in_val,
+                flatten_before_similarity=self.mutation_configuration.flatten_before_similarity,
             )
         else:
             self.mlp_pool = 0
