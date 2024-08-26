@@ -203,7 +203,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_depth=incumbent_depth,
                 incumbent_distance=incumbent_distance,
                 top_k=mutation_configuration.top_k_candidates,
-                negative_search=mutation_configuration.negative_local_search,
+                # negative_search=mutation_configuration.negative_local_search,
                 # curiosity_driven
                 curiosity_driven=curiosity_driven,
                 multi_generation_curiosity=multi_generation_curiosity,
@@ -216,7 +216,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             value = algorithm.tree_pool.retrieve_nearest_tree(
                 normalize_vector(residual),
                 return_semantics=True,
-                negative_search=mutation_configuration.negative_local_search,
+                # negative_search=mutation_configuration.negative_local_search,
             )
 
         if value is None:
@@ -276,7 +276,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 value = algorithm.tree_pool.retrieve_nearest_tree(
                     normalize_vector(residual),
                     return_semantics=True,
-                    negative_search=mutation_configuration.negative_local_search,
+                    # negative_search=mutation_configuration.negative_local_search,
                 )
                 tree, proposed_semantics = value
                 factor = calculate_slope(proposed_semantics, residual)

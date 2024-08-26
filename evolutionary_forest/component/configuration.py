@@ -224,7 +224,7 @@ class MutationConfiguration(Configuration):
         trial_check=True,
         trial_check_ratio=1,
         lib_feature_selection_mode="Frequency",
-        negative_local_search=True,
+        negative_data_augmentation=True,
         independent_local_search=True,
         local_search_dropout=0,
         local_search_dropout_trigger=0,
@@ -292,7 +292,8 @@ class MutationConfiguration(Configuration):
         self.include_subtree_to_lib = include_subtree_to_lib
         self.trial_check = trial_check
         self.trial_check_ratio = trial_check_ratio
-        self.negative_local_search = negative_local_search
+        # negative data augmentation
+        self.negative_data_augmentation = negative_data_augmentation
         self.independent_local_search = independent_local_search
 
         """

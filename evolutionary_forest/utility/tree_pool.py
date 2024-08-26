@@ -231,7 +231,11 @@ class SemanticLibrary:
                 # self.plain_semantics_list.append(semantics)
                 self.normalized_semantics_list.append(
                     normalized_semantics
-                )  # Store the normalized semantics
+                )  # Store the normalized semantics\
+                if self.mutation_configuration.negative_data_augmentation:
+                    self.trees.append(tree)
+                    self.normalized_semantics_list.append(-1 * normalized_semantics)
+                    self.curiosity.append(0)
 
         self.clean_when_full(normalized_target_semantics)
         if self.verbose:
@@ -265,6 +269,12 @@ class SemanticLibrary:
             normalized_semantics
         )  # Store the normalized semantics
         self.curiosity.append(0)
+        if self.mutation_configuration.negative_data_augmentation:
+            self.trees.append(tree)
+            self.normalized_semantics_list.append(
+                normalized_semantics
+            )  # Store the normalized semantics
+            self.curiosity.append(0)
 
     def clean_when_full(self, normalized_target_semantics):
         # Handle excess trees
