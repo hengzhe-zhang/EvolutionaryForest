@@ -236,6 +236,7 @@ class SemanticLibrary:
                     self.trees.append(tree)
                     self.normalized_semantics_list.append(-1 * normalized_semantics)
                     self.curiosity.append(0)
+                    self.seen_semantics[tuple(-1 * normalized_semantics)] = len(tree)
 
         self.clean_when_full(normalized_target_semantics)
         if self.verbose:
@@ -275,6 +276,8 @@ class SemanticLibrary:
                 normalized_semantics
             )  # Store the normalized semantics
             self.curiosity.append(0)
+
+            self.seen_semantics[tuple(-1 * normalized_semantics)] = len(tree)
 
     def clean_when_full(self, normalized_target_semantics):
         # Handle excess trees

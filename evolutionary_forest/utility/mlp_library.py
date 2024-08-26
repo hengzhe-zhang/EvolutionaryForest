@@ -105,7 +105,7 @@ class PrimitiveSetUtils:
             term.name for term in terminals
         ]
         return {
-            name: idx + 1 for idx, name in enumerate(node_names)
+            name: idx + 2 for idx, name in enumerate(node_names)
         }  # Start indexing from 1
 
     def get_index_to_node_name(self):
@@ -115,7 +115,8 @@ class PrimitiveSetUtils:
         :return: Dictionary mapping indices to node names.
         """
         index_to_node_name = {
-            0: ""
+            1: "<start>",
+            0: "<end>",
         }  # Index 0 is reserved for padding and mapped to an empty string or None
         index_to_node_name.update(
             {idx: name for name, idx in self.node_name_to_index.items()}
@@ -330,6 +331,7 @@ class NeuralSemanticLibrary(nn.Module):
         use_transformer=True,  # Flag to enable or disable transformer layer
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
         flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
+        use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -342,6 +344,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.residual = residual  # Store residual connection flag
         self.use_transformer = use_transformer  # Store use_transformer flag
         self.flatten_before_similarity = flatten_before_similarity  # Store flatten flag
+        self.use_decoder_transformer = use_decoder_transformer
 
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
@@ -350,7 +353,7 @@ class NeuralSemanticLibrary(nn.Module):
             PrimitiveSetUtils(pset) if pset else None
         )  # Initialize PrimitiveSetUtils
         self.num_symbols = (
-            len(self.pset_utils.node_name_to_index) + 1 if self.pset_utils else 0
+            len(self.pset_utils.node_name_to_index) + 2 if self.pset_utils else 0
         )  # Dynamically determine number of symbols (+1 for padding)
         self.num_terminals = (
             len(self.pset_utils.pset.terminals[object]) if self.pset_utils else 0
@@ -371,23 +374,37 @@ class NeuralSemanticLibrary(nn.Module):
         self._initialize_weights()  # Initialize weights
 
         if self.use_transformer:
-            # Define the Transformer layer
-            transformer_encoder_layer = TransformerEncoderLayer(
-                d_model=output_size,
-                nhead=num_heads,
-                dim_feedforward=hidden_size,
-                dropout=dropout,
-                activation="gelu",
-            )
-            self.transformer = TransformerEncoder(
-                transformer_encoder_layer, num_layers=transformer_layers
-            )
+            if self.use_decoder_transformer:
+                # Define the Transformer Decoder layer
+                transformer_decoder_layer = nn.TransformerDecoderLayer(
+                    d_model=output_size,
+                    nhead=num_heads,
+                    dim_feedforward=hidden_size,
+                    dropout=dropout,
+                    activation="gelu",
+                )
+                self.transformer = nn.TransformerDecoder(
+                    transformer_decoder_layer, num_layers=transformer_layers
+                )
+            else:
+                # Define the Transformer Encoder layer as before
+                transformer_encoder_layer = nn.TransformerEncoderLayer(
+                    d_model=output_size,
+                    nhead=num_heads,
+                    dim_feedforward=hidden_size,
+                    dropout=dropout,
+                    activation="gelu",
+                )
+                self.transformer = nn.TransformerEncoder(
+                    transformer_encoder_layer, num_layers=transformer_layers
+                )
 
         # Define the embedding layer with padding
         self.embedding = nn.Embedding(
             self.num_symbols, output_size, padding_idx=padding_idx
         )
 
+        self.start_token_index = 1
         self.contrastive_loss_in_val = contrastive_loss_in_val
 
     def _initialize_weights(self):
@@ -397,7 +414,7 @@ class NeuralSemanticLibrary(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, batch_y=None):
         # Ensure x has shape (batch_size, input_size)
         x = self.mlp[0](x)
         residual = x  # Save input for residual connection
@@ -413,20 +430,95 @@ class NeuralSemanticLibrary(nn.Module):
         x = x.view(-1, self.output_sequence_length, self.output_size)
 
         if self.use_transformer:
-            # Pass through the Transformer layer
-            x = x.permute(
-                1, 0, 2
-            )  # Transformer expects (sequence_length, batch_size, embed_dim)
-            x = self.transformer(x)
-            x = x.permute(1, 0, 2)  # Back to (batch_size, sequence_length, embed_dim)
+            # If batch_y is provided (training mode), convert it to tgt embeddings
+            if batch_y is not None:
+                # Add start token to the beginning of batch_y and remove the last token
+                start_tokens = torch.full(
+                    (batch_y.size(0), 1),
+                    self.start_token_index,
+                    dtype=torch.long,
+                    device=x.device,
+                )
+                batch_y = torch.cat(
+                    [start_tokens, batch_y[:, :-1]], dim=1
+                )  # Remove last token from batch_y and concatenate
 
+                # Teacher forcing: use ground truth tokens as input to the decoder
+                tgt = self.embedding(
+                    batch_y
+                )  # Shape: (batch_size, sequence_length + 1, output_size)
+                tgt = tgt.permute(
+                    1, 0, 2
+                )  # Shape: (sequence_length + 1, batch_size, output_size)
+                memory = x.permute(
+                    1, 0, 2
+                )  # Use x as memory, shape: (sequence_length, batch_size, output_size)
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(
+                    tgt.size(0)
+                ).to(tgt.device)
+                output = self.transformer(tgt, memory, tgt_mask=tgt_mask)
+                output = output.permute(
+                    1, 0, 2
+                )  # Back to (batch_size, sequence_length, embed_dim)
+
+            else:
+                # Inference mode (no teacher forcing): generate sequence step-by-step
+                batch_size = x.size(0)
+                # Start with the start token
+                tgt = self.embedding(
+                    torch.full(
+                        (batch_size, 1),
+                        self.start_token_index,
+                        dtype=torch.long,
+                        device=x.device,
+                    )
+                )
+                tgt = tgt.permute(1, 0, 2)  # Shape: (1, batch_size, output_size)
+                memory = x.permute(
+                    1, 0, 2
+                )  # Use x as memory, shape: (sequence_length, batch_size, output_size)
+
+                for _ in range(
+                    self.output_sequence_length
+                ):  # Replace max_length with the appropriate max sequence length
+                    # Create a causal mask for the decoder
+                    tgt_mask = nn.Transformer.generate_square_subsequent_mask(
+                        tgt.size(0)
+                    ).to(tgt.device)
+                    # Pass through the Transformer decoder with x as memory
+                    output = self.transformer(tgt, memory, tgt_mask=tgt_mask)
+                    output = output.permute(
+                        1, 0, 2
+                    )  # Shape: (batch_size, sequence_length, embed_dim)
+
+                    # Get the last token's prediction
+                    last_token_logits = torch.matmul(
+                        output[:, -1:], self.embedding.weight.T
+                    )  # Shape: (batch_size, 1, num_symbols)
+                    next_token = last_token_logits.argmax(
+                        dim=-1
+                    )  # Shape: (batch_size, 1)
+
+                    # Append the predicted token to tgt
+                    next_token_embedding = self.embedding(next_token).permute(
+                        1, 0, 2
+                    )  # Shape: (1, batch_size, output_size)
+                    tgt = torch.cat(
+                        [tgt, next_token_embedding], dim=0
+                    )  # Append along the sequence dimension
+
+        else:
+            output = x  # If transformer is not used, directly use x
         # Compute dot product with embedding vectors
         embedding_vectors = self.embedding.weight  # Shape: (num_symbols, output_size)
         # Compute dot product between each element of the sequence and the embedding vectors
         dot_products = torch.matmul(
-            x, embedding_vectors.T
+            output, embedding_vectors.T
         )  # Shape: (batch_size, output_sequence_length, num_symbols)
-        return dot_products, x  # Return both the final output and the feature vectors
+        return (
+            dot_products,
+            output,
+        )  # Return both the final output and the feature vectors
 
     def contrastive_loss(self, features, target_features, margin=0.5):
         """
@@ -559,7 +651,7 @@ class NeuralSemanticLibrary(nn.Module):
             self.mlp.train()  # Set the model to training mode
             for batch_x, batch_y in dataloader:
                 # Ensure batch_x has shape (batch_size, input_size)
-                output, features = self.forward(batch_x)
+                output, features = self.forward(batch_x, batch_y=batch_y)
 
                 # Create a mask to ensure that the last four positions are terminals
                 mask = torch.ones_like(
@@ -893,7 +985,7 @@ if __name__ == "__main__":
         lr=0.01,
         val_split=0.2,
         verbose=True,
-        loss_weight=0.1,
+        loss_weight=0,
     )
     for tid in range(0, 5):
         print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")
