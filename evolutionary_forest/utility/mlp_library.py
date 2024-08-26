@@ -456,8 +456,8 @@ class NeuralSemanticLibrary(nn.Module):
         cosine_similarity_features = torch.matmul(
             features, features.T
         )  # Shape: [batch_size, batch_size]
-        cosine_similarity_target_features = torch.matmul(
-            target_features, target_features.T
+        cosine_similarity_target_features = torch.abs(
+            torch.matmul(target_features, target_features.T)
         )  # Shape: [batch_size, batch_size]
         # plot_similarity_matrices(
         #     cosine_similarity_features, cosine_similarity_target_features
