@@ -351,6 +351,7 @@ class NeuralSemanticLibrary(nn.Module):
         use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=False,
+        use_shared_embedding=True,  # Add flag to enable or disable shared embedding
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -364,6 +365,9 @@ class NeuralSemanticLibrary(nn.Module):
         self.use_transformer = use_transformer  # Store use_transformer flag
         self.flatten_before_similarity = flatten_before_similarity  # Store flatten flag
         self.use_decoder_transformer = use_decoder_transformer
+        self.use_shared_embedding = (
+            use_shared_embedding  # Store use_shared_embedding flag
+        )
 
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
@@ -421,10 +425,20 @@ class NeuralSemanticLibrary(nn.Module):
                     transformer_encoder_layer, num_layers=transformer_layers
                 )
 
-        # Define the embedding layer with padding
-        self.embedding = nn.Embedding(
-            self.num_symbols, output_size, padding_idx=padding_idx
-        )
+        if self.use_shared_embedding:
+            # Define a shared embedding layer for all positions
+            self.embedding = nn.Embedding(
+                self.num_symbols, output_size, padding_idx=padding_idx
+            )
+        else:
+            # Define independent embedding layers for each position in the output sequence
+            self.embeddings = nn.ModuleList(
+                [
+                    nn.Embedding(self.num_symbols, output_size, padding_idx=padding_idx)
+                    for _ in range(self.output_sequence_length)
+                ]
+            )
+            self.embedding = self.embeddings[0]
 
         self.start_token_index = 1
         self.contrastive_loss_in_val = contrastive_loss_in_val
@@ -477,9 +491,14 @@ class NeuralSemanticLibrary(nn.Module):
                 )  # Remove last token from batch_y and concatenate
 
                 # Teacher forcing: use ground truth tokens as input to the decoder
-                tgt = self.embedding(
-                    batch_y
-                )  # Shape: (batch_size, sequence_length + 1, output_size)
+                if self.use_shared_embedding:
+                    tgt = self.embedding(batch_y)  # Shared embedding
+                else:
+                    tgt_embeddings = []
+                    for i in range(batch_y.size(1)):
+                        tgt_embeddings.append(self.embeddings[i](batch_y[:, i]))
+                    tgt = torch.stack(tgt_embeddings, dim=1)  # Independent embeddings
+
                 tgt = tgt.permute(1, 0, 2)
                 memory = x.permute(1, 0, 2)
 
@@ -495,12 +514,23 @@ class NeuralSemanticLibrary(nn.Module):
                 # Inference mode (no teacher forcing): generate sequence step-by-step
                 batch_size = x.size(0)
                 # Start with the start token
-                tgt = self.embedding(
-                    torch.full(
-                        (batch_size, 1),
-                        self.start_token_index,
-                        dtype=torch.long,
-                        device=x.device,
+                tgt = (
+                    self.embedding(
+                        torch.full(
+                            (batch_size, 1),
+                            self.start_token_index,
+                            dtype=torch.long,
+                            device=x.device,
+                        )
+                    )
+                    if self.use_shared_embedding
+                    else self.embeddings[0](
+                        torch.full(
+                            (batch_size, 1),
+                            self.start_token_index,
+                            dtype=torch.long,
+                            device=x.device,
+                        )
                     )
                 )
                 tgt = tgt.permute(1, 0, 2)  # Shape: (1, batch_size, output_size)
@@ -508,9 +538,9 @@ class NeuralSemanticLibrary(nn.Module):
                     1, 0, 2
                 )  # Use x as memory, shape: (sequence_length, batch_size, output_size)
 
-                for _ in range(
+                for i in range(
                     self.output_sequence_length
-                ):  # Replace max_length with the appropriate max sequence length
+                ):  # Iterate through each position
                     # Create a causal mask for the decoder
                     tgt_mask = nn.Transformer.generate_square_subsequent_mask(
                         tgt.size(0)
@@ -523,15 +553,20 @@ class NeuralSemanticLibrary(nn.Module):
 
                     # Get the last token's prediction
                     last_token_logits = torch.matmul(
-                        output[:, -1:], self.embedding.weight.T
+                        output[:, -1:],
+                        self.embedding.weight.T
+                        if self.use_shared_embedding
+                        else self.embeddings[i].weight.T,
                     )  # Shape: (batch_size, 1, num_symbols)
                     next_token = last_token_logits.argmax(
                         dim=-1
                     )  # Shape: (batch_size, 1)
 
                     # Append the predicted token to tgt
-                    next_token_embedding = self.embedding(next_token).permute(
-                        1, 0, 2
+                    next_token_embedding = (
+                        self.embedding(next_token).permute(1, 0, 2)
+                        if self.use_shared_embedding
+                        else self.embeddings[i](next_token).permute(1, 0, 2)
                     )  # Shape: (1, batch_size, output_size)
                     tgt = torch.cat(
                         [tgt, next_token_embedding], dim=0
@@ -539,12 +574,31 @@ class NeuralSemanticLibrary(nn.Module):
 
         else:
             output = x  # If transformer is not used, directly use x
+            # Compute dot product with independent embedding vectors
+
         # Compute dot product with embedding vectors
-        embedding_vectors = self.embedding.weight  # Shape: (num_symbols, output_size)
-        # Compute dot product between each element of the sequence and the embedding vectors
-        dot_products = torch.matmul(
-            output, embedding_vectors.T
-        )  # Shape: (batch_size, output_sequence_length, num_symbols)
+        if self.use_shared_embedding:
+            # Shared embedding case
+            embedding_vectors = (
+                self.embedding.weight
+            )  # Shape: (num_symbols, output_size)
+            dot_products = torch.matmul(
+                output, embedding_vectors.T
+            )  # Shape: (batch_size, output_sequence_length, num_symbols)
+        else:
+            # Independent embedding case
+            dot_products = []
+            for i in range(self.output_sequence_length):
+                embedding_vectors = self.embeddings[
+                    i
+                ].weight  # Shape: (num_symbols, output_size)
+                dot_products.append(
+                    torch.matmul(output[:, i, :], embedding_vectors.T)
+                )  # Shape: (batch_size, num_symbols)
+            dot_products = torch.stack(
+                dot_products, dim=1
+            )  # Shape: (batch_size, output_sequence_length, num_symbols)
+
         return (
             dot_products,
             output if self.contrastive_learning_stage == "Decoder" else x,
@@ -658,6 +712,7 @@ class NeuralSemanticLibrary(nn.Module):
 
             # Normalize using training data statistics
             scaler = StandardScaler()
+            self.scaler = scaler
             scaler.fit(train_tensors)
             train_tensors = torch.tensor(
                 scaler.transform(train_tensors), dtype=torch.float32
@@ -670,6 +725,7 @@ class NeuralSemanticLibrary(nn.Module):
         else:
             # Normalize on the entire dataset if no split is used
             scaler = StandardScaler()
+            self.scaler = scaler
             scaler.fit(tensors.numpy())
             tensors = torch.tensor(
                 scaler.transform(tensors.numpy()), dtype=torch.float32
@@ -1069,7 +1125,8 @@ if __name__ == "__main__":
         num_layers=3,
         pset=pset,
         use_transformer=True,
-        use_decoder_transformer=True,
+        use_decoder_transformer=False,
+        use_shared_embedding=True,
     )
 
     # Train the neural network
