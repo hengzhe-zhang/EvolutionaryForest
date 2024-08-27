@@ -12,12 +12,29 @@ from deap.gp import PrimitiveSet, PrimitiveTree, Primitive
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.probability_gp import genHalfAndHalf
+from evolutionary_forest.utility.normalization_tool import normalize_vector
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
+
+
+class RotaryPositionalEmbedding(nn.Module):
+    def __init__(self, d_model):
+        super(RotaryPositionalEmbedding, self).__init__()
+        self.dim = d_model // 2
+
+    def forward(self, x):
+        seq_len = x.size(1)
+        freqs = torch.arange(self.dim, dtype=torch.float32, device=x.device)
+        freqs = freqs / self.dim
+        freqs = 1.0 / (10000**freqs)
+        angles = torch.arange(seq_len, dtype=torch.float32, device=x.device)
+        angles = torch.einsum("i,j->ij", angles, freqs)
+        encoding = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)
+        encoding = encoding.unsqueeze(0).expand_as(x)
+        return x * encoding
 
 
 def plot_similarity_matrices(
@@ -433,7 +450,16 @@ class NeuralSemanticLibrary(nn.Module):
 
         if self.use_transformer:
             # If batch_y is provided (training mode), convert it to tgt embeddings
-            if batch_y is not None:
+            if not self.use_decoder_transformer:
+                # Pass through the Transformer layer
+                output = x.permute(
+                    1, 0, 2
+                )  # Transformer expects (sequence_length, batch_size, embed_dim)
+                output = self.transformer(output)
+                output = output.permute(
+                    1, 0, 2
+                )  # Back to (batch_size, sequence_length, embed_dim)
+            elif batch_y is not None:
                 # Add start token to the beginning of batch_y and remove the last token
                 start_tokens = torch.full(
                     (batch_y.size(0), 1),
@@ -449,12 +475,9 @@ class NeuralSemanticLibrary(nn.Module):
                 tgt = self.embedding(
                     batch_y
                 )  # Shape: (batch_size, sequence_length + 1, output_size)
-                tgt = tgt.permute(
-                    1, 0, 2
-                )  # Shape: (sequence_length + 1, batch_size, output_size)
-                memory = x.permute(
-                    1, 0, 2
-                )  # Use x as memory, shape: (sequence_length, batch_size, output_size)
+                tgt = tgt.permute(1, 0, 2)
+                memory = x.permute(1, 0, 2)
+
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(
                     tgt.size(0)
                 ).to(tgt.device)
@@ -784,6 +807,7 @@ class NeuralSemanticLibrary(nn.Module):
             mask[:, :, self.embedding.padding_idx] = -float(
                 "inf"
             )  # Mask out padding index
+            mask[:, :, self.start_token_index] = -float("inf")  # Mask out padding index
 
             # Apply the mask to the output vector
         masked_output_vector = output_vector + mask
@@ -844,14 +868,19 @@ def generate_synthetic_data(pset, num_samples=100, min_depth=2, max_depth=2):
     creator.create("Individual", list, fitness=creator.FitnessMax)
 
     data = []
+    viewed = set()
     for _ in range(num_samples):
         # Generate a random GP tree
         gp_tree = create_random_gp_tree(pset, min_depth=min_depth, max_depth=max_depth)
 
         # Generate synthetic semantics (e.g., applying the GP tree to a synthetic dataset)
-        target_semantics = generate_target_semantics(gp_tree, pset)
-
+        target_semantics = normalize_vector(generate_target_semantics(gp_tree, pset))
+        if tuple(target_semantics) in viewed:
+            continue
+        viewed.add(tuple(target_semantics))
         data.append((gp_tree, target_semantics))
+        viewed.add(tuple(-1 * target_semantics))
+        data.append((gp_tree, -1 * target_semantics))
 
     # sorting
     # all_semantics = np.argsort(np.median([s for _, s in data], axis=0))
@@ -897,6 +926,10 @@ def sqrt(x):
     return np.sqrt(np.abs(x))
 
 
+def aq(x, y):
+    return x / np.sqrt(1 + y**2)
+
+
 def sin(x):
     return np.sin(x)
 
@@ -936,7 +969,7 @@ if __name__ == "__main__":
 
     # ['subtract', 'add', 'ARG0', 'ARG1', 'subtract', 'ARG0', 'ARG1']
     # Example usage
-    data = load_diabetes().data[:30]
+    data = load_diabetes().data[:50]
 
     # Define DEAP PrimitiveSet
     pset = PrimitiveSet(
@@ -948,6 +981,9 @@ if __name__ == "__main__":
     pset.addPrimitive(cos, 1)
     pset.addPrimitive(sqrt, 1)
     pset.addPrimitive(multiply, 2)
+    pset.addPrimitive(aq, 2)
+    pset.addPrimitive(np.minimum, 2)
+    pset.addPrimitive(np.maximum, 2)
 
     utils = PrimitiveSetUtils(pset)
     generated_tree = PrimitiveTree(
@@ -962,7 +998,7 @@ if __name__ == "__main__":
     # Generate synthetic training data
     fix_depth = 3
     train_data = generate_synthetic_data(
-        pset, num_samples=5000, min_depth=fix_depth, max_depth=fix_depth
+        pset, num_samples=5000, min_depth=1, max_depth=fix_depth
     )
 
     # Filter training data by node count
@@ -976,10 +1012,11 @@ if __name__ == "__main__":
         data.shape[0],
         32,
         32,
-        dropout=0.1,
+        dropout=0,
         num_layers=3,
         pset=pset,
         use_transformer=True,
+        use_decoder_transformer=True,
     )
 
     # Train the neural network
@@ -989,7 +1026,7 @@ if __name__ == "__main__":
         lr=0.01,
         val_split=0.2,
         verbose=True,
-        loss_weight=1,
+        loss_weight=0,
     )
     for tid in range(0, 5):
         print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")
