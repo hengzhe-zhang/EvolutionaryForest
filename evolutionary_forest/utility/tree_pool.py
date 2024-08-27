@@ -248,6 +248,7 @@ class SemanticLibrary:
         if len(self.normalized_semantics_list) > 0:
             # Create the KDTree with all collected points
             self.kd_tree = cKDTree(self.normalized_semantics_list)
+            assert len(self.trees) == len(self.normalized_semantics_list)
         self.frequency.clear()
 
     def append_subtree(self, semantics: np.ndarray, tree: PrimitiveTree):
@@ -276,10 +277,9 @@ class SemanticLibrary:
         if self.mutation_configuration.negative_data_augmentation:
             self.trees.append(tree)
             self.normalized_semantics_list.append(
-                normalized_semantics
+                (-1 * normalized_semantics)
             )  # Store the normalized semantics
             self.curiosity.append(0)
-
             self.seen_semantics[tuple(-1 * normalized_semantics)] = len(tree)
 
     def clean_when_full(self, normalized_target_semantics):

@@ -643,21 +643,37 @@ class NeuralSemanticLibrary(nn.Module):
             train_data, self.output_sequence_length
         )
         targets = [torch.tensor(t, dtype=torch.long) for t in targets]
-
-        # Normalize tensors
-        scaler = StandardScaler()
-        self.scaler = scaler
-        tensors = torch.tensor(
-            scaler.fit_transform(torch.stack(tensors).numpy()), dtype=torch.float32
-        )
+        # Convert list of tensors to a single tensor
+        tensors = torch.stack(tensors)
 
         # Split data into training and validation sets if val_split > 0
         if val_split > 0:
             train_tensors, val_tensors, train_targets, val_targets = train_test_split(
-                tensors, targets, test_size=val_split, random_state=0, shuffle=False
+                tensors.numpy(),
+                targets,
+                test_size=val_split,
+                random_state=0,
+                shuffle=False,
             )
+
+            # Normalize using training data statistics
+            scaler = StandardScaler()
+            scaler.fit(train_tensors)
+            train_tensors = torch.tensor(
+                scaler.transform(train_tensors), dtype=torch.float32
+            )
+            val_tensors = torch.tensor(
+                scaler.transform(val_tensors), dtype=torch.float32
+            )
+
             val_data = list(zip(val_tensors, val_targets))
         else:
+            # Normalize on the entire dataset if no split is used
+            scaler = StandardScaler()
+            scaler.fit(tensors.numpy())
+            tensors = torch.tensor(
+                scaler.transform(tensors.numpy()), dtype=torch.float32
+            )
             train_tensors = tensors
             train_targets = targets
             val_data = None
