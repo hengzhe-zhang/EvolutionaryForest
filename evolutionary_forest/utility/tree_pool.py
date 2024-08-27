@@ -859,6 +859,9 @@ class SemanticLibrary:
             self.previous_loss_matrix = error
         else:
             raise Exception("Invalid mode")
+        self.clustering_indexes = self.clustering_indexes[
+            np.argsort(label[self.clustering_indexes])
+        ]
         self.clear_all()
 
     def clear_all(self):
@@ -940,7 +943,7 @@ class SemanticLibrary:
             self.mlp_pool.train(
                 train_data,
                 lr=0.01,
-                verbose=False,
+                verbose=True,
                 patience=5,
                 loss_weight=self.mutation_configuration.weight_of_contrastive_learning,
             )

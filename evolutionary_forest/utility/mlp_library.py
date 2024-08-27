@@ -608,7 +608,8 @@ class NeuralSemanticLibrary(nn.Module):
         val_split=0.2,
         patience=20,
         verbose=False,
-        loss_weight=0.5,  # Add a parameter to balance contrastive and ce loss
+        loss_weight=0.5,
+        min_loss_diff=0.01,  # Threshold for considering a significant decrease in val loss
     ):
         """
         Train the neural network with optional validation and early stopping.
@@ -648,14 +649,28 @@ class NeuralSemanticLibrary(nn.Module):
         # Split data into training and validation sets if val_split > 0
         if val_split > 0:
             train_tensors, val_tensors, train_targets, val_targets = train_test_split(
-                tensors, targets, test_size=val_split, random_state=0
+                tensors, targets, test_size=val_split, random_state=0, shuffle=False
             )
-            train_data = list(zip(train_tensors, train_targets))
             val_data = list(zip(val_tensors, val_targets))
         else:
             train_tensors = tensors
             train_targets = targets
             val_data = None
+
+        # Check initial validation loss
+        # if val_data:
+        #     current_val_loss = self.compute_val_loss(val_data, loss_weight)
+        #     if verbose:
+        #         print(f"Initial Validation Loss: {current_val_loss}")
+        #
+        #     # If previous_val_loss is stored, compare it to the current validation loss
+        #     if (
+        #         hasattr(self, "previous_val_loss")
+        #         and current_val_loss < self.previous_val_loss
+        #     ):
+        #         if verbose:
+        #             print("Validation loss has not degraded. Skipping training.")
+        #         return current_val_loss
 
         # Stack tensors and targets to create a dataset
         stacked_tensors = train_tensors  # Tensors are already stacked and normalized
@@ -724,39 +739,14 @@ class NeuralSemanticLibrary(nn.Module):
 
             # Validation
             if val_data:
-                self.mlp.eval()  # Set the model to evaluation mode
-                val_tensors, val_targets = zip(*val_data)
-                val_tensors = torch.stack(val_tensors)
-                val_targets = torch.stack(val_targets).view(
-                    -1, self.output_sequence_length
-                )
-
-                val_output, val_features = self.forward(val_tensors)
-                val_mask = torch.ones_like(val_output)
-                val_masked_output = val_output * val_mask
-
-                val_targets = val_targets.view(-1)
-                val_masked_output = val_masked_output.view(-1, self.num_symbols)
-
-                val_ce_loss = criterion(val_masked_output, val_targets).item()
-
-                if loss_weight > 0 and self.contrastive_loss_in_val:
-                    # Calculate contrastive loss for validation
-                    val_contrastive_loss = self.contrastive_loss(
-                        val_features, val_tensors
-                    ).item()
-
-                    # Combine the losses for validation loss
-                    val_loss = val_ce_loss + loss_weight * val_contrastive_loss
-                else:
-                    val_loss = val_ce_loss
-
+                current_val_loss = self.compute_val_loss(val_data, loss_weight)
                 if verbose:
-                    print(f"Epoch {epoch + 1}/{epochs}, Validation Loss: {val_loss}")
+                    print(
+                        f"Epoch {epoch + 1}/{epochs}, Validation Loss: {current_val_loss}"
+                    )
 
-                # Early stopping
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
+                if current_val_loss < best_val_loss:
+                    best_val_loss = current_val_loss
                     patience_counter = 0
                     # Optionally save the model here
                 else:
@@ -767,6 +757,48 @@ class NeuralSemanticLibrary(nn.Module):
                                 "Early stopping due to no improvement in validation loss."
                             )
                         break
+
+        # Store the best validation loss as previous_val_loss
+        self.previous_val_loss = best_val_loss
+
+        return best_val_loss
+
+    def compute_val_loss(self, val_data, loss_weight=0.5):
+        """
+        Compute the validation loss.
+
+        :param val_data: Validation dataset in the form of a list of tuples (tensor, target).
+        :param loss_weight: Weight to balance contrastive and ce loss. Set to 0 to ignore contrastive loss.
+        :return: Computed validation loss.
+        """
+        self.mlp.eval()  # Set the model to evaluation mode
+        val_tensors, val_targets = zip(*val_data)
+        val_tensors = torch.stack(val_tensors)
+        val_targets = torch.stack(val_targets).view(-1, self.output_sequence_length)
+
+        val_output, val_features = self.forward(val_tensors)
+        val_mask = torch.ones_like(val_output)
+        val_masked_output = val_output * val_mask
+
+        val_targets = val_targets.view(-1)
+        val_masked_output = val_masked_output.view(-1, self.num_symbols)
+
+        val_ce_loss = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)(
+            val_masked_output, val_targets
+        ).item()
+
+        if loss_weight > 0 and self.contrastive_loss_in_val:
+            # Calculate contrastive loss for validation
+            val_contrastive_loss = self.contrastive_loss(
+                val_features, val_tensors
+            ).item()
+
+            # Combine the losses for validation loss
+            val_loss = val_ce_loss + loss_weight * val_contrastive_loss
+        else:
+            val_loss = val_ce_loss
+
+        return val_loss
 
     def predict(self, semantics, mode="greedy"):
         """
