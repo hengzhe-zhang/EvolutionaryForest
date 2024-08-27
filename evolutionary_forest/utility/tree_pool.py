@@ -161,6 +161,7 @@ class SemanticLibrary:
                 flatten_before_similarity=self.mutation_configuration.flatten_before_similarity,
                 use_decoder_transformer=self.mutation_configuration.use_decoder_transformer,
                 contrastive_learning_stage=self.mutation_configuration.contrastive_learning_stage,
+                selective_retrain=self.mutation_configuration.selective_retrain,
             )
         else:
             self.mlp_pool = 0

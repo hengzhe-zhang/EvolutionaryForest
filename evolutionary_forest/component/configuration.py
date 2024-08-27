@@ -247,6 +247,7 @@ class MutationConfiguration(Configuration):
         flatten_before_similarity=False,
         contrastive_learning_stage="Decoder",
         use_decoder_transformer=False,
+        selective_retrain=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -317,6 +318,7 @@ class MutationConfiguration(Configuration):
         self.flatten_before_similarity = flatten_before_similarity
         self.contrastive_learning_stage = contrastive_learning_stage
         self.use_decoder_transformer = use_decoder_transformer
+        self.selective_retrain = selective_retrain
 
 
 class ImbalancedConfiguration(Configuration):

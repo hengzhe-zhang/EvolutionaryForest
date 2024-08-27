@@ -350,6 +350,7 @@ class NeuralSemanticLibrary(nn.Module):
         flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
         use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
+        selective_retrain=False,
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -391,6 +392,9 @@ class NeuralSemanticLibrary(nn.Module):
         self.mlp = nn.Sequential(*layers)
         self._initialize_weights()  # Initialize weights
 
+        if transformer_layers == 0:
+            self.use_transformer = False
+
         if self.use_transformer:
             if self.use_decoder_transformer:
                 # Define the Transformer Decoder layer
@@ -425,6 +429,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.start_token_index = 1
         self.contrastive_loss_in_val = contrastive_loss_in_val
         self.contrastive_learning_stage = contrastive_learning_stage
+        self.selective_retrain = selective_retrain
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -658,19 +663,19 @@ class NeuralSemanticLibrary(nn.Module):
             val_data = None
 
         # Check initial validation loss
-        # if val_data:
-        #     current_val_loss = self.compute_val_loss(val_data, loss_weight)
-        #     if verbose:
-        #         print(f"Initial Validation Loss: {current_val_loss}")
-        #
-        #     # If previous_val_loss is stored, compare it to the current validation loss
-        #     if (
-        #         hasattr(self, "previous_val_loss")
-        #         and current_val_loss < self.previous_val_loss
-        #     ):
-        #         if verbose:
-        #             print("Validation loss has not degraded. Skipping training.")
-        #         return current_val_loss
+        if val_data and self.selective_retrain:
+            current_val_loss = self.compute_val_loss(val_data, loss_weight)
+            if verbose:
+                print(f"Initial Validation Loss: {current_val_loss}")
+
+            # If previous_val_loss is stored, compare it to the current validation loss
+            if (
+                hasattr(self, "previous_val_loss")
+                and current_val_loss < self.previous_val_loss
+            ):
+                if verbose:
+                    print("Validation loss has not degraded. Skipping training.")
+                return current_val_loss
 
         # Stack tensors and targets to create a dataset
         stacked_tensors = train_tensors  # Tensors are already stacked and normalized
