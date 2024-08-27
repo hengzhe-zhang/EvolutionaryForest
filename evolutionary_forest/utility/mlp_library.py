@@ -332,6 +332,7 @@ class NeuralSemanticLibrary(nn.Module):
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
         flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
         use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
+        contrastive_learning_stage="Decoder",
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -406,6 +407,7 @@ class NeuralSemanticLibrary(nn.Module):
 
         self.start_token_index = 1
         self.contrastive_loss_in_val = contrastive_loss_in_val
+        self.contrastive_learning_stage = contrastive_learning_stage
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -517,7 +519,7 @@ class NeuralSemanticLibrary(nn.Module):
         )  # Shape: (batch_size, output_sequence_length, num_symbols)
         return (
             dot_products,
-            output,
+            output if self.contrastive_learning_stage == "Decoder" else x,
         )  # Return both the final output and the feature vectors
 
     def contrastive_loss(self, features, target_features, margin=0.5):
@@ -551,9 +553,10 @@ class NeuralSemanticLibrary(nn.Module):
         cosine_similarity_target_features = torch.abs(
             torch.matmul(target_features, target_features.T)
         )  # Shape: [batch_size, batch_size]
-        # plot_similarity_matrices(
-        #     cosine_similarity_features, cosine_similarity_target_features
-        # )
+        # if self.epoch == 20:
+        #     plot_similarity_matrices(
+        #         cosine_similarity_features, cosine_similarity_target_features
+        #     )
         # Convert cosine similarity to cosine distance
         cosine_distance_features = 1 - cosine_similarity_features
         cosine_distance_target_features = 1 - cosine_similarity_target_features
@@ -647,6 +650,7 @@ class NeuralSemanticLibrary(nn.Module):
         patience_counter = 0
 
         for epoch in range(epochs):
+            self.epoch = epoch
             total_loss = 0
             self.mlp.train()  # Set the model to training mode
             for batch_x, batch_y in dataloader:
@@ -985,7 +989,7 @@ if __name__ == "__main__":
         lr=0.01,
         val_split=0.2,
         verbose=True,
-        loss_weight=0,
+        loss_weight=1,
     )
     for tid in range(0, 5):
         print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")

@@ -245,6 +245,8 @@ class MutationConfiguration(Configuration):
         contrastive_loss_in_val=True,
         neural_pool_mlp_layers=3,
         flatten_before_similarity=False,
+        contrastive_learning_stage="Decoder",
+        use_decoder_transformer=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -313,6 +315,8 @@ class MutationConfiguration(Configuration):
         self.neural_pool_dropout = neural_pool_dropout
         self.contrastive_loss_in_val = contrastive_loss_in_val
         self.flatten_before_similarity = flatten_before_similarity
+        self.contrastive_learning_stage = contrastive_learning_stage
+        self.use_decoder_transformer = use_decoder_transformer
 
 
 class ImbalancedConfiguration(Configuration):
