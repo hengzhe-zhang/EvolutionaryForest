@@ -944,7 +944,7 @@ class SemanticLibrary:
             self.mlp_pool.train(
                 train_data,
                 lr=0.01,
-                verbose=True,
+                verbose=False,
                 patience=5,
                 loss_weight=self.mutation_configuration.weight_of_contrastive_learning,
             )
