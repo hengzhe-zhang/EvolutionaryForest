@@ -494,10 +494,10 @@ class NeuralSemanticLibrary(nn.Module):
         if self.use_transformer and nearest_y is not None:
             nearest_y_encoded = self._encode_nearest_y(nearest_y)
             combined_features = self._combine_features(x, nearest_y_encoded)
-            # output = x
-            output = combined_features
-            # output = self._decode(combined_features, batch_y)
-            # output = combined_features + self._decode(combined_features, batch_y)
+            if self.use_transformer:
+                output = self._decode(combined_features, batch_y)
+            else:
+                output = combined_features
         else:
             output = x  # If transformer or nearest_y is not used, directly use x
 
@@ -1169,29 +1169,31 @@ if __name__ == "__main__":
     train_data, test_data = train_test_split(train_data, test_size=0.2, random_state=0)
 
     # Initialize the NeuralSemanticLibrary model
-    nl = NeuralSemanticLibrary(
-        data.shape[0],
-        32,
-        32,
-        dropout=0,
-        num_layers=2,
-        transformer_layers=1,
-        pset=pset,
-        use_transformer=True,
-        use_decoder_transformer=True,
-        output_primitive_length=2,
-        # contrastive_learning_stage="Encoder",
-    )
+    for use_decoder in [True, False]:
+        nl = NeuralSemanticLibrary(
+            data.shape[0],
+            32,
+            32,
+            dropout=0,
+            num_layers=2,
+            transformer_layers=1,
+            pset=pset,
+            use_transformer=True,
+            use_decoder_transformer=True,
+            output_primitive_length=2,
+        )
 
-    # Train the neural network
-    nl.train(
-        train_data,
-        epochs=1000,
-        lr=0.01,
-        val_split=0.2,
-        verbose=True,
-        loss_weight=0,
-    )
-    for tid in range(0, 5):
-        print(f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}")
-        print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
+        # Train the neural network
+        nl.train(
+            train_data,
+            epochs=1000,
+            lr=0.01,
+            val_split=0.2,
+            verbose=True,
+            loss_weight=0,
+        )
+        for tid in range(0, 5):
+            print(
+                f"Predicted Tree: {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
+            )
+            print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
