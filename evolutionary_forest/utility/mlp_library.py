@@ -18,7 +18,44 @@ from torch.utils.data import DataLoader, TensorDataset
 from evolutionary_forest.component.crossover.kan import KANLinear
 from evolutionary_forest.probability_gp import genHalfAndHalf
 from evolutionary_forest.utility.normalization_tool import normalize_vector
+from evolutionary_forest.utility.retrieve_nn.quick_retrive import (
+    retrieve_nearest_y,
+    retrieve_nearest_y_skip_self,
+)
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
+import torch
+
+
+def compute_accuracy(val_output, val_targets, padding_idx):
+    """
+    Compute the accuracy of predictions, ignoring the padding index.
+
+    :param val_output: Tensor of shape (batch_size, seq_len, num_symbols) containing the model outputs.
+    :param val_targets: Tensor of shape (batch_size, seq_len) containing the true target values.
+    :param padding_idx: Index used for padding in the target tensor.
+    :return: Accuracy as a float.
+    """
+    # Flatten the tensors
+    val_targets = val_targets.view(-1)
+    val_output = val_output.view(-1, val_output.size(-1))
+
+    # Get the predicted values by taking the argmax over the last dimension
+    val_predictions = torch.argmax(val_output, dim=-1)
+
+    # Create a mask that ignores the padding index
+    mask = val_targets != padding_idx
+
+    # Calculate the number of correct predictions
+    correct_predictions = (val_predictions == val_targets) & mask
+    correct_count = correct_predictions.sum().item()
+
+    # Calculate the total number of valid (non-padding) targets
+    valid_count = mask.sum().item()
+
+    # Compute the accuracy
+    accuracy = correct_count / valid_count if valid_count > 0 else 0.0
+
+    return accuracy
 
 
 class RotaryPositionalEmbedding(nn.Module):
@@ -352,7 +389,6 @@ class NeuralSemanticLibrary(nn.Module):
         use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=False,
-        use_shared_embedding=True,  # Add flag to enable or disable shared embedding
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -366,9 +402,6 @@ class NeuralSemanticLibrary(nn.Module):
         self.use_transformer = use_transformer  # Store use_transformer flag
         self.flatten_before_similarity = flatten_before_similarity  # Store flatten flag
         self.use_decoder_transformer = use_decoder_transformer
-        self.use_shared_embedding = (
-            use_shared_embedding  # Store use_shared_embedding flag
-        )
 
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
@@ -386,7 +419,7 @@ class NeuralSemanticLibrary(nn.Module):
         # Define MLP layers
         layers = []
         for _ in range(num_layers):
-            kan = True
+            kan = False
             if kan:
                 layers.append(KANLinear(input_size, hidden_size))
             else:
@@ -406,50 +439,45 @@ class NeuralSemanticLibrary(nn.Module):
             self.use_transformer = False
 
         if self.use_transformer:
-            if self.use_decoder_transformer:
-                # Define the Transformer Decoder layer
-                transformer_decoder_layer = nn.TransformerDecoderLayer(
-                    d_model=output_size,
-                    nhead=num_heads,
-                    dim_feedforward=hidden_size,
-                    dropout=dropout,
-                    activation="gelu",
-                )
-                self.transformer = nn.TransformerDecoder(
-                    transformer_decoder_layer, num_layers=transformer_layers
-                )
-            else:
-                # Define the Transformer Encoder layer as before
-                transformer_encoder_layer = nn.TransformerEncoderLayer(
-                    d_model=output_size,
-                    nhead=num_heads,
-                    dim_feedforward=hidden_size,
-                    dropout=dropout,
-                    activation="gelu",
-                )
-                self.transformer = nn.TransformerEncoder(
-                    transformer_encoder_layer, num_layers=transformer_layers
-                )
+            # Transformer Encoder for nearest `y`
+            transformer_encoder_layer = nn.TransformerEncoderLayer(
+                d_model=output_size,
+                nhead=num_heads,
+                dim_feedforward=hidden_size,
+                dropout=dropout,
+                activation="gelu",
+            )
+            self.transformer_encoder = nn.TransformerEncoder(
+                transformer_encoder_layer, num_layers=transformer_layers
+            )
 
-        if self.use_shared_embedding:
-            # Define a shared embedding layer for all positions
-            self.embedding = nn.Embedding(
-                self.num_symbols, output_size, padding_idx=padding_idx
+            # Transformer Decoder for combined `x` and encoded nearest `y`
+            transformer_decoder_layer = nn.TransformerDecoderLayer(
+                d_model=output_size,
+                nhead=num_heads,
+                dim_feedforward=hidden_size,
+                dropout=dropout,
+                activation="gelu",
             )
-        else:
-            # Define independent embedding layers for each position in the output sequence
-            self.embeddings = nn.ModuleList(
-                [
-                    nn.Embedding(self.num_symbols, output_size, padding_idx=padding_idx)
-                    for _ in range(self.output_sequence_length)
-                ]
+            self.transformer_decoder = nn.TransformerDecoder(
+                transformer_decoder_layer, num_layers=transformer_layers
             )
-            self.embedding = self.embeddings[0]
+
+        # Define a shared embedding layer for all positions
+        self.embedding = nn.Embedding(
+            self.num_symbols, output_size, padding_idx=padding_idx
+        )
+        self.output_linear = nn.Linear(output_size, self.num_symbols)
 
         self.start_token_index = 1
         self.contrastive_loss_in_val = contrastive_loss_in_val
         self.contrastive_learning_stage = contrastive_learning_stage
         self.selective_retrain = selective_retrain
+
+        # Positional embedding initialization
+        self.positional_embedding = nn.Embedding(
+            self.output_sequence_length, output_size
+        )
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -458,157 +486,137 @@ class NeuralSemanticLibrary(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, batch_y=None):
-        # Ensure x has shape (batch_size, input_size)
-        x = self.mlp[0](x)
-        residual = x  # Save input for residual connection
-        for layer in self.mlp[1:-1]:
-            if isinstance(layer, nn.Linear) and self.residual:
-                x = layer(x) + residual  # Apply residual connection
-                residual = x  # Update residual for next layer
-            else:
-                x = layer(x)
-        x = self.mlp[-1](x)
+    def forward(self, x, batch_y=None, nearest_y=None):
+        x = self._process_mlp(x)
+        x = self._reshape_output(x)
 
-        # Reshape the output to (batch_size, output_sequence_length, output_size)
-        x = x.view(-1, self.output_sequence_length, self.output_size)
+        # Add positional embeddings
+        x = self._add_positional_embedding(x)
 
-        if self.use_transformer:
-            # If batch_y is provided (training mode), convert it to tgt embeddings
-            if not self.use_decoder_transformer:
-                # Pass through the Transformer layer
-                output = x.permute(
-                    1, 0, 2
-                )  # Transformer expects (sequence_length, batch_size, embed_dim)
-                output = self.transformer(output)
-                output = output.permute(
-                    1, 0, 2
-                )  # Back to (batch_size, sequence_length, embed_dim)
-            elif batch_y is not None:
-                # Add start token to the beginning of batch_y and remove the last token
-                start_tokens = torch.full(
-                    (batch_y.size(0), 1),
-                    self.start_token_index,
-                    dtype=torch.long,
-                    device=x.device,
-                )
-                batch_y = torch.cat(
-                    [start_tokens, batch_y[:, :-1]], dim=1
-                )  # Remove last token from batch_y and concatenate
-
-                # Teacher forcing: use ground truth tokens as input to the decoder
-                if self.use_shared_embedding:
-                    tgt = self.embedding(batch_y)  # Shared embedding
-                else:
-                    tgt_embeddings = []
-                    for i in range(batch_y.size(1)):
-                        tgt_embeddings.append(self.embeddings[i](batch_y[:, i]))
-                    tgt = torch.stack(tgt_embeddings, dim=1)  # Independent embeddings
-
-                tgt = tgt.permute(1, 0, 2)
-                memory = x.permute(1, 0, 2)
-
-                tgt_mask = nn.Transformer.generate_square_subsequent_mask(
-                    tgt.size(0)
-                ).to(tgt.device)
-                output = self.transformer(tgt, memory, tgt_mask=tgt_mask)
-                output = output.permute(
-                    1, 0, 2
-                )  # Back to (batch_size, sequence_length, embed_dim)
-
-            else:
-                # Inference mode (no teacher forcing): generate sequence step-by-step
-                batch_size = x.size(0)
-                # Start with the start token
-                tgt = (
-                    self.embedding(
-                        torch.full(
-                            (batch_size, 1),
-                            self.start_token_index,
-                            dtype=torch.long,
-                            device=x.device,
-                        )
-                    )
-                    if self.use_shared_embedding
-                    else self.embeddings[0](
-                        torch.full(
-                            (batch_size, 1),
-                            self.start_token_index,
-                            dtype=torch.long,
-                            device=x.device,
-                        )
-                    )
-                )
-                tgt = tgt.permute(1, 0, 2)  # Shape: (1, batch_size, output_size)
-                memory = x.permute(
-                    1, 0, 2
-                )  # Use x as memory, shape: (sequence_length, batch_size, output_size)
-
-                for i in range(
-                    self.output_sequence_length
-                ):  # Iterate through each position
-                    # Create a causal mask for the decoder
-                    tgt_mask = nn.Transformer.generate_square_subsequent_mask(
-                        tgt.size(0)
-                    ).to(tgt.device)
-                    # Pass through the Transformer decoder with x as memory
-                    output = self.transformer(tgt, memory, tgt_mask=tgt_mask)
-                    output = output.permute(
-                        1, 0, 2
-                    )  # Shape: (batch_size, sequence_length, embed_dim)
-
-                    # Get the last token's prediction
-                    last_token_logits = torch.matmul(
-                        output[:, -1:],
-                        self.embedding.weight.T
-                        if self.use_shared_embedding
-                        else self.embeddings[i].weight.T,
-                    )  # Shape: (batch_size, 1, num_symbols)
-                    next_token = last_token_logits.argmax(
-                        dim=-1
-                    )  # Shape: (batch_size, 1)
-
-                    # Append the predicted token to tgt
-                    next_token_embedding = (
-                        self.embedding(next_token).permute(1, 0, 2)
-                        if self.use_shared_embedding
-                        else self.embeddings[i](next_token).permute(1, 0, 2)
-                    )  # Shape: (1, batch_size, output_size)
-                    tgt = torch.cat(
-                        [tgt, next_token_embedding], dim=0
-                    )  # Append along the sequence dimension
-
+        if self.use_transformer and nearest_y is not None:
+            nearest_y_encoded = self._encode_nearest_y(nearest_y)
+            combined_features = self._combine_features(x, nearest_y_encoded)
+            output = combined_features
+            # output = self._decode(combined_features, batch_y)
         else:
-            output = x  # If transformer is not used, directly use x
-            # Compute dot product with independent embedding vectors
+            output = x  # If transformer or nearest_y is not used, directly use x
 
-        # Compute dot product with embedding vectors
-        if self.use_shared_embedding:
-            # Shared embedding case
-            embedding_vectors = (
-                self.embedding.weight
-            )  # Shape: (num_symbols, output_size)
-            dot_products = torch.matmul(
-                output, embedding_vectors.T
-            )  # Shape: (batch_size, output_sequence_length, num_symbols)
-        else:
-            # Independent embedding case
-            dot_products = []
-            for i in range(self.output_sequence_length):
-                embedding_vectors = self.embeddings[
-                    i
-                ].weight  # Shape: (num_symbols, output_size)
-                dot_products.append(
-                    torch.matmul(output[:, i, :], embedding_vectors.T)
-                )  # Shape: (batch_size, num_symbols)
-            dot_products = torch.stack(
-                dot_products, dim=1
-            )  # Shape: (batch_size, output_sequence_length, num_symbols)
+        # dot_products = self._compute_dot_product(output)
+        dot_products = self.output_linear(
+            output
+        )  # Shape: (batch_size, output_sequence_length, num_symbols)
 
         return (
             dot_products,
             output if self.contrastive_learning_stage == "Decoder" else x,
-        )  # Return both the final output and the feature vectors
+        )
+
+    def _process_mlp(self, x):
+        """Pass the input through MLP layers with optional residual connections."""
+        x = self.mlp[0](x)
+        residual = x
+        for layer in self.mlp[1:-1]:
+            if isinstance(layer, nn.Linear) and self.residual:
+                x = layer(x) + residual
+                residual = x
+            else:
+                x = layer(x)
+        x = self.mlp[-1](x)
+        return x
+
+    def _reshape_output(self, x):
+        """Reshape the output to (batch_size, output_sequence_length, output_size)."""
+        return x.view(-1, self.output_sequence_length, self.output_size)
+
+    def _add_positional_embedding(self, x):
+        """Add positional embeddings to the input sequence."""
+        batch_size, seq_length, _ = x.size()
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=x.device)
+        position_ids = position_ids.unsqueeze(0).expand(batch_size, seq_length)
+        positional_embeds = self.positional_embedding(position_ids)
+        return x + positional_embeds
+        # return x
+
+    def _encode_nearest_y(self, nearest_y):
+        """Encode nearest `y` using the embedding layer and Transformer Encoder."""
+        nearest_y_embedded = self.embedding(nearest_y)
+        nearest_y_embedded = self._add_positional_embedding(nearest_y_embedded)
+        nearest_y_encoded = self.transformer_encoder(
+            nearest_y_embedded.permute(1, 0, 2)
+        ).permute(1, 0, 2)
+        return nearest_y_encoded
+
+    def _combine_features(self, x, nearest_y_encoded, method="add"):
+        """Combine the MLP output `x` and encoded nearest `y`."""
+        if method == "concat":
+            # Concatenate along the last dimension (feature dimension)
+            return torch.cat((x, nearest_y_encoded), dim=1)
+        elif method == "add":
+            return x + nearest_y_encoded
+        else:
+            raise ValueError("Unsupported combination method: use 'concat' or 'add'.")
+
+    def _decode(self, combined_features, batch_y):
+        """Decode using Transformer Decoder."""
+        if batch_y is not None:
+            return self._decode_training(combined_features, batch_y)
+        else:
+            return self._decode_inference(combined_features)
+
+    def _decode_training(self, combined_features, batch_y):
+        """Decode in training mode with teacher forcing."""
+        start_tokens = torch.full(
+            (batch_y.size(0), 1),
+            self.start_token_index,
+            dtype=torch.long,
+            device=combined_features.device,
+        )
+        batch_y = torch.cat([start_tokens, batch_y[:, :-1]], dim=1)
+        tgt = self.embedding(batch_y)
+        tgt = self._add_positional_embedding(tgt)
+        tgt = tgt.permute(1, 0, 2)
+        memory = combined_features.permute(1, 0, 2)
+
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
+            tgt.device
+        )
+        output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
+        return output.permute(1, 0, 2)
+
+    def _decode_inference(self, combined_features):
+        """Decode in inference mode by generating the sequence step-by-step."""
+        batch_size = combined_features.size(0)
+        tgt = self.embedding(
+            torch.full(
+                (batch_size, 1),
+                self.start_token_index,
+                dtype=torch.long,
+                device=combined_features.device,
+            )
+        )
+        tgt = self._add_positional_embedding(tgt)
+        tgt = tgt.permute(1, 0, 2)
+        memory = combined_features.permute(1, 0, 2)
+
+        for i in range(self.output_sequence_length):
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
+                tgt.device
+            )
+            output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
+            output = output.permute(1, 0, 2)
+            last_token_logits = torch.matmul(output[:, -1:], self.embedding.weight.T)
+            next_token = last_token_logits.argmax(dim=-1)
+            next_token_embedding = self.embedding(next_token)
+            next_token_embedding = self._add_positional_embedding(next_token_embedding)
+            next_token_embedding = next_token_embedding.permute(1, 0, 2)
+            tgt = torch.cat([tgt, next_token_embedding], dim=0)
+
+        return output
+
+    def _compute_dot_product(self, output):
+        """Compute the dot product with shared embedding vectors."""
+        embedding_vectors = self.embedding.weight
+        return torch.matmul(output, embedding_vectors.T)
 
     def contrastive_loss(self, features, target_features, margin=0.5):
         """
@@ -641,10 +649,7 @@ class NeuralSemanticLibrary(nn.Module):
         cosine_similarity_target_features = torch.abs(
             torch.matmul(target_features, target_features.T)
         )  # Shape: [batch_size, batch_size]
-        # if self.epoch == 20:
-        #     plot_similarity_matrices(
-        #         cosine_similarity_features, cosine_similarity_target_features
-        #     )
+
         # Convert cosine similarity to cosine distance
         cosine_distance_features = 1 - cosine_similarity_features
         cosine_distance_target_features = 1 - cosine_similarity_target_features
@@ -662,7 +667,6 @@ class NeuralSemanticLibrary(nn.Module):
         )
 
         return loss
-        # return torch.Tensor([0])
 
     def train(
         self,
@@ -695,7 +699,6 @@ class NeuralSemanticLibrary(nn.Module):
             eta_min=1e-6,  # Minimum learning rate
         )
         criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
-        # criterion = nn.CrossEntropyLoss()
 
         # Extract targets and tensors
         tensors = [torch.tensor(d[1], dtype=torch.float32) for d in train_data]
@@ -707,42 +710,31 @@ class NeuralSemanticLibrary(nn.Module):
         tensors = torch.stack(tensors)
 
         # Split data into training and validation sets if val_split > 0
-        if val_split > 0:
-            train_tensors, val_tensors, train_targets, val_targets = train_test_split(
-                tensors.numpy(),
-                targets,
-                test_size=val_split,
-                random_state=0,
-                shuffle=False,
-            )
+        assert val_split > 0
+        train_tensors, val_tensors, train_targets, val_targets = train_test_split(
+            tensors.numpy(),
+            targets,
+            test_size=val_split,
+            random_state=0,
+            shuffle=False,
+        )
 
-            # Normalize using training data statistics
-            scaler = StandardScaler()
-            self.scaler = scaler
-            scaler.fit(train_tensors)
-            train_tensors = torch.tensor(
-                scaler.transform(train_tensors), dtype=torch.float32
-            )
-            val_tensors = torch.tensor(
-                scaler.transform(val_tensors), dtype=torch.float32
-            )
+        nearest_y_train = retrieve_nearest_y_skip_self(train_tensors, train_targets)
+        nearest_y_val = retrieve_nearest_y(train_tensors, train_targets, val_tensors)
 
-            val_data = list(zip(val_tensors, val_targets))
-        else:
-            # Normalize on the entire dataset if no split is used
-            scaler = StandardScaler()
-            self.scaler = scaler
-            scaler.fit(tensors.numpy())
-            tensors = torch.tensor(
-                scaler.transform(tensors.numpy()), dtype=torch.float32
-            )
-            train_tensors = tensors
-            train_targets = targets
-            val_data = None
+        # Normalize using training data statistics
+        scaler = StandardScaler()
+        self.scaler = scaler
+        scaler.fit(train_tensors)
+        train_tensors = torch.tensor(
+            scaler.transform(train_tensors), dtype=torch.float32
+        )
+        val_tensors = torch.tensor(scaler.transform(val_tensors), dtype=torch.float32)
+        val_data = list(zip(val_tensors, val_targets, nearest_y_val))
 
         # Check initial validation loss
         if val_data and self.selective_retrain:
-            current_val_loss = self.compute_val_loss(val_data, loss_weight)
+            current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
             if verbose:
                 print(f"Initial Validation Loss: {current_val_loss}")
 
@@ -760,9 +752,12 @@ class NeuralSemanticLibrary(nn.Module):
         stacked_targets = torch.stack(train_targets).view(
             -1, self.output_sequence_length
         )  # Shape: (num_samples, output_sequence_length)
+        stacked_nearest_y = torch.stack(nearest_y_train).view(
+            -1, self.output_sequence_length
+        )  # Shape: (num_samples, output_sequence_length)
 
         # Create TensorDataset and DataLoader
-        dataset = TensorDataset(stacked_tensors, stacked_targets)
+        dataset = TensorDataset(stacked_tensors, stacked_targets, stacked_nearest_y)
         dataloader = DataLoader(
             dataset, batch_size=batch_size, shuffle=True, drop_last=True
         )
@@ -774,9 +769,11 @@ class NeuralSemanticLibrary(nn.Module):
             self.epoch = epoch
             total_loss = 0
             self.mlp.train()  # Set the model to training mode
-            for batch_x, batch_y in dataloader:
+            for batch_x, batch_y, nearest_y in dataloader:
                 # Ensure batch_x has shape (batch_size, input_size)
-                output, features = self.forward(batch_x, batch_y=batch_y)
+                output, features = self.forward(
+                    batch_x, batch_y=batch_y, nearest_y=nearest_y
+                )
 
                 # Create a mask to ensure that the last four positions are terminals
                 mask = torch.ones_like(
@@ -822,7 +819,7 @@ class NeuralSemanticLibrary(nn.Module):
 
             # Validation
             if val_data:
-                current_val_loss = self.compute_val_loss(val_data, loss_weight)
+                current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
                 if verbose:
                     print(
                         f"Epoch {epoch + 1}/{epochs}, Validation Loss: {current_val_loss}"
@@ -846,7 +843,7 @@ class NeuralSemanticLibrary(nn.Module):
 
         return best_val_loss
 
-    def compute_val_loss(self, val_data, loss_weight=0.5):
+    def compute_val_loss(self, val_data, loss_weight=0.5, verbose=False):
         """
         Compute the validation loss.
 
@@ -855,11 +852,12 @@ class NeuralSemanticLibrary(nn.Module):
         :return: Computed validation loss.
         """
         self.mlp.eval()  # Set the model to evaluation mode
-        val_tensors, val_targets = zip(*val_data)
+        val_tensors, val_targets, nearest_y_val = zip(*val_data)
         val_tensors = torch.stack(val_tensors)
         val_targets = torch.stack(val_targets).view(-1, self.output_sequence_length)
+        nearest_y_val = torch.stack(nearest_y_val).view(-1, self.output_sequence_length)
 
-        val_output, val_features = self.forward(val_tensors)
+        val_output, val_features = self.forward(val_tensors, nearest_y=nearest_y_val)
         val_mask = torch.ones_like(val_output)
         val_masked_output = val_output * val_mask
 
@@ -881,6 +879,11 @@ class NeuralSemanticLibrary(nn.Module):
         else:
             val_loss = val_ce_loss
 
+        if verbose:
+            acc = compute_accuracy(
+                val_masked_output, val_targets, self.embedding.padding_idx
+            )
+            print(f"Validation Loss: {val_loss}, Accuracy: {acc}")
         return val_loss
 
     def predict(self, semantics, mode="greedy"):
@@ -1126,14 +1129,13 @@ if __name__ == "__main__":
     # Initialize the NeuralSemanticLibrary model
     nl = NeuralSemanticLibrary(
         data.shape[0],
-        8,
-        8,
-        dropout=0.1,
-        num_layers=3,
+        64,
+        64,
+        dropout=0,
+        num_layers=2,
         pset=pset,
         use_transformer=True,
-        use_decoder_transformer=False,
-        use_shared_embedding=True,
+        use_decoder_transformer=True,
         output_primitive_length=15,
     )
 
@@ -1141,7 +1143,7 @@ if __name__ == "__main__":
     nl.train(
         train_data,
         epochs=1000,
-        lr=0.01,
+        lr=0.1,
         val_split=0.2,
         verbose=True,
         loss_weight=0,
