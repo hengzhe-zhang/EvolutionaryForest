@@ -23,7 +23,6 @@ from evolutionary_forest.utility.retrieve_nn.quick_retrive import (
     retrieve_nearest_y_skip_self,
 )
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
-import torch
 
 
 def compute_accuracy(val_output, val_targets, padding_idx):
@@ -489,19 +488,18 @@ class NeuralSemanticLibrary(nn.Module):
     def forward(self, x, batch_y=None, nearest_y=None):
         x = self._process_mlp(x)
         x = self._reshape_output(x)
-
         # Add positional embeddings
         x = self._add_positional_embedding(x)
 
         if self.use_transformer and nearest_y is not None:
             nearest_y_encoded = self._encode_nearest_y(nearest_y)
             combined_features = self._combine_features(x, nearest_y_encoded)
-            output = combined_features
-            # output = self._decode(combined_features, batch_y)
+            # output = x
+            # output = combined_features
+            output = combined_features + self._decode(combined_features, batch_y)
         else:
             output = x  # If transformer or nearest_y is not used, directly use x
 
-        # dot_products = self._compute_dot_product(output)
         dot_products = self.output_linear(
             output
         )  # Shape: (batch_size, output_sequence_length, num_symbols)
@@ -533,6 +531,15 @@ class NeuralSemanticLibrary(nn.Module):
         batch_size, seq_length, _ = x.size()
         position_ids = torch.arange(seq_length, dtype=torch.long, device=x.device)
         position_ids = position_ids.unsqueeze(0).expand(batch_size, seq_length)
+        positional_embeds = self.positional_embedding(position_ids)
+        return x + positional_embeds
+        # return x
+
+    def _add_positional_embedding_index(self, x, position):
+        """Add positional embeddings to the input sequence."""
+        position_ids = torch.full(
+            (x.size(0), x.size(1)), position, dtype=torch.long, device=x.device
+        )
         positional_embeds = self.positional_embedding(position_ids)
         return x + positional_embeds
         # return x
@@ -594,20 +601,26 @@ class NeuralSemanticLibrary(nn.Module):
                 device=combined_features.device,
             )
         )
-        tgt = self._add_positional_embedding(tgt)
+        tgt = self._add_positional_embedding_index(
+            tgt, position=0
+        )  # Add positional embedding for the first token
         tgt = tgt.permute(1, 0, 2)
         memory = combined_features.permute(1, 0, 2)
 
-        for i in range(self.output_sequence_length):
+        for i in range(1, self.output_sequence_length + 1):
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
                 tgt.device
             )
             output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
             output = output.permute(1, 0, 2)
-            last_token_logits = torch.matmul(output[:, -1:], self.embedding.weight.T)
+            last_token_logits = self.output_linear(output[:, -1:])
             next_token = last_token_logits.argmax(dim=-1)
+            if i == self.output_sequence_length:
+                break
             next_token_embedding = self.embedding(next_token)
-            next_token_embedding = self._add_positional_embedding(next_token_embedding)
+            next_token_embedding = self._add_positional_embedding_index(
+                next_token_embedding, position=i
+            )  # Add positional embedding for the new token
             next_token_embedding = next_token_embedding.permute(1, 0, 2)
             tgt = torch.cat([tgt, next_token_embedding], dim=0)
 
@@ -1049,11 +1062,11 @@ def aq(x, y):
 
 
 def sin(x):
-    return np.sin(x)
+    return np.sin(np.pi * x)
 
 
 def cos(x):
-    return np.cos(x)
+    return np.cos(np.pi * x)
 
 
 def multiply(x, y):
@@ -1115,13 +1128,13 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 5
+    fix_depth = 1
     train_data = generate_synthetic_data(
-        pset, num_samples=5000, min_depth=1, max_depth=fix_depth
+        pset, num_samples=10000, min_depth=1, max_depth=fix_depth
     )
 
     # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=15)
+    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=3)
 
     # Split data into training and test sets
     train_data, test_data = train_test_split(train_data, test_size=0.2, random_state=0)
@@ -1129,21 +1142,22 @@ if __name__ == "__main__":
     # Initialize the NeuralSemanticLibrary model
     nl = NeuralSemanticLibrary(
         data.shape[0],
-        64,
-        64,
+        32,
+        32,
         dropout=0,
         num_layers=2,
+        transformer_layers=2,
         pset=pset,
         use_transformer=True,
         use_decoder_transformer=True,
-        output_primitive_length=15,
+        output_primitive_length=2,
     )
 
     # Train the neural network
     nl.train(
         train_data,
         epochs=1000,
-        lr=0.1,
+        lr=0.01,
         val_split=0.2,
         verbose=True,
         loss_weight=0,
