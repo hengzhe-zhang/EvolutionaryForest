@@ -15,6 +15,7 @@ from sklearn.preprocessing import StandardScaler
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
 
+from evolutionary_forest.component.crossover.kan import KANLinear
 from evolutionary_forest.probability_gp import genHalfAndHalf
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
@@ -385,10 +386,15 @@ class NeuralSemanticLibrary(nn.Module):
         # Define MLP layers
         layers = []
         for _ in range(num_layers):
-            layers.append(nn.Linear(input_size, hidden_size))
+            kan = True
+            if kan:
+                layers.append(KANLinear(input_size, hidden_size))
+            else:
+                layers.append(nn.Linear(input_size, hidden_size))
             if self.batch_norm:
                 layers.append(nn.BatchNorm1d(hidden_size))
-            layers.append(nn.GELU())
+            if not kan:
+                layers.append(nn.GELU())
             layers.append(nn.Dropout(dropout))
             input_size = hidden_size
 
@@ -1079,6 +1085,7 @@ if __name__ == "__main__":
     # ['subtract', 'add', 'ARG0', 'ARG1', 'subtract', 'ARG0', 'ARG1']
     # Example usage
     data = load_diabetes().data[:50]
+    data = StandardScaler().fit_transform(data)
 
     # Define DEAP PrimitiveSet
     pset = PrimitiveSet(
@@ -1105,13 +1112,13 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 3
+    fix_depth = 5
     train_data = generate_synthetic_data(
         pset, num_samples=5000, min_depth=1, max_depth=fix_depth
     )
 
     # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data)
+    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=15)
 
     # Split data into training and test sets
     train_data, test_data = train_test_split(train_data, test_size=0.2, random_state=0)
@@ -1119,14 +1126,15 @@ if __name__ == "__main__":
     # Initialize the NeuralSemanticLibrary model
     nl = NeuralSemanticLibrary(
         data.shape[0],
-        32,
-        32,
-        dropout=0,
+        8,
+        8,
+        dropout=0.1,
         num_layers=3,
         pset=pset,
         use_transformer=True,
         use_decoder_transformer=False,
         use_shared_embedding=True,
+        output_primitive_length=15,
     )
 
     # Train the neural network
