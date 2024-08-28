@@ -418,7 +418,7 @@ class NeuralSemanticLibrary(nn.Module):
         # Define MLP layers
         layers = []
         for _ in range(num_layers):
-            kan = False
+            kan = True
             if kan:
                 layers.append(KANLinear(input_size, hidden_size))
             else:
@@ -495,8 +495,9 @@ class NeuralSemanticLibrary(nn.Module):
             nearest_y_encoded = self._encode_nearest_y(nearest_y)
             combined_features = self._combine_features(x, nearest_y_encoded)
             # output = x
-            # output = combined_features
-            output = combined_features + self._decode(combined_features, batch_y)
+            output = combined_features
+            # output = self._decode(combined_features, batch_y)
+            # output = combined_features + self._decode(combined_features, batch_y)
         else:
             output = x  # If transformer or nearest_y is not used, directly use x
 
@@ -506,7 +507,9 @@ class NeuralSemanticLibrary(nn.Module):
 
         return (
             dot_products,
-            output if self.contrastive_learning_stage == "Decoder" else x,
+            output
+            if self.contrastive_learning_stage == "Decoder"
+            else nearest_y_encoded,
         )
 
     def _process_mlp(self, x):
@@ -691,39 +694,63 @@ class NeuralSemanticLibrary(nn.Module):
         patience=20,
         verbose=False,
         loss_weight=0.5,
-        min_loss_diff=0.01,  # Threshold for considering a significant decrease in val loss
+        min_loss_diff=0.01,
     ):
-        """
-        Train the neural network with optional validation and early stopping.
+        optimizer, scheduler = self.setup_optimizer_and_scheduler(lr)
+        criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
 
-        :param train_data: List of tuples (gp_tree, target_semantics).
-        :param batch_size: Batch size for training.
-        :param epochs: Number of epochs for training.
-        :param lr: Learning rate.
-        :param val_split: Fraction of training data to use as validation.
-        :param patience: Number of epochs to wait for improvement before early stopping.
-        :param loss_weight: Weight to balance contrastive and ce loss. Set to 0 to ignore contrastive loss.
-        """
+        tensors, targets = self.prepare_data(train_data)
+        train_tensors, val_tensors, train_targets, val_targets = self.split_data(
+            tensors, targets, val_split
+        )
+
+        train_tensors, val_tensors = self.normalize_data(train_tensors, val_tensors)
+        val_data = self.prepare_validation_data(
+            val_tensors, val_targets, train_tensors, train_targets
+        )
+
+        if val_data and self.selective_retrain:
+            if self.should_skip_training(val_data, loss_weight, verbose):
+                return self.previous_val_loss
+
+        dataset, dataloader = self.create_dataloader(
+            train_tensors, train_targets, batch_size
+        )
+        best_val_loss = self.execute_training(
+            dataloader,
+            criterion,
+            optimizer,
+            scheduler,
+            val_data,
+            loss_weight,
+            patience,
+            epochs,
+            verbose,
+        )
+
+        self.previous_val_loss = best_val_loss
+        return best_val_loss
+
+    def setup_optimizer_and_scheduler(self, lr):
         optimizer = optim.AdamW(self.parameters(), lr=lr, weight_decay=1e-4)
         scheduler = lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
-            T_0=10,  # Number of epochs for the first restart
-            T_mult=2,  # Factor to increase the number of epochs between restarts
-            eta_min=1e-6,  # Minimum learning rate
+            T_0=10,
+            T_mult=2,
+            eta_min=1e-6,
         )
-        criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
+        return optimizer, scheduler
 
-        # Extract targets and tensors
+    def prepare_data(self, train_data):
         tensors = [torch.tensor(d[1], dtype=torch.float32) for d in train_data]
         targets = self.pset_utils.extract_targets(
             train_data, self.output_sequence_length
         )
         targets = [torch.tensor(t, dtype=torch.long) for t in targets]
-        # Convert list of tensors to a single tensor
         tensors = torch.stack(tensors)
+        return tensors, targets
 
-        # Split data into training and validation sets if val_split > 0
-        assert val_split > 0
+    def split_data(self, tensors, targets, val_split):
         train_tensors, val_tensors, train_targets, val_targets = train_test_split(
             tensors.numpy(),
             targets,
@@ -731,130 +758,129 @@ class NeuralSemanticLibrary(nn.Module):
             random_state=0,
             shuffle=False,
         )
+        self.train_tensors, self.train_targets = train_tensors, train_targets
+        return train_tensors, val_tensors, train_targets, val_targets
 
-        nearest_y_train = retrieve_nearest_y_skip_self(train_tensors, train_targets)
-        nearest_y_val = retrieve_nearest_y(train_tensors, train_targets, val_tensors)
-
-        # Normalize using training data statistics
+    def normalize_data(self, train_tensors, val_tensors):
         scaler = StandardScaler()
-        self.scaler = scaler
         scaler.fit(train_tensors)
         train_tensors = torch.tensor(
             scaler.transform(train_tensors), dtype=torch.float32
         )
         val_tensors = torch.tensor(scaler.transform(val_tensors), dtype=torch.float32)
-        val_data = list(zip(val_tensors, val_targets, nearest_y_val))
+        self.scaler = scaler
+        return train_tensors, val_tensors
 
-        # Check initial validation loss
-        if val_data and self.selective_retrain:
-            current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
+    def prepare_validation_data(
+        self, val_tensors, val_targets, train_tensors, train_targets
+    ):
+        nearest_y_val = retrieve_nearest_y(train_tensors, train_targets, val_tensors)
+        return list(zip(val_tensors, val_targets, nearest_y_val))
+
+    def should_skip_training(self, val_data, loss_weight, verbose):
+        current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
+        if verbose:
+            print(f"Initial Validation Loss: {current_val_loss}")
+        if (
+            hasattr(self, "previous_val_loss")
+            and current_val_loss < self.previous_val_loss
+        ):
             if verbose:
-                print(f"Initial Validation Loss: {current_val_loss}")
+                print("Validation loss has not degraded. Skipping training.")
+            return True
+        return False
 
-            # If previous_val_loss is stored, compare it to the current validation loss
-            if (
-                hasattr(self, "previous_val_loss")
-                and current_val_loss < self.previous_val_loss
-            ):
-                if verbose:
-                    print("Validation loss has not degraded. Skipping training.")
-                return current_val_loss
-
-        # Stack tensors and targets to create a dataset
-        stacked_tensors = train_tensors  # Tensors are already stacked and normalized
+    def create_dataloader(self, train_tensors, train_targets, batch_size):
+        stacked_tensors = train_tensors
         stacked_targets = torch.stack(train_targets).view(
             -1, self.output_sequence_length
-        )  # Shape: (num_samples, output_sequence_length)
+        )
+        nearest_y_train = retrieve_nearest_y_skip_self(stacked_tensors, stacked_targets)
         stacked_nearest_y = torch.stack(nearest_y_train).view(
             -1, self.output_sequence_length
-        )  # Shape: (num_samples, output_sequence_length)
-
-        # Create TensorDataset and DataLoader
+        )
         dataset = TensorDataset(stacked_tensors, stacked_targets, stacked_nearest_y)
         dataloader = DataLoader(
             dataset, batch_size=batch_size, shuffle=True, drop_last=True
         )
+        return dataset, dataloader
 
+    def execute_training(
+        self,
+        dataloader,
+        criterion,
+        optimizer,
+        scheduler,
+        val_data,
+        loss_weight,
+        patience,
+        epochs,
+        verbose,
+    ):
         best_val_loss = float("inf")
         patience_counter = 0
 
         for epoch in range(epochs):
             self.epoch = epoch
             total_loss = 0
-            self.mlp.train()  # Set the model to training mode
+            self.mlp.train()
             for batch_x, batch_y, nearest_y in dataloader:
-                # Ensure batch_x has shape (batch_size, input_size)
-                output, features = self.forward(
-                    batch_x, batch_y=batch_y, nearest_y=nearest_y
+                loss = self.train_single_batch(
+                    batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
                 )
-
-                # Create a mask to ensure that the last four positions are terminals
-                mask = torch.ones_like(
-                    output
-                )  # Shape: (batch_size, output_sequence_length, num_symbols)
-
-                # Apply the mask to the output vector
-                masked_output = output * mask
-
-                # Flatten the targets and apply the mask
-                batch_y = batch_y.view(
-                    -1
-                )  # Shape: (batch_size * output_sequence_length)
-                # Flatten the masked output to match the targets
-                masked_output = masked_output.view(
-                    -1, self.num_symbols
-                )  # Shape: (batch_size * output_sequence_length, num_symbols)
-
-                # Calculate cross-entropy loss only for masked positions
-                ce_loss = criterion(masked_output, batch_y)
-
-                if loss_weight > 0:
-                    # Calculate contrastive loss
-                    contrastive_loss = self.contrastive_loss(features, batch_x)
-
-                    # Combine losses
-                    loss = ce_loss + loss_weight * contrastive_loss
-                else:
-                    # If loss_weight is 0, only use cross-entropy loss
-                    loss = ce_loss
-
-                total_loss += loss.item()
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                total_loss += loss
 
             avg_loss = total_loss / len(dataloader)
             if verbose:
                 print(f"Epoch {epoch + 1}/{epochs}, Training Loss: {avg_loss}")
 
-            # Step the learning rate scheduler
             scheduler.step()
-
-            # Validation
-            if val_data:
-                current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
+            best_val_loss, patience_counter = self.validate_and_early_stop(
+                val_data, best_val_loss, patience_counter, loss_weight, verbose
+            )
+            if patience_counter >= patience:
                 if verbose:
-                    print(
-                        f"Epoch {epoch + 1}/{epochs}, Validation Loss: {current_val_loss}"
-                    )
-
-                if current_val_loss < best_val_loss:
-                    best_val_loss = current_val_loss
-                    patience_counter = 0
-                    # Optionally save the model here
-                else:
-                    patience_counter += 1
-                    if patience_counter >= patience:
-                        if verbose:
-                            print(
-                                "Early stopping due to no improvement in validation loss."
-                            )
-                        break
-
-        # Store the best validation loss as previous_val_loss
-        self.previous_val_loss = best_val_loss
+                    print("Early stopping due to no improvement in validation loss.")
+                break
 
         return best_val_loss
+
+    def train_single_batch(
+        self, batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
+    ):
+        output, features = self.forward(batch_x, batch_y=batch_y, nearest_y=nearest_y)
+
+        mask = torch.ones_like(output)
+        masked_output = output * mask
+
+        batch_y = batch_y.view(-1)
+        masked_output = masked_output.view(-1, self.num_symbols)
+
+        ce_loss = criterion(masked_output, batch_y)
+
+        if loss_weight > 0:
+            contrastive_loss = self.contrastive_loss(features, batch_x)
+            loss = ce_loss + loss_weight * contrastive_loss
+        else:
+            loss = ce_loss
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        return loss.item()
+
+    def validate_and_early_stop(
+        self, val_data, best_val_loss, patience_counter, loss_weight, verbose
+    ):
+        current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
+        if verbose:
+            print(f"Validation Loss: {current_val_loss}")
+        if current_val_loss < best_val_loss:
+            best_val_loss = current_val_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
+        return best_val_loss, patience_counter
 
     def compute_val_loss(self, val_data, loss_weight=0.5, verbose=False):
         """
@@ -908,6 +934,10 @@ class NeuralSemanticLibrary(nn.Module):
         - mode: Mode of prediction ('greedy' or 'probability').
         """
         number_of_terminals = self.output_sequence_length - self.output_primitive_length
+        nearest_y = retrieve_nearest_y(
+            self.train_tensors, self.train_targets, semantics.reshape(1, -1)
+        )
+        nearest_y = torch.stack(nearest_y).view(-1, self.output_sequence_length)
 
         # Convert semantics to tensor
         semantics_tensor = torch.tensor(semantics, dtype=torch.float32).unsqueeze(
@@ -918,12 +948,11 @@ class NeuralSemanticLibrary(nn.Module):
         semantics_tensor = torch.tensor(
             self.scaler.transform(semantics_tensor.numpy()), dtype=torch.float32
         )
-
         self.mlp.eval()
 
         # Perform forward pass
         with torch.no_grad():
-            output_vector, _ = self.forward(semantics_tensor)
+            output_vector, _ = self.forward(semantics_tensor, nearest_y=nearest_y)
 
             # Create a mask to ensure that the last four positions are terminals
             mask = torch.full_like(
@@ -1128,13 +1157,13 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 1
+    fix_depth = 5
     train_data = generate_synthetic_data(
         pset, num_samples=10000, min_depth=1, max_depth=fix_depth
     )
 
     # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=3)
+    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=2)
 
     # Split data into training and test sets
     train_data, test_data = train_test_split(train_data, test_size=0.2, random_state=0)
@@ -1146,11 +1175,12 @@ if __name__ == "__main__":
         32,
         dropout=0,
         num_layers=2,
-        transformer_layers=2,
+        transformer_layers=1,
         pset=pset,
         use_transformer=True,
         use_decoder_transformer=True,
         output_primitive_length=2,
+        # contrastive_learning_stage="Encoder",
     )
 
     # Train the neural network
