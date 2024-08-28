@@ -494,7 +494,7 @@ class NeuralSemanticLibrary(nn.Module):
         if self.use_transformer and nearest_y is not None:
             nearest_y_encoded = self._encode_nearest_y(nearest_y)
             combined_features = self._combine_features(x, nearest_y_encoded)
-            if self.use_transformer:
+            if self.use_decoder_transformer:
                 output = self._decode(combined_features, batch_y)
             else:
                 output = combined_features
