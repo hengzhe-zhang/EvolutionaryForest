@@ -316,7 +316,6 @@ class MutationConfiguration(Configuration):
         self.contrastive_loss_in_val = contrastive_loss_in_val
         self.flatten_before_similarity = flatten_before_similarity
         self.contrastive_learning_stage = contrastive_learning_stage
-        self.use_decoder_transformer = use_decoder_transformer
         self.selective_retrain = selective_retrain
 
 
