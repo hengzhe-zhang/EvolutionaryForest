@@ -159,7 +159,6 @@ class SemanticLibrary:
                 transformer_layers=self.mutation_configuration.neural_pool_transformer_layer,
                 contrastive_loss_in_val=self.mutation_configuration.contrastive_loss_in_val,
                 flatten_before_similarity=self.mutation_configuration.flatten_before_similarity,
-                use_decoder_transformer=self.mutation_configuration.use_decoder_transformer,
                 contrastive_learning_stage=self.mutation_configuration.contrastive_learning_stage,
                 selective_retrain=self.mutation_configuration.selective_retrain,
             )
