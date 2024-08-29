@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
+from x_transformers import XTransformer
 
 from evolutionary_forest.component.crossover.kan import KANLinear
 from evolutionary_forest.probability_gp import genHalfAndHalf
@@ -388,6 +389,7 @@ class NeuralSemanticLibrary(nn.Module):
         use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=False,
+        use_x_transformer=True,  # Add flag to enable PerformerLM
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -430,7 +432,13 @@ class NeuralSemanticLibrary(nn.Module):
             layers.append(nn.Dropout(dropout))
             input_size = hidden_size
 
-        layers.append(nn.Linear(hidden_size, self.output_sequence_length * output_size))
+        self.use_x_transformer = use_x_transformer
+        if self.use_x_transformer:
+            layers.append(nn.Linear(hidden_size, output_size))
+        else:
+            layers.append(
+                nn.Linear(hidden_size, self.output_sequence_length * output_size)
+            )
         self.mlp = nn.Sequential(*layers)
         self._initialize_weights()  # Initialize weights
 
@@ -438,29 +446,43 @@ class NeuralSemanticLibrary(nn.Module):
             self.use_transformer = False
 
         if self.use_transformer:
-            # Transformer Encoder for nearest `y`
-            transformer_encoder_layer = nn.TransformerEncoderLayer(
-                d_model=output_size,
-                nhead=num_heads,
-                dim_feedforward=hidden_size,
-                dropout=dropout,
-                activation="gelu",
-            )
-            self.transformer_encoder = nn.TransformerEncoder(
-                transformer_encoder_layer, num_layers=transformer_layers
-            )
+            if self.use_x_transformer:
+                self.transformer_decoder = XTransformer(
+                    dim=hidden_size,
+                    enc_num_tokens=self.num_symbols,
+                    enc_depth=transformer_layers,
+                    enc_heads=num_heads,
+                    enc_max_seq_len=self.output_sequence_length,
+                    dec_num_tokens=self.num_symbols,
+                    dec_depth=transformer_layers,
+                    dec_heads=num_heads,
+                    dec_max_seq_len=self.output_sequence_length,
+                    tie_token_emb=True,  # tie embeddings of encoder and decoder
+                )
+            else:
+                # Transformer Encoder for nearest `y`
+                transformer_encoder_layer = nn.TransformerEncoderLayer(
+                    d_model=output_size,
+                    nhead=num_heads,
+                    dim_feedforward=hidden_size,
+                    dropout=dropout,
+                    activation="gelu",
+                )
+                self.transformer_encoder = nn.TransformerEncoder(
+                    transformer_encoder_layer, num_layers=transformer_layers
+                )
 
-            # Transformer Decoder for combined `x` and encoded nearest `y`
-            transformer_decoder_layer = nn.TransformerDecoderLayer(
-                d_model=output_size,
-                nhead=num_heads,
-                dim_feedforward=hidden_size,
-                dropout=dropout,
-                activation="gelu",
-            )
-            self.transformer_decoder = nn.TransformerDecoder(
-                transformer_decoder_layer, num_layers=transformer_layers
-            )
+                # Transformer Decoder for combined `x` and encoded nearest `y`
+                transformer_decoder_layer = nn.TransformerDecoderLayer(
+                    d_model=output_size,
+                    nhead=num_heads,
+                    dim_feedforward=hidden_size,
+                    dropout=dropout,
+                    activation="gelu",
+                )
+                self.transformer_decoder = nn.TransformerDecoder(
+                    transformer_decoder_layer, num_layers=transformer_layers
+                )
 
         # Define a shared embedding layer for all positions
         self.embedding = nn.Embedding(
@@ -487,24 +509,35 @@ class NeuralSemanticLibrary(nn.Module):
 
     def forward(self, x, batch_y=None, nearest_y=None):
         x = self._process_mlp(x)
+
+        if self.use_x_transformer:
+            return self._forward_x_transformer(x, batch_y, nearest_y)
+        else:
+            return self._forward_traditional_transformer(x, batch_y, nearest_y)
+
+    def _forward_x_transformer(self, x, batch_y, nearest_y):
+        self.transformer_decoder: XTransformer
+        enc = self.transformer_decoder.encoder(nearest_y, return_embeddings=True)
+        enc = torch.cat((x.unsqueeze(1), enc), dim=1)
+        output = self.transformer_decoder.decoder.net(batch_y, context=enc)
+        return output, output if self.contrastive_learning_stage == "Decoder" else enc
+
+    def _forward_traditional_transformer(self, x, batch_y, nearest_y):
         x = self._reshape_output(x)
-        # Add positional embeddings
         x = self._add_positional_embedding(x)
 
         if self.use_transformer and nearest_y is not None:
             nearest_y_encoded = self._encode_nearest_y(nearest_y)
             combined_features = self._combine_features(x, nearest_y_encoded)
+
             if self.use_decoder_transformer:
                 output = self._decode(combined_features, batch_y)
             else:
                 output = combined_features
         else:
-            output = x  # If transformer or nearest_y is not used, directly use x
+            output = x
 
-        dot_products = self.output_linear(
-            output
-        )  # Shape: (batch_size, output_sequence_length, num_symbols)
-
+        dot_products = self.output_linear(output)
         return (
             dot_products,
             output
@@ -1163,24 +1196,25 @@ if __name__ == "__main__":
     )
 
     # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=2)
+    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=3)
 
     # Split data into training and test sets
     train_data, test_data = train_test_split(train_data, test_size=0.2, random_state=0)
 
     # Initialize the NeuralSemanticLibrary model
-    for use_decoder in [True, False]:
+    for use_decoder in [False, True]:
         nl = NeuralSemanticLibrary(
             data.shape[0],
             32,
             32,
-            dropout=0,
+            dropout=0.1,
             num_layers=2,
             transformer_layers=1,
             pset=pset,
             use_transformer=True,
-            use_decoder_transformer=True,
-            output_primitive_length=2,
+            use_decoder_transformer=use_decoder,
+            output_primitive_length=3,
+            use_x_transformer=False,
         )
 
         # Train the neural network
@@ -1190,7 +1224,7 @@ if __name__ == "__main__":
             lr=0.01,
             val_split=0.2,
             verbose=True,
-            loss_weight=0,
+            loss_weight=1,
         )
         for tid in range(0, 5):
             print(
