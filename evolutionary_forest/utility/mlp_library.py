@@ -494,11 +494,7 @@ class NeuralSemanticLibrary(nn.Module):
 
     def forward(self, x, batch_y=None, nearest_y=None):
         x = self._process_mlp(x)
-
-        if self.use_x_transformer:
-            return self._forward_x_transformer(x, batch_y, nearest_y)
-        else:
-            return self._forward_traditional_transformer(x, batch_y, nearest_y)
+        return self._forward_traditional_transformer(x, batch_y, nearest_y)
 
     def _forward_x_transformer(self, x, batch_y, nearest_y):
         enc = self.transformer_decoder.encoder(nearest_y, return_embeddings=True)
