@@ -393,6 +393,8 @@ class NeuralSemanticLibrary(nn.Module):
         causal_encoding=False,
         data_augmentation=True,
         batch_sampling=1,
+        augmented_k=1,
+        numerical_token=True,
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -486,12 +488,14 @@ class NeuralSemanticLibrary(nn.Module):
 
         # Positional embedding initialization
         self.positional_embedding = nn.Embedding(
-            self.output_sequence_length * 2, output_size
+            self.output_sequence_length * augmented_k, output_size
         )
         self.retrival_augmented_generation = retrival_augmented_generation
         self.causal_encoding = causal_encoding
         self.data_augmentation = data_augmentation
         self.batch_sampling = batch_sampling
+        self.augmented_k = augmented_k
+        self.numerical_token = numerical_token
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -523,8 +527,15 @@ class NeuralSemanticLibrary(nn.Module):
                     )
                     combined_features = (x, nearest_y_embedded)
                 else:
-                    nearest_y_encoded = self._encode_nearest_y(nearest_y)
-                    combined_features = self._combine_features(x, nearest_y_encoded)
+                    nearest_y_encoded = self._encode_nearest_y(nearest_y, x)
+                    views = self.augmented_k
+                    if self.numerical_token:
+                        views += 1
+                    reshaped_tensor = nearest_y_encoded.view(
+                        -1, self.output_sequence_length, views, 32
+                    )
+                    pooled_tensor = torch.mean(reshaped_tensor, dim=2)
+                    combined_features = self._combine_features(x, pooled_tensor)
             else:
                 combined_features = x
 
@@ -580,10 +591,12 @@ class NeuralSemanticLibrary(nn.Module):
         return x + positional_embeds
         # return x
 
-    def _encode_nearest_y(self, nearest_y):
+    def _encode_nearest_y(self, nearest_y, x):
         """Encode nearest `y` using the embedding layer and Transformer Encoder."""
         nearest_y_embedded = self.embedding(nearest_y)
         nearest_y_embedded = self._add_positional_embedding(nearest_y_embedded)
+        if self.numerical_token:
+            nearest_y_embedded = torch.cat([nearest_y_embedded, x], dim=1)
         if self.causal_encoding:
             # Generate the causal mask using generate_square_subsequent_mask
             seq_len = nearest_y_embedded.size(1)
@@ -916,7 +929,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.previous_val_loss = best_val_loss
 
         # update final library
-        _, kd_tree = retrieve_nearest_y_skip_self(tensors, targets)
+        _, kd_tree = retrieve_nearest_y_skip_self(tensors, targets, k=self.augmented_k)
         self.kd_tree = kd_tree
         return best_val_loss
 
@@ -961,7 +974,9 @@ class NeuralSemanticLibrary(nn.Module):
         return train_tensors, val_tensors
 
     def prepare_validation_data(self, val_tensors, val_targets, train_targets):
-        nearest_y_val = retrieve_nearest_y(self.kd_tree, train_targets, val_tensors)
+        nearest_y_val = retrieve_nearest_y(
+            self.kd_tree, train_targets, val_tensors, k=self.augmented_k
+        )
         return list(zip(val_tensors, val_targets, nearest_y_val))
 
     def should_skip_training(self, val_data, loss_weight, verbose):
@@ -983,12 +998,12 @@ class NeuralSemanticLibrary(nn.Module):
             -1, self.output_sequence_length
         )
         nearest_y_train, kd_tree = retrieve_nearest_y_skip_self(
-            stacked_tensors, stacked_targets
+            stacked_tensors, stacked_targets, k=self.augmented_k
         )
         self.kd_tree = kd_tree
-        stacked_nearest_y = torch.stack(nearest_y_train).view(
-            -1, self.output_sequence_length
-        )
+        stacked_nearest_y = torch.stack(
+            [torch.tensor(x) for x in nearest_y_train]
+        ).view(-1, self.output_sequence_length * self.augmented_k)
         dataset = TensorDataset(stacked_tensors, stacked_targets, stacked_nearest_y)
         dataloader = DataLoader(
             dataset, batch_size=batch_size, shuffle=True, drop_last=True
@@ -1078,7 +1093,9 @@ class NeuralSemanticLibrary(nn.Module):
         val_tensors, val_targets, nearest_y_val = zip(*val_data)
         val_tensors = torch.stack(val_tensors)
         val_targets = torch.stack(val_targets).view(-1, self.output_sequence_length)
-        nearest_y_val = torch.stack(nearest_y_val).view(-1, self.output_sequence_length)
+        nearest_y_val = torch.stack([torch.tensor(x) for x in nearest_y_val]).view(
+            -1, self.output_sequence_length * self.augmented_k
+        )
 
         val_output, val_features = self.forward(val_tensors, nearest_y=nearest_y_val)
         val_mask = torch.ones_like(val_output)
@@ -1133,9 +1150,11 @@ class NeuralSemanticLibrary(nn.Module):
 
     def _retrieve_nearest_y_for_prediction(self, semantics):
         nearest_y = retrieve_nearest_y(
-            self.kd_tree, self.target, semantics.reshape(1, -1)
+            self.kd_tree, self.target, semantics.reshape(1, -1), k=self.augmented_k
         )
-        return torch.stack(nearest_y).view(-1, self.output_sequence_length)
+        return torch.stack([torch.tensor(x) for x in nearest_y]).view(
+            -1, self.output_sequence_length * self.augmented_k
+        )
 
     def _prepare_input_tensor(self, semantics):
         return torch.tensor(semantics, dtype=torch.float32).unsqueeze(0)
@@ -1269,6 +1288,10 @@ def sqrt(x):
     return np.sqrt(np.abs(x))
 
 
+def abs_log(x):
+    return np.log(np.abs(x) + 1)
+
+
 def aq(x, y):
     return x / np.sqrt(1 + y**2)
 
@@ -1359,6 +1382,7 @@ if __name__ == "__main__":
     pset.addPrimitive(sin, 1)
     pset.addPrimitive(cos, 1)
     pset.addPrimitive(sqrt, 1)
+    pset.addPrimitive(abs_log, 1)
     pset.addPrimitive(np.minimum, 2)
     pset.addPrimitive(np.maximum, 2)
 
@@ -1373,13 +1397,13 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 3
+    fix_depth = 5
     train_data = generate_synthetic_data(
         pset, num_samples=10000, min_depth=1, max_depth=fix_depth
     )
 
     # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=3)
+    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=5)
 
     # Split data into training and test sets
     train_data, test_data = train_test_split(
@@ -1388,37 +1412,34 @@ if __name__ == "__main__":
 
     # Initialize the NeuralSemanticLibrary model
     for decoder in [None]:
-        for transformer_layers in [1]:
-            for batch_sampling in [3]:
-                nl = NeuralSemanticLibrary(
-                    data.shape[0],
-                    32,
-                    32,
-                    dropout=0.1,
-                    num_layers=2,
-                    transformer_layers=transformer_layers,
-                    pset=pset,
-                    use_transformer=True,
-                    use_decoder_transformer=decoder,
-                    output_primitive_length=3,
-                    use_x_transformer=False,
-                    data_augmentation=True,
-                    batch_sampling=batch_sampling,
-                )
+        for numerical_token in [True, False]:
+            nl = NeuralSemanticLibrary(
+                data.shape[0],
+                32,
+                32,
+                dropout=0.1,
+                num_layers=3,
+                transformer_layers=2,
+                pset=pset,
+                use_transformer=True,
+                use_decoder_transformer=decoder,
+                output_primitive_length=5,
+                numerical_token=numerical_token,
+            )
 
-                # Train the neural network
-                nl.train(
-                    train_data,
-                    epochs=1000,
-                    lr=0.01,
-                    val_split=0.2,
-                    verbose=True,
-                    loss_weight=0,
-                    patience=20,
+            # Train the neural network
+            nl.train(
+                train_data,
+                epochs=1000,
+                lr=0.01,
+                val_split=0.2,
+                verbose=True,
+                loss_weight=0,
+                patience=5,
+            )
+            for tid in range(0, 10, 2):
+                print(
+                    f"Predicted Tree (Positive): {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
                 )
-                for tid in range(0, 10, 2):
-                    print(
-                        f"Predicted Tree (Positive): {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
-                    )
-                    print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
-                print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
+                print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
+            print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
