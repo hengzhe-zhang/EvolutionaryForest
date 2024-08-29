@@ -392,6 +392,7 @@ class NeuralSemanticLibrary(nn.Module):
         retrival_augmented_generation=True,
         causal_encoding=False,
         data_augmentation=True,
+        batch_sampling=1,
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -490,6 +491,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.retrival_augmented_generation = retrival_augmented_generation
         self.causal_encoding = causal_encoding
         self.data_augmentation = data_augmentation
+        self.batch_sampling = batch_sampling
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -617,8 +619,33 @@ class NeuralSemanticLibrary(nn.Module):
                 return self._decode_training(combined_features, batch_y)
         else:
             if decoder_mode == "encoder-decoder":
-                # return self._decode_with_encoder_decoder(combined_features)
-                return self._decode_with_encoder_decoder_beam(combined_features)
+                # batch_size = combined_features.size(0)
+                # best_results = None
+                # best_likelihoods = torch.full(
+                #     (batch_size,), -float("inf"), device=combined_features.device
+                # )
+                #
+                # for _ in range(self.batch_sampling):
+                #     results, likelihoods = self._decode_with_encoder_decoder(
+                #         combined_features, use_sampling=True
+                #     )
+                #
+                #     # Update best_results and best_likelihoods for each element in the batch
+                #     update_mask = likelihoods > best_likelihoods
+                #     best_likelihoods = torch.where(
+                #         update_mask, likelihoods, best_likelihoods
+                #     )
+                #     if best_results is None:
+                #         best_results = (
+                #             results.clone()
+                #         )  # Initialize with the first set of results
+                #     else:
+                #         best_results[update_mask] = results[
+                #             update_mask
+                #         ]  # Update only where likelihood improved
+                #
+                # return best_results
+                return self._decode_with_encoder_decoder(combined_features)
             elif decoder_mode == "decoder":
                 return self._decode_with_decoder_only(combined_features)
             else:
@@ -680,68 +707,7 @@ class NeuralSemanticLibrary(nn.Module):
 
         return output.permute(1, 0, 2)[:, -self.output_sequence_length :]
 
-    def _decode_with_encoder_decoder_beam(self, combined_features, beam_width=5):
-        """
-        Decode in inference mode by generating the sequence step-by-step using beam search.
-
-        :param combined_features: The encoded context from the encoder.
-        :param beam_width: The width of the beam for beam search.
-        :return: The generated output sequence with the highest likelihood.
-        """
-        batch_size = combined_features.size(0)
-        memory = combined_features.permute(1, 0, 2)  # (seq_len, batch_size, d_model)
-
-        # Initialize the beam with the start token
-        start_tokens = torch.full(
-            (batch_size, 1),
-            self.start_token_index,
-            dtype=torch.long,
-            device=combined_features.device,
-        )
-        tgt = self.embedding(start_tokens)
-        tgt = self._add_positional_embedding_index(tgt, position=0)
-        tgt = tgt.permute(1, 0, 2)  # (seq_len, batch_size, d_model)
-
-        # Initialize the beam with a list of tuples (log_likelihood, sequence)
-        beam = [(0.0, tgt)]  # (log_likelihood, sequence)
-
-        for i in range(1, self.output_sequence_length + 1):
-            new_beam = []
-
-            for log_likelihood, seq in beam:
-                tgt_mask = nn.Transformer.generate_square_subsequent_mask(
-                    seq.size(0)
-                ).to(seq.device)
-                output = self.transformer_decoder(seq, memory, tgt_mask=tgt_mask)
-                output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model)
-                last_token_logits = self.output_linear(output[:, -1:])
-                topk_probs, topk_indices = torch.topk(
-                    torch.softmax(last_token_logits, dim=-1), beam_width
-                )
-
-                for j in range(beam_width):
-                    new_log_likelihood = (
-                        log_likelihood + torch.log(topk_probs[:, j]).item()
-                    )
-                    next_token = topk_indices[:, j]
-                    next_token_embedding = self.embedding(next_token)
-                    next_token_embedding = self._add_positional_embedding_index(
-                        next_token_embedding, position=i
-                    )
-                    next_token_embedding = next_token_embedding.permute(1, 0, 2)
-                    new_seq = torch.cat([seq, next_token_embedding], dim=0)
-                    new_beam.append((new_log_likelihood, new_seq))
-
-            # Prune to keep only the top beam_width sequences
-            beam = sorted(new_beam, key=lambda x: x[0], reverse=True)[:beam_width]
-
-        # Return the sequence with the highest log likelihood
-        best_sequence = beam[0][1].permute(1, 0, 2)  # (batch_size, seq_len, d_model)
-
-        return best_sequence
-
-    def _decode_with_encoder_decoder(self, combined_features):
-        """Decode in inference mode by generating the sequence step-by-step."""
+    def _decode_with_encoder_decoder(self, combined_features, use_sampling=False):
         batch_size = combined_features.size(0)
         tgt = self.embedding(
             torch.full(
@@ -757,16 +723,38 @@ class NeuralSemanticLibrary(nn.Module):
         tgt = tgt.permute(1, 0, 2)
         memory = combined_features.permute(1, 0, 2)
 
+        # Initialize log likelihood
+        log_likelihood = torch.zeros(batch_size, device=combined_features.device)
+
         for i in range(1, self.output_sequence_length + 1):
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
                 tgt.device
             )
             output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
             output = output.permute(1, 0, 2)
+
             last_token_logits = self.output_linear(output[:, -1:])
-            next_token = last_token_logits.argmax(dim=-1)
+
+            if use_sampling:
+                # Sample from the softmax probabilities
+                probs = F.softmax(last_token_logits, dim=-1)
+                next_token = torch.multinomial(probs.squeeze(1), num_samples=1)
+                selected_log_probs = torch.log(probs.squeeze(1).gather(1, next_token))
+            else:
+                # Greedy decoding: take the token with the highest probability
+                next_token = last_token_logits.argmax(dim=-1)
+                selected_log_probs = (
+                    F.log_softmax(last_token_logits, dim=-1)
+                    .gather(2, next_token.unsqueeze(-1))
+                    .squeeze(-1)
+                )
+
+            # Accumulate the log likelihood
+            log_likelihood += selected_log_probs.squeeze(1)
+
             if i == self.output_sequence_length:
                 break
+
             next_token_embedding = self.embedding(next_token)
             next_token_embedding = self._add_positional_embedding_index(
                 next_token_embedding, position=i
@@ -774,7 +762,11 @@ class NeuralSemanticLibrary(nn.Module):
             next_token_embedding = next_token_embedding.permute(1, 0, 2)
             tgt = torch.cat([tgt, next_token_embedding], dim=0)
 
-        return output
+        likelihood = torch.exp(
+            log_likelihood
+        )  # Convert log likelihood to actual likelihood
+
+        return output, likelihood
 
     def _decode_with_decoder_only(self, combined_features):
         """
@@ -1375,13 +1367,13 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 1
+    fix_depth = 5
     train_data = generate_synthetic_data(
         pset, num_samples=10000, min_depth=1, max_depth=fix_depth
     )
 
     # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=3)
+    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=10)
 
     # Split data into training and test sets
     train_data, test_data = train_test_split(
@@ -1389,22 +1381,23 @@ if __name__ == "__main__":
     )
 
     # Initialize the NeuralSemanticLibrary model
-    for decoder in ["encoder-decoder"]:
+    for decoder in [None, "encoder-decoder"]:
         for transformer_layers in [1]:
-            for dropout in [0.1]:
+            for batch_sampling in [3]:
                 nl = NeuralSemanticLibrary(
                     data.shape[0],
                     32,
                     32,
-                    dropout=dropout,
+                    dropout=0.1,
                     num_layers=2,
                     transformer_layers=transformer_layers,
                     pset=pset,
                     use_transformer=True,
                     use_decoder_transformer=decoder,
-                    output_primitive_length=3,
+                    output_primitive_length=10,
                     use_x_transformer=False,
                     data_augmentation=True,
+                    batch_sampling=batch_sampling,
                 )
 
                 # Train the neural network
@@ -1415,6 +1408,7 @@ if __name__ == "__main__":
                     val_split=0.2,
                     verbose=True,
                     loss_weight=0,
+                    patience=20,
                 )
                 for tid in range(0, 10, 2):
                     print(
