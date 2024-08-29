@@ -97,7 +97,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             >= mutation_configuration.neural_pool_start_generation * algorithm.n_gen
         ):
             tree = algorithm.tree_pool.mlp_pool.convert_to_primitive_tree(
-                -1 * normalize_vector(residual),
+                random.choice([1, -1]) * normalize_vector(residual),
                 mode="greedy"
                 if mutation_configuration.neural_pool_greedy
                 else "probability",
