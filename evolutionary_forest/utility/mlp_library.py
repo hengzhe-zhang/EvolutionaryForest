@@ -514,14 +514,21 @@ class NeuralSemanticLibrary(nn.Module):
 
         if self.use_transformer and nearest_y is not None:
             if self.retrival_augmented_generation:
-                nearest_y_encoded = self._encode_nearest_y(nearest_y)
-                combined_features = self._combine_features(x, nearest_y_encoded)
+                if self.use_decoder_transformer == "decoder":
+                    nearest_y_encoded = nearest_y_embedded = self.embedding(nearest_y)
+                    nearest_y_embedded = self._add_positional_embedding(
+                        nearest_y_embedded
+                    )
+                    combined_features = (x, nearest_y_embedded)
+                else:
+                    nearest_y_encoded = self._encode_nearest_y(nearest_y)
+                    combined_features = self._combine_features(x, nearest_y_encoded)
             else:
                 combined_features = x
 
             if self.use_decoder_transformer is not None:
                 output = self._decode(
-                    combined_features, batch_y, self.transformer_decoder
+                    combined_features, batch_y, self.use_decoder_transformer
                 )
             else:
                 output = combined_features
@@ -604,10 +611,14 @@ class NeuralSemanticLibrary(nn.Module):
     def _decode(self, combined_features, batch_y, decoder_mode):
         """Decode using Transformer Decoder."""
         if batch_y is not None:
-            return self._decode_training(combined_features, batch_y)
+            if decoder_mode == "decoder":
+                return self._decode_training_decoder_only(combined_features, batch_y)
+            else:
+                return self._decode_training(combined_features, batch_y)
         else:
             if decoder_mode == "encoder-decoder":
-                return self._decode_with_encoder_decoder(combined_features)
+                # return self._decode_with_encoder_decoder(combined_features)
+                return self._decode_with_encoder_decoder_beam(combined_features)
             elif decoder_mode == "decoder":
                 return self._decode_with_decoder_only(combined_features)
             else:
@@ -634,6 +645,100 @@ class NeuralSemanticLibrary(nn.Module):
         )
         output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
         return output.permute(1, 0, 2)
+
+    def _decode_training_decoder_only(self, combined_features, batch_y):
+        """
+        Decode in training mode with teacher forcing in a decoder-only architecture.
+
+        :param batch_y: The ground truth sequence used for teacher forcing.
+        :return: The output sequence predicted by the decoder.
+        """
+        augmented_features, numerical_features = combined_features
+        start_tokens = torch.full(
+            (batch_y.size(0), 1),
+            self.start_token_index,
+            dtype=torch.long,
+            device=batch_y.device,
+        )
+        batch_y = torch.cat([start_tokens, batch_y[:, :-1]], dim=1)
+
+        tgt = self.embedding(batch_y)
+        tgt = self._add_positional_embedding(tgt)
+        tgt = torch.cat([augmented_features, tgt], dim=1)
+        tgt = tgt.permute(1, 0, 2)  # Prepare for transformer decoder input
+        numerical_features = numerical_features.permute(1, 0, 2)
+
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
+            tgt.device
+        )
+
+        output = self.transformer_decoder(
+            tgt,
+            memory=numerical_features,
+            tgt_mask=tgt_mask,
+        )
+
+        return output.permute(1, 0, 2)[:, -self.output_sequence_length :]
+
+    def _decode_with_encoder_decoder_beam(self, combined_features, beam_width=5):
+        """
+        Decode in inference mode by generating the sequence step-by-step using beam search.
+
+        :param combined_features: The encoded context from the encoder.
+        :param beam_width: The width of the beam for beam search.
+        :return: The generated output sequence with the highest likelihood.
+        """
+        batch_size = combined_features.size(0)
+        memory = combined_features.permute(1, 0, 2)  # (seq_len, batch_size, d_model)
+
+        # Initialize the beam with the start token
+        start_tokens = torch.full(
+            (batch_size, 1),
+            self.start_token_index,
+            dtype=torch.long,
+            device=combined_features.device,
+        )
+        tgt = self.embedding(start_tokens)
+        tgt = self._add_positional_embedding_index(tgt, position=0)
+        tgt = tgt.permute(1, 0, 2)  # (seq_len, batch_size, d_model)
+
+        # Initialize the beam with a list of tuples (log_likelihood, sequence)
+        beam = [(0.0, tgt)]  # (log_likelihood, sequence)
+
+        for i in range(1, self.output_sequence_length + 1):
+            new_beam = []
+
+            for log_likelihood, seq in beam:
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(
+                    seq.size(0)
+                ).to(seq.device)
+                output = self.transformer_decoder(seq, memory, tgt_mask=tgt_mask)
+                output = output.permute(1, 0, 2)  # (batch_size, seq_len, d_model)
+                last_token_logits = self.output_linear(output[:, -1:])
+                topk_probs, topk_indices = torch.topk(
+                    torch.softmax(last_token_logits, dim=-1), beam_width
+                )
+
+                for j in range(beam_width):
+                    new_log_likelihood = (
+                        log_likelihood + torch.log(topk_probs[:, j]).item()
+                    )
+                    next_token = topk_indices[:, j]
+                    next_token_embedding = self.embedding(next_token)
+                    next_token_embedding = self._add_positional_embedding_index(
+                        next_token_embedding, position=i
+                    )
+                    next_token_embedding = next_token_embedding.permute(1, 0, 2)
+                    new_seq = torch.cat([seq, next_token_embedding], dim=0)
+                    new_beam.append((new_log_likelihood, new_seq))
+
+            # Prune to keep only the top beam_width sequences
+            beam = sorted(new_beam, key=lambda x: x[0], reverse=True)[:beam_width]
+
+        # Return the sequence with the highest log likelihood
+        best_sequence = beam[0][1].permute(1, 0, 2)  # (batch_size, seq_len, d_model)
+
+        return best_sequence
 
     def _decode_with_encoder_decoder(self, combined_features):
         """Decode in inference mode by generating the sequence step-by-step."""
@@ -678,15 +783,27 @@ class NeuralSemanticLibrary(nn.Module):
         :param combined_features: The prompt used as the initial sequence for decoding.
         :return: Generated output sequence.
         """
-        tgt = combined_features
+        combined_features, numerical_features = combined_features
+        tgt = self.embedding(
+            torch.full(
+                (combined_features.size(0), 1),
+                self.start_token_index,
+                dtype=torch.long,
+                device=combined_features.device,
+            )
+        )
+        tgt = torch.cat([combined_features, tgt], dim=1)
         tgt = tgt.permute(1, 0, 2)  # Prepare for transformer decoder input
+        numerical_features = numerical_features.permute(1, 0, 2)
 
         length = self.output_sequence_length * 2
         for i in range(combined_features.size(1), length):
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
                 tgt.device
             )
-            output = self.transformer_decoder(tgt, tgt, tgt_mask=tgt_mask)
+            output = self.transformer_decoder(
+                tgt, numerical_features, tgt_mask=tgt_mask
+            )
             output = output.permute(1, 0, 2)
             last_token_logits = self.output_linear(output[:, -1:])
             next_token = last_token_logits.argmax(dim=-1)
@@ -1272,35 +1389,36 @@ if __name__ == "__main__":
     )
 
     # Initialize the NeuralSemanticLibrary model
-    for decoder in ["Decoder"]:
-        for weight in [0, 1]:
-            nl = NeuralSemanticLibrary(
-                data.shape[0],
-                32,
-                32,
-                dropout=0.1,
-                num_layers=2,
-                transformer_layers=1,
-                pset=pset,
-                use_transformer=True,
-                use_decoder_transformer=decoder,
-                output_primitive_length=3,
-                use_x_transformer=False,
-                data_augmentation=True,
-            )
-
-            # Train the neural network
-            nl.train(
-                train_data,
-                epochs=1000,
-                lr=0.01,
-                val_split=0.2,
-                verbose=True,
-                loss_weight=weight,
-            )
-            for tid in range(0, 10, 2):
-                print(
-                    f"Predicted Tree (Positive): {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
+    for decoder in ["encoder-decoder"]:
+        for transformer_layers in [1]:
+            for dropout in [0.1]:
+                nl = NeuralSemanticLibrary(
+                    data.shape[0],
+                    32,
+                    32,
+                    dropout=dropout,
+                    num_layers=2,
+                    transformer_layers=transformer_layers,
+                    pset=pset,
+                    use_transformer=True,
+                    use_decoder_transformer=decoder,
+                    output_primitive_length=3,
+                    use_x_transformer=False,
+                    data_augmentation=True,
                 )
-                print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
-            print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
+
+                # Train the neural network
+                nl.train(
+                    train_data,
+                    epochs=1000,
+                    lr=0.01,
+                    val_split=0.2,
+                    verbose=True,
+                    loss_weight=0,
+                )
+                for tid in range(0, 10, 2):
+                    print(
+                        f"Predicted Tree (Positive): {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
+                    )
+                    print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
+                print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
