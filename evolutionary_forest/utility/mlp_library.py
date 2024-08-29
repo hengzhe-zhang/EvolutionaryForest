@@ -14,7 +14,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
-from x_transformers import XTransformer
 
 from evolutionary_forest.component.crossover.kan import KANLinear
 from evolutionary_forest.probability_gp import genHalfAndHalf
@@ -389,7 +388,7 @@ class NeuralSemanticLibrary(nn.Module):
         use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=False,
-        use_x_transformer=True,  # Add flag to enable PerformerLM
+        use_x_transformer=False,  # Add flag to enable PerformerLM
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -446,43 +445,29 @@ class NeuralSemanticLibrary(nn.Module):
             self.use_transformer = False
 
         if self.use_transformer:
-            if self.use_x_transformer:
-                self.transformer_decoder = XTransformer(
-                    dim=hidden_size,
-                    enc_num_tokens=self.num_symbols,
-                    enc_depth=transformer_layers,
-                    enc_heads=num_heads,
-                    enc_max_seq_len=self.output_sequence_length,
-                    dec_num_tokens=self.num_symbols,
-                    dec_depth=transformer_layers,
-                    dec_heads=num_heads,
-                    dec_max_seq_len=self.output_sequence_length,
-                    tie_token_emb=True,  # tie embeddings of encoder and decoder
-                )
-            else:
-                # Transformer Encoder for nearest `y`
-                transformer_encoder_layer = nn.TransformerEncoderLayer(
-                    d_model=output_size,
-                    nhead=num_heads,
-                    dim_feedforward=hidden_size,
-                    dropout=dropout,
-                    activation="gelu",
-                )
-                self.transformer_encoder = nn.TransformerEncoder(
-                    transformer_encoder_layer, num_layers=transformer_layers
-                )
+            # Transformer Encoder for nearest `y`
+            transformer_encoder_layer = nn.TransformerEncoderLayer(
+                d_model=output_size,
+                nhead=num_heads,
+                dim_feedforward=hidden_size,
+                dropout=dropout,
+                activation="gelu",
+            )
+            self.transformer_encoder = nn.TransformerEncoder(
+                transformer_encoder_layer, num_layers=transformer_layers
+            )
 
-                # Transformer Decoder for combined `x` and encoded nearest `y`
-                transformer_decoder_layer = nn.TransformerDecoderLayer(
-                    d_model=output_size,
-                    nhead=num_heads,
-                    dim_feedforward=hidden_size,
-                    dropout=dropout,
-                    activation="gelu",
-                )
-                self.transformer_decoder = nn.TransformerDecoder(
-                    transformer_decoder_layer, num_layers=transformer_layers
-                )
+            # Transformer Decoder for combined `x` and encoded nearest `y`
+            transformer_decoder_layer = nn.TransformerDecoderLayer(
+                d_model=output_size,
+                nhead=num_heads,
+                dim_feedforward=hidden_size,
+                dropout=dropout,
+                activation="gelu",
+            )
+            self.transformer_decoder = nn.TransformerDecoder(
+                transformer_decoder_layer, num_layers=transformer_layers
+            )
 
         # Define a shared embedding layer for all positions
         self.embedding = nn.Embedding(
@@ -516,7 +501,6 @@ class NeuralSemanticLibrary(nn.Module):
             return self._forward_traditional_transformer(x, batch_y, nearest_y)
 
     def _forward_x_transformer(self, x, batch_y, nearest_y):
-        self.transformer_decoder: XTransformer
         enc = self.transformer_decoder.encoder(nearest_y, return_embeddings=True)
         enc = torch.cat((x.unsqueeze(1), enc), dim=1)
         output = self.transformer_decoder.decoder.net(batch_y, context=enc)
