@@ -385,12 +385,13 @@ class NeuralSemanticLibrary(nn.Module):
         use_transformer=True,  # Flag to enable or disable transformer layer
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
         flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
-        use_decoder_transformer=True,  # Flag to enable or disable decoder transformer
+        use_decoder_transformer=None,  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=True,
         use_x_transformer=False,  # Add flag to enable PerformerLM
         retrival_augmented_generation=True,
         causal_encoding=False,
+        data_augmentation=True,
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -484,10 +485,11 @@ class NeuralSemanticLibrary(nn.Module):
 
         # Positional embedding initialization
         self.positional_embedding = nn.Embedding(
-            self.output_sequence_length, output_size
+            self.output_sequence_length * 2, output_size
         )
         self.retrival_augmented_generation = retrival_augmented_generation
         self.causal_encoding = causal_encoding
+        self.data_augmentation = data_augmentation
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -517,8 +519,10 @@ class NeuralSemanticLibrary(nn.Module):
             else:
                 combined_features = x
 
-            if self.use_decoder_transformer:
-                output = self._decode(combined_features, batch_y)
+            if self.use_decoder_transformer is not None:
+                output = self._decode(
+                    combined_features, batch_y, self.transformer_decoder
+                )
             else:
                 output = combined_features
         else:
@@ -597,12 +601,19 @@ class NeuralSemanticLibrary(nn.Module):
         else:
             raise ValueError("Unsupported combination method: use 'concat' or 'add'.")
 
-    def _decode(self, combined_features, batch_y):
+    def _decode(self, combined_features, batch_y, decoder_mode):
         """Decode using Transformer Decoder."""
         if batch_y is not None:
             return self._decode_training(combined_features, batch_y)
         else:
-            return self._decode_inference(combined_features)
+            if decoder_mode == "encoder-decoder":
+                return self._decode_with_encoder_decoder(combined_features)
+            elif decoder_mode == "decoder":
+                return self._decode_with_decoder_only(combined_features)
+            else:
+                raise ValueError(
+                    "Unsupported decoder mode: use 'encoder-decoder' or 'decoder'."
+                )
 
     def _decode_training(self, combined_features, batch_y):
         """Decode in training mode with teacher forcing."""
@@ -624,7 +635,7 @@ class NeuralSemanticLibrary(nn.Module):
         output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
         return output.permute(1, 0, 2)
 
-    def _decode_inference(self, combined_features):
+    def _decode_with_encoder_decoder(self, combined_features):
         """Decode in inference mode by generating the sequence step-by-step."""
         batch_size = combined_features.size(0)
         tgt = self.embedding(
@@ -659,6 +670,38 @@ class NeuralSemanticLibrary(nn.Module):
             tgt = torch.cat([tgt, next_token_embedding], dim=0)
 
         return output
+
+    def _decode_with_decoder_only(self, combined_features):
+        """
+        Decode using the decoder-only architecture.
+
+        :param combined_features: The prompt used as the initial sequence for decoding.
+        :return: Generated output sequence.
+        """
+        tgt = combined_features
+        tgt = tgt.permute(1, 0, 2)  # Prepare for transformer decoder input
+
+        length = self.output_sequence_length * 2
+        for i in range(combined_features.size(1), length):
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
+                tgt.device
+            )
+            output = self.transformer_decoder(tgt, tgt, tgt_mask=tgt_mask)
+            output = output.permute(1, 0, 2)
+            last_token_logits = self.output_linear(output[:, -1:])
+            next_token = last_token_logits.argmax(dim=-1)
+
+            if i == length - 1:
+                break
+
+            next_token_embedding = self.embedding(next_token)
+            next_token_embedding = self._add_positional_embedding_index(
+                next_token_embedding, position=i
+            )
+            next_token_embedding = next_token_embedding.permute(1, 0, 2)
+            tgt = torch.cat([tgt, next_token_embedding], dim=0)
+
+        return output[:, -self.output_sequence_length :, :]
 
     def _compute_dot_product(self, output):
         """Compute the dot product with shared embedding vectors."""
@@ -1024,15 +1067,19 @@ class NeuralSemanticLibrary(nn.Module):
         index_to_node_name = self.pset_utils.get_index_to_node_name()
         return [index_to_node_name.get(idx, "Unknown") for idx in output_indices]
 
-    def convert_to_primitive_tree(self, semantics, mode="probability"):
+    def convert_to_primitive_tree(self, semantics, mode="greedy"):
         """
         Convert semantics to a GP tree and then to a PrimitiveTree.
 
         :param semantics: List of node names representing the GP tree.
         :return: PrimitiveTree constructed from the generated GP tree.
         """
-        node_names = self.predict(semantics, mode=mode)
-        gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names)
+        node_names_pos, likelihood_pos = self.predict(semantics, mode=mode)
+        gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_pos)
+        if self.data_augmentation:
+            node_names_neg, likelihood_neg = self.predict(-1 * semantics, mode=mode)
+            if likelihood_neg > likelihood_pos:
+                gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_neg)
         return PrimitiveTree(gp_tree)
 
 
@@ -1192,11 +1239,11 @@ if __name__ == "__main__":
     )  # Example, replace with your specific pset
     pset.addPrimitive(add, 2)
     pset.addPrimitive(subtract, 2)
+    pset.addPrimitive(multiply, 2)
+    pset.addPrimitive(aq, 2)
     pset.addPrimitive(sin, 1)
     pset.addPrimitive(cos, 1)
     pset.addPrimitive(sqrt, 1)
-    pset.addPrimitive(multiply, 2)
-    pset.addPrimitive(aq, 2)
     pset.addPrimitive(np.minimum, 2)
     pset.addPrimitive(np.maximum, 2)
 
@@ -1211,7 +1258,7 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 5
+    fix_depth = 1
     train_data = generate_synthetic_data(
         pset, num_samples=10000, min_depth=1, max_depth=fix_depth
     )
@@ -1225,37 +1272,35 @@ if __name__ == "__main__":
     )
 
     # Initialize the NeuralSemanticLibrary model
-    for rag in [True, False]:
-        nl = NeuralSemanticLibrary(
-            data.shape[0],
-            32,
-            32,
-            dropout=0.1,
-            num_layers=2,
-            transformer_layers=1,
-            pset=pset,
-            use_transformer=True,
-            use_decoder_transformer=False,
-            output_primitive_length=3,
-            use_x_transformer=False,
-            retrival_augmented_generation=rag,
-        )
+    for decoder in ["Decoder"]:
+        for weight in [0, 1]:
+            nl = NeuralSemanticLibrary(
+                data.shape[0],
+                32,
+                32,
+                dropout=0.1,
+                num_layers=2,
+                transformer_layers=1,
+                pset=pset,
+                use_transformer=True,
+                use_decoder_transformer=decoder,
+                output_primitive_length=3,
+                use_x_transformer=False,
+                data_augmentation=True,
+            )
 
-        # Train the neural network
-        nl.train(
-            train_data,
-            epochs=1000,
-            lr=0.01,
-            val_split=0.2,
-            verbose=True,
-            loss_weight=1,
-        )
-        for tid in range(0, 5):
-            print(
-                f"Predicted Tree (Positive): {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
+            # Train the neural network
+            nl.train(
+                train_data,
+                epochs=1000,
+                lr=0.01,
+                val_split=0.2,
+                verbose=True,
+                loss_weight=weight,
             )
-            print(
-                f"Predicted Tree (Negative): {str(nl.convert_to_primitive_tree(-1*test_data[tid][1]))}"
-            )
-            print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
-        print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
+            for tid in range(0, 10, 2):
+                print(
+                    f"Predicted Tree (Positive): {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
+                )
+                print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
+            print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
