@@ -394,7 +394,7 @@ class NeuralSemanticLibrary(nn.Module):
         data_augmentation=True,
         batch_sampling=1,
         augmented_k=1,
-        numerical_token=True,
+        numerical_token=False,
     ):
         super(NeuralSemanticLibrary, self).__init__()
 

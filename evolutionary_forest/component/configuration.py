@@ -246,7 +246,6 @@ class MutationConfiguration(Configuration):
         neural_pool_mlp_layers=3,
         flatten_before_similarity=False,
         contrastive_learning_stage="Decoder",
-        use_decoder_transformer=False,
         selective_retrain=False,
         **params
     ):
