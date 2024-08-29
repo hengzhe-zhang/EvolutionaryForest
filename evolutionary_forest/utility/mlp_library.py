@@ -766,7 +766,7 @@ class NeuralSemanticLibrary(nn.Module):
             log_likelihood
         )  # Convert log likelihood to actual likelihood
 
-        return output, likelihood
+        return output
 
     def _decode_with_decoder_only(self, combined_features):
         """
@@ -882,6 +882,8 @@ class NeuralSemanticLibrary(nn.Module):
         criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
 
         tensors, targets = self.prepare_data(train_data)
+        # reverse each target
+        # targets = [torch.flip(t, [0]) for t in targets]
         self.target = targets
         train_tensors, val_tensors, train_targets, val_targets = self.split_data(
             tensors, targets, val_split
@@ -1123,6 +1125,8 @@ class NeuralSemanticLibrary(nn.Module):
         else:
             raise Exception(f"Invalid mode: {mode}")
 
+        # reverse the output_indices
+        # output_indices = output_indices[::-1]
         tree_node_names = self._decode_indices_to_node_names(output_indices)
 
         return tree_node_names, likelihood
@@ -1147,6 +1151,8 @@ class NeuralSemanticLibrary(nn.Module):
         mask = torch.full_like(output_vector, -float("inf"))
         mask[:, :-number_of_terminals] = 0
         mask[:, -number_of_terminals:, -self.num_terminals :] = 0
+        # mask[:, number_of_terminals:] = 0
+        # mask[:, :number_of_terminals, -self.num_terminals :] = 0
         mask[:, :, self.embedding.padding_idx] = -float("inf")
         mask[:, :, self.start_token_index] = -float("inf")
         return output_vector + mask
@@ -1367,13 +1373,13 @@ if __name__ == "__main__":
     print(str(generated_tree))
 
     # Generate synthetic training data
-    fix_depth = 5
+    fix_depth = 3
     train_data = generate_synthetic_data(
         pset, num_samples=10000, min_depth=1, max_depth=fix_depth
     )
 
     # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=10)
+    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=3)
 
     # Split data into training and test sets
     train_data, test_data = train_test_split(
@@ -1381,7 +1387,7 @@ if __name__ == "__main__":
     )
 
     # Initialize the NeuralSemanticLibrary model
-    for decoder in [None, "encoder-decoder"]:
+    for decoder in [None]:
         for transformer_layers in [1]:
             for batch_sampling in [3]:
                 nl = NeuralSemanticLibrary(
@@ -1394,7 +1400,7 @@ if __name__ == "__main__":
                     pset=pset,
                     use_transformer=True,
                     use_decoder_transformer=decoder,
-                    output_primitive_length=10,
+                    output_primitive_length=3,
                     use_x_transformer=False,
                     data_augmentation=True,
                     batch_sampling=batch_sampling,
