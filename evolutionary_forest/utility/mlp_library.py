@@ -532,7 +532,7 @@ class NeuralSemanticLibrary(nn.Module):
                     if self.numerical_token:
                         views += 1
                     reshaped_tensor = nearest_y_encoded.view(
-                        -1, self.output_sequence_length, views, 32
+                        -1, self.output_sequence_length, views, self.output_size
                     )
                     pooled_tensor = torch.mean(reshaped_tensor, dim=2)
                     combined_features = self._combine_features(x, pooled_tensor)
