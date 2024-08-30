@@ -10,6 +10,7 @@ import torch.optim as optim
 from deap import gp
 from deap.gp import PrimitiveSet, PrimitiveTree, Primitive
 from sklearn.datasets import load_diabetes
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.optim import lr_scheduler
@@ -1330,6 +1331,35 @@ def filter_train_data_by_node_count(train_data, max_function_nodes=3):
     return filtered_train_data
 
 
+def calculate_semantics_accuracy(nl, test_data, pset, x):
+    cosine_similarities = []
+
+    for tid in range(len(test_data)):
+        # Convert the predicted tree and original tree to a list of tokens
+        predicted_tree = nl.convert_to_primitive_tree(test_data[tid][1])
+        original_tree = PrimitiveTree(test_data[tid][0])
+
+        # Compile the trees to functions
+        original_func = gp.compile(expr=original_tree, pset=pset)
+        predicted_func = gp.compile(expr=predicted_tree, pset=pset)
+
+        # Calculate the predicted and true values
+        y_pred = predicted_func(*x.T)
+        y_true = original_func(*x.T)
+
+        # Normalize the vectors
+        y_pred = normalize_vector(y_pred)
+        y_true = normalize_vector(y_true)
+
+        # Compute the cosine similarity
+        similarity = abs(cosine_similarity([y_true], [y_pred])[0][0])
+        cosine_similarities.append(similarity)
+
+    # Calculate the average cosine similarity
+    avg_cosine_similarity = np.mean(cosine_similarities)
+    return avg_cosine_similarity
+
+
 def calculate_token_accuracy(nl, test_data):
     """
     Calculate the token-level accuracy of the neural network's predictions.
@@ -1381,10 +1411,10 @@ if __name__ == "__main__":
     pset.addPrimitive(aq, 2)
     pset.addPrimitive(sin, 1)
     pset.addPrimitive(cos, 1)
-    pset.addPrimitive(sqrt, 1)
-    pset.addPrimitive(abs_log, 1)
-    pset.addPrimitive(np.minimum, 2)
-    pset.addPrimitive(np.maximum, 2)
+    # pset.addPrimitive(sqrt, 1)
+    # pset.addPrimitive(abs_log, 1)
+    # pset.addPrimitive(np.minimum, 2)
+    # pset.addPrimitive(np.maximum, 2)
 
     utils = PrimitiveSetUtils(pset)
     generated_tree = PrimitiveTree(
@@ -1411,20 +1441,20 @@ if __name__ == "__main__":
     )
 
     # Initialize the NeuralSemanticLibrary model
+
     for decoder in [None]:
-        for numerical_token in [True, False]:
+        for contrastive_loss in [1, 0.2, 0.1, 0]:
             nl = NeuralSemanticLibrary(
                 data.shape[0],
                 32,
                 32,
                 dropout=0.1,
                 num_layers=3,
-                transformer_layers=2,
+                transformer_layers=1,
                 pset=pset,
                 use_transformer=True,
                 use_decoder_transformer=decoder,
                 output_primitive_length=5,
-                numerical_token=numerical_token,
             )
 
             # Train the neural network
@@ -1434,7 +1464,7 @@ if __name__ == "__main__":
                 lr=0.01,
                 val_split=0.2,
                 verbose=True,
-                loss_weight=0,
+                loss_weight=contrastive_loss,
                 patience=5,
             )
             for tid in range(0, 10, 2):
@@ -1443,3 +1473,7 @@ if __name__ == "__main__":
                 )
                 print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
             print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
+            print(
+                "Semantics Accuracy: ",
+                calculate_semantics_accuracy(nl, test_data, pset, data),
+            )
