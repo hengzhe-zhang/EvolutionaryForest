@@ -418,6 +418,7 @@ class NeuralSemanticLibrary(nn.Module):
         numerical_token=False,
         independent_linear_layers=False,
         kd_tree_reconstruct=True,
+        positional_embedding_over_kan=True,
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -527,6 +528,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.augmented_k = augmented_k
         self.numerical_token = numerical_token
         self.kd_tree_reconstruct = kd_tree_reconstruct
+        self.positional_embedding_over_kan = positional_embedding_over_kan
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -547,7 +549,8 @@ class NeuralSemanticLibrary(nn.Module):
 
     def _forward_traditional_transformer(self, x, batch_y, nearest_y):
         x_raw = x = self._reshape_output(x)
-        x = self._add_positional_embedding(x)
+        if self.positional_embedding_over_kan:
+            x = self._add_positional_embedding(x)
 
         if self.use_transformer and nearest_y is not None:
             if self.retrival_augmented_generation:
