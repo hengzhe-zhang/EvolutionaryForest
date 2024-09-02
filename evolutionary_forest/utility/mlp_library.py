@@ -1,5 +1,6 @@
 import deap.base as base
 import deap.creator as creator
+import editdistance
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -24,6 +25,25 @@ from evolutionary_forest.utility.retrieve_nn.quick_retrive import (
     retrieve_nearest_y_skip_self,
 )
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
+
+
+class IndependentLinearLayers(nn.Module):
+    def __init__(self, input_dim, output_dim, num_positions):
+        super(IndependentLinearLayers, self).__init__()
+        self.num_positions = num_positions
+        self.linears = nn.ModuleList(
+            [nn.Linear(input_dim, output_dim) for _ in range(num_positions)]
+        )
+
+    def forward(self, x):
+        # x is expected to have shape [batch_size, num_positions, input_dim]
+        outputs = []
+        for i in range(self.num_positions):
+            # Apply the i-th linear layer to the i-th position
+            outputs.append(self.linears[i](x[:, i, :]))
+
+        # Stack the outputs along the position dimension
+        return torch.stack(outputs, dim=1)
 
 
 def compute_accuracy(val_output, val_targets, padding_idx):
@@ -396,6 +416,9 @@ class NeuralSemanticLibrary(nn.Module):
         batch_sampling=1,
         augmented_k=1,
         numerical_token=False,
+        independent_linear_layers=False,
+        kd_tree_reconstruct=True,
+        **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
 
@@ -480,7 +503,13 @@ class NeuralSemanticLibrary(nn.Module):
         self.embedding = nn.Embedding(
             self.num_symbols, output_size, padding_idx=padding_idx
         )
-        self.output_linear = nn.Linear(output_size, self.num_symbols)
+        self.independent_linear_layers = independent_linear_layers
+        if self.independent_linear_layers:
+            self.output_linear = IndependentLinearLayers(
+                output_size, self.num_symbols, self.output_sequence_length
+            )
+        else:
+            self.output_linear = nn.Linear(output_size, self.num_symbols)
 
         self.start_token_index = 1
         self.contrastive_loss_in_val = contrastive_loss_in_val
@@ -497,6 +526,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.batch_sampling = batch_sampling
         self.augmented_k = augmented_k
         self.numerical_token = numerical_token
+        self.kd_tree_reconstruct = kd_tree_reconstruct
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -516,13 +546,13 @@ class NeuralSemanticLibrary(nn.Module):
         return output, output if self.contrastive_learning_stage == "Decoder" else enc
 
     def _forward_traditional_transformer(self, x, batch_y, nearest_y):
-        x = self._reshape_output(x)
+        x_raw = x = self._reshape_output(x)
         x = self._add_positional_embedding(x)
 
         if self.use_transformer and nearest_y is not None:
             if self.retrival_augmented_generation:
                 if self.use_decoder_transformer == "decoder":
-                    nearest_y_encoded = nearest_y_embedded = self.embedding(nearest_y)
+                    nearest_y_embedded = self.embedding(nearest_y)
                     nearest_y_embedded = self._add_positional_embedding(
                         nearest_y_embedded
                     )
@@ -550,12 +580,21 @@ class NeuralSemanticLibrary(nn.Module):
             output = x
 
         dot_products = self.output_linear(output)
-        return (
-            dot_products,
-            output
-            if self.contrastive_learning_stage == "Decoder"
-            else nearest_y_encoded,
-        )
+
+        if self.contrastive_learning_stage == "Decoder":
+            contrastive_context = output
+        elif self.contrastive_learning_stage == "Encoder":
+            contrastive_context = combined_features
+        elif self.contrastive_learning_stage == "RAG":
+            contrastive_context = nearest_y_encoded
+        elif self.contrastive_learning_stage == "KAN":
+            contrastive_context = x
+        elif self.contrastive_learning_stage == "KAN-Raw":
+            contrastive_context = x_raw
+        else:
+            raise Exception
+
+        return (dot_products, contrastive_context)
 
     def _process_mlp(self, x):
         """Pass the input through MLP layers with optional residual connections."""
@@ -890,7 +929,7 @@ class NeuralSemanticLibrary(nn.Module):
         val_split=0.2,
         patience=20,
         verbose=False,
-        loss_weight=0.5,
+        loss_weight=0,
     ):
         optimizer, scheduler = self.setup_optimizer_and_scheduler(lr)
         criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
@@ -930,8 +969,11 @@ class NeuralSemanticLibrary(nn.Module):
         self.previous_val_loss = best_val_loss
 
         # update final library
-        _, kd_tree = retrieve_nearest_y_skip_self(tensors, targets, k=self.augmented_k)
-        self.kd_tree = kd_tree
+        if self.kd_tree_reconstruct:
+            _, kd_tree = retrieve_nearest_y_skip_self(
+                tensors, targets, k=self.augmented_k
+            )
+            self.kd_tree = kd_tree
         return best_val_loss
 
     def setup_optimizer_and_scheduler(self, lr):
@@ -959,7 +1001,7 @@ class NeuralSemanticLibrary(nn.Module):
             targets,
             test_size=val_split,
             random_state=0,
-            shuffle=False,
+            shuffle=True,
         )
         self.train_tensors, self.train_targets = train_tensors, train_targets
         return train_tensors, val_tensors, train_targets, val_targets
@@ -1218,7 +1260,9 @@ class NeuralSemanticLibrary(nn.Module):
         return PrimitiveTree(gp_tree)
 
 
-def generate_synthetic_data(pset, num_samples=100, min_depth=2, max_depth=2):
+def generate_synthetic_data(
+    pset, input_data, num_samples=100, min_depth=2, max_depth=2
+):
     """
     Generate synthetic training data with random GP trees and their target semantics.
 
@@ -1237,13 +1281,13 @@ def generate_synthetic_data(pset, num_samples=100, min_depth=2, max_depth=2):
         gp_tree = create_random_gp_tree(pset, min_depth=min_depth, max_depth=max_depth)
 
         # Generate synthetic semantics (e.g., applying the GP tree to a synthetic dataset)
-        target_semantics = normalize_vector(generate_target_semantics(gp_tree, pset))
+        target_semantics = normalize_vector(
+            generate_target_semantics(gp_tree, input_data, pset)
+        )
         if tuple(target_semantics) in viewed:
             continue
         viewed.add(tuple(target_semantics))
         data.append((gp_tree, target_semantics))
-        viewed.add(tuple(-1 * target_semantics))
-        data.append((gp_tree, -1 * target_semantics))
 
     # sorting
     # all_semantics = np.argsort(np.median([s for _, s in data], axis=0))
@@ -1267,7 +1311,7 @@ def create_random_gp_tree(pset, min_depth=2, max_depth=2):
     return toolbox.individual()
 
 
-def generate_target_semantics(gp_tree, pset):
+def generate_target_semantics(gp_tree, data: np.ndarray, pset):
     # Compile the GP tree into a callable function
     func = gp.compile(PrimitiveTree(gp_tree), pset)
 
@@ -1275,38 +1319,6 @@ def generate_target_semantics(gp_tree, pset):
     target_semantics = func(*data.T)
 
     return target_semantics
-
-
-def add(x, y):
-    return x + y
-
-
-def subtract(x, y):
-    return x - y
-
-
-def sqrt(x):
-    return np.sqrt(np.abs(x))
-
-
-def abs_log(x):
-    return np.log(np.abs(x) + 1)
-
-
-def aq(x, y):
-    return x / np.sqrt(1 + y**2)
-
-
-def sin(x):
-    return np.sin(np.pi * x)
-
-
-def cos(x):
-    return np.cos(np.pi * x)
-
-
-def multiply(x, y):
-    return x * y
 
 
 def filter_train_data_by_node_count(train_data, max_function_nodes=3):
@@ -1360,6 +1372,26 @@ def calculate_semantics_accuracy(nl, test_data, pset, x):
     return avg_cosine_similarity
 
 
+def calculate_edit_distance(nl, test_data):
+    cosine_similarities = []
+
+    for tid in range(len(test_data)):
+        # Convert the predicted tree and original tree to a list of tokens
+        predicted_tree = nl.convert_to_primitive_tree(test_data[tid][1])
+        original_tree = PrimitiveTree(test_data[tid][0])
+
+        # Compute the cosine similarity
+        similarity = editdistance.eval(
+            [node.name for node in predicted_tree],
+            [node.name for node in original_tree],
+        )
+        cosine_similarities.append(similarity)
+
+    # Calculate the average cosine similarity
+    avg_cosine_similarity = np.mean(cosine_similarities)
+    return avg_cosine_similarity
+
+
 def calculate_token_accuracy(nl, test_data):
     """
     Calculate the token-level accuracy of the neural network's predictions.
@@ -1391,89 +1423,3 @@ def calculate_token_accuracy(nl, test_data):
     # Calculate token-level accuracy as a percentage
     token_accuracy = correct_tokens / total_tokens
     return token_accuracy
-
-
-if __name__ == "__main__":
-    # np.random.seed(0)
-
-    # ['subtract', 'add', 'ARG0', 'ARG1', 'subtract', 'ARG0', 'ARG1']
-    # Example usage
-    data = load_diabetes().data[:50]
-    data = StandardScaler().fit_transform(data)
-
-    # Define DEAP PrimitiveSet
-    pset = PrimitiveSet(
-        "MAIN", data.shape[1]
-    )  # Example, replace with your specific pset
-    pset.addPrimitive(add, 2)
-    pset.addPrimitive(subtract, 2)
-    pset.addPrimitive(multiply, 2)
-    pset.addPrimitive(aq, 2)
-    pset.addPrimitive(sin, 1)
-    pset.addPrimitive(cos, 1)
-    # pset.addPrimitive(sqrt, 1)
-    # pset.addPrimitive(abs_log, 1)
-    # pset.addPrimitive(np.minimum, 2)
-    # pset.addPrimitive(np.maximum, 2)
-
-    utils = PrimitiveSetUtils(pset)
-    generated_tree = PrimitiveTree(
-        utils.convert_node_names_to_gp_tree(
-            ["subtract", "add", "subtract", "ARG0", "ARG1", "ARG0", "ARG1"]
-        )
-    )
-    utils.convert_gp_tree_to_node_names(generated_tree)
-    print([node.name for node in generated_tree])
-    print(str(generated_tree))
-
-    # Generate synthetic training data
-    fix_depth = 5
-    train_data = generate_synthetic_data(
-        pset, num_samples=10000, min_depth=1, max_depth=fix_depth
-    )
-
-    # Filter training data by node count
-    train_data = filter_train_data_by_node_count(train_data, max_function_nodes=5)
-
-    # Split data into training and test sets
-    train_data, test_data = train_test_split(
-        train_data, test_size=0.2, shuffle=False, random_state=0
-    )
-
-    # Initialize the NeuralSemanticLibrary model
-
-    for decoder in [None]:
-        for contrastive_loss in [1, 0.2, 0.1, 0]:
-            nl = NeuralSemanticLibrary(
-                data.shape[0],
-                32,
-                32,
-                dropout=0.1,
-                num_layers=3,
-                transformer_layers=1,
-                pset=pset,
-                use_transformer=True,
-                use_decoder_transformer=decoder,
-                output_primitive_length=5,
-            )
-
-            # Train the neural network
-            nl.train(
-                train_data,
-                epochs=1000,
-                lr=0.01,
-                val_split=0.2,
-                verbose=True,
-                loss_weight=contrastive_loss,
-                patience=5,
-            )
-            for tid in range(0, 10, 2):
-                print(
-                    f"Predicted Tree (Positive): {str(nl.convert_to_primitive_tree(test_data[tid][1]))}"
-                )
-                print(f"Original Tree:  {str(PrimitiveTree(test_data[tid][0]))}")
-            print("Token Accuracy: ", calculate_token_accuracy(nl, test_data))
-            print(
-                "Semantics Accuracy: ",
-                calculate_semantics_accuracy(nl, test_data, pset, data),
-            )
