@@ -312,25 +312,59 @@ class PrimitiveSetUtils:
                     raise ValueError(f"Node name '{name}' not found in PrimitiveSet")
             return stack
 
-        def reorder_node_names_recursive(first, node_names):
+        # def reorder_node_names_recursive(first, node_names):
+        #     """
+        #     Reorder a list of node names such that each function is followed by its arguments using recursion.
+        #
+        #     :param node_names: List of node names corresponding to functions and terminals.
+        #     :return: Reordered list of node names.
+        #     """
+        #     # If it's a function (Primitive), it will have arguments
+        #     if isinstance(first, Primitive):
+        #         args = []
+        #         root_args = []
+        #         for ix in range(first.arity):
+        #             a = node_names.pop(0)
+        #             # print(first.name, a.name)
+        #             root_args.append(a)
+        #
+        #         for ix, a in enumerate(root_args):
+        #             nodes = reorder_node_names_recursive(a, node_names)
+        #             # print(first.name, [n.name for n in nodes])
+        #             args.extend(nodes)
+        #
+        #         # Return the function followed by its arguments
+        #         return [first] + args
+        #     else:
+        #         # If it's a terminal, just return it
+        #         return [first]
+        #
+        # def pre_recursive(node_names):
+        #     first = node_names.pop(0)
+        #     return reorder_node_names_recursive(first, node_names)
+
+        def reorder_node_names(node_names):
             """
             Reorder a list of node names such that each function is followed by its arguments using recursion.
 
             :param node_names: List of node names corresponding to functions and terminals.
             :return: Reordered list of node names.
             """
+            if not node_names:
+                return []
+
+            first = node_names.pop(0)
+
             # If it's a function (Primitive), it will have arguments
             if isinstance(first, Primitive):
                 args = []
                 root_args = []
-                for ix in range(first.arity):
+                for _ in range(first.arity):
                     a = node_names.pop(0)
-                    # print(first.name, a.name)
                     root_args.append(a)
 
-                for ix, a in enumerate(root_args):
-                    nodes = reorder_node_names_recursive(a, node_names)
-                    # print(first.name, [n.name for n in nodes])
+                for a in root_args:
+                    nodes = reorder_node_names([a] + node_names)
                     args.extend(nodes)
 
                 # Return the function followed by its arguments
@@ -339,11 +373,9 @@ class PrimitiveSetUtils:
                 # If it's a terminal, just return it
                 return [first]
 
-        def pre_recursive(node_names):
-            first = node_names.pop(0)
-            return reorder_node_names_recursive(first, node_names)
-
-        return pre_recursive(build_tree(node_names))
+        # return pre_recursive(build_tree(node_names))
+        return reorder_node_names(build_tree(node_names))
+        # [x.name for x in build_tree(node_names)]
 
     def convert_gp_tree_to_node_names(self, gp_tree):
         level, _ = mark_node_levels_recursive(gp_tree, original_primitive=True)
@@ -419,6 +451,7 @@ class NeuralSemanticLibrary(nn.Module):
         independent_linear_layers=False,
         kd_tree_reconstruct=True,
         positional_embedding_over_kan=True,
+        only_margin_loss=False,
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -529,6 +562,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.numerical_token = numerical_token
         self.kd_tree_reconstruct = kd_tree_reconstruct
         self.positional_embedding_over_kan = positional_embedding_over_kan
+        self.only_margin_loss = only_margin_loss
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -920,8 +954,10 @@ class NeuralSemanticLibrary(nn.Module):
             F.mse_loss(cosine_distance_features, cosine_distance_target_features)
             + margin_loss
         )
-
-        return loss
+        if self.only_margin_loss:
+            return margin_loss
+        else:
+            return loss
 
     def train(
         self,
