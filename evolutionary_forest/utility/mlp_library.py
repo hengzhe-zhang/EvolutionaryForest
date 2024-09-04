@@ -450,7 +450,7 @@ class NeuralSemanticLibrary(nn.Module):
         numerical_token=False,
         independent_linear_layers=False,
         kd_tree_reconstruct=True,
-        positional_embedding_over_kan=True,
+        positional_embedding_over_kan=False,
         only_margin_loss=False,
         **params,
     ):
@@ -709,32 +709,6 @@ class NeuralSemanticLibrary(nn.Module):
                 return self._decode_training(combined_features, batch_y)
         else:
             if decoder_mode == "encoder-decoder":
-                # batch_size = combined_features.size(0)
-                # best_results = None
-                # best_likelihoods = torch.full(
-                #     (batch_size,), -float("inf"), device=combined_features.device
-                # )
-                #
-                # for _ in range(self.batch_sampling):
-                #     results, likelihoods = self._decode_with_encoder_decoder(
-                #         combined_features, use_sampling=True
-                #     )
-                #
-                #     # Update best_results and best_likelihoods for each element in the batch
-                #     update_mask = likelihoods > best_likelihoods
-                #     best_likelihoods = torch.where(
-                #         update_mask, likelihoods, best_likelihoods
-                #     )
-                #     if best_results is None:
-                #         best_results = (
-                #             results.clone()
-                #         )  # Initialize with the first set of results
-                #     else:
-                #         best_results[update_mask] = results[
-                #             update_mask
-                #         ]  # Update only where likelihood improved
-                #
-                # return best_results
                 return self._decode_with_encoder_decoder(combined_features)
             elif decoder_mode == "decoder":
                 return self._decode_with_decoder_only(combined_features)
@@ -742,6 +716,32 @@ class NeuralSemanticLibrary(nn.Module):
                 raise ValueError(
                     "Unsupported decoder mode: use 'encoder-decoder' or 'decoder'."
                 )
+
+    # def sampling_batch(self, combined_features):
+    #     batch_size = combined_features.size(0)
+    #     best_results = None
+    #     best_likelihoods = torch.full(
+    #         (batch_size,), -float("inf"), device=combined_features.device
+    #     )
+    #     for _ in range(self.batch_sampling):
+    #         results, likelihoods = self._decode_with_encoder_decoder(
+    #             combined_features, use_sampling=True
+    #         )
+    #
+    #         # Update best_results and best_likelihoods for each element in the batch
+    #         update_mask = likelihoods > best_likelihoods
+    #         best_likelihoods = torch.where(
+    #             update_mask, likelihoods, best_likelihoods
+    #         )
+    #         if best_results is None:
+    #             best_results = (
+    #                 results.clone()
+    #             )  # Initialize with the first set of results
+    #         else:
+    #             best_results[update_mask] = results[
+    #                 update_mask
+    #             ]  # Update only where likelihood improved
+    #     return best_results
 
     def _decode_training(self, combined_features, batch_y):
         """Decode in training mode with teacher forcing."""
