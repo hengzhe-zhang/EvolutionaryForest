@@ -225,7 +225,7 @@ class MutationConfiguration(Configuration):
         trial_check_ratio=1,
         lib_feature_selection_mode="Frequency",
         negative_data_augmentation=False,
-        negative_local_search=False,
+        negative_local_search=True,
         independent_local_search=True,
         local_search_dropout=0,
         local_search_dropout_trigger=0,
@@ -244,9 +244,8 @@ class MutationConfiguration(Configuration):
         neural_pool_hidden_size=64,
         contrastive_loss_in_val=True,
         neural_pool_mlp_layers=3,
-        flatten_before_similarity=False,
         contrastive_learning_stage="Decoder",
-        selective_retrain=False,
+        selective_retrain=True,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -314,7 +313,6 @@ class MutationConfiguration(Configuration):
         self.neural_pool_mlp_layers = neural_pool_mlp_layers
         self.neural_pool_dropout = neural_pool_dropout
         self.contrastive_loss_in_val = contrastive_loss_in_val
-        self.flatten_before_similarity = flatten_before_similarity
         self.contrastive_learning_stage = contrastive_learning_stage
         self.selective_retrain = selective_retrain
 
