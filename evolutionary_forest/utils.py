@@ -306,6 +306,8 @@ def gene_to_string(gene):
                     string += f"log(sqrt(1+{args[0]}*{args[0]}))"
                 elif prim.name == "ALog":
                     string += f"log(sqrt(1+{args[0]}*{args[0]}))"
+                elif prim.name == "AbsLog":
+                    string += f"log(1+abs({args[0]}*{args[0]}))"
                 elif prim.name == "ALog-Signed":
                     string += f"(sign({args[0]})*log(sqrt(1+{args[0]}*{args[0]})))"
                 elif prim.name == "Log10":
