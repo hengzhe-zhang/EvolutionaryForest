@@ -150,24 +150,34 @@ class StandardScalerWithMinMaxScaler(TransformerMixin):
     def __init__(self):
         self.std_scaler = StandardScaler()
         self.minmax_scaler = MinMaxScaler()
+        self.unique_indices = None  # To store the unique column indices
 
     def fit(self, X, y=None):
         self.std_scaler.fit(X)
         self.minmax_scaler.fit(X)
+
+        # During fitting, concatenate the data and find unique columns
+        combined_data = np.hstack(
+            (X, self.std_scaler.transform(X), self.minmax_scaler.transform(X))
+        )
+
+        # Find unique columns and store the indices for use in transform
+        _, self.unique_indices = np.unique(combined_data, axis=1, return_index=True)
+        self.unique_indices = np.sort(
+            self.unique_indices
+        )  # Ensure indices are sorted for consistency
+
         return self
 
     def transform(self, X, y=None):
-        combined_data = X
+        # Apply transformations using pre-fitted scalers
+        combined_data = np.hstack(
+            (X, self.std_scaler.transform(X), self.minmax_scaler.transform(X))
+        )
 
-        standardized_data = self.std_scaler.transform(X)
-        combined_data = np.hstack((combined_data, standardized_data))
+        # Select only the unique columns identified during the fitting stage
+        unique_data = combined_data[:, self.unique_indices]
 
-        minmax_scaled_data = self.minmax_scaler.transform(X)
-        combined_data = np.hstack((combined_data, minmax_scaled_data))
-
-        # Remove duplicate columns
-        _, unique_indices = np.unique(combined_data, axis=1, return_index=True)
-        unique_data = combined_data[:, np.sort(unique_indices)]
         return unique_data
 
 
