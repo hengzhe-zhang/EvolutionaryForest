@@ -222,6 +222,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
         if value is None:
             continue
         tree, proposed_semantics, proposed_index = value
+        tree = PrimitiveTree(list(tree))
 
         if np.all(normalize_vector(ind.semantics[indexes, id]) == proposed_semantics):
             continue
