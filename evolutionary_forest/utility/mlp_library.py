@@ -475,7 +475,7 @@ class NeuralSemanticLibrary(nn.Module):
         )  # Initialize PrimitiveSetUtils
         self.num_symbols = (
             len(self.pset_utils.node_name_to_index) + 2 if self.pset_utils else 0
-        )  # Dynamically determine number of symbols (+1 for padding)
+        )  # Dynamically determine number of symbols (+2 for padding and start tokens)
         self.num_terminals = (
             len(self.pset_utils.pset.terminals[object]) if self.pset_utils else 0
         )  # Store num_terminals as class attribute
@@ -1323,6 +1323,9 @@ def generate_synthetic_data(
         target_semantics = normalize_vector(
             generate_target_semantics(gp_tree, input_data, pset)
         )
+        if not isinstance(target_semantics, np.ndarray):
+            # constant
+            continue
         if tuple(target_semantics) in viewed:
             continue
         viewed.add(tuple(target_semantics))
@@ -1450,6 +1453,8 @@ def calculate_token_accuracy(nl, test_data):
         # Convert trees to lists of tokens
         predicted_tokens = list(predicted_tree)
         original_tokens = list(original_tree)
+        print("Predicted tokens", str(predicted_tree))
+        print("Original tokens", str(original_tree))
 
         # Count the total number of tokens in the original tree
         total_tokens += len(original_tokens)

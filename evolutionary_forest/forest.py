@@ -3,6 +3,7 @@ import inspect
 from multiprocessing import Pool
 
 import dill
+import scipy
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -2591,7 +2592,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.pset = pset
         return pset
 
-    def add_primitives_to_pset(self, pset, primitives=None, transformer_wrapper=False):
+    def add_primitives_to_pset(
+        self, pset: PrimitiveSet, primitives=None, transformer_wrapper=False
+    ):
         if primitives is None:
             primitives = self.basic_primitives
         if self.custom_primitives is None:
@@ -2599,10 +2602,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             custom_primitives = self.custom_primitives
             primitives = primitives.split(",") + ",".join(custom_primitives.keys())
+        constant_dict = {"pi": scipy.constants.pi}
 
         for p in primitives.split(","):
             p = p.strip()
-            if p in custom_primitives:
+            if p in constant_dict:
+                pset.addTerminal(constant_dict[p], name=constant_dict[p])
+                continue
+            elif p in custom_primitives:
                 primitive = custom_primitives[p]
                 number_of_parameters = len(inspect.signature(primitive).parameters)
                 primitive = (primitive, number_of_parameters)
