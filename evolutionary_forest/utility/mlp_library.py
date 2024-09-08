@@ -563,6 +563,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.kd_tree_reconstruct = kd_tree_reconstruct
         self.positional_embedding_over_kan = positional_embedding_over_kan
         self.only_margin_loss = only_margin_loss
+        self.trained = False
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -976,6 +977,11 @@ class NeuralSemanticLibrary(nn.Module):
         tensors, targets = self.prepare_data(train_data)
         # reverse each target
         # targets = [torch.flip(t, [0]) for t in targets]
+        if len(tensors) < batch_size:
+            self.trained = False
+            return
+        self.trained = True
+
         self.target = targets
         train_tensors, val_tensors, train_targets, val_targets = self.split_data(
             tensors, targets, val_split

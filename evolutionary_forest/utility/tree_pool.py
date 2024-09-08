@@ -163,7 +163,7 @@ class SemanticLibrary:
                 data_augmentation=self.mutation_configuration.negative_data_augmentation,
             )
         else:
-            self.mlp_pool = 0
+            self.mlp_pool = None
 
     def log_initialization(self):
         self.mismatch_times = []
