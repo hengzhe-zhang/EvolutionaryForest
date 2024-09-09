@@ -19,6 +19,9 @@ class YIntScaler(BaseEstimator, TransformerMixin):
             self.is_negative = True
         # Fit the underlying scaler
         self.scaler.fit(y)
+        self.mean_ = self.scaler.mean_
+        self.var_ = self.scaler.var_
+        self.scale_ = self.scaler.scale_
         return self
 
     def transform(self, y):

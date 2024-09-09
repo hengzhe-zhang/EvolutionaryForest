@@ -5536,6 +5536,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.y_scaler is not None:
                 mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
                 final_model = f"((({final_model})*{std})+{mean})"
+            if isinstance(self.y_scaler, YIntScaler):
+                if self.y_scaler.is_integer:
+                    final_model = f"Round({final_model})"
             return final_model
         else:
             final_model = ""
