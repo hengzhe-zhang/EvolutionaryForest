@@ -452,6 +452,7 @@ class NeuralSemanticLibrary(nn.Module):
         kd_tree_reconstruct=True,
         positional_embedding_over_kan=False,
         only_margin_loss=False,
+        use_kan=False,
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -466,6 +467,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.use_transformer = use_transformer  # Store use_transformer flag
         self.flatten_before_similarity = flatten_before_similarity  # Store flatten flag
         self.use_decoder_transformer = use_decoder_transformer
+        self.use_kan = use_kan
 
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
@@ -483,7 +485,7 @@ class NeuralSemanticLibrary(nn.Module):
         # Define MLP layers
         layers = []
         for _ in range(num_layers):
-            kan = True
+            kan = self.use_kan
             if kan:
                 layers.append(KANLinear(input_size, hidden_size))
             else:
@@ -491,7 +493,7 @@ class NeuralSemanticLibrary(nn.Module):
             if self.batch_norm:
                 layers.append(nn.BatchNorm1d(hidden_size))
             if not kan:
-                layers.append(nn.GELU())
+                layers.append(nn.SiLU())
             layers.append(nn.Dropout(dropout))
             input_size = hidden_size
 
@@ -638,13 +640,12 @@ class NeuralSemanticLibrary(nn.Module):
         """Pass the input through MLP layers with optional residual connections."""
         x = self.mlp[0](x)
         residual = x
-        for layer in self.mlp[1:-1]:
-            if isinstance(layer, nn.Linear) and self.residual:
+        for layer in self.mlp[1:]:
+            if self.residual:
                 x = layer(x) + residual
                 residual = x
             else:
                 x = layer(x)
-        x = self.mlp[-1](x)
         return x
 
     def _reshape_output(self, x):
