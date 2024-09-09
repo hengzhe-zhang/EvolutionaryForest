@@ -5,6 +5,7 @@ from sklearn.base import is_classifier, clone
 from sklearn.feature_selection import SequentialFeatureSelector
 from sklearn.linear_model import Ridge
 from sklearn.linear_model import RidgeCV
+from sklearn.model_selection import train_test_split, check_cv
 
 
 class SequentialFeatureSelectorNew(SequentialFeatureSelector):
@@ -133,7 +134,6 @@ class RidgeForwardFeatureSelector:
 # Example usage
 if __name__ == "__main__":
     from sklearn.datasets import make_regression
-    from sklearn.model_selection import train_test_split, check_cv
     from sklearn.metrics import mean_squared_error
 
     # Generate synthetic data
