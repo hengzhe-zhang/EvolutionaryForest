@@ -977,16 +977,19 @@ class NeuralSemanticLibrary(nn.Module):
         tensors, targets = self.prepare_data(train_data)
         # reverse each target
         # targets = [torch.flip(t, [0]) for t in targets]
-        if len(tensors) < batch_size:
-            self.trained = False
-            return
-        self.trained = True
 
         self.target = targets
         train_tensors, val_tensors, train_targets, val_targets = self.split_data(
             tensors, targets, val_split
         )
         train_tensors = torch.tensor(train_tensors, dtype=torch.float32)
+
+        # Need to check if the training data is enough
+        if len(train_tensors) < batch_size:
+            self.trained = False
+            return
+        self.trained = True
+
         dataset, dataloader = self.create_dataloader(
             train_tensors, train_targets, batch_size
         )
