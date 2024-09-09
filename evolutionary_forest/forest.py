@@ -1581,7 +1581,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.base_learner == "RidgeCV-FS":
             individual.pipe = self.build_pipeline(RidgeForwardFeatureSelector())
         if self.base_learner == "RidgeCV-FS+":
-            individual = feature_selection(individual)
+            individual, Yp = feature_selection(individual, Yp, Y)
             individual.pipe = self.get_base_model()
         if self.base_learner == "BoundedRidgeCV-ENet":
             self.base_learner = "ElasticNetCV"
@@ -1731,7 +1731,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             or "PCA-RidgeCV" in self.base_learner
             or self.base_learner == "RidgeCV-ENet"
             or base_model == "RidgeCV"
-            or self.base_learner == "RidgeCV-FS"
+            or self.base_learner in ["RidgeCV-FS", "RidgeCV-FS+"]
         ):
             # from sklearn.linear_model._coordinate_descent import _alpha_grid
             # alphas = _alpha_grid(self.X, self.y, normalize=True)
