@@ -268,6 +268,7 @@ from evolutionary_forest.strategies.estimation_of_distribution import (
     eda_operators,
 )
 from evolutionary_forest.strategies.hist_loss import discretize_and_replace
+from evolutionary_forest.strategies.int_scaler import YIntScaler
 from evolutionary_forest.strategies.multifidelity_evaluation import (
     MultiFidelityEvaluation,
 )
@@ -679,6 +680,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif normalize == "STD+MinMax":
             self.x_scaler = StandardScalerWithMinMaxScaler()
             self.y_scaler = StandardScaler()
+        elif normalize == "STD+MinMax+Int":
+            self.x_scaler = StandardScalerWithMinMaxScaler()
+            self.y_scaler = YIntScaler(StandardScaler())
         elif normalize == "STD+MinMax+Bound":
             self.x_scaler = StandardScalerWithMinMaxScalerAndBounds()
             self.y_scaler = StandardScaler()
