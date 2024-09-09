@@ -240,7 +240,10 @@ from evolutionary_forest.model.PLTree import (
     RandomWeightRidge,
 )
 from evolutionary_forest.model.RBFN import RBFN
-from evolutionary_forest.model.RidgeFeatureSelector import RidgeForwardFeatureSelector
+from evolutionary_forest.model.RidgeFeatureSelector import (
+    RidgeForwardFeatureSelector,
+    feature_selection,
+)
 from evolutionary_forest.model.SafeRidgeCV import (
     BoundedRidgeCVSimple,
     SplineRidgeCV,
@@ -1577,6 +1580,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_learner = "Lasso-RidgeCV"
         if self.base_learner == "RidgeCV-FS":
             individual.pipe = self.build_pipeline(RidgeForwardFeatureSelector())
+        if self.base_learner == "RidgeCV-FS+":
+            individual = feature_selection(individual)
+            individual.pipe = self.get_base_model()
         if self.base_learner == "BoundedRidgeCV-ENet":
             self.base_learner = "ElasticNetCV"
             individual.pipe = self.get_base_model()
