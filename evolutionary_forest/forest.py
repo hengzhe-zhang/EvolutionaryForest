@@ -240,6 +240,7 @@ from evolutionary_forest.model.PLTree import (
     RandomWeightRidge,
 )
 from evolutionary_forest.model.RBFN import RBFN
+from evolutionary_forest.model.RidgeFeatureSelector import RidgeForwardFeatureSelector
 from evolutionary_forest.model.SafeRidgeCV import (
     BoundedRidgeCVSimple,
     SplineRidgeCV,
@@ -1574,6 +1575,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_learner = "RidgeCV"
             individual.pipe = self.get_base_model()
             self.base_learner = "Lasso-RidgeCV"
+        if self.base_learner == "RidgeCV-FS":
+            individual.pipe = self.build_pipeline(RidgeForwardFeatureSelector())
         if self.base_learner == "BoundedRidgeCV-ENet":
             self.base_learner = "ElasticNetCV"
             individual.pipe = self.get_base_model()
@@ -1722,6 +1725,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             or "PCA-RidgeCV" in self.base_learner
             or self.base_learner == "RidgeCV-ENet"
             or base_model == "RidgeCV"
+            or self.base_learner == "RidgeCV-FS"
         ):
             # from sklearn.linear_model._coordinate_descent import _alpha_grid
             # alphas = _alpha_grid(self.X, self.y, normalize=True)
@@ -1886,13 +1890,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = efficient_deepcopy(self.base_learner)
         else:
             raise Exception
+        pipe = self.build_pipeline(ridge_model)
+        return pipe
+
+    def build_pipeline(self, ridge_model):
         scaler = SafetyScaler()
         if "PCA" in self.base_learner:
             n_components = 0.99
             if "~" in self.base_learner:
                 n_components = float(self.base_learner.split("~")[1])
             scaler = StandardScalerPCA(n_components=n_components)
-
         if self.feature_clipping:
             scaler = FeatureClipper()
         if self.evaluation_configuration.feature_smoothing:
@@ -5449,6 +5456,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     if isinstance(x, Terminal) and x.name in possible_terminals:
                         used_terminals.add(x.name)
         return len(used_terminals)
+
+    def number_of_non_zero_features(self):
+        top_1 = self.hof[0]
+        coef = top_1.pipe["Ridge"].coef_
+        non_zero = 0
+        for g, c in zip(top_1.gene, coef):
+            if c != 0:
+                non_zero += 1
+        return non_zero
 
     def euclidian_diversity_calculation(self, individuals=None):
         """
