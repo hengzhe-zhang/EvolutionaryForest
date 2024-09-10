@@ -1365,21 +1365,19 @@ class NeuralSemanticLibrary(nn.Module):
         tree_node_names = self._decode_indices_to_node_names(indices)
         return tree_node_names
 
-    def convert_to_primitive_tree(self, semantics):
+    def convert_to_primitive_tree(self, semantics, mode=None):
         """
         Convert semantics to a GP tree and then to a PrimitiveTree.
 
         :param semantics: List of node names representing the GP tree.
         :return: PrimitiveTree constructed from the generated GP tree.
         """
-        node_names_pos, likelihood_pos = self.predict(
-            semantics, mode=self.prediction_mode
-        )
+        if mode is None:
+            mode = self.prediction_mode
+        node_names_pos, likelihood_pos = self.predict(semantics, mode=mode)
         gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_pos)
         if self.data_augmentation:
-            node_names_neg, likelihood_neg = self.predict(
-                -1 * semantics, mode=self.prediction_mode
-            )
+            node_names_neg, likelihood_neg = self.predict(-1 * semantics, mode=mode)
             if likelihood_neg > likelihood_pos:
                 gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_neg)
         return PrimitiveTree(gp_tree)
