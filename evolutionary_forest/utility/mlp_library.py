@@ -640,12 +640,13 @@ class NeuralSemanticLibrary(nn.Module):
         """Pass the input through MLP layers with optional residual connections."""
         x = self.mlp[0](x)
         residual = x
-        for layer in self.mlp[1:]:
+        for layer in self.mlp[1:-1]:
             if self.residual:
                 x = layer(x) + residual
                 residual = x
             else:
                 x = layer(x)
+        x = self.mlp[-1](x)
         return x
 
     def _reshape_output(self, x):
