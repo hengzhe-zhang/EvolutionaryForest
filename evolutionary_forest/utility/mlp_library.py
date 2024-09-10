@@ -1,3 +1,5 @@
+from collections import Counter
+
 import deap.base as base
 import deap.creator as creator
 import editdistance
@@ -9,8 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from deap import gp
-from deap.gp import PrimitiveSet, PrimitiveTree, Primitive
-from sklearn.datasets import load_diabetes
+from deap.gp import PrimitiveTree, Primitive
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -25,6 +26,11 @@ from evolutionary_forest.utility.retrieve_nn.quick_retrive import (
     retrieve_nearest_y_skip_self,
 )
 from evolutionary_forest.utility.tree_parsing import mark_node_levels_recursive
+from evolutionary_forest.utility.tree_utils.list_to_tree import (
+    convert_node_list_to_tree,
+    sort_son,
+    convert_tree_to_node_list,
+)
 
 
 class IndependentLinearLayers(nn.Module):
@@ -387,52 +393,6 @@ class PrimitiveSetUtils:
         level, _ = mark_node_levels_recursive(gp_tree, original_primitive=True)
         reordered_list = list(map(lambda x: x[0], sorted(level, key=lambda x: x[1])))
         return reordered_list
-
-
-class TreeNode:
-    def __init__(self, val, children=None):
-        self.val = val
-        self.children = children if children else []
-
-
-def convert_node_list_to_tree(tree: list, node_idx):
-    if node_idx >= len(tree):
-        return node_idx, None
-
-    node = tree[node_idx]
-    if isinstance(node, Primitive):
-        tree_node = TreeNode(node)
-        current_idx = node_idx + 1
-        for _ in range(node.arity):
-            if current_idx >= len(tree):
-                break
-            child_idx, child_node = convert_node_list_to_tree(tree, current_idx)
-            tree_node.children.append(child_node)
-            current_idx = child_idx
-        return current_idx, tree_node
-    else:
-        # Assuming non-Primitive nodes are leaves or invalid, handle accordingly
-        tree_node = TreeNode(node)
-        return node_idx + 1, tree_node
-
-
-def sort_son(root_tree: TreeNode):
-    if root_tree is None:
-        return None
-    if root_tree.val.name in ["add", "multiply", "minimum", "maximum"]:
-        root_tree.children = sorted(root_tree.children, key=lambda x: x.val.name)
-    for child in root_tree.children:
-        sort_son(child)
-    return root_tree
-
-
-def convert_tree_to_node_list(tree: TreeNode):
-    if tree is None:
-        return []
-    result = [tree.val]
-    for child in tree.children:
-        result.extend(convert_tree_to_node_list(child))
-    return result
 
 
 def get_max_arity(pset):
@@ -1388,6 +1348,22 @@ class NeuralSemanticLibrary(nn.Module):
     def _decode_indices_to_node_names(self, output_indices):
         index_to_node_name = self.pset_utils.get_index_to_node_name()
         return [index_to_node_name.get(idx, "Unknown") for idx in output_indices]
+
+    def ensemble_predict(self, semantics):
+        indices_list = []
+        for _ in range(5):
+            noise_semantics = semantics + np.random.normal(0, 0.01, semantics.shape)
+            indices = self.predict(noise_semantics, mode="greedy", return_indices=True)
+            indices_list.append(indices.numpy()[0])
+
+        # get the most common indices
+        indices = np.array(indices_list)
+        indices = np.transpose(indices)
+        indices = [
+            Counter(indices[i]).most_common(1)[0][0] for i in range(len(indices))
+        ]
+        tree_node_names = self._decode_indices_to_node_names(indices)
+        return tree_node_names
 
     def convert_to_primitive_tree(self, semantics):
         """
