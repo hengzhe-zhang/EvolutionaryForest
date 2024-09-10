@@ -655,7 +655,7 @@ class NeuralSemanticLibrary(nn.Module):
         x = self.mlp[0](x)
         residual = x
         for layer in self.mlp[1:-1]:
-            if self.residual:
+            if isinstance(layer, (nn.Linear, KANLinear)) and self.residual:
                 x = layer(x) + residual
                 residual = x
             else:
