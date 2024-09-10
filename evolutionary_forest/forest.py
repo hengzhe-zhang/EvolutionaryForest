@@ -1946,6 +1946,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def lazy_init(self, x):
         self.reference_copy()
+        if self.gene_num == "Dynamic":
+            if len(x) <= 100:
+                self.gene_num = 2
+            else:
+                self.gene_num = 10
         if isinstance(self.score_func, str) and self.score_func == "MTL-R2":
             self.score_func = MTLR2(self.y.shape[1])
         elif isinstance(self.score_func, str) and self.score_func == "MTL-R2Size":
