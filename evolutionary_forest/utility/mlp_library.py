@@ -222,7 +222,7 @@ class PrimitiveSetUtils:
 
         return functions, terminals
 
-    def extract_targets(self, train_data, max_length):
+    def extract_targets(self, train_data, max_length, sort_gp_tree=False):
         """
         Extract targets from GP trees in the training data and pad them to have the same length.
 
@@ -236,6 +236,12 @@ class PrimitiveSetUtils:
         tree_indices_list = []
         for tree, _ in train_data:
             tree: creator.Individual
+            if sort_gp_tree:
+                tree = PrimitiveTree(
+                    convert_tree_to_node_list(
+                        sort_son(convert_node_list_to_tree(tree, 0)[1])
+                    )
+                )
             tree = self.convert_gp_tree_to_node_names(tree)
             # self.convert_node_names_to_gp_tree([node.name for node in tree])
             # Extract node names and convert to indices
@@ -383,6 +389,52 @@ class PrimitiveSetUtils:
         return reordered_list
 
 
+class TreeNode:
+    def __init__(self, val, children=None):
+        self.val = val
+        self.children = children if children else []
+
+
+def convert_node_list_to_tree(tree: list, node_idx):
+    if node_idx >= len(tree):
+        return node_idx, None
+
+    node = tree[node_idx]
+    if isinstance(node, Primitive):
+        tree_node = TreeNode(node)
+        current_idx = node_idx + 1
+        for _ in range(node.arity):
+            if current_idx >= len(tree):
+                break
+            child_idx, child_node = convert_node_list_to_tree(tree, current_idx)
+            tree_node.children.append(child_node)
+            current_idx = child_idx
+        return current_idx, tree_node
+    else:
+        # Assuming non-Primitive nodes are leaves or invalid, handle accordingly
+        tree_node = TreeNode(node)
+        return node_idx + 1, tree_node
+
+
+def sort_son(root_tree: TreeNode):
+    if root_tree is None:
+        return None
+    if root_tree.val.name in ["add", "multiply", "minimum", "maximum"]:
+        root_tree.children = sorted(root_tree.children, key=lambda x: x.val.name)
+    for child in root_tree.children:
+        sort_son(child)
+    return root_tree
+
+
+def convert_tree_to_node_list(tree: TreeNode):
+    if tree is None:
+        return []
+    result = [tree.val]
+    for child in tree.children:
+        result.extend(convert_tree_to_node_list(child))
+    return result
+
+
 def get_max_arity(pset):
     """
     Extract the maximum arity of functions from the DEAP PrimitiveSet.
@@ -453,6 +505,7 @@ class NeuralSemanticLibrary(nn.Module):
         positional_embedding_over_kan=False,
         only_margin_loss=False,
         use_kan=False,
+        prediction_mode="greedy",
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -566,6 +619,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.positional_embedding_over_kan = positional_embedding_over_kan
         self.only_margin_loss = only_margin_loss
         self.trained = False
+        self.prediction_mode = prediction_mode
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -972,11 +1026,12 @@ class NeuralSemanticLibrary(nn.Module):
         patience=20,
         verbose=False,
         loss_weight=0,
+        sort_gp_tree=False,
     ):
         optimizer, scheduler = self.setup_optimizer_and_scheduler(lr)
         criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
 
-        tensors, targets = self.prepare_data(train_data)
+        tensors, targets = self.prepare_data(train_data, sort_gp_tree)
         # reverse each target
         # targets = [torch.flip(t, [0]) for t in targets]
 
@@ -1036,10 +1091,10 @@ class NeuralSemanticLibrary(nn.Module):
         )
         return optimizer, scheduler
 
-    def prepare_data(self, train_data):
+    def prepare_data(self, train_data, sort_gp_tree=False):
         tensors = [torch.tensor(d[1], dtype=torch.float32) for d in train_data]
         targets = self.pset_utils.extract_targets(
-            train_data, self.output_sequence_length
+            train_data, self.output_sequence_length, sort_gp_tree
         )
         targets = [torch.tensor(t, dtype=torch.long) for t in targets]
         tensors = torch.stack(tensors)
@@ -1127,6 +1182,19 @@ class NeuralSemanticLibrary(nn.Module):
                     batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
                 )
                 total_loss += loss
+                if self.prediction_mode == "chain-of-thought":
+                    nearest_y = self.predict(
+                        batch_x, mode="greedy", return_indices=True
+                    )
+                    loss = self.train_single_batch(
+                        batch_x,
+                        batch_y,
+                        nearest_y,
+                        criterion,
+                        optimizer,
+                        loss_weight,
+                    )
+                    total_loss += loss
 
             avg_loss = total_loss / len(dataloader)
             if verbose:
@@ -1219,9 +1287,12 @@ class NeuralSemanticLibrary(nn.Module):
             print(f"Validation Loss: {val_loss}, Accuracy: {acc}")
         return val_loss
 
-    def predict(self, semantics, mode="greedy"):
+    def predict(self, semantics, mode="greedy", return_indices=False):
         nearest_y = self._retrieve_nearest_y_for_prediction(semantics)
-        semantics_tensor = self._prepare_input_tensor(semantics)
+        if len(semantics.shape) == 1:
+            semantics_tensor = self._prepare_input_tensor(semantics)
+        else:
+            semantics_tensor = semantics
 
         output_vector = self._forward_pass(semantics_tensor, nearest_y)
         masked_output_vector = self._apply_mask(output_vector)
@@ -1232,18 +1303,29 @@ class NeuralSemanticLibrary(nn.Module):
             )
         elif mode == "greedy":
             output_indices, likelihood = self._greedy_selection(masked_output_vector)
+        elif mode == "chain-of-thought":
+            output_indices, likelihood = self._greedy_selection(masked_output_vector)
+
+            # input the output as input
+            output_vector = self._forward_pass(semantics_tensor, output_indices)
+            masked_output_vector = self._apply_mask(output_vector)
+            output_indices, likelihood = self._greedy_selection(masked_output_vector)
         else:
             raise Exception(f"Invalid mode: {mode}")
-
+        if return_indices:
+            return output_indices
         # reverse the output_indices
         # output_indices = output_indices[::-1]
-        tree_node_names = self._decode_indices_to_node_names(output_indices)
+        tree_node_names = self._decode_indices_to_node_names(output_indices.numpy()[0])
 
-        return tree_node_names, likelihood
+        return tree_node_names, likelihood[0]
 
     def _retrieve_nearest_y_for_prediction(self, semantics):
         nearest_y = retrieve_nearest_y(
-            self.kd_tree, self.target, semantics.reshape(1, -1), k=self.augmented_k
+            self.kd_tree,
+            self.target,
+            semantics.reshape(-1, self.input_size),
+            k=self.augmented_k,
         )
         return torch.stack([torch.tensor(x) for x in nearest_y]).view(
             -1, self.output_sequence_length * self.augmented_k
@@ -1283,28 +1365,45 @@ class NeuralSemanticLibrary(nn.Module):
         return np.array(valid_indices), likelihood
 
     def _greedy_selection(self, masked_output_vector):
-        output_indices = torch.argmax(masked_output_vector, dim=2).squeeze(0).numpy()
-        likelihood = 1.0
-        for i in range(len(output_indices)):
-            probabilities = torch.softmax(masked_output_vector[:, i, :], dim=1)
-            likelihood *= probabilities[0, output_indices[i]].item()
-        return output_indices, likelihood
+        output_indices = torch.argmax(masked_output_vector, dim=2)
+        probabilities = torch.softmax(
+            masked_output_vector, dim=2
+        )  # Softmax over the class dimension for all timesteps
+
+        # Gather the probabilities corresponding to the output_indices for all samples in one go
+        batch_indices = torch.arange(masked_output_vector.size(0)).unsqueeze(
+            1
+        )  # Batch indices (shape: [batch_size, 1])
+        selected_probabilities = probabilities[
+            batch_indices, torch.arange(output_indices.shape[1]), output_indices
+        ]
+
+        # Compute likelihood as the product of probabilities for each sample
+        likelihoods = selected_probabilities.prod(
+            dim=1
+        )  # Product over time steps for each sample
+
+        return output_indices, likelihoods.numpy()
 
     def _decode_indices_to_node_names(self, output_indices):
         index_to_node_name = self.pset_utils.get_index_to_node_name()
         return [index_to_node_name.get(idx, "Unknown") for idx in output_indices]
 
-    def convert_to_primitive_tree(self, semantics, mode="greedy"):
+    def convert_to_primitive_tree(self, semantics):
         """
         Convert semantics to a GP tree and then to a PrimitiveTree.
 
         :param semantics: List of node names representing the GP tree.
         :return: PrimitiveTree constructed from the generated GP tree.
         """
-        node_names_pos, likelihood_pos = self.predict(semantics, mode=mode)
+        node_names_pos, likelihood_pos = self.predict(
+            semantics, mode=self.prediction_mode
+        )
         gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_pos)
         if self.data_augmentation:
-            node_names_neg, likelihood_neg = self.predict(-1 * semantics, mode=mode)
+            node_names_neg, likelihood_neg = self.predict(
+                -1 * semantics, mode=self.prediction_mode
+            )
             if likelihood_neg > likelihood_pos:
                 gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_neg)
         return PrimitiveTree(gp_tree)
