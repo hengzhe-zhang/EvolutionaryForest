@@ -161,6 +161,7 @@ class SemanticLibrary:
                 contrastive_learning_stage=self.mutation_configuration.contrastive_learning_stage,
                 selective_retrain=self.mutation_configuration.selective_retrain,
                 data_augmentation=self.mutation_configuration.negative_data_augmentation,
+                use_decoder_transformer="encoder-decoder",
             )
         else:
             self.mlp_pool = None

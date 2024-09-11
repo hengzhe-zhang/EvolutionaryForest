@@ -446,7 +446,7 @@ class NeuralSemanticLibrary(nn.Module):
         residual=True,  # Add residual connection parameter
         padding_idx=0,  # Padding index for embedding
         num_heads=4,  # Add number of attention heads
-        transformer_layers=2,  # Add number of transformer layers
+        transformer_layers=1,  # Add number of transformer layers
         use_transformer=True,  # Flag to enable or disable transformer layer
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
         flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
@@ -495,33 +495,31 @@ class NeuralSemanticLibrary(nn.Module):
             len(self.pset_utils.pset.terminals[object]) if self.pset_utils else 0
         )  # Store num_terminals as class attribute
 
-        # Define MLP layers
-        layers = []
-        for _ in range(num_layers):
-            kan = self.use_kan
-            if kan:
-                layers.append(KANLinear(input_size, hidden_size))
-            else:
-                layers.append(nn.Linear(input_size, hidden_size))
-            if self.batch_norm:
-                layers.append(nn.BatchNorm1d(hidden_size))
-            if not kan:
-                layers.append(nn.SiLU())
-            layers.append(nn.Dropout(dropout))
-            input_size = hidden_size
-
-        self.use_x_transformer = use_x_transformer
-        if self.use_x_transformer:
-            layers.append(nn.Linear(hidden_size, output_size))
-        else:
-            layers.append(
-                nn.Linear(hidden_size, self.output_sequence_length * output_size)
-            )
-        self.mlp = nn.Sequential(*layers)
+        nn_sequential = self._create_layers(
+            input_size, hidden_size, output_size, num_layers, dropout, kan=self.use_kan
+        )
+        self.mlp = nn_sequential
+        # if self.use_kan:
+        #     self.kan = self._create_layers(
+        #         input_size, hidden_size, output_size, num_layers, dropout, kan=True
+        #     )
         self._initialize_weights()  # Initialize weights
 
         if transformer_layers == 0:
             self.use_transformer = False
+
+        # CNN Layer definition
+        # if self.use_cnn:
+        #     cnn_kernel_size = (3,)  # Kernel size for CNN layer
+        #     cnn_stride = (1,)  # Stride for CNN layer
+        #     cnn_padding = (1,)  # Padding for CNN layer
+        #     self.cnn = nn.Conv1d(
+        #         in_channels=1,
+        #         out_channels=8,
+        #         kernel_size=cnn_kernel_size,
+        #         stride=cnn_stride,
+        #         padding=cnn_padding,
+        #     )
 
         if self.use_transformer:
             # Transformer Encoder for nearest `y`
@@ -581,16 +579,47 @@ class NeuralSemanticLibrary(nn.Module):
         self.trained = False
         self.prediction_mode = prediction_mode
 
+    def _create_layers(
+        self, input_size, hidden_size, output_size, num_layers, dropout, kan=False
+    ):
+        # Define MLP layers
+        layers = []
+        for _ in range(num_layers):
+            if kan:
+                layers.append(KANLinear(input_size, hidden_size))
+            else:
+                layers.append(nn.Linear(input_size, hidden_size))
+            if self.batch_norm:
+                layers.append(nn.BatchNorm1d(hidden_size))
+            if not kan:
+                layers.append(nn.SiLU())
+            layers.append(nn.Dropout(dropout))
+            input_size = hidden_size
+        layers.append(nn.Linear(hidden_size, self.output_sequence_length * output_size))
+        nn_sequential = nn.Sequential(*layers)
+        return nn_sequential
+
     def _initialize_weights(self):
         for m in self.modules():
-            if isinstance(m, nn.Linear):
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, x, batch_y=None, nearest_y=None):
-        x = self._process_mlp(x)
+        original_x = x
+        x = self._process_mlp(original_x)
+        # if self.use_kan:
+        #     x += self._process_mlp(original_x, self.kan)
+        # if self.use_cnn:
+        #     x += self._process_cnn(x)
         return self._forward_traditional_transformer(x, batch_y, nearest_y)
+
+    def _process_cnn(self, x):
+        x = x.unsqueeze(1)  # Add a channel dimension for CNN (batch, channels, seq_len)
+        x = self.cnn(x)  # Apply CNN layer
+        x = x.squeeze(1)  # Remove the channel dimension after CNN
+        return x
 
     def _forward_x_transformer(self, x, batch_y, nearest_y):
         enc = self.transformer_decoder.encoder(nearest_y, return_embeddings=True)
@@ -650,17 +679,19 @@ class NeuralSemanticLibrary(nn.Module):
 
         return (dot_products, contrastive_context)
 
-    def _process_mlp(self, x):
+    def _process_mlp(self, x, mlp=None):
         """Pass the input through MLP layers with optional residual connections."""
-        x = self.mlp[0](x)
+        if mlp is None:
+            mlp = self.mlp
+        x = mlp[0](x)
         residual = x
-        for layer in self.mlp[1:-1]:
+        for layer in mlp[1:-1]:
             if isinstance(layer, (nn.Linear, KANLinear)) and self.residual:
                 x = layer(x) + residual
                 residual = x
             else:
                 x = layer(x)
-        x = self.mlp[-1](x)
+        x = mlp[-1](x)
         return x
 
     def _reshape_output(self, x):
@@ -1210,7 +1241,7 @@ class NeuralSemanticLibrary(nn.Module):
         :param loss_weight: Weight to balance contrastive and ce loss. Set to 0 to ignore contrastive loss.
         :return: Computed validation loss.
         """
-        self.mlp.eval()  # Set the model to evaluation mode
+        self.eval_mode()
         val_tensors, val_targets, nearest_y_val = zip(*val_data)
         val_tensors = torch.stack(val_tensors)
         val_targets = torch.stack(val_targets).view(-1, self.output_sequence_length)
@@ -1218,9 +1249,9 @@ class NeuralSemanticLibrary(nn.Module):
             -1, self.output_sequence_length * self.augmented_k
         )
 
-        val_output, val_features = self.forward(val_tensors, nearest_y=nearest_y_val)
-        val_mask = torch.ones_like(val_output)
-        val_masked_output = val_output * val_mask
+        val_masked_output, val_features = self.forward(
+            val_tensors, nearest_y=nearest_y_val
+        )
 
         val_targets = val_targets.view(-1)
         val_masked_output = val_masked_output.view(-1, self.num_symbols)
@@ -1246,6 +1277,14 @@ class NeuralSemanticLibrary(nn.Module):
             )
             print(f"Validation Loss: {val_loss}, Accuracy: {acc}")
         return val_loss
+
+    def eval_mode(self):
+        self.mlp.eval()  # Set the model to evaluation mode
+        # if self.use_kan:
+        #     self.kan.eval()
+        self.transformer_encoder.eval()
+        self.transformer_decoder.eval()
+        self.embedding.eval()
 
     def predict(self, semantics, mode="greedy", return_indices=False):
         nearest_y = self._retrieve_nearest_y_for_prediction(semantics)
@@ -1295,7 +1334,7 @@ class NeuralSemanticLibrary(nn.Module):
         return torch.tensor(semantics, dtype=torch.float32).unsqueeze(0)
 
     def _forward_pass(self, semantics_tensor, nearest_y):
-        self.mlp.eval()
+        self.eval_mode()
         with torch.no_grad():
             output_vector, _ = self.forward(semantics_tensor, nearest_y=nearest_y)
         return output_vector
