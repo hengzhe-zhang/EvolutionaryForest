@@ -20,6 +20,9 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.component.crossover.kan import KANLinear
 from evolutionary_forest.probability_gp import genHalfAndHalf
+from evolutionary_forest.utility.mlp_tools.mlp_utils import (
+    get_max_length_excluding_padding,
+)
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 from evolutionary_forest.utility.retrieve_nn.quick_retrive import (
     retrieve_nearest_y,
@@ -31,6 +34,10 @@ from evolutionary_forest.utility.tree_utils.list_to_tree import (
     sort_son,
     convert_tree_to_node_list,
 )
+
+
+class CachedTransformerDecoder:
+    pass
 
 
 class IndependentLinearLayers(nn.Module):
@@ -466,6 +473,7 @@ class NeuralSemanticLibrary(nn.Module):
         only_margin_loss=False,
         use_kan=False,
         prediction_mode="greedy",
+        feature_fusion_strategy="add",
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -481,6 +489,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.flatten_before_similarity = flatten_before_similarity  # Store flatten flag
         self.use_decoder_transformer = use_decoder_transformer
         self.use_kan = use_kan
+        self.feature_fusion_strategy = feature_fusion_strategy
 
         max_nodes = calculate_terminals_needed(output_primitive_length, pset)
         self.output_sequence_length = max_nodes
@@ -536,15 +545,22 @@ class NeuralSemanticLibrary(nn.Module):
 
             # Transformer Decoder for combined `x` and encoded nearest `y`
             transformer_decoder_layer = nn.TransformerDecoderLayer(
+                # transformer_decoder_layer = CausalTransformerDecoderLayer(
                 d_model=output_size,
                 nhead=num_heads,
                 dim_feedforward=hidden_size,
                 dropout=dropout,
                 activation="gelu",
             )
-            self.transformer_decoder = nn.TransformerDecoder(
-                transformer_decoder_layer, num_layers=transformer_layers
-            )
+            cached_decoder = False
+            if cached_decoder:
+                self.transformer_decoder = CachedTransformerDecoder(
+                    transformer_decoder_layer, num_layers=transformer_layers
+                )
+            else:
+                self.transformer_decoder = nn.TransformerDecoder(
+                    transformer_decoder_layer, num_layers=transformer_layers
+                )
 
         # Define a shared embedding layer for all positions
         self.embedding = nn.Embedding(
@@ -595,7 +611,13 @@ class NeuralSemanticLibrary(nn.Module):
                 layers.append(nn.SiLU())
             layers.append(nn.Dropout(dropout))
             input_size = hidden_size
-        layers.append(nn.Linear(hidden_size, self.output_sequence_length * output_size))
+        if self.feature_fusion_strategy.startswith("concat~"):
+            head = int(self.feature_fusion_strategy.split("~")[1])
+            layers.append(nn.Linear(hidden_size, head * output_size))
+        else:
+            layers.append(
+                nn.Linear(hidden_size, self.output_sequence_length * output_size)
+            )
         nn_sequential = nn.Sequential(*layers)
         return nn_sequential
 
@@ -696,7 +718,11 @@ class NeuralSemanticLibrary(nn.Module):
 
     def _reshape_output(self, x):
         """Reshape the output to (batch_size, output_sequence_length, output_size)."""
-        return x.view(-1, self.output_sequence_length, self.output_size)
+        if self.feature_fusion_strategy.startswith("concat"):
+            head = int(self.feature_fusion_strategy.split("~")[1])
+            return x.view(-1, head, self.output_size)
+        else:
+            return x.view(-1, self.output_sequence_length, self.output_size)
 
     def _add_positional_embedding(self, x):
         """Add positional embeddings to the input sequence."""
@@ -720,6 +746,10 @@ class NeuralSemanticLibrary(nn.Module):
         """Encode nearest `y` using the embedding layer and Transformer Encoder."""
         nearest_y_embedded = self.embedding(nearest_y)
         nearest_y_embedded = self._add_positional_embedding(nearest_y_embedded)
+
+        # Generate padding mask where True indicates the padding token (0 index)
+        padding_mask = nearest_y == 0
+
         if self.numerical_token:
             nearest_y_embedded = torch.cat([nearest_y_embedded, x], dim=1)
         if self.causal_encoding:
@@ -730,17 +760,22 @@ class NeuralSemanticLibrary(nn.Module):
             )
             # Generate causal mask
             nearest_y_encoded = self.transformer_encoder(
-                nearest_y_embedded.permute(1, 0, 2), mask=causal_mask
+                nearest_y_embedded.permute(1, 0, 2),
+                mask=causal_mask,
+                src_key_padding_mask=padding_mask,
             ).permute(1, 0, 2)
         else:
             nearest_y_encoded = self.transformer_encoder(
-                nearest_y_embedded.permute(1, 0, 2)
+                nearest_y_embedded.permute(1, 0, 2), src_key_padding_mask=padding_mask
             ).permute(1, 0, 2)
+            # np.array(nearest_y_encoded[0].detach())
+            # padding_mask[0]
         return nearest_y_encoded
 
-    def _combine_features(self, x, nearest_y_encoded, method="add"):
+    def _combine_features(self, x, nearest_y_encoded):
         """Combine the MLP output `x` and encoded nearest `y`."""
-        if method == "concat":
+        method = self.feature_fusion_strategy
+        if method.startswith("concat"):
             # Concatenate along the last dimension (feature dimension)
             return torch.cat((x, nearest_y_encoded), dim=1)
         elif method == "add":
@@ -799,7 +834,9 @@ class NeuralSemanticLibrary(nn.Module):
             dtype=torch.long,
             device=combined_features.device,
         )
-        batch_y = torch.cat([start_tokens, batch_y[:, :-1]], dim=1)
+        length = get_max_length_excluding_padding(batch_y)
+        batch_y = torch.cat([start_tokens, batch_y[:, : length - 1]], dim=1)
+
         tgt = self.embedding(batch_y)
         tgt = self._add_positional_embedding(tgt)
         tgt = tgt.permute(1, 0, 2)
@@ -864,11 +901,17 @@ class NeuralSemanticLibrary(nn.Module):
         # Initialize log likelihood
         log_likelihood = torch.zeros(batch_size, device=combined_features.device)
 
+        cache = None
         for i in range(1, self.output_sequence_length + 1):
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
                 tgt.device
             )
-            output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
+            if isinstance(self.transformer_decoder, CachedTransformerDecoder):
+                output, cache = self.transformer_decoder(
+                    tgt, memory, tgt_mask=tgt_mask, cache=cache
+                )
+            else:
+                output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
             output = output.permute(1, 0, 2)
 
             last_token_logits = self.output_linear(output[:, -1:])
@@ -1167,7 +1210,7 @@ class NeuralSemanticLibrary(nn.Module):
         for epoch in range(epochs):
             self.epoch = epoch
             total_loss = 0
-            self.mlp.train()
+            self.training_mode()
             for batch_x, batch_y, nearest_y in dataloader:
                 loss = self.train_single_batch(
                     batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
@@ -1202,11 +1245,21 @@ class NeuralSemanticLibrary(nn.Module):
 
         return best_val_loss
 
+    def training_mode(self):
+        self.mlp.train()
+        self.transformer_encoder.train()
+        self.transformer_decoder.train()
+        self.embedding.train()
+
     def train_single_batch(
         self, batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
     ):
         output, features = self.forward(batch_x, batch_y=batch_y, nearest_y=nearest_y)
-        batch_y = batch_y.view(-1)
+        if output.shape[:2] != batch_y.shape:
+            max_len = get_max_length_excluding_padding(batch_y)
+            batch_y = batch_y[:, :max_len].reshape(-1)
+        else:
+            batch_y = batch_y.view(-1)
         ce_loss = criterion(output.view(-1, self.num_symbols), batch_y)
 
         if loss_weight > 0:
