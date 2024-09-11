@@ -241,7 +241,7 @@ class MutationConfiguration(Configuration):
         weight_of_contrastive_learning=0,
         neural_pool_transformer_layer=1,
         neural_pool_dropout=0,
-        neural_pool_hidden_size=32,
+        neural_pool_hidden_size=64,
         contrastive_loss_in_val=True,
         neural_pool_mlp_layers=3,
         contrastive_learning_stage="Decoder",
