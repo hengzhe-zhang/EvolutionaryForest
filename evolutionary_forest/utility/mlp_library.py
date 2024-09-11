@@ -457,7 +457,7 @@ class NeuralSemanticLibrary(nn.Module):
         use_transformer=True,  # Flag to enable or disable transformer layer
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
         flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
-        use_decoder_transformer=None,  # Flag to enable or disable decoder transformer
+        use_decoder_transformer="encoder-decoder",  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=True,
         use_x_transformer=False,  # Add flag to enable PerformerLM
@@ -473,7 +473,7 @@ class NeuralSemanticLibrary(nn.Module):
         only_margin_loss=False,
         use_kan=False,
         prediction_mode="greedy",
-        feature_fusion_strategy="add",
+        feature_fusion_strategy="concat~1",
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
