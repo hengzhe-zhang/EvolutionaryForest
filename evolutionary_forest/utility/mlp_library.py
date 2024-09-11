@@ -654,6 +654,7 @@ class NeuralSemanticLibrary(nn.Module):
         if self.positional_embedding_over_kan:
             x = self._add_positional_embedding(x)
 
+        padding_mask = None
         if self.use_transformer and nearest_y is not None:
             if self.retrival_augmented_generation:
                 if self.use_decoder_transformer == "decoder":
@@ -672,12 +673,23 @@ class NeuralSemanticLibrary(nn.Module):
                     )
                     pooled_tensor = torch.mean(reshaped_tensor, dim=2)
                     combined_features = self._combine_features(x, pooled_tensor)
+
+                    # if self.feature_fusion_strategy.startswith("concat"):
+                    #     padding_mask = torch.ones(
+                    #         combined_features.shape[:2], dtype=torch.bool
+                    #     )
+                    #     padding_start = x.shape[1]
+                    #     padding_mask[:, padding_start:] = nearest_y != 0
+
             else:
                 combined_features = x
 
             if self.use_decoder_transformer is not None:
                 output = self._decode(
-                    combined_features, batch_y, self.use_decoder_transformer
+                    combined_features,
+                    batch_y,
+                    self.use_decoder_transformer,
+                    padding_mask,
                 )
             else:
                 output = combined_features
@@ -718,7 +730,7 @@ class NeuralSemanticLibrary(nn.Module):
 
     def _reshape_output(self, x):
         """Reshape the output to (batch_size, output_sequence_length, output_size)."""
-        if self.feature_fusion_strategy.startswith("concat"):
+        if self.feature_fusion_strategy.startswith("concat~"):
             head = int(self.feature_fusion_strategy.split("~")[1])
             return x.view(-1, head, self.output_size)
         else:
@@ -783,16 +795,18 @@ class NeuralSemanticLibrary(nn.Module):
         else:
             raise ValueError("Unsupported combination method: use 'concat' or 'add'.")
 
-    def _decode(self, combined_features, batch_y, decoder_mode):
+    def _decode(self, combined_features, batch_y, decoder_mode, padding_mask):
         """Decode using Transformer Decoder."""
         if batch_y is not None:
             if decoder_mode == "decoder":
                 return self._decode_training_decoder_only(combined_features, batch_y)
             else:
-                return self._decode_training(combined_features, batch_y)
+                return self._decode_training(combined_features, batch_y, padding_mask)
         else:
             if decoder_mode == "encoder-decoder":
-                return self._decode_with_encoder_decoder(combined_features)
+                return self._decode_with_encoder_decoder(
+                    combined_features, padding_mask
+                )
             elif decoder_mode == "decoder":
                 return self._decode_with_decoder_only(combined_features)
             else:
@@ -826,7 +840,7 @@ class NeuralSemanticLibrary(nn.Module):
     #             ]  # Update only where likelihood improved
     #     return best_results
 
-    def _decode_training(self, combined_features, batch_y):
+    def _decode_training(self, combined_features, batch_y, memory_key_padding_mask):
         """Decode in training mode with teacher forcing."""
         start_tokens = torch.full(
             (batch_y.size(0), 1),
@@ -845,7 +859,12 @@ class NeuralSemanticLibrary(nn.Module):
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
             tgt.device
         )
-        output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
+        output = self.transformer_decoder(
+            tgt,
+            memory,
+            tgt_mask=tgt_mask,
+            memory_key_padding_mask=memory_key_padding_mask,
+        )
         return output.permute(1, 0, 2)
 
     def _decode_training_decoder_only(self, combined_features, batch_y):
@@ -882,7 +901,9 @@ class NeuralSemanticLibrary(nn.Module):
 
         return output.permute(1, 0, 2)[:, -self.output_sequence_length :]
 
-    def _decode_with_encoder_decoder(self, combined_features, use_sampling=False):
+    def _decode_with_encoder_decoder(
+        self, combined_features, memory_key_padding_mask, use_sampling=False
+    ):
         batch_size = combined_features.size(0)
         tgt = self.embedding(
             torch.full(
@@ -911,7 +932,12 @@ class NeuralSemanticLibrary(nn.Module):
                     tgt, memory, tgt_mask=tgt_mask, cache=cache
                 )
             else:
-                output = self.transformer_decoder(tgt, memory, tgt_mask=tgt_mask)
+                output = self.transformer_decoder(
+                    tgt,
+                    memory,
+                    tgt_mask=tgt_mask,
+                    memory_key_padding_mask=memory_key_padding_mask,
+                )
             output = output.permute(1, 0, 2)
 
             last_token_logits = self.output_linear(output[:, -1:])
