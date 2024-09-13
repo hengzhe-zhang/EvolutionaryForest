@@ -3,6 +3,7 @@ import inspect
 from multiprocessing import Pool
 
 import dill
+import numpy as np
 import scipy
 from deap import gp
 from deap import tools
@@ -2953,6 +2954,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.y_shape = y.shape
         if isinstance(X, pd.DataFrame):
             self.columns = X.columns.tolist()  # store column names
+            X = X.to_numpy()
+            y = y.to_numpy()
 
         # Normalize X and y if specified
         if self.normalize:
@@ -3251,6 +3254,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.normalize:
             # Scale X data if normalize flag is set
             X = self.x_scaler.transform(X)
+        if isinstance(X, pd.DataFrame):
+            X = X.to_numpy()
 
         X = self.pretrain_predict(X)
 

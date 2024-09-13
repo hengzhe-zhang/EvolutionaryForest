@@ -2,7 +2,6 @@ from collections import Counter
 
 import deap.base as base
 import deap.creator as creator
-import editdistance
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -10,6 +9,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from causal_transformer_decoder import (
+    CausalTransformerDecoderLayer,
+    CausalTransformerDecoder,
+)
 from deap import gp
 from deap.gp import PrimitiveTree, Primitive
 from sklearn.metrics.pairwise import cosine_similarity
@@ -34,10 +37,6 @@ from evolutionary_forest.utility.tree_utils.list_to_tree import (
     sort_son,
     convert_tree_to_node_list,
 )
-
-
-class CachedTransformerDecoder:
-    pass
 
 
 class IndependentLinearLayers(nn.Module):
@@ -443,8 +442,8 @@ class NeuralSemanticLibrary(nn.Module):
     def __init__(
         self,
         input_size=10,
-        hidden_size=16,
-        output_size=16,
+        hidden_size=64,
+        output_size=64,
         num_layers=1,
         dropout=0.0,
         output_primitive_length=3,
@@ -474,6 +473,7 @@ class NeuralSemanticLibrary(nn.Module):
         use_kan=False,
         prediction_mode="greedy",
         feature_fusion_strategy="concat~1",
+        kv_cache_decoder=True,
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -544,20 +544,28 @@ class NeuralSemanticLibrary(nn.Module):
             )
 
             # Transformer Decoder for combined `x` and encoded nearest `y`
-            transformer_decoder_layer = nn.TransformerDecoderLayer(
-                # transformer_decoder_layer = CausalTransformerDecoderLayer(
-                d_model=output_size,
-                nhead=num_heads,
-                dim_feedforward=hidden_size,
-                dropout=dropout,
-                activation="gelu",
-            )
-            cached_decoder = False
+            self.kv_cache_decoder = kv_cache_decoder
+            cached_decoder = self.kv_cache_decoder
+
             if cached_decoder:
-                self.transformer_decoder = CachedTransformerDecoder(
+                transformer_decoder_layer = CausalTransformerDecoderLayer(
+                    d_model=output_size,
+                    nhead=num_heads,
+                    dim_feedforward=hidden_size,
+                    dropout=dropout,
+                    activation="gelu",
+                )
+                self.transformer_decoder = CausalTransformerDecoder(
                     transformer_decoder_layer, num_layers=transformer_layers
                 )
             else:
+                transformer_decoder_layer = nn.TransformerDecoderLayer(
+                    d_model=output_size,
+                    nhead=num_heads,
+                    dim_feedforward=hidden_size,
+                    dropout=dropout,
+                    activation="gelu",
+                )
                 self.transformer_decoder = nn.TransformerDecoder(
                     transformer_decoder_layer, num_layers=transformer_layers
                 )
@@ -859,12 +867,16 @@ class NeuralSemanticLibrary(nn.Module):
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
             tgt.device
         )
-        output = self.transformer_decoder(
-            tgt,
-            memory,
-            tgt_mask=tgt_mask,
-            memory_key_padding_mask=memory_key_padding_mask,
-        )
+        if isinstance(self.transformer_decoder, CausalTransformerDecoder):
+            # internal tgt
+            output = self.transformer_decoder(tgt, memory, memory_key_padding_mask)
+        else:
+            output = self.transformer_decoder(
+                tgt,
+                memory,
+                tgt_mask=tgt_mask,
+                memory_key_padding_mask=memory_key_padding_mask,
+            )
         return output.permute(1, 0, 2)
 
     def _decode_training_decoder_only(self, combined_features, batch_y):
@@ -927,10 +939,9 @@ class NeuralSemanticLibrary(nn.Module):
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(
                 tgt.device
             )
-            if isinstance(self.transformer_decoder, CachedTransformerDecoder):
-                output, cache = self.transformer_decoder(
-                    tgt, memory, tgt_mask=tgt_mask, cache=cache
-                )
+            if isinstance(self.transformer_decoder, CausalTransformerDecoder):
+                # internal tgt
+                output, cache = self.transformer_decoder(tgt, memory, cache=cache)
             else:
                 output = self.transformer_decoder(
                     tgt,
@@ -1609,26 +1620,6 @@ def calculate_semantics_accuracy(nl, test_data, pset, x):
 
         # Compute the cosine similarity
         similarity = abs(cosine_similarity([y_true], [y_pred])[0][0])
-        cosine_similarities.append(similarity)
-
-    # Calculate the average cosine similarity
-    avg_cosine_similarity = np.mean(cosine_similarities)
-    return avg_cosine_similarity
-
-
-def calculate_edit_distance(nl, test_data):
-    cosine_similarities = []
-
-    for tid in range(len(test_data)):
-        # Convert the predicted tree and original tree to a list of tokens
-        predicted_tree = nl.convert_to_primitive_tree(test_data[tid][1])
-        original_tree = PrimitiveTree(test_data[tid][0])
-
-        # Compute the cosine similarity
-        similarity = editdistance.eval(
-            [node.name for node in predicted_tree],
-            [node.name for node in original_tree],
-        )
         cosine_similarities.append(similarity)
 
     # Calculate the average cosine similarity
