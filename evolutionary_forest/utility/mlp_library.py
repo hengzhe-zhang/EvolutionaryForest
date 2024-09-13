@@ -37,6 +37,7 @@ from evolutionary_forest.utility.tree_utils.list_to_tree import (
     sort_son,
     convert_tree_to_node_list,
 )
+from evolutionary_forest.utils import reset_random
 
 
 class IndependentLinearLayers(nn.Module):
@@ -1513,7 +1514,12 @@ class NeuralSemanticLibrary(nn.Module):
 
 
 def generate_synthetic_data(
-    pset, input_data, num_samples=100, min_depth=2, max_depth=2
+    pset,
+    input_data,
+    num_samples=100,
+    min_depth=2,
+    max_depth=2,
+    seed=0,
 ):
     """
     Generate synthetic training data with random GP trees and their target semantics.
@@ -1522,6 +1528,7 @@ def generate_synthetic_data(
     :param num_samples: Number of samples to generate.
     :return: List of tuples (gp_tree, target_semantics).
     """
+    reset_random(seed)
     # Create a random GP tree using DEAP's ramped half-and-half method
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)

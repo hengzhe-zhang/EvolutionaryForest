@@ -26,7 +26,7 @@ from sklearn.base import RegressorMixin, ClassifierMixin
 from sklearn.datasets import make_regression
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.inspection import permutation_importance
-from sklearn.linear_model import RidgeCV, LogisticRegression, Ridge
+from sklearn.linear_model import RidgeCV, LogisticRegression
 from sklearn.linear_model._base import LinearModel
 from sklearn.metrics import (
     accuracy_score,
@@ -37,15 +37,16 @@ from sklearn.model_selection import (
     train_test_split,
     KFold,
 )
-from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import BaseDecisionTree
-from torch import optim
 
 from evolutionary_forest.component.configuration import (
     EvaluationConfiguration,
     ImbalancedConfiguration,
     NoiseConfiguration,
+)
+from evolutionary_forest.component.generalization.cache.sharpness_memory import (
+    TreeLRUCache,
 )
 from evolutionary_forest.component.generalization.local_sensitive_shuffle import (
     local_sensitive_shuffle_by_value,
@@ -53,12 +54,10 @@ from evolutionary_forest.component.generalization.local_sensitive_shuffle import
 from evolutionary_forest.component.generalization.pac_utils.random_node_selection import (
     select_one_node_per_path,
 )
-from evolutionary_forest.component.generalization.cache.sharpness_memory import (
-    TreeLRUCache,
-)
 from evolutionary_forest.component.gradient_optimization.gradient_descent import (
     gradient_optimization,
 )
+from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 from evolutionary_forest.component.stgp.shared_type import (
     CategoricalFeature,
     FeatureLayer,
@@ -78,11 +77,7 @@ from evolutionary_forest.multigene_gp import (
     GPPipeline,
     IndividualConfiguration,
 )
-from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 from evolutionary_forest.sklearn_utils import cross_val_predict
-from evolutionary_forest.utility.gradient_optimization.scaling import (
-    feature_standardization_torch,
-)
 from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
 from evolutionary_forest.utility.sampling_utils import (
     sample_according_to_distance,
