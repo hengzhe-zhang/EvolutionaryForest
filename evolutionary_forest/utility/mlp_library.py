@@ -9,10 +9,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from causal_transformer_decoder import (
-    CausalTransformerDecoderLayer,
-    CausalTransformerDecoder,
-)
 from deap import gp
 from deap.gp import PrimitiveTree, Primitive
 from sklearn.metrics.pairwise import cosine_similarity
@@ -22,6 +18,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.component.crossover.kan import KANLinear
+from evolutionary_forest.model.causal_transformer_decoder import CausalTransformerDecoder, CausalTransformerDecoderLayer
 from evolutionary_forest.probability_gp import genHalfAndHalf
 from evolutionary_forest.utility.mlp_tools.mlp_utils import (
     get_max_length_excluding_padding,
