@@ -157,7 +157,6 @@ class SemanticLibrary:
                 pset=pset,
                 output_primitive_length=self.mutation_configuration.neural_pool_num_of_functions,
                 transformer_layers=self.mutation_configuration.neural_pool_transformer_layer,
-                contrastive_loss_in_val=self.mutation_configuration.contrastive_loss_in_val,
                 contrastive_learning_stage=self.mutation_configuration.contrastive_learning_stage,
                 selective_retrain=self.mutation_configuration.selective_retrain,
                 data_augmentation=self.mutation_configuration.negative_data_augmentation,
