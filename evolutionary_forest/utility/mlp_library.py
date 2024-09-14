@@ -446,7 +446,7 @@ class NeuralSemanticLibrary(nn.Module):
         hidden_size=64,
         output_size=64,
         num_layers=1,
-        dropout=0.0,
+        dropout=0.1,
         output_primitive_length=3,
         pset=None,  # Add pset parameter
         batch_norm=True,  # Add batch_norm parameter
