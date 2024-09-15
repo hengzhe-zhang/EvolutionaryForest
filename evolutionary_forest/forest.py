@@ -5565,9 +5565,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert len(self.hof) == 1
             best_ind = self.hof[0]
             final_model = self.single_model(best_ind, mtl_id)
-            if self.y_scaler is not None:
+            if isinstance(self.y_scaler, StandardScaler):
                 mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
                 final_model = f"((({final_model})*{std})+{mean})"
+            if isinstance(self.y_scaler, MinMaxScaler):
+                min_val, max_val = (
+                    self.y_scaler.data_min_[0],
+                    self.y_scaler.data_max_[0],
+                )
+                final_model = f"(({final_model}) * ({max_val} - {min_val})) + {min_val}"
             if isinstance(self.y_scaler, YIntScaler):
                 if self.y_scaler.is_integer:
                     final_model = f"Round({final_model})"
