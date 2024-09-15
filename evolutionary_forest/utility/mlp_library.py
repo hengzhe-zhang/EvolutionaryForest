@@ -18,7 +18,10 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, TensorDataset
 
 from evolutionary_forest.component.crossover.kan import KANLinear
-from evolutionary_forest.model.causal_transformer_decoder import CausalTransformerDecoder, CausalTransformerDecoderLayer
+from evolutionary_forest.model.causal_transformer_decoder import (
+    CausalTransformerDecoder,
+    CausalTransformerDecoderLayer,
+)
 from evolutionary_forest.probability_gp import genHalfAndHalf
 from evolutionary_forest.utility.mlp_tools.mlp_utils import (
     get_max_length_excluding_padding,
@@ -48,7 +51,7 @@ class IndependentLinearLayers(nn.Module):
     def forward(self, x):
         # x is expected to have shape [batch_size, num_positions, input_dim]
         outputs = []
-        for i in range(self.num_positions):
+        for i in range(x.shape[1]):
             # Apply the i-th linear layer to the i-th position
             outputs.append(self.linears[i](x[:, i, :]))
 
@@ -949,7 +952,10 @@ class NeuralSemanticLibrary(nn.Module):
                 )
             output = output.permute(1, 0, 2)
 
-            last_token_logits = self.output_linear(output[:, -1:])
+            if self.independent_linear_layers:
+                last_token_logits = self.output_linear.linears[i - 1](output[:, -1:])
+            else:
+                last_token_logits = self.output_linear(output[:, -1:])
 
             if use_sampling:
                 # Sample from the softmax probabilities
@@ -1285,6 +1291,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.transformer_encoder.train()
         self.transformer_decoder.train()
         self.embedding.train()
+        self.output_linear.train()
 
     def train_single_batch(
         self, batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
@@ -1373,6 +1380,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.transformer_encoder.eval()
         self.transformer_decoder.eval()
         self.embedding.eval()
+        self.output_linear.eval()
 
     def predict(self, semantics, mode="greedy", return_indices=False):
         nearest_y = self._retrieve_nearest_y_for_prediction(semantics)
