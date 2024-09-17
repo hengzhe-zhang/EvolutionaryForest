@@ -1744,7 +1744,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     ridge = [0.1, 1, 10]
             elif self.ridge_alphas == "Auto-Unique":
-                if np.unique(self.y) <= 50:
+                if len(np.unique(self.y)) <= 50:
                     ridge = [1e1, 1e2, 1e3]
                 else:
                     ridge = [0.1, 1, 10]
