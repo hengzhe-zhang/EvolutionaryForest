@@ -1743,11 +1743,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     ridge = [1e1, 1e2, 1e3]
                 else:
                     ridge = [0.1, 1, 10]
-            elif self.ridge_alphas == "Auto-Fine":
-                if self.X.shape[0] < 200:
-                    ridge = [1e1, 3e1, 1e2, 3e2, 1e3]
+            elif self.ridge_alphas == "Auto-Unique":
+                if np.unique(self.y) <= 50:
+                    ridge = [1e1, 1e2, 1e3]
                 else:
-                    ridge = [1e-1, 3e-3, 1e0, 3e0, 1e1]
+                    ridge = [0.1, 1, 10]
             else:
                 if isinstance(self.ridge_alphas, (float, int)):
                     ridge = [self.ridge_alphas]
