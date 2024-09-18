@@ -275,6 +275,8 @@ def calculate_score(args):
             else:
                 # impute nan again
                 Yp = np.nan_to_num(Yp, posinf=0, neginf=0)
+                # avoid error in very special case
+                Y = np.nan_to_num(Y, posinf=0, neginf=0)
                 pipe.fit(Yp, Y)
 
             if time_flag:
