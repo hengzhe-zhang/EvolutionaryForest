@@ -460,7 +460,6 @@ class NeuralSemanticLibrary(nn.Module):
         use_decoder_transformer="encoder-decoder",  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=True,
-        use_x_transformer=False,  # Add flag to enable PerformerLM
         retrival_augmented_generation=True,
         causal_encoding=False,
         data_augmentation=True,
