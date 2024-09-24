@@ -1070,20 +1070,21 @@ class NeuralSemanticLibrary(nn.Module):
             torch.matmul(target_features, target_features.T)
         )  # Shape: [batch_size, batch_size]
 
-        # Convert cosine similarity to cosine distance
-        cosine_distance_features = 1 - cosine_similarity_features
-        cosine_distance_target_features = 1 - cosine_similarity_target_features
-
         if self.contrastive_margin > 0:
             absolute_deviation = torch.abs(
-                cosine_distance_features - cosine_distance_target_features
+                cosine_similarity_features - cosine_similarity_target_features
             )
-            margin_loss = torch.square(
-                F.relu(absolute_deviation - self.contrastive_margin)
-            ).mean()
+            filter = (cosine_similarity_target_features < self.contrastive_margin) | (
+                cosine_similarity_target_features > 1 - self.contrastive_margin
+            )
+            if torch.sum(filter) == 0:
+                return 0
+            margin_loss = torch.square(absolute_deviation[filter]).mean()
             return margin_loss
         else:
-            loss = F.mse_loss(cosine_distance_features, cosine_distance_target_features)
+            loss = F.mse_loss(
+                cosine_similarity_features, cosine_similarity_target_features
+            )
             return loss
 
     def train(
