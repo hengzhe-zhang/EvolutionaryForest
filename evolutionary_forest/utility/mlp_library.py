@@ -456,7 +456,7 @@ class NeuralSemanticLibrary(nn.Module):
         transformer_layers=1,  # Add number of transformer layers
         use_transformer=True,  # Flag to enable or disable transformer layer
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
-        flatten_before_similarity=False,  # Add flag to support flatten before calculating similarity
+        flatten_before_similarity=True,  # Contrastive loss is based on flatten embedding
         use_decoder_transformer="encoder-decoder",  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="Decoder",
         selective_retrain=True,
@@ -469,7 +469,7 @@ class NeuralSemanticLibrary(nn.Module):
         independent_linear_layers=False,
         kd_tree_reconstruct=True,
         positional_embedding_over_kan=False,
-        only_margin_loss=False,
+        contrastive_margin=0,
         use_kan=False,
         prediction_mode="greedy",
         feature_fusion_strategy="concat~1",
@@ -599,7 +599,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.numerical_token = numerical_token
         self.kd_tree_reconstruct = kd_tree_reconstruct
         self.positional_embedding_over_kan = positional_embedding_over_kan
-        self.only_margin_loss = only_margin_loss
+        self.contrastive_margin = contrastive_margin
         self.trained = False
         self.prediction_mode = prediction_mode
 
@@ -1038,7 +1038,7 @@ class NeuralSemanticLibrary(nn.Module):
         embedding_vectors = self.embedding.weight
         return torch.matmul(output, embedding_vectors.T)
 
-    def contrastive_loss(self, features, target_features, margin=0.5):
+    def contrastive_loss(self, features, target_features):
         """
         Compute contrastive loss to enforce that pairwise cosine distances between instances using features
         should correlate with pairwise cosine distances using target_features.
@@ -1074,20 +1074,16 @@ class NeuralSemanticLibrary(nn.Module):
         cosine_distance_features = 1 - cosine_similarity_features
         cosine_distance_target_features = 1 - cosine_similarity_target_features
 
-        # Calculate the margin-based contrastive loss
-        # The margin term penalizes large deviations where the learned distance is larger than the target distance by a margin
-        margin_loss = F.relu(
-            cosine_distance_features - cosine_distance_target_features + margin
-        ).mean()
-
-        # Calculate the loss as the MSE loss combined with the margin loss
-        loss = (
-            F.mse_loss(cosine_distance_features, cosine_distance_target_features)
-            + margin_loss
-        )
-        if self.only_margin_loss:
+        if self.contrastive_margin > 0:
+            absolute_deviation = torch.abs(
+                cosine_distance_features - cosine_distance_target_features
+            )
+            margin_loss = (
+                torch.square(F.relu(absolute_deviation - self.contrastive_margin))
+            ).mean()
             return margin_loss
         else:
+            loss = F.mse_loss(cosine_distance_features, cosine_distance_target_features)
             return loss
 
     def train(
@@ -1295,6 +1291,11 @@ class NeuralSemanticLibrary(nn.Module):
     def train_single_batch(
         self, batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
     ):
+        if loss_weight > 0:
+            batch_x, batch_y, nearest_y = self.batch_augmentation(
+                batch_y, batch_x, nearest_y
+            )
+
         output, features = self.forward(batch_x, batch_y=batch_y, nearest_y=nearest_y)
         if output.shape[:2] != batch_y.shape:
             max_len = get_max_length_excluding_padding(batch_y)
@@ -1342,6 +1343,10 @@ class NeuralSemanticLibrary(nn.Module):
         nearest_y_val = torch.stack([torch.tensor(x) for x in nearest_y_val]).view(
             -1, self.output_sequence_length * self.augmented_k
         )
+        if loss_weight > 0 and self.contrastive_loss_in_val:
+            val_tensors, val_targets, nearest_y_val = self.batch_augmentation(
+                val_tensors, val_targets, nearest_y_val
+            )
 
         val_masked_output, val_features = self.forward(
             val_tensors, nearest_y=nearest_y_val
@@ -1371,6 +1376,17 @@ class NeuralSemanticLibrary(nn.Module):
             )
             print(f"Validation Loss: {val_loss}, Accuracy: {acc}")
         return val_loss
+
+    def batch_augmentation(self, val_tensors, val_targets, nearest_y_val):
+        tensor_shape = val_tensors.shape
+        target_shape = val_targets.shape
+        val_tensors = torch.stack([val_tensors, -1 * val_tensors])
+        val_targets = torch.stack([val_targets, val_targets])
+        nearest_y_val = torch.stack([nearest_y_val, nearest_y_val])
+        val_tensors = val_tensors.view(-1, *tensor_shape[1:])
+        val_targets = val_targets.view(-1, *target_shape[1:])
+        nearest_y_val = nearest_y_val.view(-1, *target_shape[1:])
+        return val_tensors, val_targets, nearest_y_val
 
     def eval_mode(self):
         self.mlp.eval()  # Set the model to evaluation mode
