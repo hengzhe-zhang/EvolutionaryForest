@@ -1293,7 +1293,7 @@ class NeuralSemanticLibrary(nn.Module):
     ):
         if loss_weight > 0:
             batch_x, batch_y, nearest_y = self.batch_augmentation(
-                batch_y, batch_x, nearest_y
+                batch_x, batch_y, nearest_y
             )
 
         output, features = self.forward(batch_x, batch_y=batch_y, nearest_y=nearest_y)
