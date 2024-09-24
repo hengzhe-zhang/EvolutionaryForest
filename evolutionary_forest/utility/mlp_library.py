@@ -1078,8 +1078,8 @@ class NeuralSemanticLibrary(nn.Module):
             absolute_deviation = torch.abs(
                 cosine_distance_features - cosine_distance_target_features
             )
-            margin_loss = (
-                torch.square(F.relu(absolute_deviation - self.contrastive_margin))
+            margin_loss = torch.square(
+                F.relu(absolute_deviation - self.contrastive_margin)
             ).mean()
             return margin_loss
         else:
@@ -1116,6 +1116,7 @@ class NeuralSemanticLibrary(nn.Module):
             self.trained = False
             return
         self.trained = True
+        self.batch_size = batch_size
 
         dataset, dataloader = self.create_dataloader(
             train_tensors, train_targets, batch_size
@@ -1198,7 +1199,10 @@ class NeuralSemanticLibrary(nn.Module):
         return list(zip(val_tensors, val_targets, nearest_y_val))
 
     def should_skip_training(self, val_data, loss_weight, verbose):
-        current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
+        # current_val_loss_backup = self.compute_val_loss(val_data, loss_weight, verbose)
+        current_val_loss = self.validation_batch_mode(
+            val_data, self.batch_size, loss_weight, verbose
+        )
         if verbose:
             print(f"Initial Validation Loss: {current_val_loss}")
         if (
@@ -1291,10 +1295,10 @@ class NeuralSemanticLibrary(nn.Module):
     def train_single_batch(
         self, batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
     ):
-        if loss_weight > 0:
-            batch_x, batch_y, nearest_y = self.batch_augmentation(
-                batch_x, batch_y, nearest_y
-            )
+        # if loss_weight > 0:
+        #     batch_x, batch_y, nearest_y = self.batch_augmentation(
+        #         batch_x, batch_y, nearest_y
+        #     )
 
         output, features = self.forward(batch_x, batch_y=batch_y, nearest_y=nearest_y)
         if output.shape[:2] != batch_y.shape:
@@ -1315,10 +1319,38 @@ class NeuralSemanticLibrary(nn.Module):
         optimizer.step()
         return loss.item()
 
+    def validation_batch_mode(self, val_data, batch_size, loss_weight, verbose=False):
+        num_data = len(val_data)
+        final_loss = 0
+        total_points = 0
+
+        i = 0
+        while i < num_data:
+            if i + 2 * batch_size <= num_data:
+                batch = val_data[i : i + batch_size]
+            else:
+                batch = val_data[i:]
+
+            # Calculate loss for the current batch
+            batch_loss = self.compute_val_loss(batch, loss_weight, verbose)
+            final_loss += batch_loss * len(batch)
+            total_points += len(batch)
+            i += batch_size
+
+            if len(batch) > batch_size:
+                break
+
+        # Calculate the weighted average of the losses
+        final_loss /= total_points
+        return final_loss
+
     def validate_and_early_stop(
         self, val_data, best_val_loss, patience_counter, loss_weight, verbose
     ):
-        current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
+        # current_val_loss = self.compute_val_loss(val_data, loss_weight, verbose)
+        current_val_loss = self.validation_batch_mode(
+            val_data, self.batch_size, loss_weight, verbose
+        )
         if verbose:
             print(f"Validation Loss: {current_val_loss}")
         if current_val_loss < best_val_loss:
@@ -1343,10 +1375,10 @@ class NeuralSemanticLibrary(nn.Module):
         nearest_y_val = torch.stack([torch.tensor(x) for x in nearest_y_val]).view(
             -1, self.output_sequence_length * self.augmented_k
         )
-        if loss_weight > 0 and self.contrastive_loss_in_val:
-            val_tensors, val_targets, nearest_y_val = self.batch_augmentation(
-                val_tensors, val_targets, nearest_y_val
-            )
+        # if loss_weight > 0 and self.contrastive_loss_in_val:
+        #     val_tensors, val_targets, nearest_y_val = self.batch_augmentation(
+        #         val_tensors, val_targets, nearest_y_val
+        #     )
 
         val_masked_output, val_features = self.forward(
             val_tensors, nearest_y=nearest_y_val
