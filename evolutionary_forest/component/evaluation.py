@@ -277,7 +277,13 @@ def calculate_score(args):
                 Yp = np.nan_to_num(Yp, posinf=0, neginf=0)
                 # avoid error in very special case
                 Y = np.nan_to_num(Y, posinf=0, neginf=0)
-                pipe.fit(Yp, Y)
+                try:
+                    pipe.fit(Yp, Y)
+                except ValueError as e:
+                    print("Value Error",Yp)
+                    print("Value Error",Y)
+                    raise e
+
 
             if time_flag:
                 print("Cross Validation Time", time.time() - cv_st)
