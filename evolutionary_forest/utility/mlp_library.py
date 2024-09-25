@@ -538,7 +538,6 @@ class NeuralSemanticLibrary(nn.Module):
                 dim_feedforward=hidden_size,
                 dropout=dropout,
                 activation="gelu",
-                norm_first=True,
             )
             self.transformer_encoder = nn.TransformerEncoder(
                 transformer_encoder_layer, num_layers=transformer_layers
@@ -566,7 +565,6 @@ class NeuralSemanticLibrary(nn.Module):
                     dim_feedforward=hidden_size,
                     dropout=dropout,
                     activation="gelu",
-                    norm_first=True,
                 )
                 self.transformer_decoder = nn.TransformerDecoder(
                     transformer_decoder_layer, num_layers=transformer_layers
