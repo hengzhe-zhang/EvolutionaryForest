@@ -538,6 +538,7 @@ class NeuralSemanticLibrary(nn.Module):
                 dim_feedforward=hidden_size,
                 dropout=dropout,
                 activation="gelu",
+                norm_first=True,
             )
             self.transformer_encoder = nn.TransformerEncoder(
                 transformer_encoder_layer, num_layers=transformer_layers
@@ -565,6 +566,7 @@ class NeuralSemanticLibrary(nn.Module):
                     dim_feedforward=hidden_size,
                     dropout=dropout,
                     activation="gelu",
+                    norm_first=True,
                 )
                 self.transformer_decoder = nn.TransformerDecoder(
                     transformer_decoder_layer, num_layers=transformer_layers
@@ -1074,8 +1076,9 @@ class NeuralSemanticLibrary(nn.Module):
             absolute_deviation = torch.abs(
                 cosine_similarity_features - cosine_similarity_target_features
             )
-            filter = (cosine_similarity_target_features < self.contrastive_margin) | (
-                cosine_similarity_target_features > 1 - self.contrastive_margin
+            # Focus on very relevant and irrelevant pairs
+            filter = (cosine_similarity_target_features <= self.contrastive_margin) | (
+                cosine_similarity_target_features >= 1 - self.contrastive_margin
             )
             if torch.sum(filter) == 0:
                 return 0
