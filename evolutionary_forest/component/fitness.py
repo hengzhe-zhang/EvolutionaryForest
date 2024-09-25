@@ -28,7 +28,7 @@ from evolutionary_forest.component.generalization.mixup_utils.mixup_mode_check i
     mixup_mode_check_and_change,
 )
 from evolutionary_forest.component.generalization.mixup_utils.safety_mixup import (
-    safe_mixup,
+    safe_mixup_with_minifold_intrusion_detection,
 )
 from evolutionary_forest.component.generalization.pac_bayesian import (
     assign_rank,
@@ -747,15 +747,23 @@ class R2PACBayesian(Fitness):
                 max_value = np.max(self.algorithm.y)
                 range_value = np.max(self.algorithm.y) - np.min(self.algorithm.y)
                 if max_value < 2 and range_value < 4:
-                    gamma_value = 100
+                    gamma_value_in_kernel = 100
                 else:
-                    gamma_value = 0.01
+                    gamma_value_in_kernel = 0.01
             else:
                 raise ValueError("Unknown bandwidth")
         else:
-            gamma_value = self.mixup_bandwidth
+            gamma_value_in_kernel = self.mixup_bandwidth
 
-        distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1), gamma=gamma_value)
+        if mixup_strategy=="X-MixUp":
+            distance_matrix = rbf_kernel(
+                algorithm.X, gamma=gamma_value_in_kernel
+            )
+        else:
+            distance_matrix = rbf_kernel(
+                algorithm.y.reshape(-1, 1), gamma=gamma_value_in_kernel
+            )
+
         if alpha_beta == "Adaptive":
             ratio = None
         elif isinstance(alpha_beta, str) and alpha_beta.startswith("Fix"):
@@ -763,12 +771,13 @@ class R2PACBayesian(Fitness):
         else:
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if mixup_strategy in ["I-MixUp"]:
+        if mixup_strategy in ["I-MixUp","X-MixUp"]:
             if mixup_mode != "":
-                return safe_mixup(
+                return safe_mixup_with_minifold_intrusion_detection(
                     algorithm.X,
                     algorithm.y,
-                    gamma_value,
+                    distance_matrix,
+                    gamma_value_in_kernel,
                     alpha_beta,
                     mode=mixup_mode,
                 )
@@ -799,7 +808,9 @@ class R2PACBayesian(Fitness):
             )
         elif mixup_strategy == "C-MixUp":
             # sample indices
-            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1), gamma=gamma_value)
+            distance_matrix = rbf_kernel(
+                algorithm.y.reshape(-1, 1), gamma=gamma_value_in_kernel
+            )
             # for the distance, the large the near, because it's Gaussian
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
         else:

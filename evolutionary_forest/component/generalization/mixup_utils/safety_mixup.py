@@ -67,10 +67,9 @@ def sample_indices_within_cluster(cluster_labels, data, mixup_bandwidth):
     return indices_b
 
 
-def safe_mixup(X, y, mixup_bandwidth, alpha_beta=None, mode=""):
-    # Step 1: Compute distance matrix
-    distance_matrix = rbf_kernel(y.reshape(-1, 1), gamma=mixup_bandwidth)
-
+def safe_mixup_with_minifold_intrusion_detection(
+    X, y, distance_matrix, mixup_bandwidth, alpha_beta=None, mode=""
+):
     confidence_interval = 1
     if len(mode.split(",")) == 3:
         mixup_flag, retry_flag, confidence_interval = mode.split(",")
