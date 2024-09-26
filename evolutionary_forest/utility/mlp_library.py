@@ -645,7 +645,7 @@ class NeuralSemanticLibrary(nn.Module):
     def forward(self, x, batch_y=None, nearest_x=None, nearest_y=None):
         original_x = x
         x = self._process_mlp(original_x)
-        if nearest_x is not None and self.contrastive_loss_weight>0:
+        if nearest_x is not None and self.contrastive_loss_weight > 0:
             nearest_x = self._process_mlp(nearest_x)
         else:
             nearest_x = None
@@ -1106,7 +1106,9 @@ class NeuralSemanticLibrary(nn.Module):
         verbose=False,
         loss_weight=0,
         sort_gp_tree=False,
-    ):
+    )
+        self.contrastive_loss_weight = loss_weight
+
         optimizer, scheduler = self.setup_optimizer_and_scheduler(lr)
         criterion = nn.CrossEntropyLoss(ignore_index=self.embedding.padding_idx)
 
@@ -1323,7 +1325,6 @@ class NeuralSemanticLibrary(nn.Module):
     def train_single_batch(
         self, batch_x, batch_y, nearest_x, nearest_y, criterion, optimizer, loss_weight
     ):
-        self.contrastive_loss_weight=loss_weight
         # if loss_weight > 0:
         #     batch_x, batch_y, nearest_y = self.batch_augmentation(
         #         batch_x, batch_y, nearest_y
