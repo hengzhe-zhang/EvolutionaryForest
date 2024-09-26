@@ -742,8 +742,6 @@ class NeuralSemanticLibrary(nn.Module):
             else:
                 x = layer(x)
         x = mlp[-1](x)
-        if self.contrastive_learning_stage == "MLP":
-            x = F.normalize(x, dim=1)
         return x
 
     def _reshape_output(self, x):
