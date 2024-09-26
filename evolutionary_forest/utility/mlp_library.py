@@ -678,7 +678,9 @@ class NeuralSemanticLibrary(nn.Module):
                     )
                     combined_features = (x, nearest_y_embedded)
                 else:
-                    nearest_y_encoded_by_transformer = self._encode_nearest_y(nearest_y, x)
+                    nearest_y_encoded_by_transformer = self._encode_nearest_y(
+                        nearest_y, x
+                    )
                     views = self.augmented_k
                     if self.numerical_token:
                         views += 1
