@@ -1487,7 +1487,12 @@ class NeuralSemanticLibrary(nn.Module):
             val_masked_output, val_targets
         ).item()
 
-        if loss_weight > 0 and self.contrastive_loss_in_val:
+        if (
+            loss_weight > 0
+            and self.contrastive_loss_in_val
+            and retrieval_x is not None
+            and retrieval_y is not None
+        ):
             # Calculate contrastive loss for validation
             if self.contrastive_learning_stage in ["RAG", "MLP"]:
                 val_contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
