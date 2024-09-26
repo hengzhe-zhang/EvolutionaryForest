@@ -30,10 +30,17 @@ def retrieve_nearest_y_skip_self(train_tensors, train_targets, k=1):
         for neighbors in nearest_indices
     ]
 
-    return nearest_y, kdtree  # Optionally return the KD-Tree if needed
+    nearest_x = [
+        np.concatenate([train_tensors[idx] for idx in neighbors])
+        for neighbors in nearest_indices
+    ]
+
+    return nearest_x, nearest_y, kdtree  # Optionally return the KD-Tree if needed
 
 
-def retrieve_nearest_y(kd_tree: cKDTree, train_targets, val_tensors, k=1):
+def retrieve_nearest_y(
+    kd_tree: cKDTree, train_tensors, train_targets, val_tensors, k=1
+):
     """
     Retrieve the k-nearest `y` from training data for each validation sample.
 
@@ -58,5 +65,9 @@ def retrieve_nearest_y(kd_tree: cKDTree, train_targets, val_tensors, k=1):
         np.concatenate([train_targets[idx] for idx in neighbors])
         for neighbors in nearest_indices
     ]
+    nearest_x = [
+        np.concatenate([train_tensors[idx] for idx in neighbors])
+        for neighbors in nearest_indices
+    ]
 
-    return nearest_y
+    return nearest_x, nearest_y

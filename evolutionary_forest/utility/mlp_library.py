@@ -23,6 +23,7 @@ from evolutionary_forest.model.causal_transformer_decoder import (
     CausalTransformerDecoderLayer,
 )
 from evolutionary_forest.probability_gp import genHalfAndHalf
+from evolutionary_forest.utility.mlp_tools.info_nce import InfoNCELoss
 from evolutionary_forest.utility.mlp_tools.mlp_utils import (
     get_max_length_excluding_padding,
 )
@@ -439,6 +440,9 @@ def calculate_terminals_needed(num_functions, pset):
     return num_functions + num_terminals
 
 
+info_nce_loss = InfoNCELoss(temperature=0.1)
+
+
 class NeuralSemanticLibrary(nn.Module):
     def __init__(
         self,
@@ -538,6 +542,7 @@ class NeuralSemanticLibrary(nn.Module):
                 dim_feedforward=hidden_size,
                 dropout=dropout,
                 activation="gelu",
+                norm_first=True,
             )
             self.transformer_encoder = nn.TransformerEncoder(
                 transformer_encoder_layer, num_layers=transformer_layers
@@ -565,6 +570,7 @@ class NeuralSemanticLibrary(nn.Module):
                     dim_feedforward=hidden_size,
                     dropout=dropout,
                     activation="gelu",
+                    norm_first=True,
                 )
                 self.transformer_decoder = nn.TransformerDecoder(
                     transformer_decoder_layer, num_layers=transformer_layers
@@ -636,14 +642,18 @@ class NeuralSemanticLibrary(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, batch_y=None, nearest_y=None):
+    def forward(self, x, batch_y=None, nearest_x=None, nearest_y=None):
         original_x = x
         x = self._process_mlp(original_x)
+        nearest_x = self._process_mlp(nearest_x)
         # if self.use_kan:
         #     x += self._process_mlp(original_x, self.kan)
         # if self.use_cnn:
         #     x += self._process_cnn(x)
-        return self._forward_traditional_transformer(x, batch_y, nearest_y)
+        dot_products, contrastive_context = self._forward_traditional_transformer(
+            x, batch_y, nearest_y
+        )
+        return dot_products, nearest_x, contrastive_context
 
     def _process_cnn(self, x):
         x = x.unsqueeze(1)  # Add a channel dimension for CNN (batch, channels, seq_len)
@@ -1107,7 +1117,10 @@ class NeuralSemanticLibrary(nn.Module):
         # reverse each target
         # targets = [torch.flip(t, [0]) for t in targets]
 
-        self.target = targets
+        # whole training data before split
+        self.whole_tensor = tensors
+        self.whole_target = targets
+
         train_tensors, val_tensors, train_targets, val_targets = self.split_data(
             tensors, targets, val_split
         )
@@ -1120,12 +1133,14 @@ class NeuralSemanticLibrary(nn.Module):
         self.trained = True
         self.batch_size = batch_size
 
-        dataset, dataloader = self.create_dataloader(
+        dataset, dataloader = self.create_dataloader_and_kd_tree(
             train_tensors, train_targets, batch_size
         )
 
         val_tensors = torch.tensor(val_tensors, dtype=torch.float32)
-        val_data = self.prepare_validation_data(val_tensors, val_targets, train_targets)
+        val_data = self.prepare_validation_data(
+            val_tensors, val_targets, train_tensors, train_targets
+        )
         # train_tensors, val_tensors = self.normalize_data(train_tensors, val_tensors)
 
         if val_data and self.selective_retrain:
@@ -1148,7 +1163,7 @@ class NeuralSemanticLibrary(nn.Module):
 
         # update final library
         if self.kd_tree_reconstruct:
-            _, kd_tree = retrieve_nearest_y_skip_self(
+            _, _, kd_tree = retrieve_nearest_y_skip_self(
                 tensors, targets, k=self.augmented_k
             )
             self.kd_tree = kd_tree
@@ -1194,11 +1209,13 @@ class NeuralSemanticLibrary(nn.Module):
         self.scaler = scaler
         return train_tensors, val_tensors
 
-    def prepare_validation_data(self, val_tensors, val_targets, train_targets):
-        nearest_y_val = retrieve_nearest_y(
-            self.kd_tree, train_targets, val_tensors, k=self.augmented_k
+    def prepare_validation_data(
+        self, val_tensors, val_targets, train_tensors, train_targets
+    ):
+        nearest_x_val, nearest_y_val = retrieve_nearest_y(
+            self.kd_tree, train_tensors, train_targets, val_tensors, k=self.augmented_k
         )
-        return list(zip(val_tensors, val_targets, nearest_y_val))
+        return list(zip(val_tensors, val_targets, nearest_x_val, nearest_y_val))
 
     def should_skip_training(self, val_data, loss_weight, verbose):
         # current_val_loss_backup = self.compute_val_loss(val_data, loss_weight, verbose)
@@ -1216,19 +1233,24 @@ class NeuralSemanticLibrary(nn.Module):
             return True
         return False
 
-    def create_dataloader(self, train_tensors, train_targets, batch_size):
+    def create_dataloader_and_kd_tree(self, train_tensors, train_targets, batch_size):
         stacked_tensors = train_tensors
         stacked_targets = torch.stack(train_targets).view(
             -1, self.output_sequence_length
         )
-        nearest_y_train, kd_tree = retrieve_nearest_y_skip_self(
+        nearest_x_train, nearest_y_train, kd_tree = retrieve_nearest_y_skip_self(
             stacked_tensors, stacked_targets, k=self.augmented_k
         )
         self.kd_tree = kd_tree
         stacked_nearest_y = torch.stack(
             [torch.tensor(x) for x in nearest_y_train]
         ).view(-1, self.output_sequence_length * self.augmented_k)
-        dataset = TensorDataset(stacked_tensors, stacked_targets, stacked_nearest_y)
+        dataset = TensorDataset(
+            stacked_tensors,
+            stacked_targets,
+            torch.tensor(nearest_x_train),
+            stacked_nearest_y,
+        )
         dataloader = DataLoader(
             dataset, batch_size=batch_size, shuffle=True, drop_last=True
         )
@@ -1253,9 +1275,15 @@ class NeuralSemanticLibrary(nn.Module):
             self.epoch = epoch
             total_loss = 0
             self.training_mode()
-            for batch_x, batch_y, nearest_y in dataloader:
+            for batch_x, batch_y, nearest_x, nearest_y in dataloader:
                 loss = self.train_single_batch(
-                    batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
+                    batch_x,
+                    batch_y,
+                    nearest_x,
+                    nearest_y,
+                    criterion,
+                    optimizer,
+                    loss_weight,
                 )
                 total_loss += loss
                 if self.prediction_mode == "chain-of-thought":
@@ -1265,6 +1293,7 @@ class NeuralSemanticLibrary(nn.Module):
                     loss = self.train_single_batch(
                         batch_x,
                         batch_y,
+                        nearest_x,
                         nearest_y,
                         criterion,
                         optimizer,
@@ -1295,14 +1324,16 @@ class NeuralSemanticLibrary(nn.Module):
         self.output_linear.train()
 
     def train_single_batch(
-        self, batch_x, batch_y, nearest_y, criterion, optimizer, loss_weight
+        self, batch_x, batch_y, nearest_x, nearest_y, criterion, optimizer, loss_weight
     ):
         # if loss_weight > 0:
         #     batch_x, batch_y, nearest_y = self.batch_augmentation(
         #         batch_x, batch_y, nearest_y
         #     )
 
-        output, features = self.forward(batch_x, batch_y=batch_y, nearest_y=nearest_y)
+        output, retrieval_x, retrieval_y = self.forward(
+            batch_x, batch_y=batch_y, nearest_x=nearest_x, nearest_y=nearest_y
+        )
         if output.shape[:2] != batch_y.shape:
             max_len = get_max_length_excluding_padding(batch_y)
             batch_y = batch_y[:, :max_len].reshape(-1)
@@ -1311,7 +1342,8 @@ class NeuralSemanticLibrary(nn.Module):
         ce_loss = criterion(output.view(-1, self.num_symbols), batch_y)
 
         if loss_weight > 0:
-            contrastive_loss = self.contrastive_loss(features, batch_x)
+            # contrastive_loss = self.contrastive_loss(features_x, batch_x)
+            contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
             loss = ce_loss + loss_weight * contrastive_loss
         else:
             loss = ce_loss
@@ -1371,7 +1403,8 @@ class NeuralSemanticLibrary(nn.Module):
         :return: Computed validation loss.
         """
         self.eval_mode()
-        val_tensors, val_targets, nearest_y_val = zip(*val_data)
+        val_tensors, val_targets, nearest_x_val, nearest_y_val = zip(*val_data)
+        nearest_x_val = torch.tensor(nearest_x_val)
         val_tensors = torch.stack(val_tensors)
         val_targets = torch.stack(val_targets).view(-1, self.output_sequence_length)
         nearest_y_val = torch.stack([torch.tensor(x) for x in nearest_y_val]).view(
@@ -1382,8 +1415,8 @@ class NeuralSemanticLibrary(nn.Module):
         #         val_tensors, val_targets, nearest_y_val
         #     )
 
-        val_masked_output, val_features = self.forward(
-            val_tensors, nearest_y=nearest_y_val
+        val_masked_output, retrieval_x, retrieval_y = self.forward(
+            val_tensors, nearest_x=nearest_x_val, nearest_y=nearest_y_val
         )
 
         val_targets = val_targets.view(-1)
@@ -1395,9 +1428,10 @@ class NeuralSemanticLibrary(nn.Module):
 
         if loss_weight > 0 and self.contrastive_loss_in_val:
             # Calculate contrastive loss for validation
-            val_contrastive_loss = self.contrastive_loss(
-                val_features, val_tensors
-            ).item()
+            # val_contrastive_loss = self.contrastive_loss(
+            #     val_features, val_tensors
+            # ).item()
+            val_contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
 
             # Combine the losses for validation loss
             val_loss = val_ce_loss + loss_weight * val_contrastive_loss
@@ -1465,9 +1499,10 @@ class NeuralSemanticLibrary(nn.Module):
         return tree_node_names, likelihood[0]
 
     def _retrieve_nearest_y_for_prediction(self, semantics):
-        nearest_y = retrieve_nearest_y(
+        nearest_x, nearest_y = retrieve_nearest_y(
             self.kd_tree,
-            self.target,
+            self.whole_tensor,
+            self.whole_target,
             semantics.reshape(-1, self.input_size),
             k=self.augmented_k,
         )
@@ -1481,7 +1516,7 @@ class NeuralSemanticLibrary(nn.Module):
     def _forward_pass(self, semantics_tensor, nearest_y):
         self.eval_mode()
         with torch.no_grad():
-            output_vector, _ = self.forward(semantics_tensor, nearest_y=nearest_y)
+            output_vector, _, _ = self.forward(semantics_tensor, nearest_y=nearest_y)
         return output_vector
 
     def _apply_mask(self, output_vector):
