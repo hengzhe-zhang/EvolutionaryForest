@@ -1106,7 +1106,7 @@ class NeuralSemanticLibrary(nn.Module):
         verbose=False,
         loss_weight=0,
         sort_gp_tree=False,
-    )
+    ):
         self.contrastive_loss_weight = loss_weight
 
         optimizer, scheduler = self.setup_optimizer_and_scheduler(lr)
