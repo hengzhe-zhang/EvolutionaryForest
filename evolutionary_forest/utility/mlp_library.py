@@ -1342,8 +1342,10 @@ class NeuralSemanticLibrary(nn.Module):
         ce_loss = criterion(output.view(-1, self.num_symbols), batch_y)
 
         if loss_weight > 0:
-            # contrastive_loss = self.contrastive_loss(features_x, batch_x)
-            contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
+            if self.contrastive_learning_stage == "RAG":
+                contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
+            else:
+                contrastive_loss = self.contrastive_loss(retrieval_y, batch_x)
             loss = ce_loss + loss_weight * contrastive_loss
         else:
             loss = ce_loss
@@ -1428,10 +1430,12 @@ class NeuralSemanticLibrary(nn.Module):
 
         if loss_weight > 0 and self.contrastive_loss_in_val:
             # Calculate contrastive loss for validation
-            # val_contrastive_loss = self.contrastive_loss(
-            #     val_features, val_tensors
-            # ).item()
-            val_contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
+            if self.contrastive_learning_stage == "RAG":
+                val_contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
+            else:
+                val_contrastive_loss = self.contrastive_loss(
+                    retrieval_y, val_tensors
+                ).item()
 
             # Combine the losses for validation loss
             val_loss = val_ce_loss + loss_weight * val_contrastive_loss
