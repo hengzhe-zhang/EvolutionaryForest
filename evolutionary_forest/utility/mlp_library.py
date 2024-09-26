@@ -1214,6 +1214,12 @@ class NeuralSemanticLibrary(nn.Module):
     def prepare_validation_data(
         self, val_tensors, val_targets, train_tensors, train_targets
     ):
+        (
+            train_tensors,
+            train_targets,
+        ) = self.augmentation_in_case_of_contrastive_learning(
+            train_tensors, train_targets
+        )
         nearest_x_val, nearest_y_val = retrieve_nearest_y(
             self.kd_tree, train_tensors, train_targets, val_tensors, k=self.augmented_k
         )
