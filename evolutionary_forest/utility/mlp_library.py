@@ -643,10 +643,25 @@ class NeuralSemanticLibrary(nn.Module):
     def forward(self, x, batch_y=None, nearest_x=None, nearest_y=None):
         original_x = x
         x = self._process_mlp(original_x)
-        if self.contrastive_learning_stage == "MLP":
+        if (
+            self.contrastive_learning_stage == "MLP"
+            and self.contrastive_loss_weight > 0
+        ):
             nearest_x = self._process_mlp(-original_x)
-        elif nearest_x is not None and self.contrastive_loss_weight > 0:
+        elif (
+            self.contrastive_learning_stage == "RAG"
+            and nearest_x is not None
+            and self.contrastive_loss_weight > 0
+        ):
             nearest_x = self._process_mlp(nearest_x)
+        elif (
+            self.contrastive_learning_stage == "MLP-RAG"
+            and nearest_x is not None
+            and self.contrastive_loss_weight > 0
+        ):
+            inverse_x = self._process_mlp(-original_x)
+            nearest_x = self._process_mlp(nearest_x)
+            nearest_x = (inverse_x, nearest_x)
         else:
             nearest_x = None
         # if self.use_kan:
@@ -724,6 +739,8 @@ class NeuralSemanticLibrary(nn.Module):
             contrastive_context = nearest_y_encoded_by_transformer
         elif self.contrastive_learning_stage == "MLP":
             contrastive_context = x_raw
+        elif self.contrastive_learning_stage == "MLP-RAG":
+            contrastive_context = (x_raw, nearest_y_encoded_by_transformer)
         else:
             raise Exception
 
@@ -1372,6 +1389,10 @@ class NeuralSemanticLibrary(nn.Module):
         if loss_weight > 0:
             if self.contrastive_learning_stage in ["RAG", "MLP"]:
                 contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
+            elif self.contrastive_learning_stage == "MLP-RAG":
+                contrastive_loss = self.calculate_contrastive_loss_mlp_rag(
+                    retrieval_x, retrieval_y
+                )
             else:
                 contrastive_loss = self.contrastive_loss(retrieval_y, batch_x)
             loss = ce_loss + loss_weight * contrastive_loss
@@ -1382,6 +1403,14 @@ class NeuralSemanticLibrary(nn.Module):
         loss.backward()
         optimizer.step()
         return loss.item()
+
+    def calculate_contrastive_loss_mlp_rag(self, retrieval_x, retrieval_y):
+        inverse_x, retrieval_x = retrieval_x
+        inverse_y, retrieval_y = retrieval_y
+        contrastive_loss_inverse = info_nce_loss(inverse_x, inverse_y)
+        contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
+        contrastive_loss += contrastive_loss_inverse
+        return contrastive_loss
 
     def validation_batch_mode(self, val_data, batch_size, loss_weight, verbose=False):
         num_data = len(val_data)
@@ -1460,6 +1489,10 @@ class NeuralSemanticLibrary(nn.Module):
             # Calculate contrastive loss for validation
             if self.contrastive_learning_stage in ["RAG", "MLP"]:
                 val_contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
+            elif self.contrastive_learning_stage == "MLP-RAG":
+                val_contrastive_loss = self.calculate_contrastive_loss_mlp_rag(
+                    retrieval_x, retrieval_y
+                )
             else:
                 val_contrastive_loss = self.contrastive_loss(
                     retrieval_y, val_tensors
