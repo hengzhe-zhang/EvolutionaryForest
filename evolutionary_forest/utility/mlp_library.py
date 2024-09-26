@@ -1278,7 +1278,10 @@ class NeuralSemanticLibrary(nn.Module):
         if self.contrastive_loss_weight > 0:
             # manually add negative samples
             stacked_tensors = torch.cat([stacked_tensors, -stacked_tensors], dim=0)
-            stacked_targets = torch.cat([stacked_targets, stacked_targets])
+            if isinstance(stacked_targets, list):
+                stacked_targets = stacked_targets + stacked_targets
+            else:
+                stacked_targets = torch.cat([stacked_targets, stacked_targets])
         return stacked_tensors, stacked_targets
 
     def execute_training(
