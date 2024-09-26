@@ -645,7 +645,10 @@ class NeuralSemanticLibrary(nn.Module):
     def forward(self, x, batch_y=None, nearest_x=None, nearest_y=None):
         original_x = x
         x = self._process_mlp(original_x)
-        nearest_x = self._process_mlp(nearest_x)
+        if nearest_x is None:
+            nearest_x = self._process_mlp(nearest_x)
+        else:
+            nearest_x = None
         # if self.use_kan:
         #     x += self._process_mlp(original_x, self.kan)
         # if self.use_cnn:
