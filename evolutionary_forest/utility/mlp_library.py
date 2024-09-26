@@ -667,6 +667,7 @@ class NeuralSemanticLibrary(nn.Module):
         if self.positional_embedding_over_kan:
             x = self._add_positional_embedding(x)
 
+        nearest_y_encoded_by_transformer = None
         padding_mask = None
         if self.use_transformer and nearest_y is not None:
             if self.retrival_augmented_generation:
@@ -677,11 +678,11 @@ class NeuralSemanticLibrary(nn.Module):
                     )
                     combined_features = (x, nearest_y_embedded)
                 else:
-                    nearest_y_encoded = self._encode_nearest_y(nearest_y, x)
+                    nearest_y_encoded_by_transformer = self._encode_nearest_y(nearest_y, x)
                     views = self.augmented_k
                     if self.numerical_token:
                         views += 1
-                    reshaped_tensor = nearest_y_encoded.view(
+                    reshaped_tensor = nearest_y_encoded_by_transformer.view(
                         -1, self.output_sequence_length, views, self.output_size
                     )
                     pooled_tensor = torch.mean(reshaped_tensor, dim=2)
@@ -716,7 +717,7 @@ class NeuralSemanticLibrary(nn.Module):
         elif self.contrastive_learning_stage == "Encoder":
             contrastive_context = combined_features
         elif self.contrastive_learning_stage == "RAG":
-            contrastive_context = nearest_y_encoded
+            contrastive_context = nearest_y_encoded_by_transformer
         elif self.contrastive_learning_stage == "KAN":
             contrastive_context = x
         elif self.contrastive_learning_stage == "KAN-Raw":
