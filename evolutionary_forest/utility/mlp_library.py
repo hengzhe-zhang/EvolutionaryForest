@@ -462,7 +462,7 @@ class NeuralSemanticLibrary(nn.Module):
         contrastive_loss_in_val=True,  # Add flag to enable contrastive loss in validation
         flatten_before_similarity=True,  # Contrastive loss is based on flatten embedding
         use_decoder_transformer="encoder-decoder",  # Flag to enable or disable decoder transformer
-        contrastive_learning_stage="Decoder",
+        contrastive_learning_stage="Encoder",
         selective_retrain=True,
         retrival_augmented_generation=True,
         causal_encoding=False,
