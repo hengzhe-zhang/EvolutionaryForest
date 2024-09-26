@@ -1117,10 +1117,6 @@ class NeuralSemanticLibrary(nn.Module):
         # reverse each target
         # targets = [torch.flip(t, [0]) for t in targets]
 
-        # whole training data before split
-        self.whole_tensor = tensors
-        self.whole_target = targets
-
         train_tensors, val_tensors, train_targets, val_targets = self.split_data(
             tensors, targets, val_split
         )
@@ -1163,6 +1159,12 @@ class NeuralSemanticLibrary(nn.Module):
 
         # update final library
         if self.kd_tree_reconstruct:
+            # whole training data before split
+            tensors, targets = self.augmentation_in_case_of_contrastive_learning(
+                tensors, targets
+            )
+            self.whole_tensor = tensors
+            self.whole_target = targets
             _, _, kd_tree = retrieve_nearest_y_skip_self(
                 tensors, targets, k=self.augmented_k
             )
@@ -1238,6 +1240,14 @@ class NeuralSemanticLibrary(nn.Module):
         stacked_targets = torch.stack(train_targets).view(
             -1, self.output_sequence_length
         )
+
+        (
+            stacked_tensors,
+            stacked_targets,
+        ) = self.augmentation_in_case_of_contrastive_learning(
+            stacked_tensors, stacked_targets
+        )
+
         nearest_x_train, nearest_y_train, kd_tree = retrieve_nearest_y_skip_self(
             stacked_tensors, stacked_targets, k=self.augmented_k
         )
@@ -1255,6 +1265,15 @@ class NeuralSemanticLibrary(nn.Module):
             dataset, batch_size=batch_size, shuffle=True, drop_last=True
         )
         return dataset, dataloader
+
+    def augmentation_in_case_of_contrastive_learning(
+        self, stacked_tensors, stacked_targets
+    ):
+        if self.contrastive_loss_weight > 0:
+            # manually add negative samples
+            stacked_tensors = torch.cat([stacked_tensors, -stacked_tensors], dim=0)
+            stacked_targets = torch.cat([stacked_targets, stacked_targets], dim=0)
+        return stacked_tensors, stacked_targets
 
     def execute_training(
         self,
