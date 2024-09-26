@@ -645,7 +645,7 @@ class NeuralSemanticLibrary(nn.Module):
     def forward(self, x, batch_y=None, nearest_x=None, nearest_y=None):
         original_x = x
         x = self._process_mlp(original_x)
-        if nearest_x is not None:
+        if nearest_x is not None and self.contrastive_loss_weight>0:
             nearest_x = self._process_mlp(nearest_x)
         else:
             nearest_x = None
@@ -663,12 +663,6 @@ class NeuralSemanticLibrary(nn.Module):
         x = self.cnn(x)  # Apply CNN layer
         x = x.squeeze(1)  # Remove the channel dimension after CNN
         return x
-
-    def _forward_x_transformer(self, x, batch_y, nearest_y):
-        enc = self.transformer_decoder.encoder(nearest_y, return_embeddings=True)
-        enc = torch.cat((x.unsqueeze(1), enc), dim=1)
-        output = self.transformer_decoder.decoder.net(batch_y, context=enc)
-        return output, output if self.contrastive_learning_stage == "Decoder" else enc
 
     def _forward_traditional_transformer(self, x, batch_y, nearest_y):
         x_raw = x = self._reshape_output(x)
@@ -1329,6 +1323,7 @@ class NeuralSemanticLibrary(nn.Module):
     def train_single_batch(
         self, batch_x, batch_y, nearest_x, nearest_y, criterion, optimizer, loss_weight
     ):
+        self.contrastive_loss_weight=loss_weight
         # if loss_weight > 0:
         #     batch_x, batch_y, nearest_y = self.batch_augmentation(
         #         batch_x, batch_y, nearest_y
