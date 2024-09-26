@@ -643,7 +643,9 @@ class NeuralSemanticLibrary(nn.Module):
     def forward(self, x, batch_y=None, nearest_x=None, nearest_y=None):
         original_x = x
         x = self._process_mlp(original_x)
-        if nearest_x is not None and self.contrastive_loss_weight > 0:
+        if self.contrastive_learning_stage == "MLP":
+            nearest_x = self._process_mlp(-original_x)
+        elif nearest_x is not None and self.contrastive_loss_weight > 0:
             nearest_x = self._process_mlp(nearest_x)
         else:
             nearest_x = None
@@ -720,9 +722,7 @@ class NeuralSemanticLibrary(nn.Module):
             contrastive_context = combined_features
         elif self.contrastive_learning_stage == "RAG":
             contrastive_context = nearest_y_encoded_by_transformer
-        elif self.contrastive_learning_stage == "KAN":
-            contrastive_context = x
-        elif self.contrastive_learning_stage == "KAN-Raw":
+        elif self.contrastive_learning_stage == "MLP":
             contrastive_context = x_raw
         else:
             raise Exception
@@ -1342,7 +1342,7 @@ class NeuralSemanticLibrary(nn.Module):
         ce_loss = criterion(output.view(-1, self.num_symbols), batch_y)
 
         if loss_weight > 0:
-            if self.contrastive_learning_stage == "RAG":
+            if self.contrastive_learning_stage in ["RAG", "MLP"]:
                 contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
             else:
                 contrastive_loss = self.contrastive_loss(retrieval_y, batch_x)
@@ -1430,7 +1430,7 @@ class NeuralSemanticLibrary(nn.Module):
 
         if loss_weight > 0 and self.contrastive_loss_in_val:
             # Calculate contrastive loss for validation
-            if self.contrastive_learning_stage == "RAG":
+            if self.contrastive_learning_stage in ["RAG", "MLP"]:
                 val_contrastive_loss = info_nce_loss(retrieval_x, retrieval_y)
             else:
                 val_contrastive_loss = self.contrastive_loss(
