@@ -1409,7 +1409,11 @@ class NeuralSemanticLibrary(nn.Module):
 
     def get_mask(self, nearest_x):
         nearest_x_norm = F.normalize(nearest_x, dim=1)
-        mask = torch.matmul(nearest_x_norm, nearest_x_norm.T) < 0.95
+        if self.contrastive_margin == 0:
+            threshold = 0.95
+        else:
+            threshold = self.contrastive_margin
+        mask = torch.matmul(nearest_x_norm, nearest_x_norm.T) < threshold
         mask = mask.fill_diagonal_(True)
         return mask
 
