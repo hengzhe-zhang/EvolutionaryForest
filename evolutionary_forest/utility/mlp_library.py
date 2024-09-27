@@ -1388,7 +1388,7 @@ class NeuralSemanticLibrary(nn.Module):
             batch_y = batch_y.view(-1)
         ce_loss = criterion(output.view(-1, self.num_symbols), batch_y)
 
-        if loss_weight > 0:
+        if loss_weight > 0 and retrieval_x is not None and retrieval_y is not None:
             if self.contrastive_learning_stage in ["RAG", "MLP"]:
                 mask = self.get_mask(nearest_x)
                 contrastive_loss = info_nce_loss(retrieval_x, retrieval_y, mask=mask)
