@@ -1415,6 +1415,7 @@ class NeuralSemanticLibrary(nn.Module):
             threshold = self.contrastive_margin
         mask = torch.matmul(nearest_x_norm, nearest_x_norm.T) < threshold
         mask = mask.fill_diagonal_(True)
+        # (torch.sum(mask == False) > 0).item()
         return mask
 
     def calculate_contrastive_loss_mlp_rag(self, retrieval_x, retrieval_y):
