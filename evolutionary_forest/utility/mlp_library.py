@@ -1294,7 +1294,7 @@ class NeuralSemanticLibrary(nn.Module):
     def augmentation_in_case_of_contrastive_learning(
         self, stacked_tensors, stacked_targets
     ):
-        if self.contrastive_loss_weight > 0 or self.retrieval_data_augmentation:
+        if self.retrieval_data_augmentation:
             # manually add negative samples
             stacked_tensors = torch.cat([stacked_tensors, -stacked_tensors], dim=0)
             if isinstance(stacked_targets, list):
