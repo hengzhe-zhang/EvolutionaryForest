@@ -8,7 +8,7 @@ class InfoNCELoss(nn.Module):
         super(InfoNCELoss, self).__init__()
         self.temperature = temperature
 
-    def forward(self, z_i, z_j):
+    def forward(self, z_i, z_j, mask=None):
         """
         z_i: tensor of shape (batch_size, embedding_dim) - embeddings from the first modality (e.g., symbolic)
         z_j: tensor of shape (batch_size, embedding_dim) - embeddings from the second modality (e.g., numeric)
@@ -25,6 +25,9 @@ class InfoNCELoss(nn.Module):
 
         # Compute the full similarity matrix (dot products between all pairs in the batch)
         sim_matrix = torch.matmul(z_i, z_j.T) / self.temperature
+
+        if mask is not None:
+            sim_matrix = sim_matrix * mask
 
         # For each row, apply softmax over all possible pairs (i.e., normalize)
         loss_i_to_j = -torch.log(
