@@ -238,12 +238,11 @@ class MutationConfiguration(Configuration):
         neural_pool_continue=True,
         neural_pool_delete_semantics=True,
         neural_pool_greedy=True,
-        weight_of_contrastive_learning=0,
+        weight_of_contrastive_learning=0.05,
         neural_pool_transformer_layer=1,
         neural_pool_dropout=0,
         neural_pool_hidden_size=64,
         neural_pool_mlp_layers=3,
-        contrastive_learning_stage="Decoder",
         selective_retrain=True,
         retrival_augmented_generation=True,
         **params
@@ -312,7 +311,6 @@ class MutationConfiguration(Configuration):
         self.neural_pool_hidden_size = neural_pool_hidden_size
         self.neural_pool_mlp_layers = neural_pool_mlp_layers
         self.neural_pool_dropout = neural_pool_dropout
-        self.contrastive_learning_stage = contrastive_learning_stage
         self.selective_retrain = selective_retrain
         self.retrival_augmented_generation = retrival_augmented_generation
 

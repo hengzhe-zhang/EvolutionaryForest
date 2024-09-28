@@ -153,11 +153,9 @@ class SemanticLibrary:
                 input_size=min(semantics_length, x_columns),
                 hidden_size=self.mutation_configuration.neural_pool_hidden_size,
                 num_layers=self.mutation_configuration.neural_pool_mlp_layers,
-                dropout=self.mutation_configuration.neural_pool_dropout,
                 pset=pset,
                 output_primitive_length=self.mutation_configuration.neural_pool_num_of_functions,
                 transformer_layers=self.mutation_configuration.neural_pool_transformer_layer,
-                contrastive_learning_stage=self.mutation_configuration.contrastive_learning_stage,
                 selective_retrain=self.mutation_configuration.selective_retrain,
                 data_augmentation=self.mutation_configuration.negative_data_augmentation,
                 retrival_augmented_generation=self.mutation_configuration.retrival_augmented_generation,
@@ -938,6 +936,14 @@ class SemanticLibrary:
                 (tree, semantics)
                 for tree, semantics in zip(self.trees, self.normalized_semantics_list)
             ]
+            if self.mutation_configuration.negative_data_augmentation:
+                assert len(train_data) % 2 == 0
+                assert list(self.trees[0]) == list(self.trees[1])
+                train_data = [
+                    (tree, semantics)
+                    for index, (tree, semantics) in enumerate(train_data)
+                    if index % 2 == 1
+                ]
             train_data = filter_train_data_by_node_count(
                 train_data, max_function_nodes=self.mlp_pool.output_primitive_length
             )
