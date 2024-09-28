@@ -1409,7 +1409,7 @@ class NeuralSemanticLibrary(nn.Module):
 
     def get_mask(self, nearest_x):
         nearest_x_norm = F.normalize(nearest_x, dim=1)
-        if self.contrastive_margin>0:
+        if self.contrastive_margin > 0:
             threshold = self.contrastive_margin
         else:
             threshold = 0.95
