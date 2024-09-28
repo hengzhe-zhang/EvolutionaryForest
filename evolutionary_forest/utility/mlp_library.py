@@ -1412,7 +1412,7 @@ class NeuralSemanticLibrary(nn.Module):
         if self.contrastive_margin > 0:
             threshold = self.contrastive_margin
         else:
-            threshold = 0.95
+            threshold = 0.99
         mask = torch.abs(torch.matmul(nearest_x_norm, nearest_x_norm.T)) < threshold
         mask = mask.fill_diagonal_(True)
         # (torch.sum(mask == False) > 0).item()
