@@ -21,6 +21,10 @@ def protected_division_test():
     result = protected_division(10, 0)
     assert np.isclose(result, 10 / 1e-10), f"Test case 4 failed: {result}"
 
+    # Test case 5: Division by a negative value
+    result = protected_division(10, -2)
+    assert np.isclose(result, -5.0), f"Test case 5 failed: {result}"
+
     print("All test cases passed!")
 
 
