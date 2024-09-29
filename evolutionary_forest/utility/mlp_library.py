@@ -1168,6 +1168,9 @@ class NeuralSemanticLibrary(nn.Module):
         )
         # train_tensors, val_tensors = self.normalize_data(train_tensors, val_tensors)
 
+        # update kd-tree, not matter training or not
+        self.reconstruct_kd_tree(targets, tensors)
+
         if val_data and self.selective_retrain:
             if self.should_skip_training(val_data, loss_weight, verbose):
                 return self.previous_val_loss
@@ -1185,8 +1188,9 @@ class NeuralSemanticLibrary(nn.Module):
         )
 
         self.previous_val_loss = best_val_loss
+        return best_val_loss
 
-        # update final library
+    def reconstruct_kd_tree(self, targets, tensors):
         if self.kd_tree_reconstruct:
             # whole training data before split
             if self.simple_data_augmentation:
@@ -1204,7 +1208,6 @@ class NeuralSemanticLibrary(nn.Module):
                 augmented_tensors, None, augmented_targets, k=self.augmented_k
             )
             self.kd_tree = kd_tree
-        return best_val_loss
 
     def setup_optimizer_and_scheduler(self, lr):
         optimizer = optim.AdamW(self.parameters(), lr=lr, weight_decay=1e-4)
