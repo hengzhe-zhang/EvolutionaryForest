@@ -1142,13 +1142,10 @@ class NeuralSemanticLibrary(nn.Module):
             tensors, targets, val_split
         )
         if self.simple_data_augmentation:
-            train_tensors, train_targets = self.inverse_augmentation(
-                train_tensors, train_targets
-            )
-            val_tensors, val_targets = self.inverse_augmentation(
-                val_tensors, val_targets
-            )
-
+            train_tensors = np.concatenate([train_tensors, -train_tensors], axis=0)
+            train_targets = train_targets + train_targets
+            val_tensors = np.concatenate([val_tensors, -val_tensors], axis=0)
+            val_targets = val_targets + val_targets
         train_tensors = torch.tensor(train_tensors, dtype=torch.float32)
 
         # Need to check if the training data is enough
