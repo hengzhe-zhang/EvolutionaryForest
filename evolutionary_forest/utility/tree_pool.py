@@ -157,7 +157,6 @@ class SemanticLibrary:
                 output_primitive_length=self.mutation_configuration.neural_pool_num_of_functions,
                 transformer_layers=self.mutation_configuration.neural_pool_transformer_layer,
                 selective_retrain=self.mutation_configuration.selective_retrain,
-                data_augmentation=self.mutation_configuration.negative_data_augmentation,
                 retrival_augmented_generation=self.mutation_configuration.retrival_augmented_generation,
                 use_decoder_transformer="encoder-decoder",
             )

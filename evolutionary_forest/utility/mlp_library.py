@@ -466,7 +466,7 @@ class NeuralSemanticLibrary(nn.Module):
         selective_retrain=True,
         retrival_augmented_generation=True,
         causal_encoding=False,
-        data_augmentation=True,
+        double_query=True,
         batch_sampling=1,
         augmented_k=1,
         numerical_token=False,
@@ -598,7 +598,7 @@ class NeuralSemanticLibrary(nn.Module):
         )
         self.retrival_augmented_generation = retrival_augmented_generation
         self.causal_encoding = causal_encoding
-        self.data_augmentation = data_augmentation
+        self.double_query = double_query
         self.batch_sampling = batch_sampling
         self.augmented_k = augmented_k
         self.numerical_token = numerical_token
@@ -1151,6 +1151,9 @@ class NeuralSemanticLibrary(nn.Module):
         dataset, dataloader = self.create_dataloader_and_kd_tree(
             train_tensors, train_targets, batch_size
         )
+        assert len(dataset) == len(
+            train_tensors
+        ), f"{len(dataset)} != {len(train_tensors)}"
 
         val_tensors = torch.tensor(val_tensors, dtype=torch.float32)
         val_data = self.prepare_validation_data(
@@ -1179,13 +1182,15 @@ class NeuralSemanticLibrary(nn.Module):
         # update final library
         if self.kd_tree_reconstruct:
             # whole training data before split
-            tensors, targets = self.augmentation_in_case_of_contrastive_learning(
-                tensors, targets
-            )
-            self.whole_tensor = tensors
-            self.whole_target = targets
+            (
+                augmented_tensors,
+                augmented_targets,
+            ) = self.augmentation_in_case_of_contrastive_learning(tensors, targets)
+
+            self.whole_tensor = augmented_tensors
+            self.whole_target = augmented_targets
             _, _, kd_tree = retrieve_nearest_y_skip_self(
-                tensors, targets, k=self.augmented_k
+                augmented_tensors, None, augmented_targets, k=self.augmented_k
             )
             self.kd_tree = kd_tree
         return best_val_loss
@@ -1234,13 +1239,17 @@ class NeuralSemanticLibrary(nn.Module):
         self, val_tensors, val_targets, train_tensors, train_targets
     ):
         (
-            train_tensors,
-            train_targets,
+            augmented_tensors,
+            augmented_targets,
         ) = self.augmentation_in_case_of_contrastive_learning(
             train_tensors, train_targets
         )
         nearest_x_val, nearest_y_val = retrieve_nearest_y(
-            self.kd_tree, train_tensors, train_targets, val_tensors, k=self.augmented_k
+            self.kd_tree,
+            augmented_tensors,
+            augmented_targets,
+            val_tensors,
+            k=self.augmented_k,
         )
         return list(zip(val_tensors, val_targets, nearest_x_val, nearest_y_val))
 
@@ -1267,14 +1276,14 @@ class NeuralSemanticLibrary(nn.Module):
         )
 
         (
-            stacked_tensors,
-            stacked_targets,
+            augmented_tensors,
+            augmented_targets,
         ) = self.augmentation_in_case_of_contrastive_learning(
             stacked_tensors, stacked_targets
         )
 
         nearest_x_train, nearest_y_train, kd_tree = retrieve_nearest_y_skip_self(
-            stacked_tensors, stacked_targets, k=self.augmented_k
+            augmented_tensors, stacked_tensors, augmented_targets, k=self.augmented_k
         )
         self.kd_tree = kd_tree
         stacked_nearest_y = torch.stack(
@@ -1682,7 +1691,7 @@ class NeuralSemanticLibrary(nn.Module):
             mode = self.prediction_mode
         node_names_pos, likelihood_pos = self.predict(semantics, mode=mode)
         gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_pos)
-        if self.data_augmentation:
+        if self.double_query:
             node_names_neg, likelihood_neg = self.predict(-1 * semantics, mode=mode)
             if likelihood_neg > likelihood_pos:
                 gp_tree = self.pset_utils.convert_node_names_to_gp_tree(node_names_neg)

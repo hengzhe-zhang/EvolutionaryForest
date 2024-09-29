@@ -2,7 +2,7 @@ import numpy as np
 from scipy.spatial import KDTree, cKDTree
 
 
-def retrieve_nearest_y_skip_self(train_tensors, train_targets, k=1):
+def retrieve_nearest_y_skip_self(train_tensors, query_tensors, train_targets, k=1):
     """
     Retrieve the k-nearest `y` from training data for each training sample,
     skipping the sample itself, using a KD-Tree.
@@ -18,8 +18,11 @@ def retrieve_nearest_y_skip_self(train_tensors, train_targets, k=1):
     # Build a KD-Tree with the training data
     kdtree = KDTree(train_tensors_np)
 
+    if query_tensors is None:
+        return None, None, kdtree
+
     # Query the KD-Tree for the k+1 nearest neighbors of each point (k+1 to skip the point itself)
-    distances, indices = kdtree.query(train_tensors_np, k=k + 1)
+    distances, indices = kdtree.query(query_tensors, k=k + 1)
 
     # The nearest neighbors start from index 1 to k+1 in the result (skip index 0)
     nearest_indices = indices[:, 1 : k + 1]
