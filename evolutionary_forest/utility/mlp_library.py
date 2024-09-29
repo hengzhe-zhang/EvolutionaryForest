@@ -464,7 +464,7 @@ class NeuralSemanticLibrary(nn.Module):
         use_decoder_transformer="encoder-decoder",  # Flag to enable or disable decoder transformer
         contrastive_learning_stage="RAG",
         selective_retrain=True,
-        retrival_augmented_generation=True,
+        retrieval_augmented_generation=True,
         causal_encoding=False,
         double_query=True,
         batch_sampling=1,
@@ -478,7 +478,8 @@ class NeuralSemanticLibrary(nn.Module):
         prediction_mode="greedy",
         feature_fusion_strategy="concat~1",
         kv_cache_decoder=True,
-        retrieval_data_augmentation=True,
+        retrieval_data_augmentation=False,
+        simple_data_augmentation=False,
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
@@ -596,7 +597,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.positional_embedding = nn.Embedding(
             self.output_sequence_length * augmented_k, output_size
         )
-        self.retrival_augmented_generation = retrival_augmented_generation
+        self.retrieval_augmented_generation = retrieval_augmented_generation
         self.causal_encoding = causal_encoding
         self.double_query = double_query
         self.batch_sampling = batch_sampling
@@ -608,6 +609,7 @@ class NeuralSemanticLibrary(nn.Module):
         self.trained = False
         self.prediction_mode = prediction_mode
         self.retrieval_data_augmentation = retrieval_data_augmentation
+        self.simple_data_augmentation = simple_data_augmentation
 
     def _create_layers(
         self, input_size, hidden_size, output_size, num_layers, dropout, kan=False
@@ -689,7 +691,7 @@ class NeuralSemanticLibrary(nn.Module):
         nearest_y_encoded_by_transformer = None
         padding_mask = None
         if self.use_transformer and nearest_y is not None:
-            if self.retrival_augmented_generation:
+            if self.retrieval_augmented_generation:
                 if self.use_decoder_transformer == "decoder":
                     nearest_y_embedded = self.embedding(nearest_y)
                     nearest_y_embedded = self._add_positional_embedding(
@@ -1139,6 +1141,14 @@ class NeuralSemanticLibrary(nn.Module):
         train_tensors, val_tensors, train_targets, val_targets = self.split_data(
             tensors, targets, val_split
         )
+        if self.simple_data_augmentation:
+            train_tensors, train_targets = self.inverse_augmentation(
+                train_tensors, train_targets
+            )
+            val_tensors, val_targets = self.inverse_augmentation(
+                val_tensors, val_targets
+            )
+
         train_tensors = torch.tensor(train_tensors, dtype=torch.float32)
 
         # Need to check if the training data is enough
@@ -1304,13 +1314,19 @@ class NeuralSemanticLibrary(nn.Module):
         self, stacked_tensors, stacked_targets
     ):
         if self.retrieval_data_augmentation:
-            # manually add negative samples
-            stacked_tensors = torch.cat([stacked_tensors, -stacked_tensors], dim=0)
-            if isinstance(stacked_targets, list):
-                stacked_targets = stacked_targets + stacked_targets
-            else:
-                stacked_targets = torch.cat([stacked_targets, stacked_targets])
+            stacked_targets, stacked_tensors = self.inverse_augmentation(
+                stacked_targets, stacked_tensors
+            )
         return stacked_tensors, stacked_targets
+
+    def inverse_augmentation(self, stacked_targets, stacked_tensors):
+        # manually add negative samples
+        stacked_tensors = torch.cat([stacked_tensors, -stacked_tensors], dim=0)
+        if isinstance(stacked_targets, list):
+            stacked_targets = stacked_targets + stacked_targets
+        else:
+            stacked_targets = torch.cat([stacked_targets, stacked_targets])
+        return stacked_targets, stacked_tensors
 
     def execute_training(
         self,
