@@ -1189,6 +1189,9 @@ class NeuralSemanticLibrary(nn.Module):
         # update final library
         if self.kd_tree_reconstruct:
             # whole training data before split
+            if self.simple_data_augmentation:
+                tensors = np.concatenate([tensors, -tensors], axis=0)
+                targets = targets + targets
             (
                 augmented_tensors,
                 augmented_targets,
@@ -1196,6 +1199,7 @@ class NeuralSemanticLibrary(nn.Module):
 
             self.whole_tensor = augmented_tensors
             self.whole_target = augmented_targets
+            self.data_used_to_train_kd_tree = len(augmented_tensors)
             _, _, kd_tree = retrieve_nearest_y_skip_self(
                 augmented_tensors, None, augmented_targets, k=self.augmented_k
             )
@@ -1608,6 +1612,13 @@ class NeuralSemanticLibrary(nn.Module):
         return tree_node_names, likelihood[0]
 
     def _retrieve_nearest_y_for_prediction(self, semantics):
+        if self.kd_tree_reconstruct:
+            assert self.data_used_to_train_kd_tree == len(
+                self.whole_tensor
+            ), f"Reconstructed data size {self.data_used_to_train_kd_tree} != {len(self.whole_tensor)}"
+            assert self.data_used_to_train_kd_tree == len(
+                self.whole_target
+            ), f"Reconstructed data size (target) {self.data_used_to_train_kd_tree} != {len(self.whole_target)}"
         nearest_x, nearest_y = retrieve_nearest_y(
             self.kd_tree,
             self.whole_tensor,
