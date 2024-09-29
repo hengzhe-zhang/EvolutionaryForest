@@ -936,13 +936,18 @@ class SemanticLibrary:
                 for tree, semantics in zip(self.trees, self.normalized_semantics_list)
             ]
             if self.mutation_configuration.negative_data_augmentation:
-                assert len(train_data) % 2 == 0
-                assert list(self.trees[0]) == list(self.trees[1])
+                assert len(train_data) % 2 == 0, f"Train Data: {len(train_data)}"
+                assert list(self.trees[0]) == list(
+                    self.trees[1]
+                ), f"Tree 0: {self.trees[0]}, Tree 1: {self.trees[1]}"
                 train_data = [
                     (tree, semantics)
                     for index, (tree, semantics) in enumerate(train_data)
                     if index % 2 == 1
                 ]
+                assert (
+                    len(train_data) == len(self.trees) // 2
+                ), f"Train Data: {len(train_data)}, Trees: {len(self.trees)}"
             train_data = filter_train_data_by_node_count(
                 train_data, max_function_nodes=self.mlp_pool.output_primitive_length
             )
