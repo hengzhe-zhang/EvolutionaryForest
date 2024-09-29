@@ -479,7 +479,7 @@ class NeuralSemanticLibrary(nn.Module):
         feature_fusion_strategy="concat~1",
         kv_cache_decoder=True,
         retrieval_data_augmentation=False,
-        simple_data_augmentation=False,
+        simple_data_augmentation=True,
         **params,
     ):
         super(NeuralSemanticLibrary, self).__init__()
