@@ -284,6 +284,7 @@ from evolutionary_forest.utility.feature_importance_util import (
 )
 from evolutionary_forest.utility.larmark_constant import lamarck_constant
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
+from evolutionary_forest.utility.metric.evaluation_metric import safe_r2_score
 from evolutionary_forest.utility.metric.moving_average import MovingAverage
 from evolutionary_forest.utility.multi_tree_utils import gene_addition
 from evolutionary_forest.utility.population_analysis import (
@@ -1754,7 +1755,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     ridge = eval(self.ridge_alphas)
             ridge_model = RidgeGCV(
-                alphas=ridge, store_cv_values=True, scoring=make_scorer(r2_score)
+                alphas=ridge, store_cv_values=True, scoring=make_scorer(safe_r2_score)
             )
         elif self.base_learner == "RidgeCV-Mixup":
             ridge_model = MixupRegressor(

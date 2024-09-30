@@ -16,3 +16,11 @@ class RidgeGCV(_RidgeGCV):
         return super()._validate_data(
             X, y, reset, validate_separately, cast_to_ndarray, **check_params
         )
+
+    def fit(self, X, y, sample_weight=None):
+        super().fit(X, y, sample_weight)
+        if self.store_cv_values:
+            self.cv_values_ = np.nan_to_num(
+                self.cv_values_, nan=0.0, posinf=0.0, neginf=0.0
+            )
+        return self
