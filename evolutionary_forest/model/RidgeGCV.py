@@ -24,3 +24,9 @@ class RidgeGCV(_RidgeGCV):
                 self.cv_values_, nan=0.0, posinf=0.0, neginf=0.0
             )
         return self
+
+    def predict(self, X):
+        prediction = super().predict(X)
+        prediction=np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
+        return prediction
+
