@@ -41,8 +41,8 @@ class SafetyScaler(StandardScaler):
 
 
 if __name__ == "__main__":
-    data = np.array([[0, 0], [0, 0], [1e-100, 1], [0, 1]]).astype(np.float32)
+    data = np.array([[0, 1], [0, 1], [1e-100, 1], [0, 1]]).astype(np.float32)
     # data = np.random.randn(100, 100) * 100
     scaler = SafetyScaler()
-    scaler.fit(data[:3,])
-    print(scaler.transform(data[3:,]))
+    scaler.fit(data)
+    print(scaler.transform(data))
