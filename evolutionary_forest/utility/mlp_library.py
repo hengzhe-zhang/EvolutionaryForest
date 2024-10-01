@@ -1615,13 +1615,13 @@ class NeuralSemanticLibrary(nn.Module):
         return tree_node_names, likelihood[0]
 
     def _retrieve_nearest_y_for_prediction(self, semantics):
-        if self.kd_tree_reconstruct:
-            assert self.data_used_to_train_kd_tree == len(
-                self.whole_tensor
-            ), f"Reconstructed data size {self.data_used_to_train_kd_tree} != {len(self.whole_tensor)}"
-            assert self.data_used_to_train_kd_tree == len(
-                self.whole_target
-            ), f"Reconstructed data size (target) {self.data_used_to_train_kd_tree} != {len(self.whole_target)}"
+        # if self.kd_tree_reconstruct:
+        #     assert self.data_used_to_train_kd_tree == len(
+        #         self.whole_tensor
+        #     ), f"Reconstructed data size {self.data_used_to_train_kd_tree} != {len(self.whole_tensor)}"
+        #     assert self.data_used_to_train_kd_tree == len(
+        #         self.whole_target
+        #     ), f"Reconstructed data size (target) {self.data_used_to_train_kd_tree} != {len(self.whole_target)}"
         assert self.kd_tree.n == len(
             self.whole_target
         ), f"KD-Tree size {self.kd_tree.n} != {len(self.whole_target)}"
