@@ -1558,7 +1558,7 @@ class NeuralSemanticLibrary(nn.Module):
             acc = compute_accuracy(
                 val_masked_output, val_targets, self.embedding.padding_idx
             )
-            print(f"Validation Loss: {val_loss}, Accuracy: {acc}")
+            print(f"Validation Loss: {val_loss}")
         return val_loss
 
     def batch_augmentation(self, val_tensors, val_targets, nearest_y_val):
