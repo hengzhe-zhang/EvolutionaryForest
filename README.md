@@ -35,10 +35,12 @@ decision-tree-based algorithms.
 pip install -U evolutionary_forest
 ```
 
+<!--
 ## Supported Algorithms
 
 - [Evolutionary Forest (TEVC 2021)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/EF.py)
 - [SR-Forest (TEVC 2023)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/SRForest.py)
+-->
 
 ## Example
 
@@ -73,6 +75,7 @@ Tutorial: [English Version](https://github.com/zhenlingcn/EvolutionaryForest/blo
 This package was created with [Cookiecutter](https://github.com/audreyr/cookiecutter) and
 the [audreyr/cookiecutter-pypackage](https://github.com/audreyr/cookiecutter-pypackage) project template.
 
+<!--
 ## Citation
 
 Please cite our paper if you find it helpful:
@@ -97,3 +100,4 @@ Please cite our paper if you find it helpful:
     publisher = {IEEE}
 }
 ```
+-->
