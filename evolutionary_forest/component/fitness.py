@@ -755,10 +755,13 @@ class R2PACBayesian(Fitness):
         else:
             gamma_value_in_kernel = self.mixup_bandwidth
 
-        if mixup_strategy=="X-MixUp":
-            distance_matrix = rbf_kernel(
-                algorithm.X, gamma=gamma_value_in_kernel
-            )
+        if mixup_strategy == "X-MixUp":
+            distance_matrix = rbf_kernel(algorithm.X, gamma=gamma_value_in_kernel)
+        elif mixup_strategy == "XY-MixUp":
+            X = algorithm.X
+            y = algorithm.y.reshape(-1, 1)
+            combined = np.concatenate((X, y), axis=1)
+            distance_matrix = rbf_kernel(combined, gamma=gamma_value_in_kernel)
         else:
             distance_matrix = rbf_kernel(
                 algorithm.y.reshape(-1, 1), gamma=gamma_value_in_kernel
@@ -771,8 +774,9 @@ class R2PACBayesian(Fitness):
         else:
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if mixup_strategy in ["I-MixUp","X-MixUp"]:
+        if mixup_strategy in ["I-MixUp", "X-MixUp", "IX-MixUp"]:
             if mixup_mode != "":
+                # with intrusion detection strategy
                 return safe_mixup_with_minifold_intrusion_detection(
                     algorithm.X,
                     algorithm.y,
