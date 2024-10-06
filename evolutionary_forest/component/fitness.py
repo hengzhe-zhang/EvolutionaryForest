@@ -774,7 +774,7 @@ class R2PACBayesian(Fitness):
         else:
             ratio = np.random.beta(alpha_beta, alpha_beta, len(algorithm.X))
         indices_a = np.random.randint(0, len(algorithm.X), len(algorithm.X))
-        if mixup_strategy in ["I-MixUp", "X-MixUp", "IX-MixUp"]:
+        if mixup_strategy in ["I-MixUp", "X-MixUp", "XY-MixUp"]:
             if mixup_mode != "":
                 # with intrusion detection strategy
                 return safe_mixup_with_minifold_intrusion_detection(
