@@ -488,8 +488,12 @@ def cv_prediction_from_ridge(Y, base_model: (RidgeCV, RidgeGCV)):
     # assert errors.size == Y.size * len(base_model.alphas)
     # error_list = errors.sum(axis=0)
     # new_best_index = np.argmin(error_list)
+
+    # get optimal alpha
     new_best_index = tuple(base_model.alphas).index(base_model.alpha_)
+    # get cv_values
     real_prediction = base_model.cv_values_[:, new_best_index]
+    # restore to correct scale
     real_prediction = real_prediction + Y.mean()
     return real_prediction
 

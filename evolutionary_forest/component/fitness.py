@@ -661,8 +661,6 @@ class R2PACBayesian(Fitness):
         self.algorithm = algorithm
         if sharpness_type == "Data":
             sharpness_type = SharpnessType.Data
-        if sharpness_type == "Semantics":
-            sharpness_type = SharpnessType.Semantics
         if sharpness_type == "DataGP":
             sharpness_type = SharpnessType.DataGP
         if sharpness_type == "DataLGBM":
@@ -683,6 +681,8 @@ class R2PACBayesian(Fitness):
             sharpness_type = SharpnessType.GKNN
         if sharpness_type == "DataRealVariance":
             sharpness_type = SharpnessType.DataRealVariance
+        if sharpness_type == "ReconstructionLoss":
+            sharpness_type = SharpnessType.ReconstructionLoss
         self.sharpness_type = sharpness_type
         self.sharpness_loss_weight = sharpness_loss_weight
         self.mixup_bandwidth = mixup_bandwidth

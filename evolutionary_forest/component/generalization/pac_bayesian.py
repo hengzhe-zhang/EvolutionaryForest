@@ -2,7 +2,7 @@ import copy
 import itertools
 import random
 import re
-from enum import Enum
+from enum import Enum, auto
 
 import numpy as np
 from deap import creator, base, tools
@@ -167,18 +167,19 @@ def kl_term_function(m, w, sigma, delta=0.1):
 
 
 class SharpnessType(Enum):
-    Data = 1
-    Semantics = 2
-    DataGP = 3
-    DataLGBM = 4
-    Parameter = 5
-    DataRealVariance = 6
-    DataGPSource = 7
-    MaxMargin = 8
-    DataGPHybrid = 9
-    ParameterPlus = 10
-    GKNN = 11
-    Dropout = 12
+    Data = auto()
+    Semantics = auto()
+    DataGP = auto()
+    DataLGBM = auto()
+    Parameter = auto()
+    DataRealVariance = auto()
+    DataGPSource = auto()
+    MaxMargin = auto()
+    DataGPHybrid = auto()
+    ParameterPlus = auto()
+    GKNN = auto()
+    Dropout = auto()
+    ReconstructionLoss = auto()
 
 
 def pac_bayesian_estimation(
@@ -277,10 +278,7 @@ def pac_bayesian_estimation(
         # default using original data
         data = X
         target_y = y
-        if sharpness_type == SharpnessType.Semantics:
-            # Add random Gaussian noise to the coefficients and intercept
-            X_noise = X + np.random.normal(scale=std, size=X.shape)
-        elif sharpness_type == SharpnessType.Dropout:
+        if sharpness_type == SharpnessType.Dropout:
             dropout_rate = configuration.dropout_rate
             X_noise = dropout_features(X, dropout_rate=dropout_rate)
         elif (
@@ -289,6 +287,7 @@ def pac_bayesian_estimation(
             or sharpness_type == SharpnessType.DataLGBM
             or sharpness_type == SharpnessType.DataGPSource
             or sharpness_type == SharpnessType.GKNN
+            or sharpness_type == SharpnessType.ReconstructionLoss
         ):
             # Generate some random noise data
             data = data_generator(random_seed=i)
@@ -302,6 +301,7 @@ def pac_bayesian_estimation(
                     data, target_y = data
             X_noise = sc.transform(feature_generator(data, random_seed=i))
         elif sharpness_type in [SharpnessType.Parameter, SharpnessType.ParameterPlus]:
+            # Sharpness-aware minimization
             if configuration.only_hard_instance != 0:
                 # worst x%
                 input_x = original_X[index]
@@ -325,19 +325,15 @@ def pac_bayesian_estimation(
         else:
             raise Exception("Unknown sharpness type!")
 
-        if sharpness_type == SharpnessType.Semantics:
-            # add noise to semantics
-            estimator_noise = copy.deepcopy(estimator)
-            # Use the modified Ridge model to predict the outcome variable
-            estimator_noise.fit(X_noise, y)
-            y_pred_on_noise = get_cv_predictions(estimator_noise, X_noise, y)
-        else:
-            if configuration.sam_standardization:
-                X_noise = StandardScaler().fit_transform(X_noise)
-            # in most cases, don't need to refit the model
-            y_pred_on_noise = get_cv_predictions(
-                estimator, X_noise, y, direct_prediction=True
-            )
+        if configuration.sam_standardization:
+            # standardization usually doesn't need to be fine-tuned
+            # because sharpness is usually estimated based on a fixed model
+            X_noise = StandardScaler().fit_transform(X_noise)
+        # in most cases, don't need to refit the model
+        y_pred_on_noise = get_cv_predictions(
+            estimator, X_noise, y, direct_prediction=True
+        )
+
         if (
             isinstance(configuration.objective, str)
             and "Derivative" in configuration.objective
@@ -353,6 +349,9 @@ def pac_bayesian_estimation(
             mse_scores[i] = (
                 reference_model.predict(data).flatten() - y_pred_on_noise
             ) ** 2
+        elif sharpness_type == SharpnessType.ReconstructionLoss:
+            Ridge().fit(X_noise, y)
+            mse_scores[i] = (X_noise - X) ** 2
         elif sharpness_type == SharpnessType.GKNN:
             mse_scores[i] = (base_knn.predict(X_noise).flatten() - y_pred_on_noise) ** 2
         elif (
@@ -562,7 +561,7 @@ def check_format(input_string):
     return bool(match)
 
 
-def get_cv_predictions(estimator, X, y, direct_prediction=False):
+def get_cv_predictions(estimator, X, y, direct_prediction=True):
     base_model = estimator["Ridge"]
     if isinstance(base_model, RidgeCV) and not direct_prediction:
         y_pred = cv_prediction_from_ridge(y, base_model)
