@@ -350,8 +350,9 @@ def pac_bayesian_estimation(
                 reference_model.predict(data).flatten() - y_pred_on_noise
             ) ** 2
         elif sharpness_type == SharpnessType.ReconstructionLoss:
-            Ridge().fit(X_noise, y)
-            mse_scores[i] = (X_noise - X) ** 2
+            ridge = Ridge()
+            ridge.fit(X_noise, original_X)
+            mse_scores[i] = np.mean((ridge.predict(X_noise) - original_X) ** 2, axis=1)
         elif sharpness_type == SharpnessType.GKNN:
             mse_scores[i] = (base_knn.predict(X_noise).flatten() - y_pred_on_noise) ** 2
         elif (
