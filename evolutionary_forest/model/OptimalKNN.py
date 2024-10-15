@@ -92,7 +92,10 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         weighted_GP_X[weighted_GP_X < 0] = 0  # Ensure non-negativity
 
         # Predict using the KNN model
-        return self.knn.predict(weighted_GP_X.T)
+        prediction = self.knn.predict(weighted_GP_X.T)
+        # np.any(np.isnan(prediction))
+        prediction = np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
+        return prediction
 
 
 if __name__ == "__main__":
