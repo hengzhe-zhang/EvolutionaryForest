@@ -1235,10 +1235,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual.pipe = self.get_base_model()
             self.base_learner = "SimpleDT-RandomDT"
         else:
-            if self.cv == 1:
-                individual.pipe = estimators[0]
-            else:
-                individual.pipe = pipe
+            individual.pipe = pipe
 
         if (
             (self.bootstrap_training or self.eager_training)

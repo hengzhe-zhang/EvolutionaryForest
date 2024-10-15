@@ -84,6 +84,7 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
 class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
     def __init__(self, n_neighbors=5, distance="Euclidean", **params):
         self.n_neighbors = n_neighbors
+        self.distance = distance
 
         # Initialize KNN regressor based on knn_type
         if distance == "Softmax":

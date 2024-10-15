@@ -22,7 +22,7 @@ from onedal.primitives import rbf_kernel
 from scipy.spatial.distance import cdist
 from scipy.stats import wilcoxon, truncnorm
 from sklearn import model_selection
-from sklearn.base import RegressorMixin, ClassifierMixin
+from sklearn.base import RegressorMixin, ClassifierMixin, clone
 from sklearn.datasets import make_regression
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.inspection import permutation_importance
@@ -37,6 +37,7 @@ from sklearn.model_selection import (
     train_test_split,
     KFold,
 )
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import BaseDecisionTree
 
@@ -70,6 +71,10 @@ from evolutionary_forest.component.tree_utils import (
 )
 from evolutionary_forest.model.MTL import MTLRidgeCV, MTLLassoCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
+from evolutionary_forest.model.OptimalKNN import (
+    WeightedKNNWithGP,
+    WeightedKNNWithGPRidge,
+)
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
 from evolutionary_forest.multigene_gp import (
     result_post_process,
@@ -303,9 +308,11 @@ def calculate_score(args):
             x_train, x_test, y_train, y_test, idx_train, idx_test = train_test_split(
                 Yp, Y, indices, test_size=0.2, random_state=0
             )
-            estimators = [pipe]
-            pipe.fit(x_train, y_train)
-            y_pred = pipe.predict(x_test)
+            clone_pipe: Pipeline = clone(pipe)
+            estimators = [clone_pipe]
+            clone_pipe.fit(x_train, y_train)
+            consistency_check(pipe, clone_pipe)
+            y_pred = clone_pipe.predict(x_test)
         else:
             # cross-validation
             if dynamic_target:
@@ -407,6 +414,11 @@ def calculate_score(args):
             semantic_results=semantic_results,
         ),
     )
+
+
+def consistency_check(pipe, clone_pipe):
+    if isinstance(pipe["Ridge"], (WeightedKNNWithGP, WeightedKNNWithGPRidge)):
+        assert pipe["Ridge"].distance == clone_pipe["Ridge"].distance
 
 
 def calculate_permutation_importance(estimators, Yp, Y):
