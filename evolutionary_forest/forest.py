@@ -1697,9 +1697,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == "InContextLearner":
             ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner == "NCA":
-            ridge_model = WeightedKNNWithGP(distance="Softmax")
+            ridge_model = WeightedKNNWithGP(**self.param, distance="Softmax")
         elif self.base_learner == "NCA-Euclidean":
-            ridge_model = WeightedKNNWithGP(distance="Euclidean")
+            ridge_model = WeightedKNNWithGP(**self.param, distance="Euclidean")
         elif self.base_learner == "MTL-Ridge":
             if len(self.y.shape) == 1:
                 ridge_model = RidgeCV(

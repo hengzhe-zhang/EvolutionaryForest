@@ -42,7 +42,7 @@ class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
 
 
 class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
-    def __init__(self, n_neighbors=5, distance="euclidean"):
+    def __init__(self, n_neighbors=5, distance="euclidean", **params):
         self.n_neighbors = n_neighbors
 
         # Initialize KNN regressor based on knn_type
