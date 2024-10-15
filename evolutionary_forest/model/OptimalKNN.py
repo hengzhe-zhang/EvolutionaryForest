@@ -52,6 +52,8 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
         self.ridge = Ridge(alpha=self.alpha)
 
     def fit(self, GP_X, y):
+        self.coef_ = np.ones(GP_X.shape[1])
+
         # Fit the Weighted KNN with GP transformation
         self.knn_with_gp.fit(GP_X, y)
 
