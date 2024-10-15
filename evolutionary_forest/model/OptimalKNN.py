@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.metrics import pairwise_distances, r2_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_array, check_is_fitted
@@ -41,8 +41,46 @@ class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
         return y_pred
 
 
+class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
+    def __init__(self, n_neighbors=5, distance="Euclidean", alpha=1.0, **params):
+        self.n_neighbors = n_neighbors
+        self.distance = distance
+        self.alpha = alpha
+        self.knn_with_gp = WeightedKNNWithGP(
+            n_neighbors=n_neighbors, distance=distance, **params
+        )
+        self.ridge = Ridge(alpha=self.alpha)
+
+    def fit(self, GP_X, y):
+        # Fit the Weighted KNN with GP transformation
+        self.knn_with_gp.fit(GP_X, y)
+
+        # Predict on the training data using the fitted WeightedKNNWithGP
+        knn_predictions = self.knn_with_gp.predict(GP_X).reshape(-1, 1)
+
+        # Concatenate the original features (GP_X) and the KNN predictions
+        combined_features = np.hstack((GP_X, knn_predictions))
+
+        # Fit the Ridge regression using the concatenated features
+        self.ridge.fit(combined_features, y)
+
+        return self
+
+    def predict(self, x_test):
+        # Get predictions from the KNN model for x_test
+        knn_predictions = self.knn_with_gp.predict(x_test).reshape(-1, 1)
+
+        # Concatenate the original features (x_test) and the KNN predictions
+        combined_features = np.hstack((x_test, knn_predictions))
+
+        # Use the Ridge model to predict based on the combined features
+        final_predictions = self.ridge.predict(combined_features)
+
+        return final_predictions
+
+
 class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
-    def __init__(self, n_neighbors=5, distance="euclidean", **params):
+    def __init__(self, n_neighbors=5, distance="Euclidean", **params):
         self.n_neighbors = n_neighbors
 
         # Initialize KNN regressor based on knn_type
