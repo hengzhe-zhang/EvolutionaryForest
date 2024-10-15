@@ -280,10 +280,9 @@ def calculate_score(args):
                 try:
                     pipe.fit(Yp, Y)
                 except ValueError as e:
-                    print("Value Error",Yp)
-                    print("Value Error",Y)
+                    print("Value Error", Yp)
+                    print("Value Error", Y)
                     raise e
-
 
             if time_flag:
                 print("Cross Validation Time", time.time() - cv_st)
@@ -299,15 +298,14 @@ def calculate_score(args):
                 real_prediction = cv_prediction_from_ridge(Y, base_model)
                 y_pred, estimators = real_prediction, [pipe]
         elif cv == 1:
-            # single fold training (not recommend)
+            # single fold training (very fast)
             indices = np.arange(len(Y))
             x_train, x_test, y_train, y_test, idx_train, idx_test = train_test_split(
-                Yp, Y, indices, test_size=0.2
+                Yp, Y, indices, test_size=0.2, random_state=0
             )
             estimators = [pipe]
             pipe.fit(x_train, y_train)
-            y_pred = np.ones_like(Y)
-            y_pred[idx_test] = pipe.predict(x_test)
+            y_pred = pipe.predict(x_test)
         else:
             # cross-validation
             if dynamic_target:

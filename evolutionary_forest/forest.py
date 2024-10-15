@@ -231,6 +231,7 @@ from evolutionary_forest.component.verification.configuration_check import (
 from evolutionary_forest.model.FeatureClipper import FeatureClipper, FeatureSmoother
 from evolutionary_forest.model.MTL import MTLRidgeCV, MTLLassoCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
+from evolutionary_forest.model.OptimalKNN import WeightedKNNWithGP
 from evolutionary_forest.model.PLTree import (
     SoftPLTreeRegressor,
     SoftPLTreeRegressorEM,
@@ -1193,6 +1194,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 individual.individual_configuration,
             )
 
+        if self.cv == 1:
+            (
+                _,
+                Y,
+            ) = train_test_split(Y, test_size=0.2, random_state=0)
         if len(y_pred.shape) == 2 and y_pred.shape[1] == 1:
             y_pred = y_pred.flatten()
         if isinstance(self.score_func, Fitness) or not "CV" in self.score_func:
@@ -1690,6 +1696,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "InContextLearner":
             ridge_model = InContextLearnerRegressor(**self.param)
+        elif self.base_learner == "NCA":
+            ridge_model = WeightedKNNWithGP(distance="Softmax")
+        elif self.base_learner == "NCA-Euclidean":
+            ridge_model = WeightedKNNWithGP(distance="Euclidean")
         elif self.base_learner == "MTL-Ridge":
             if len(self.y.shape) == 1:
                 ridge_model = RidgeCV(

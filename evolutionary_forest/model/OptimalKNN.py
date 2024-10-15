@@ -4,7 +4,6 @@ from sklearn.datasets import load_diabetes
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import pairwise_distances, r2_score
 from sklearn.neighbors import KNeighborsRegressor
-from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_array, check_is_fitted
 
 
@@ -43,27 +42,30 @@ class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
 
 
 class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
-    def __init__(self, n_neighbors=5):
+    def __init__(self, n_neighbors=5, distance="euclidean"):
         self.n_neighbors = n_neighbors
-        # self.knn = KNeighborsRegressor(n_neighbors=self.n_neighbors, weights="distance")
-        # self.knn = KNeighborsRegressor(n_neighbors=self.n_neighbors)
-        self.knn = SoftmaxWeightedKNNRegressor(n_neighbors=self.n_neighbors)
-        self.W = None  # Transformation matrix
 
-    def fit(self, X, GP_X, y):
-        """
-        Fit the weighted KNN using both original features and GP-transformed features.
+        # Initialize KNN regressor based on knn_type
+        if distance == "Softmax":
+            self.knn = SoftmaxWeightedKNNRegressor(
+                n_neighbors=self.n_neighbors, weights="distance", metric="precomputed"
+            )
+        else:
+            self.knn = KNeighborsRegressor(
+                n_neighbors=self.n_neighbors, weights="distance", metric="precomputed"
+            )
 
-        Parameters:
-        X    : Original feature matrix (n_samples, n_features)
-        GP_X : GP-transformed feature matrix (n_samples, k)
-        y    : Target variable (n_samples,)
-        """
+        self.W = None  # Transformation vector
+
+    def fit(self, GP_X, y):
+        self.coef_ = np.ones(GP_X.shape[1])
+
         # Compute the original distance matrix D using labels
         D = pairwise_distances(y.reshape(-1, 1), metric="euclidean")
 
         # Compute the transformed distance matrix D' using GP_X features
         D_prime = pairwise_distances(GP_X, metric="euclidean")
+        self.training_data = GP_X
 
         # Calculate the transformation matrix W
         D_prime_D_prime_T = D_prime @ D_prime.T
@@ -74,35 +76,23 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         else:
             self.W = D @ D_prime.T @ np.linalg.pinv(D_prime_D_prime_T)
 
-        # Ensure W has correct dimensions for GP_X transformation
-        if self.W.shape[1] != GP_X.shape[1]:
-            # Take only the first `k` columns if W is oversized
-            self.W = self.W[:, : GP_X.shape[1]]
-
         # Transform GP_X using W to get the weighted distance
-        weighted_GP_X = GP_X @ self.W.T  # Corrected for dimensional consistency
+        weighted_GP_X = self.W @ D_prime  # Corrected for dimensional consistency
+        weighted_GP_X[weighted_GP_X < 0] = 0  # Ensure non-negativity
 
         # Fit the KNN model on the weighted transformed space
-        self.knn.fit(weighted_GP_X, y)
+        self.knn.fit(weighted_GP_X.T, y)
 
         return self
 
-    def predict(self, X, GP_X):
-        """
-        Predict using the weighted KNN model.
-
-        Parameters:
-        X    : Original feature matrix (n_samples, n_features)
-        GP_X : GP-transformed feature matrix (n_samples, k)
-
-        Returns:
-        Predicted values (n_samples,)
-        """
+    def predict(self, x_test):
         # Transform GP_X using W
-        weighted_GP_X = GP_X @ self.W.T
+        D_prime = pairwise_distances(self.training_data, x_test, metric="euclidean")
+        weighted_GP_X = self.W @ D_prime
+        weighted_GP_X[weighted_GP_X < 0] = 0  # Ensure non-negativity
 
         # Predict using the KNN model
-        return self.knn.predict(weighted_GP_X)
+        return self.knn.predict(weighted_GP_X.T)
 
 
 if __name__ == "__main__":
@@ -132,14 +122,14 @@ if __name__ == "__main__":
 
     # Instantiate and train the model
     model = WeightedKNNWithGP(n_neighbors=5)
-    model.fit(X_train, GP_X_train, y_train)
+    model.fit(GP_X_train, y_train)
 
     # Make predictions
-    y_pred = model.predict(X_test, GP_X_test)
+    y_pred = model.predict(GP_X_test)
 
     # Calculate and print the Mean Squared Error
     mse = mean_squared_error(y_test, y_pred)
-    print("Training R2 Score: ", r2_score(y_train, model.predict(X_train, GP_X_train)))
+    print("Training R2 Score: ", r2_score(y_train, model.predict(GP_X_train)))
     print("R2 Score: ", r2_score(y_test, y_pred))
 
     model = KNeighborsRegressor(n_neighbors=3)
