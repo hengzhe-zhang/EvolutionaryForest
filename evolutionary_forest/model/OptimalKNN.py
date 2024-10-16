@@ -1,7 +1,8 @@
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
 from sklearn.metrics import pairwise_distances, r2_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_array, check_is_fitted
@@ -44,38 +45,81 @@ class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
 
 
 class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
-    def __init__(self, n_neighbors=5, distance="Euclidean", alpha=1.0, **params):
+    def __init__(
+        self,
+        n_neighbors=5,
+        distance="Euclidean",
+        alpha=1.0,
+        mode="full",
+        random_seed=0,
+        **params
+    ):
+        """
+        mode: str, either "full" or "split"
+            - "full": Use all features for KNN, then use KNN predictions concatenated with all features for Ridge.
+            - "split": Use half of the features for KNN and the remaining half concatenated with KNN predictions for Ridge.
+        """
         self.n_neighbors = n_neighbors
         self.distance = distance
         self.alpha = alpha
+        self.mode = mode
+        self.random_seed = random_seed
         self.knn_with_gp = WeightedKNNWithGP(
-            n_neighbors=n_neighbors, distance=distance, **params
+            n_neighbors=n_neighbors,
+            distance=distance,
+            random_seed=random_seed,
+            **params
         )
         self.ridge = Ridge(alpha=self.alpha)
+        self.random_state = np.random.RandomState(self.random_seed)
 
     def fit(self, GP_X, y):
         self.coef_ = np.ones(GP_X.shape[1])
 
-        # Fit the Weighted KNN with GP transformation
-        self.knn_with_gp.fit(GP_X, y)
+        if self.mode == "split" and GP_X.shape[1] > 1:
+            # Split the features into two halves if there are more than one feature
+            half_features = GP_X.shape[1] // 2
+            GP_X_knn = GP_X[:, :half_features]  # First half of features for KNN
+            GP_X_ridge = GP_X[:, half_features:]  # Second half of features for Ridge
 
-        # Predict on the training data using the fitted WeightedKNNWithGP
-        knn_predictions = self.knn_with_gp.predict(GP_X).reshape(-1, 1)
+            # Fit the KNN on the first half of features
+            self.knn_with_gp.fit(GP_X_knn, y)
 
-        # Concatenate the original features (GP_X) and the KNN predictions
-        combined_features = np.hstack((GP_X, knn_predictions))
+            # Predict on the full data with the KNN model trained on half the features
+            knn_predictions = self.knn_with_gp.predict(GP_X_knn).reshape(-1, 1)
 
-        # Fit the Ridge regression using the concatenated features
-        self.ridge.fit(combined_features, y)
+            # Concatenate the second half of features with KNN predictions
+            combined_features = np.hstack((GP_X_ridge, knn_predictions))
+
+            # Fit the Ridge model on the combined features
+            self.ridge.fit(combined_features, y)
+
+        else:
+            # Fall back to full mode if only one feature is available
+            self.knn_with_gp.fit(GP_X, y)
+            knn_predictions = self.knn_with_gp.predict(GP_X).reshape(-1, 1)
+            combined_features = np.hstack((GP_X, knn_predictions))
+            self.ridge.fit(combined_features, y)
 
         return self
 
     def predict(self, x_test):
-        # Get predictions from the KNN model for x_test
-        knn_predictions = self.knn_with_gp.predict(x_test).reshape(-1, 1)
+        if self.mode == "split" and x_test.shape[1] > 1:
+            # Use only the first half of features for KNN predictions in split mode
+            half_features = x_test.shape[1] // 2
+            x_test_knn = x_test[:, :half_features]
+            x_test_ridge = x_test[:, half_features:]
 
-        # Concatenate the original features (x_test) and the KNN predictions
-        combined_features = np.hstack((x_test, knn_predictions))
+            # Predict using KNN with the first half of features
+            knn_predictions = self.knn_with_gp.predict(x_test_knn).reshape(-1, 1)
+
+            # Concatenate the second half of features with KNN predictions
+            combined_features = np.hstack((x_test_ridge, knn_predictions))
+
+        else:
+            # Fall back to full mode if only one feature is available
+            knn_predictions = self.knn_with_gp.predict(x_test).reshape(-1, 1)
+            combined_features = np.hstack((x_test, knn_predictions))
 
         # Use the Ridge model to predict based on the combined features
         final_predictions = self.ridge.predict(combined_features)
@@ -84,11 +128,15 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
 
 
 class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
-    def __init__(self, n_neighbors=5, distance="Euclidean", **params):
+    def __init__(self, n_neighbors=5, distance="Euclidean", random_seed=0, **params):
         self.n_neighbors = n_neighbors
         self.distance = distance
+        self.random_seed = random_seed
+        self.random_state = np.random.RandomState(
+            self.random_seed
+        )  # RandomState object
 
-        # Initialize KNN regressor based on knn_type
+        # Initialize KNN regressor based on distance type
         if distance == "Softmax":
             self.knn = SoftmaxWeightedKNNRegressor(
                 n_neighbors=self.n_neighbors, weights="distance"
@@ -98,19 +146,32 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
                 n_neighbors=self.n_neighbors, weights="distance"
             )
 
-        self.W = None  # Transformation vector
+        self.W = None  # Transformation matrix
 
     def fit(self, GP_X, y):
-        self.coef_ = np.ones(GP_X.shape[1])
+        # Determine if we need to subsample
+        if len(y) > 50:
+            subsample_indices = self.random_state.choice(len(y), 50, replace=False)
+            GP_X_subsample = GP_X[subsample_indices]
+            y_subsample = y[subsample_indices]
+        else:
+            GP_X_subsample = GP_X
+            y_subsample = y
+
+        # Initialize the coefficient vector
+        self.coef_ = np.ones(GP_X_subsample.shape[1])
 
         # Compute the original distance matrix D using labels
-        D = pairwise_distances(y.reshape(-1, 1), metric="euclidean")
+        D = pairwise_distances(y_subsample.reshape(-1, 1), metric="euclidean")
 
-        # Compute the transformed distance matrix D' using GP_X features
-        weight = solve_transformation_matrix(GP_X, D, p=GP_X.shape[1])
-        training_data = GP_X @ weight
-
+        # Compute the transformation matrix (weight) based on the subsample
+        weight = solve_transformation_matrix(
+            GP_X_subsample, D, p=GP_X_subsample.shape[1]
+        )
         self.weight = weight
+
+        # Transform the entire training data using the computed weight
+        training_data = GP_X @ weight
         self.training_data = training_data
 
         # Fit the KNN model on the weighted transformed space
@@ -119,12 +180,11 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         return self
 
     def predict(self, x_test):
-        # Transform GP_X using W
+        # Transform test data using the weight matrix
         test_data = x_test @ self.weight
 
         # Predict using the KNN model
         prediction = self.knn.predict(test_data)
-        # np.any(np.isnan(prediction))
         prediction = np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
         return prediction
 
