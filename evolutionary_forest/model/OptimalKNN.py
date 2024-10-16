@@ -150,8 +150,8 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
 
     def fit(self, GP_X, y):
         # Determine if we need to subsample
-        if len(y) > 50:
-            subsample_indices = self.random_state.choice(len(y), 50, replace=False)
+        if len(y) > 100:
+            subsample_indices = self.random_state.choice(len(y), 100, replace=False)
             GP_X_subsample = GP_X[subsample_indices]
             y_subsample = y[subsample_indices]
         else:
