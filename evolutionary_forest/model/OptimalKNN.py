@@ -6,6 +6,8 @@ from sklearn.metrics import pairwise_distances, r2_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_array, check_is_fitted
 
+from evolutionary_forest.model.weight_solver import solve_transformation_matrix
+
 
 class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
     def predict(self, X):
@@ -89,11 +91,11 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         # Initialize KNN regressor based on knn_type
         if distance == "Softmax":
             self.knn = SoftmaxWeightedKNNRegressor(
-                n_neighbors=self.n_neighbors, weights="distance", metric="precomputed"
+                n_neighbors=self.n_neighbors, weights="distance"
             )
         else:
             self.knn = KNeighborsRegressor(
-                n_neighbors=self.n_neighbors, weights="distance", metric="precomputed"
+                n_neighbors=self.n_neighbors, weights="distance"
             )
 
         self.W = None  # Transformation vector
@@ -105,35 +107,23 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         D = pairwise_distances(y.reshape(-1, 1), metric="euclidean")
 
         # Compute the transformed distance matrix D' using GP_X features
-        D_prime = pairwise_distances(GP_X, metric="euclidean")
-        self.training_data = GP_X
+        weight = solve_transformation_matrix(GP_X, D, p=GP_X.shape[1])
+        training_data = GP_X @ weight
 
-        # Calculate the transformation matrix W
-        D_prime_D_prime_T = D_prime @ D_prime.T
-        if (
-            np.linalg.matrix_rank(D_prime_D_prime_T) == D_prime_D_prime_T.shape[0]
-        ):  # Check invertibility
-            self.W = D @ D_prime.T @ np.linalg.inv(D_prime_D_prime_T)
-        else:
-            self.W = D @ D_prime.T @ np.linalg.pinv(D_prime_D_prime_T)
-
-        # Transform GP_X using W to get the weighted distance
-        weighted_GP_X = self.W @ D_prime  # Corrected for dimensional consistency
-        weighted_GP_X[weighted_GP_X < 0] = 0  # Ensure non-negativity
+        self.weight = weight
+        self.training_data = training_data
 
         # Fit the KNN model on the weighted transformed space
-        self.knn.fit(weighted_GP_X.T, y)
+        self.knn.fit(training_data, y)
 
         return self
 
     def predict(self, x_test):
         # Transform GP_X using W
-        D_prime = pairwise_distances(self.training_data, x_test, metric="euclidean")
-        weighted_GP_X = self.W @ D_prime
-        weighted_GP_X[weighted_GP_X < 0] = 0  # Ensure non-negativity
+        test_data = x_test @ self.weight
 
         # Predict using the KNN model
-        prediction = self.knn.predict(weighted_GP_X.T)
+        prediction = self.knn.predict(test_data)
         # np.any(np.isnan(prediction))
         prediction = np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
         return prediction
