@@ -5,6 +5,7 @@ from multiprocessing import Pool
 import dill
 import numpy as np
 import scipy
+from category_encoders import TargetEncoder
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -161,7 +162,6 @@ from evolutionary_forest.component.mutation.common import MutationOperator
 from evolutionary_forest.component.mutation.learning_based_mutation import (
     BuildingBlockLearning,
 )
-from evolutionary_forest.component.normalizer import TargetEncoder
 from evolutionary_forest.component.primitive_controller import (
     get_functions,
     get_differentiable_functions,
@@ -481,6 +481,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         seed_with_linear_model=False,
         norevisit_strategy="",
         lamarck_constant=False,
+        categorical_encoding=None,
         **params,
     ):
         """
@@ -696,14 +697,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif normalize == "STD+MinMax+Bound":
             self.x_scaler = StandardScalerWithMinMaxScalerAndBounds()
             self.y_scaler = StandardScaler()
-        elif normalize == "LN":
-            self.x_scaler = Pipeline(
-                [
-                    ("TE", TargetEncoder()),
-                    ("SC", StandardScaler()),
-                ]
-            )
-            self.y_scaler = StandardScaler()
         elif normalize == "MinMax":
             self.x_scaler = MinMaxScaler(feature_range=(0, 1))
             self.y_scaler = MinMaxScaler(feature_range=(0, 1))
@@ -883,6 +876,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.automatic_operator_selection_initialization()
         self.automatic_local_search_initialization()
+        self.categorical_encoding = categorical_encoding
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -2961,6 +2955,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.history_initialization()
 
         self.categorical_features = categorical_features
+        if self.categorical_encoding == "TargetEncoder":
+            categorical_features: list[bool]
+            categorical_indices = [
+                i
+                for i, is_categorical in enumerate(categorical_features)
+                if is_categorical
+            ]
+            self.categorical_encoder = TargetEncoder(cols=categorical_indices)
+            X = np.array(self.categorical_encoder.fit_transform(X, y))
 
         # whether input data is standardized
         # self.standardized_flag = is_standardized(X)
@@ -3266,6 +3269,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     @split_and_combine_data_decorator(data_arg_position=1, data_arg_name="X")
     def predict(self, X, return_std=False):
+        if self.categorical_encoding == "TargetEncoder":
+            X = np.array(self.categorical_encoder.transform(X))
+
         if self.normalize:
             # Scale X data if normalize flag is set
             X = self.x_scaler.transform(X)
