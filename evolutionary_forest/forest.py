@@ -3,7 +3,6 @@ import inspect
 from multiprocessing import Pool
 
 import dill
-import numpy as np
 import scipy
 from category_encoders import TargetEncoder
 from deap import gp
@@ -2978,6 +2977,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 for i, is_categorical in enumerate(categorical_features)
                 if is_categorical
             ]
+            assert (
+                len(categorical_features) == X.shape[1]
+            ), f"Mismatch between categorical indices and number of features, {len(categorical_features)} vs {X.shape[1]}"
             self.categorical_encoder = TargetEncoder(cols=categorical_indices)
             X = np.array(self.categorical_encoder.fit_transform(X, y))
 
