@@ -129,13 +129,20 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
 
 class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
     def __init__(
-        self, n_neighbors=5, distance="Euclidean", random_seed=0, n_groups=1, **params
+        self,
+        n_neighbors=5,
+        distance="Euclidean",
+        random_seed=0,
+        n_groups=1,
+        reduced_dimension=None,
+        **params
     ):
         self.n_neighbors = n_neighbors
         self.distance = distance
         self.random_seed = random_seed
         self.n_groups = n_groups  # Number of groups for the ensemble
         self.random_state = np.random.RandomState(self.random_seed)
+        self.reduced_dimension = reduced_dimension
 
         # Initialize KNN regressor based on distance type
         if distance == "Softmax":
@@ -180,9 +187,15 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
             D_group = pairwise_distances(y_group.reshape(-1, 1), metric="euclidean")
 
             # Compute the transformation matrix for this group
+            # reduced_dimension = GP_X_group.shape[1]
+            if self.reduced_dimension == None:
+                reduced_dimension = GP_X_group.shape[1]
+            else:
+                reduced_dimension = self.reduced_dimension
             weight = solve_transformation_matrix(
-                GP_X_group, D_group, p=GP_X_group.shape[1]
+                GP_X_group, D_group, p=reduced_dimension
             )
+            # self.print_mse(D_group, GP_X_group, weight)
             self.weights.append(weight)
 
         # Transform the entire training data using the computed weights and concatenate them
@@ -194,6 +207,19 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         self.knn.fit(training_data, y)
 
         return self
+
+    def print_mse(self, D_group, GP_X_group, weight):
+        print(
+            "Original MSE",
+            np.mean(
+                (pairwise_distances(GP_X_group, metric="euclidean") - D_group) ** 2
+            ),
+            "MSE",
+            np.mean(
+                (pairwise_distances(GP_X_group @ weight, metric="euclidean") - D_group)
+                ** 2
+            ),
+        )
 
     def predict(self, x_test):
         # Transform test data using each weight matrix and concatenate the results
