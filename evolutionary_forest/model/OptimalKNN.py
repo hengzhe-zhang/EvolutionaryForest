@@ -128,13 +128,14 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
 
 
 class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
-    def __init__(self, n_neighbors=5, distance="Euclidean", random_seed=0, **params):
+    def __init__(
+        self, n_neighbors=5, distance="Euclidean", random_seed=0, n_groups=1, **params
+    ):
         self.n_neighbors = n_neighbors
         self.distance = distance
         self.random_seed = random_seed
-        self.random_state = np.random.RandomState(
-            self.random_seed
-        )  # RandomState object
+        self.n_groups = n_groups  # Number of groups for the ensemble
+        self.random_state = np.random.RandomState(self.random_seed)
 
         # Initialize KNN regressor based on distance type
         if distance == "Softmax":
@@ -146,7 +147,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
                 n_neighbors=self.n_neighbors, weights="distance"
             )
 
-        self.W = None  # Transformation matrix
+        self.weights = []  # List to store transformation matrices for each group
 
     def fit(self, GP_X, y):
         # Determine if we need to subsample
@@ -160,28 +161,44 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
 
         # Initialize the coefficient vector
         self.coef_ = np.ones(GP_X_subsample.shape[1])
+        # Divide GP_X into `n_groups` subsets and calculate weights for each
+        group_size = GP_X_subsample.shape[0] // self.n_groups
+        self.weights = []
 
-        # Compute the original distance matrix D using labels
-        D = pairwise_distances(y_subsample.reshape(-1, 1), metric="euclidean")
+        for i in range(self.n_groups):
+            # Define the group indices
+            start_idx = i * group_size
+            end_idx = (
+                (i + 1) * group_size
+                if i < self.n_groups - 1
+                else GP_X_subsample.shape[0]
+            )
+            GP_X_group = GP_X_subsample[start_idx:end_idx]
+            y_group = y_subsample[start_idx:end_idx]
 
-        # Compute the transformation matrix (weight) based on the subsample
-        weight = solve_transformation_matrix(
-            GP_X_subsample, D, p=GP_X_subsample.shape[1]
-        )
-        self.weight = weight
+            # Compute the distance matrix D for this subset
+            D_group = pairwise_distances(y_group.reshape(-1, 1), metric="euclidean")
 
-        # Transform the entire training data using the computed weight
-        training_data = GP_X @ weight
+            # Compute the transformation matrix for this group
+            weight = solve_transformation_matrix(
+                GP_X_group, D_group, p=GP_X_group.shape[1]
+            )
+            self.weights.append(weight)
+
+        # Transform the entire training data using the computed weights and concatenate them
+        transformed_data_list = [GP_X @ weight for weight in self.weights]
+        training_data = np.concatenate(transformed_data_list, axis=1)
         self.training_data = training_data
 
-        # Fit the KNN model on the weighted transformed space
+        # Fit the KNN model on the concatenated weighted transformed space
         self.knn.fit(training_data, y)
 
         return self
 
     def predict(self, x_test):
-        # Transform test data using the weight matrix
-        test_data = x_test @ self.weight
+        # Transform test data using each weight matrix and concatenate the results
+        test_data_list = [x_test @ weight for weight in self.weights]
+        test_data = np.concatenate(test_data_list, axis=1)
 
         # Predict using the KNN model
         prediction = self.knn.predict(test_data)

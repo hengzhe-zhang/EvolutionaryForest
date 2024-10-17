@@ -1694,6 +1694,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = WeightedKNNWithGP(**self.param, distance="Softmax")
         elif self.base_learner == "NCA-Euclidean":
             ridge_model = WeightedKNNWithGP(**self.param, distance="Euclidean")
+        elif self.base_learner == "NCA~Group":
+            ridge_model = WeightedKNNWithGP(
+                **self.param, distance="Softmax", n_groups=5
+            )
+        elif self.base_learner == "NCA-Euclidean~Group":
+            ridge_model = WeightedKNNWithGP(
+                **self.param, distance="Euclidean", n_groups=5
+            )
         elif self.base_learner == "NCA+Ridge":
             ridge_model = WeightedKNNWithGPRidge(**self.param, distance="Softmax")
         elif self.base_learner == "NCA-Euclidean+Ridge":
