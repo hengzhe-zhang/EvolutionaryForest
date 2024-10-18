@@ -305,6 +305,9 @@ from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
+if sys.version_info >= (3, 9):
+    from sklearn.preprocessing import TargetEncoder as TargetEncoderCV
+
 multi_gene_operators = [
     "uniform-plus",
     "uniform-plus-SC",
@@ -2997,7 +3000,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.history_initialization()
 
         self.categorical_features = categorical_features
-        if self.categorical_encoding == "Target":
+        if self.categorical_encoding is not None:
             categorical_features: list[bool]
             categorical_indices = [
                 i
@@ -3007,7 +3010,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert (
                 len(categorical_features) == X.shape[1]
             ), f"Mismatch between categorical indices and number of features, {len(categorical_features)} vs {X.shape[1]}"
-            self.categorical_encoder = TargetEncoder(cols=categorical_indices)
+            if self.categorical_encoding == "Target":
+                self.categorical_encoder = TargetEncoder(cols=categorical_indices)
+            elif self.categorical_encoding == "TargetCV":
+                self.categorical_encoder = TargetEncoderCV(cols=categorical_indices)
+            else:
+                raise Exception(
+                    f"Unknown categorical encoding method {self.categorical_encoding}"
+                )
             X = np.array(self.categorical_encoder.fit_transform(X, y))
 
         # whether input data is standardized
@@ -3314,7 +3324,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     @split_and_combine_data_decorator(data_arg_position=1, data_arg_name="X")
     def predict(self, X, return_std=False):
-        if self.categorical_encoding == "Target":
+        if self.categorical_encoding is not None:
             X = np.array(self.categorical_encoder.transform(X))
             print("Target encoding for categorical features")
 
