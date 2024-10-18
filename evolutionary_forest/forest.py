@@ -2999,7 +2999,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.history_initialization()
 
         self.categorical_features = categorical_features
-        if self.categorical_encoding == "TargetEncoder":
+        if self.categorical_encoding == "Target":
             categorical_features: list[bool]
             categorical_indices = [
                 i
@@ -3316,8 +3316,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     @split_and_combine_data_decorator(data_arg_position=1, data_arg_name="X")
     def predict(self, X, return_std=False):
-        if self.categorical_encoding == "TargetEncoder":
+        if self.categorical_encoding == "Target":
             X = np.array(self.categorical_encoder.transform(X))
+            print("Target encoding for categorical features")
 
         if self.normalize:
             # Scale X data if normalize flag is set
