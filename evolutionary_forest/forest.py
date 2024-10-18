@@ -3012,8 +3012,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ), f"Mismatch between categorical indices and number of features, {len(categorical_features)} vs {X.shape[1]}"
             if self.categorical_encoding == "Target":
                 self.categorical_encoder = TargetEncoder(cols=categorical_indices)
-            elif self.categorical_encoding == "TargetCV":
-                self.categorical_encoder = TargetEncoderCV(cols=categorical_indices)
             else:
                 raise Exception(
                     f"Unknown categorical encoding method {self.categorical_encoding}"
