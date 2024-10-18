@@ -305,9 +305,6 @@ from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
-if sys.version_info >= (3, 9):
-    from sklearn.preprocessing import TargetEncoder as TargetEncoderCV
-
 multi_gene_operators = [
     "uniform-plus",
     "uniform-plus-SC",
