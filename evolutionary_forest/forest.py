@@ -1289,8 +1289,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         individual.semantics = information.semantic_results
         if isinstance(individual.semantics, torch.Tensor):
             individual.semantics = individual.semantics.detach().numpy()
-        if isinstance(individual.semantics, np.ndarray):
-            individual.semantics = individual.semantics.astype(np.float32)
         individual.correlation_results = information.correlation_results
         self.importance_post_process(individual, estimators)
 
