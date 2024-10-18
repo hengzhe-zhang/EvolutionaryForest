@@ -285,6 +285,7 @@ from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.feature_importance_util import (
     feature_importance_process,
 )
+from evolutionary_forest.utility.feature_selection import remove_constant_variables
 from evolutionary_forest.utility.larmark_constant import lamarck_constant
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.metric.evaluation_metric import safe_r2_score
@@ -876,6 +877,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.automatic_operator_selection_initialization()
         self.automatic_local_search_initialization()
         self.categorical_encoding = categorical_encoding
+        self.remove_constant_features = True
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -2563,6 +2565,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ]
             )
             self.add_primitives_to_pset(pset)
+
+        if self.remove_constant_features:
+            pset = remove_constant_variables(pset, x)
 
         # add constant
         for constant in ["rand101", "pi", "e"]:
