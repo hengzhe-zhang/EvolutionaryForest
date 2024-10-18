@@ -7,7 +7,10 @@ from sklearn.metrics import pairwise_distances, r2_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from evolutionary_forest.model.weight_solver import solve_transformation_matrix
+from evolutionary_forest.model.weight_solver import (
+    solve_transformation_matrix,
+    compute_lambda_matrix,
+)
 
 
 class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
@@ -135,6 +138,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         random_seed=0,
         n_groups=1,
         reduced_dimension=None,
+        weighted_instance=False,
         **params
     ):
         self.n_neighbors = n_neighbors
@@ -155,6 +159,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
             )
 
         self.weights = []  # List to store transformation matrices for each group
+        self.weighted_instance = weighted_instance
 
     def fit(self, GP_X, y):
         # Determine if we need to subsample
@@ -192,8 +197,17 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
                 reduced_dimension = GP_X_group.shape[1]
             else:
                 reduced_dimension = self.reduced_dimension
+
+            if self.weighted_instance:
+                weights = compute_lambda_matrix(y_group)
+            else:
+                weights = None
+
             weight = solve_transformation_matrix(
-                GP_X_group, D_group, p=reduced_dimension
+                GP_X_group,
+                D_group,
+                weights=weights,
+                p=reduced_dimension,
             )
             # self.print_mse(D_group, GP_X_group, weight)
             self.weights.append(weight)
