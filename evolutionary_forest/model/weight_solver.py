@@ -2,7 +2,40 @@ import numpy as np
 from numpy.linalg import eig, lstsq
 
 
-def solve_transformation_matrix(phi_X, D, p=None, regularization=1e-5, verbose=False):
+def compute_lambda_matrix(y, epsilon=1e-5):
+    """
+    Computes the weight matrix lambda_{ij} = 1 / (|y_i - y_j| + epsilon)
+    for a given array of target values y.
+
+    Parameters:
+    ----------
+    y : np.ndarray
+        A 1D array of target values, of shape (n_samples,).
+    epsilon : float, optional
+        A small constant to prevent division by zero (default is 1e-5).
+
+    Returns:
+    -------
+    lambda_matrix : np.ndarray
+        A 2D array (n_samples, n_samples) where each element represents lambda_{ij}.
+    """
+
+    n = len(y)
+
+    # Create an empty (n, n) matrix to store lambda_{ij} values
+    lambda_matrix = np.zeros((n, n))
+
+    # Compute the absolute difference between each pair of target values
+    for i in range(n):
+        for j in range(n):
+            lambda_matrix[i, j] = 1 / (np.abs(y[i] - y[j]) + epsilon)
+
+    return lambda_matrix
+
+
+def solve_transformation_matrix(
+    phi_X, D, p=None, weights=None, regularization=1e-5, verbose=False
+):
     """
     Solves for the transformation matrix W that minimizes the loss ||D - D'||^2,
     where D' is the distance matrix in the transformed space defined by W.
@@ -15,6 +48,10 @@ def solve_transformation_matrix(phi_X, D, p=None, regularization=1e-5, verbose=F
         The original distance matrix based on labels, of shape (n_samples, n_samples).
     p : int, optional
         The desired dimensionality of the transformed space. If None, p = k.
+    weights : np.ndarray, optional
+        A weight matrix of shape (n_samples, n_samples) assigning a weight to each pair of instances.
+        These weights influence the contribution of each pair in the loss function.
+        If None, all pairs are equally weighted.
     regularization : float, optional
         Regularization parameter to stabilize the least squares solution.
     verbose : bool, optional
@@ -41,6 +78,18 @@ def solve_transformation_matrix(phi_X, D, p=None, regularization=1e-5, verbose=F
             "Desired dimensionality p cannot be greater than the feature dimension k."
         )
 
+    if weights is not None:
+        weights = np.asarray(weights)
+        if weights.shape != (n, n):
+            raise ValueError(
+                "Weights must be a matrix with shape (n_samples, n_samples)."
+            )
+        if verbose:
+            print("Weights matrix provided. Each pair will be weighted accordingly.")
+    else:
+        # If no weights provided, use ones
+        weights = np.ones((n, n))
+
     # Step 1: Construct matrix B and vector d
     # Each row of B corresponds to vec( (phi_i - phi_j)(phi_i - phi_j)^T )
     # and each element of d corresponds to D(i, j)
@@ -48,6 +97,7 @@ def solve_transformation_matrix(phi_X, D, p=None, regularization=1e-5, verbose=F
     # Initialize lists to store B rows and d elements
     B_rows = []
     d_elements = []
+    weight_factors = []
 
     if verbose:
         print("Constructing matrix B and vector d...")
@@ -58,13 +108,26 @@ def solve_transformation_matrix(phi_X, D, p=None, regularization=1e-5, verbose=F
             outer_product = np.outer(diff, diff).reshape(-1)
             B_rows.append(outer_product)
             d_elements.append(D[i, j])
+            # Retrieve the weight for the pair (i, j)
+            weight_factors.append(weights[i, j])
 
     B = np.array(B_rows)  # Shape: (n^2, k^2)
     d = np.array(d_elements)  # Shape: (n^2,)
+    weight_factors = np.array(weight_factors)  # Shape: (n^2,)
 
     if verbose:
         print(f"Matrix B shape: {B.shape}")
         print(f"Vector d shape: {d.shape}")
+
+    # Apply weights to B and d
+    if weights is not None and not np.all(weights == 1):
+        if verbose:
+            print("Applying weights to matrix B and vector d...")
+        # To apply weights in least squares, multiply both B and d by sqrt(weight)
+        # This scales the residuals appropriately
+        sqrt_weights = np.sqrt(weight_factors)
+        B = B * sqrt_weights[:, np.newaxis]  # Scale each row of B
+        d = d * sqrt_weights  # Scale each element of d
 
     # Step 2: Solve the least squares problem with regularization
     # m = (B^T B + reg * I)^(-1) B^T d
@@ -103,7 +166,8 @@ def solve_transformation_matrix(phi_X, D, p=None, regularization=1e-5, verbose=F
 
     # Select the top p eigenvalues and corresponding eigenvectors
     U_p = eigenvectors[:, :p]
-    Lambda_p = np.diag(np.sqrt(np.maximum(eigenvalues[:p], 0)))  # Ensure non-negative
+    # Ensure eigenvalues are non-negative before taking the square root
+    Lambda_p = np.diag(np.sqrt(np.maximum(eigenvalues[:p], 0)))
 
     # Compute W
     W = U_p @ Lambda_p
@@ -133,7 +197,9 @@ if __name__ == "__main__":
             D[i, j] = np.abs(y[i] - y[j])  # Example: binary labels distance
 
     # Solve for W with verbose output
-    W = solve_transformation_matrix(phi_X, D, p=2, verbose=True)
+    W = solve_transformation_matrix(
+        phi_X, D, p=2, weights=compute_lambda_matrix(y), verbose=True
+    )
 
     print("Transformation matrix W:")
     print(W)
