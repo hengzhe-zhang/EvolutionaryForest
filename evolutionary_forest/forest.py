@@ -2567,7 +2567,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.add_primitives_to_pset(pset)
 
         if self.remove_constant_features:
-            pset = remove_constant_variables(pset, x)
+            remove_constant_variables(pset, x)
 
         # add constant
         for constant in ["rand101", "pi", "e"]:
