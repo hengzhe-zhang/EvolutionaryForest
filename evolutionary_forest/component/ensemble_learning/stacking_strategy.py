@@ -52,14 +52,6 @@ class StackingStrategy:
             algorithm.ridge = RidgeCV(fit_intercept=False)
             algorithm.ridge.fit(predictions.T, y_data)
             algorithm.tree_weight = algorithm.ridge.coef_.flatten()
-        elif algorithm.second_layer == "RF-Routing":
-            predictions = algorithm.individual_prediction(X)
-            # fitting predicted values
-            algorithm.ridge = RandomForestClassifier(n_estimators=10)
-            best_arg = ((predictions - y_data) ** 2).argmin(axis=0)
-            algorithm.ridge.candidates = np.sort(np.unique(best_arg))
-            algorithm.ridge.fit(X, best_arg)
-            algorithm.tree_weight = None
         elif algorithm.second_layer == "TreeBaseline":
             base_line_score = np.mean(cross_val_score(DecisionTreeRegressor(), X, y))
             score = np.array(

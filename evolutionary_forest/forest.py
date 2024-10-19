@@ -124,6 +124,9 @@ from evolutionary_forest.component.ensemble_learning.utils import (
     EnsembleRegressor,
     EnsembleClassifier,
 )
+from evolutionary_forest.component.ensemble_selection.DSE import (
+    DynamicSelectionEnsemble,
+)
 from evolutionary_forest.component.environmental_selection import (
     NSGA2,
     EnvironmentalSelection,
@@ -256,6 +259,7 @@ from evolutionary_forest.model.SafeRidgeCV import (
 )
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
+from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.preprocess_utils import (
     NumericalFeature,
@@ -445,7 +449,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Experimental Parameters (Maybe deprecated in any version)
         diversity_search="None",  # Strategy to assign diversity objective
         bootstrap_training=False,  # Whether to use bootstrap samples for training
-        mean_model=False,  # Whether to use the mean model for predictions
+        meta_learner=None,  # Whether to use the mean model for predictions
         environmental_selection=None,  # Environmental selection method
         pre_selection=None,  # Pre-selection method
         eager_training=False,  # Whether to train models eagerly
@@ -596,7 +600,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.elitism = elitism
         self.score_function_controller(params, score_func)
         self.min_samples_leaf = min_samples_leaf
-        self.mean_model = mean_model
+        self.meta_learner = meta_learner
         self.base_learner = base_learner
         self.bootstrap_training = bootstrap_training
         self.semantic_diversity = semantic_diversity
@@ -3339,6 +3343,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Train the final model using lazy training
         self.final_model_lazy_training(self.hof, force_training=self.force_retrain)
 
+        if self.meta_learner == "DES":
+            return self.final_meta_learner.predict(X)
+
         predictions = []
         weight_list = []
 
@@ -3368,11 +3375,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 predicted = self.smooth_model.transform(predicted)
 
             if self.normalize:
-                # Un-scale predicted values if normalize flag is set
+                # Unscale predicted values if normalize flag is set
                 if len(predicted.shape) == 1:
                     predicted = predicted.reshape(-1, 1)
-                # predicted -= predicted.mean()
-                # predicted /= predicted.std()
                 predicted = self.y_scaler.inverse_transform(predicted)
                 if len(predicted.shape) == 2 and predicted.shape[1] == 1:
                     predicted = predicted.flatten()
@@ -3384,10 +3389,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 weight_list.append(
                     self.hof.ensemble_weight[individual_to_tuple(individual)]
                 )
+
             if len(weight_list) > 0 or return_std:
                 # need to store all predictions
                 predictions.append(predicted)
             else:
+                # save memory
                 if len(predictions) == 0:
                     predictions = [predicted]
                 else:
@@ -3400,13 +3407,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if isinstance(self.hof, MetaLearner):
             return self.hof.predict(predictions)
-        if self.second_layer == "RF-Routing":
-            self.ridge: RandomForestClassifier
-            proba = self.ridge.predict_proba(X)
-            final_prediction = (
-                np.array(predictions)[self.ridge.candidates].T * proba
-            ).sum(axis=1)
-        elif self.second_layer != "None" and self.second_layer != None:
+        if self.second_layer != "None" and self.second_layer != None:
             predictions = np.array(predictions).T
             final_prediction = predictions @ self.tree_weight
         elif len(weight_list) > 0:
@@ -3424,6 +3425,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if len(self.y_shape) == 2 and np.any(self.y_shape == 1):
             final_prediction = final_prediction.reshape(-1, 1)
         return final_prediction
+
+    def construct_meta_learner(self):
+        models = [
+            GPWrapper(ind, self.feature_generation, self.y_scaler) for ind in self.hof
+        ]
+        self.final_meta_learner = DynamicSelectionEnsemble(models)
+        self.final_meta_learner.fit(self.X, self.y)
 
     def weighted_ensemble_prediction(self, predictions, weight_list, return_std):
         predictions = np.array(predictions).T
@@ -4823,6 +4831,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.semantic_repair_target = self.y[id]
 
     def statistical_result_update(self, population, verbose):
+        if self.meta_learner == "DES":
+            self.construct_meta_learner()
+
         if self.gene_num == 1 and self.crossover_configuration.var_or:
             all_crossover = 0
             successful_crossover = 0
@@ -5568,7 +5579,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             None,
             "CAWPE",
             "Ridge-Prediction",
-            "RF-Routing",
         ]:
             all_ind = individuals
         elif self.second_layer in ["DiversityPrune", "TreeBaseline"]:
