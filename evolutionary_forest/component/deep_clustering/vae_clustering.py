@@ -335,7 +335,7 @@ if __name__ == "__main__":
     # Parameters for dataset
     n_samples = 10000
     n_clusters = 5
-    n_features = 5  # Extend to high dimensions
+    n_features = 3  # Extend to high dimensions
 
     # Generate the high-dimensional circular dataset using the previous function
     X, y = create_circle_dataset(
@@ -372,7 +372,7 @@ if __name__ == "__main__":
 
     # Define Agglomerative Clustering with cosine distance
     hierarchical_clustering = AgglomerativeClustering(
-        n_clusters=n_clusters, affinity="cosine", linkage="average"
+        n_clusters=n_clusters, affinity="cosine", linkage="complete"
     )
 
     # Fit the model on the test data

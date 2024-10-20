@@ -6,7 +6,7 @@ from sklearn.cluster import (
     KMeans,
 )
 
-from evolutionary_forest.model.cosine_kmeans import CosineKMeans
+from evolutionary_forest.model.cosine_kmeans import CosineKMeans, CosineKMedoids
 
 
 def visualize_kmeans_clustering_separately(
@@ -170,6 +170,8 @@ class CVTMAPElitesHOF(HallOfFame):
         #     clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans-Cosine":
             clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
+        elif self.clustering_method == "KMedoids-Cosine":
+            clustering = CosineKMedoids(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans":
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "Spectral":
