@@ -94,6 +94,18 @@ class CosineKMeans(BaseEstimator, ClusterMixin):
         return self.labels_
 
 
+def select_medoid(cluster_semantics):
+    # Compute pairwise cosine similarity within the cluster
+    similarity_matrix = compute_cosine_similarity_matrix(
+        cluster_semantics, cluster_semantics
+    )
+
+    # The medoid is the point with the maximum sum of similarities (equivalent to minimizing distance)
+    medoid_idx = np.argmax(np.sum(similarity_matrix, axis=1))
+
+    return medoid_idx
+
+
 class CosineKMedoids(BaseEstimator, ClusterMixin):
     def __init__(self, n_clusters=8, max_iter=300, tol=1e-4, random_state=None):
         self.n_clusters = n_clusters

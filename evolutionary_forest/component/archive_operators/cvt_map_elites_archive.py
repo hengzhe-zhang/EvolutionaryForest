@@ -6,7 +6,11 @@ from sklearn.cluster import (
     KMeans,
 )
 
-from evolutionary_forest.model.cosine_kmeans import CosineKMeans, CosineKMedoids
+from evolutionary_forest.model.cosine_kmeans import (
+    CosineKMeans,
+    CosineKMedoids,
+    select_medoid,
+)
 
 
 def visualize_kmeans_clustering_separately(
@@ -170,7 +174,10 @@ class CVTMAPElitesHOF(HallOfFame):
         #     clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans-Cosine":
             clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
-        elif self.clustering_method == "KMedoids-Cosine":
+        elif (
+            self.clustering_method == "KMedoids-Cosine"
+            or self.clustering_method == "KMedoids-Cosine+"
+        ):
             clustering = CosineKMedoids(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans":
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
@@ -189,10 +196,20 @@ class CVTMAPElitesHOF(HallOfFame):
             cluster_individuals[label].append(ind)
 
         new_hof = []
-        for cluster_inds in cluster_individuals.values():
+        for cluster_idx, cluster_inds in cluster_individuals.items():
             if cluster_inds:
-                best_individual = max(cluster_inds, key=lambda ind: ind.fitness.wvalues)
-                new_hof.append(best_individual)
+                if self.clustering_method == "KMedoids-Cosine+":
+                    # Get the corresponding semantics for this cluster
+                    cluster_semantics = semantics[labels == cluster_idx]
+
+                    # Find the medoid by minimizing the sum of distances within the cluster
+                    medoid_idx = select_medoid(cluster_semantics)
+                    new_hof.append(cluster_inds[medoid_idx])
+                else:
+                    best_individual = max(
+                        cluster_inds, key=lambda ind: ind.fitness.wvalues
+                    )
+                    new_hof.append(best_individual)
 
         self.clear()
         super().update(new_hof)
