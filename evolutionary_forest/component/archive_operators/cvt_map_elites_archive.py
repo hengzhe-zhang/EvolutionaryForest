@@ -5,6 +5,9 @@ from sklearn.cluster import (
     SpectralClustering,
     KMeans,
 )
+from sklearn.decomposition import PCA, KernelPCA
+from sklearn.cluster import KMeans
+from sklearn.pipeline import Pipeline
 
 from evolutionary_forest.model.cosine_kmeans import (
     CosineKMeans,
@@ -181,6 +184,16 @@ class CVTMAPElitesHOF(HallOfFame):
             )
             self.maxsize = determine_optimal_k(semantics, k_values_linear, method)
             clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
+        elif self.clustering_method == "PCA-KMeans-Cosine":
+            clustering = Pipeline(
+                [
+                    (
+                        "pca",
+                        KernelPCA(n_components=5, kernel="cosine", random_state=0),
+                    ),
+                    ("kmeans", CosineKMeans(n_clusters=self.maxsize, random_state=0)),
+                ]
+            )
         elif self.clustering_method == "KMeans-Cosine":
             clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
         elif (
