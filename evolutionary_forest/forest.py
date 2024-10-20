@@ -72,6 +72,9 @@ from evolutionary_forest.component.archive_operators.important_features import (
 from evolutionary_forest.component.archive_operators.meta_learner.meta_base import (
     MetaLearner,
 )
+from evolutionary_forest.component.archive_operators.shapley_hof import (
+    ShapleyPrunedHallOfFame,
+)
 from evolutionary_forest.component.base_learner.in_context_learning import (
     InContextLearnerRegressor,
 )
@@ -2796,6 +2799,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.ensemble_size,
                 similar=lambda a, b: np.all(a.predicted_values == b.predicted_values),
             )
+        elif self.ensemble_selection == "ShapelyHOF":
+            self.hof = ShapleyPrunedHallOfFame(self.ensemble_size, y=self.y)
         elif self.ensemble_selection == "GreedyHOF":
             self.hof = GreedyHallOfFame(self.ensemble_size, y=self.y, **self.param)
         elif self.ensemble_selection == "GridMAPElitesHOF":
