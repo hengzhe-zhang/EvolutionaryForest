@@ -10,6 +10,7 @@ from evolutionary_forest.model.cosine_kmeans import (
     CosineKMeans,
     CosineKMedoids,
     select_medoid,
+    determine_optimal_k,
 )
 
 
@@ -172,6 +173,14 @@ class CVTMAPElitesHOF(HallOfFame):
         # elif self.clustering_method == "KMeans-Cosine":
         #     semantics = normalize(semantics, norm="l2")
         #     clustering = KMeans(n_clusters=self.maxsize, random_state=0)
+        elif self.clustering_method.startswith("KMeans-Cosine-"):
+            method = self.clustering_method.split("-")[-1]
+            method = method.lower()
+            k_values_linear = (
+                list(range(3, 11)) + list(range(10, 51, 5)) + list(range(50, 101, 10))
+            )
+            self.maxsize = determine_optimal_k(semantics, k_values_linear, method)
+            clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "KMeans-Cosine":
             clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
         elif (

@@ -5,6 +5,45 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 from numba import njit
 
+from sklearn.metrics import (
+    silhouette_score,
+    davies_bouldin_score,
+    calinski_harabasz_score,
+)
+from sklearn.cluster import KMeans
+import numpy as np
+
+
+def determine_optimal_k(X, k_values, method="silhouette"):
+    scores = []
+
+    for k in k_values:
+        # Initialize the KMeans model
+        kmeans = CosineKMeans(n_clusters=k, random_state=0)
+        labels = kmeans.fit_predict(X)
+
+        if method == "silhouette":
+            score = silhouette_score(X, labels)
+        elif method == "davies":
+            score = davies_bouldin_score(X, labels)
+        elif method == "calinski":
+            score = calinski_harabasz_score(X, labels)
+        else:
+            raise ValueError(
+                "Invalid method. Choose from 'silhouette', 'davies-bouldin', or 'calinski-harabasz'."
+            )
+
+        scores.append(score)
+
+    # For Silhouette and Calinski-Harabasz, higher is better, so we find max score
+    # For Davies-Bouldin, lower is better, so we find min score
+    if method in ["silhouette", "calinski-harabasz"]:
+        optimal_k = k_values[np.argmax(scores)]
+    else:
+        optimal_k = k_values[np.argmin(scores)]
+
+    return optimal_k
+
 
 @njit
 def cosine_similarity(a, b):
