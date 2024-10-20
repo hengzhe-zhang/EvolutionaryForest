@@ -166,6 +166,10 @@ class CVTMAPElitesHOF(HallOfFame):
             symmetric_semantics = -semantics
             semantics = np.concatenate([semantics, symmetric_semantics], axis=0)
 
+        if self.clustering_method.startswith("PCA"):
+            pca = KernelPCA(n_components=10, kernel="cosine", random_state=0)
+            semantics = pca.fit_transform(semantics)
+
         if self.clustering_method.startswith("Agglomerative"):
             _, metric, linkage = self.clustering_method.split("-")
             metric = metric.lower()
@@ -176,7 +180,9 @@ class CVTMAPElitesHOF(HallOfFame):
         # elif self.clustering_method == "KMeans-Cosine":
         #     semantics = normalize(semantics, norm="l2")
         #     clustering = KMeans(n_clusters=self.maxsize, random_state=0)
-        elif self.clustering_method.startswith("KMeans-Cosine-"):
+        elif self.clustering_method.startswith(
+            "KMeans-Cosine-"
+        ) or self.clustering_method.startswith("PCA-KMeans-Cosine-"):
             method = self.clustering_method.split("-")[-1]
             method = method.lower()
             k_values_linear = (

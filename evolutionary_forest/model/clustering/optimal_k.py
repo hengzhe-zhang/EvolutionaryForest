@@ -17,6 +17,8 @@ def determine_optimal_k(X, k_values, method="silhouette"):
         return optimal_k
 
     for k in k_values:
+        if k >= len(X):
+            continue
         # Initialize the KMeans model
         kmeans = CosineKMeans(n_clusters=k, random_state=0)
         labels = kmeans.fit_predict(X)
