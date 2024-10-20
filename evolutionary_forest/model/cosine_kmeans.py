@@ -1,51 +1,9 @@
 import numpy as np
+from numba import njit
 from sklearn.base import BaseEstimator, ClusterMixin
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
-from numba import njit
-
-from sklearn.metrics import (
-    silhouette_score,
-    davies_bouldin_score,
-    calinski_harabasz_score,
-)
-from sklearn.cluster import KMeans
-import numpy as np
-
-
-def determine_optimal_k(X, k_values, method="silhouette"):
-    scores = []
-
-    for k in k_values:
-        # Initialize the KMeans model
-        kmeans = CosineKMeans(n_clusters=k, random_state=0)
-        labels = kmeans.fit_predict(X)
-
-        norms = np.linalg.norm(X, axis=1, keepdims=True)
-        norms[norms == 0] = 1
-        X_normalized = X / norms
-
-        if method == "silhouette":
-            score = silhouette_score(X_normalized, labels)
-        elif method == "davies":
-            score = davies_bouldin_score(X_normalized, labels)
-        elif method == "calinski":
-            score = calinski_harabasz_score(X_normalized, labels)
-        else:
-            raise ValueError(
-                "Invalid method. Choose from 'silhouette', 'davies-bouldin', or 'calinski-harabasz'."
-            )
-
-        scores.append(score)
-
-    # For Silhouette and Calinski-Harabasz, higher is better, so we find max score
-    # For Davies-Bouldin, lower is better, so we find min score
-    if method in ["silhouette", "calinski-harabasz"]:
-        optimal_k = k_values[np.argmax(scores)]
-    else:
-        optimal_k = k_values[np.argmin(scores)]
-    return optimal_k
 
 
 @njit

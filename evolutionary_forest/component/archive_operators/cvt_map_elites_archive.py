@@ -10,8 +10,8 @@ from evolutionary_forest.model.cosine_kmeans import (
     CosineKMeans,
     CosineKMedoids,
     select_medoid,
-    determine_optimal_k,
 )
+from evolutionary_forest.model.clustering.optimal_k import determine_optimal_k
 
 
 def visualize_kmeans_clustering_separately(
