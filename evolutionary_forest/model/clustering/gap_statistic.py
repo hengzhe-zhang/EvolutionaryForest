@@ -1,9 +1,10 @@
+from sklearn.preprocessing import normalize
+from functools import lru_cache
+
 import numpy as np
-from sklearn.cluster import KMeans
 from sklearn.datasets import load_iris
 from sklearn.metrics import pairwise_distances
 from sklearn.preprocessing import MinMaxScaler
-from functools import lru_cache
 
 from evolutionary_forest.model.cosine_kmeans import CosineKMeans
 
@@ -51,9 +52,15 @@ def cached_reference_wk(B, k_values, n_samples, n_features):
         X_ref = np.random.rand(
             n_samples, n_features
         )  # Generate a uniform reference dataset
+        X_ref_normalized = normalize(
+            X_ref, norm="l2"
+        )  # Normalize to unit length for cosine distance
+
         for i, k in enumerate(k_values):
-            kmeans = CosineKMeans(n_clusters=k).fit(X_ref)
-            Wk_ref[b, i] = calculate_wk(X_ref, kmeans.labels_, kmeans.cluster_centers_)
+            kmeans = CosineKMeans(n_clusters=k).fit(X_ref_normalized)
+            Wk_ref[b, i] = calculate_wk(
+                X_ref_normalized, kmeans.labels_, kmeans.cluster_centers_
+            )
 
     return Wk_ref
 
@@ -71,14 +78,17 @@ def gap_statistic(X, k_values, B=10):
     - optimal_k: The optimal number of clusters
     """
     n_samples, n_features = X.shape
-    scaler = MinMaxScaler()
-    X_scaled = scaler.fit_transform(X)
+
+    # Normalize the data to unit length for cosine distance-based clustering
+    X_normalized = normalize(X, norm="l2")
 
     # Step 1: Calculate Wk for real data for different values of k
     Wk_real = []
     for k in k_values:
-        kmeans = CosineKMeans(n_clusters=k).fit(X_scaled)
-        Wk_real.append(calculate_wk(X_scaled, kmeans.labels_, kmeans.cluster_centers_))
+        kmeans = CosineKMeans(n_clusters=k).fit(X_normalized)
+        Wk_real.append(
+            calculate_wk(X_normalized, kmeans.labels_, kmeans.cluster_centers_)
+        )
 
     # Step 2: Retrieve or calculate the cached Wk values for the reference datasets
     Wk_ref = cached_reference_wk(B, tuple(k_values), n_samples, n_features)
