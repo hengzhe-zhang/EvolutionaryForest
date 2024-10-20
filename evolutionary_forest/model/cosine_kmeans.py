@@ -22,12 +22,16 @@ def determine_optimal_k(X, k_values, method="silhouette"):
         kmeans = CosineKMeans(n_clusters=k, random_state=0)
         labels = kmeans.fit_predict(X)
 
+        norms = np.linalg.norm(X, axis=1, keepdims=True)
+        norms[norms == 0] = 1
+        X_normalized = X / norms
+
         if method == "silhouette":
-            score = silhouette_score(X, labels)
+            score = silhouette_score(X_normalized, labels)
         elif method == "davies":
-            score = davies_bouldin_score(X, labels)
+            score = davies_bouldin_score(X_normalized, labels)
         elif method == "calinski":
-            score = calinski_harabasz_score(X, labels)
+            score = calinski_harabasz_score(X_normalized, labels)
         else:
             raise ValueError(
                 "Invalid method. Choose from 'silhouette', 'davies-bouldin', or 'calinski-harabasz'."
@@ -41,7 +45,6 @@ def determine_optimal_k(X, k_values, method="silhouette"):
         optimal_k = k_values[np.argmax(scores)]
     else:
         optimal_k = k_values[np.argmin(scores)]
-
     return optimal_k
 
 
