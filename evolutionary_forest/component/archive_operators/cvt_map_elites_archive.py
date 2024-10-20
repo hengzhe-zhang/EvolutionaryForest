@@ -9,6 +9,9 @@ from sklearn.decomposition import PCA, KernelPCA
 from sklearn.cluster import KMeans
 from sklearn.pipeline import Pipeline
 
+from evolutionary_forest.model.clustering.shapley_pruning import (
+    prune_models_based_on_shapley_for_regression,
+)
 from evolutionary_forest.model.cosine_kmeans import (
     CosineKMeans,
     CosineKMedoids,
@@ -190,17 +193,10 @@ class CVTMAPElitesHOF(HallOfFame):
             )
             self.maxsize = determine_optimal_k(semantics, k_values_linear, method)
             clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
-        elif self.clustering_method == "PCA-KMeans-Cosine":
-            clustering = Pipeline(
-                [
-                    (
-                        "pca",
-                        KernelPCA(n_components=5, kernel="cosine", random_state=0),
-                    ),
-                    ("kmeans", CosineKMeans(n_clusters=self.maxsize, random_state=0)),
-                ]
-            )
-        elif self.clustering_method == "KMeans-Cosine":
+        elif (
+            self.clustering_method == "KMeans-Cosine"
+            or self.clustering_method == "Shapley-KMeans-Cosine"
+        ):
             clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
         elif (
             self.clustering_method == "KMedoids-Cosine"
@@ -238,6 +234,12 @@ class CVTMAPElitesHOF(HallOfFame):
                         cluster_inds, key=lambda ind: ind.fitness.wvalues
                     )
                     new_hof.append(best_individual)
+
+        if self.clustering_method == "Shapley-KMeans-Cosine":
+            index = prune_models_based_on_shapley_for_regression(
+                np.array([ind.predicted_values for ind in new_hof]), self.y
+            )
+            new_hof = [new_hof[i] for i in index]
 
         self.clear()
         super().update(new_hof)
