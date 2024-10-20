@@ -235,7 +235,7 @@ class CVTMAPElitesHOF(HallOfFame):
                     )
                     new_hof.append(best_individual)
 
-        if self.clustering_method == "Shapley-KMeans-Cosine":
+        if self.clustering_method.startswith("Shapley"):
             index = prune_models_based_on_shapley_for_regression(
                 np.array([ind.predicted_values for ind in new_hof]), self.y
             )
