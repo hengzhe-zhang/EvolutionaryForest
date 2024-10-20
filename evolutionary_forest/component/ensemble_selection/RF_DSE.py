@@ -32,7 +32,7 @@ class RFRoutingEnsemble(BaseEstimator, RegressorMixin):
         predictions = np.array([est.predict(X) for est in self.base_estimators_])
         proba = self.router_.predict_proba(X)
         relevant_proba = proba[:, self.candidates_]
-        selected_predictions = predictions[self.candidates_]
+        selected_predictions = predictions[self.candidates_, :]
         final_prediction = np.sum(relevant_proba * selected_predictions.T, axis=1)
         return final_prediction
 

@@ -127,6 +127,7 @@ from evolutionary_forest.component.ensemble_learning.utils import (
 from evolutionary_forest.component.ensemble_selection.DSE import (
     DynamicSelectionEnsemble,
 )
+from evolutionary_forest.component.ensemble_selection.RF_DSE import RFRoutingEnsemble
 from evolutionary_forest.component.environmental_selection import (
     NSGA2,
     EnvironmentalSelection,
@@ -3343,7 +3344,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Train the final model using lazy training
         self.final_model_lazy_training(self.hof, force_training=self.force_retrain)
 
-        if self.meta_learner == "DES":
+        if self.meta_learner is not None:
             return self.final_meta_learner.predict(X)
 
         predictions = []
@@ -3430,7 +3431,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         models = [
             GPWrapper(ind, self.feature_generation, self.y_scaler) for ind in self.hof
         ]
-        self.final_meta_learner = DynamicSelectionEnsemble(models)
+        if self.meta_learner == "DES":
+            self.final_meta_learner = DynamicSelectionEnsemble(models)
+        elif self.meta_learner == "RF-DES":
+            self.final_meta_learner = RFRoutingEnsemble(models)
         self.final_meta_learner.fit(self.X, self.y)
 
     def weighted_ensemble_prediction(self, predictions, weight_list, return_std):
@@ -4831,7 +4835,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.semantic_repair_target = self.y[id]
 
     def statistical_result_update(self, population, verbose):
-        if self.meta_learner == "DES":
+        if self.meta_learner is not None:
             self.construct_meta_learner()
 
         if self.gene_num == 1 and self.crossover_configuration.var_or:
