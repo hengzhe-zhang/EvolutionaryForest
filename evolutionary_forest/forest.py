@@ -204,6 +204,7 @@ from evolutionary_forest.component.selection import (
     selLexicaseTournament,
     selLexicaseKNN,
     hybrid_lexicase_dcd,
+    selHOFRandom,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2351,6 +2352,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicaseDCD)
         elif self.select == "LexicaseTournament":
             toolbox.register("select", selLexicaseTournament)
+        elif self.select == "HOFRandom":
+            toolbox.register("select", selHOFRandom, hof=self.hof)
         elif self.select.startswith("KNN"):
             base_operator, neighbor, strategy = self.select.split("-")[1:]
             neighbor = int(neighbor)

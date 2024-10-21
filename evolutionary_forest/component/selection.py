@@ -1280,6 +1280,10 @@ def selLexicaseKNN(
     return chosen
 
 
+def selHOFRandom(individuals, k, hof):
+    return random.sample(hof, k)
+
+
 def selLexicaseTournament(individuals, k):
     # First lexicase, then tournament with a size of 2
     individuals_chosen = selAutomaticEpsilonLexicaseFast(individuals, k * 2)
