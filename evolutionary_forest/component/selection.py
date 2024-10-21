@@ -1281,7 +1281,7 @@ def selLexicaseKNN(
 
 
 def selHOFRandom(individuals, k, hof):
-    return random.sample(hof, k)
+    return random.sample(list(hof), k)
 
 
 def selLexicaseTournament(individuals, k):
