@@ -4227,14 +4227,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.statistical_result_update(population, verbose)
             self.callback()
         if self.early_stop > 0:
-            assert number_of_evaluations == (self.current_gen + 1) * self.n_pop
+            required_evaluations = (self.current_gen + 1) * self.n_pop
+            assert number_of_evaluations == required_evaluations
         else:
             assert number_of_evaluations == total_evaluations
 
-        if self.early_stop > 0:
-            print("Final Generation", self.current_gen)
         if verbose:
+            if self.early_stop > 0:
+                print("Final Generation", self.current_gen)
             print("Final Ensemble Size", len(self.hof))
+
         if self.n_process > 1:
             self.pool.close()
         if self.force_sr_tree:

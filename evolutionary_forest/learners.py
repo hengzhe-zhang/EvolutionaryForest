@@ -1,10 +1,11 @@
 from sklearn.datasets import load_diabetes
+from sklearn.model_selection import train_test_split
 
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
 class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
-    def __init__(self, **params):
+    def __init__(self, early_stop=-1, **params):
         parameter_dict = dict(
             n_gen=100,
             n_pop=200,
@@ -29,6 +30,8 @@ class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
             environmental_selection=None,
             record_training_data=False,
             constant_type="Float",
+            # early stopping
+            early_stop=early_stop,
         )
         parameter_dict.update(params)
         super().__init__(**parameter_dict)
@@ -36,5 +39,10 @@ class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
 
 if __name__ == "__main__":
     X, y = load_diabetes(return_X_y=True)
-    est = RidgeEvolutionaryFeatureLearner(verbose=True)
-    est.fit(X, y)
+    train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.2)
+    est = RidgeEvolutionaryFeatureLearner(early_stop=5, verbose=True)
+    est.fit(train_X, train_y)
+    print(est.score(test_X, test_y))
+    est = RidgeEvolutionaryFeatureLearner(early_stop=10, verbose=True)
+    est.fit(train_X, train_y)
+    print(est.score(test_X, test_y))
