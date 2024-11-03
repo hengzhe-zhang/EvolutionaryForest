@@ -7,7 +7,11 @@ def get_tree_size(gp: PrimitiveTree):
         [
             node
             for node in gp
-            if not isinstance(node, Terminal)
-            or not isinstance(node.value, TransformerMixin)
+            if (
+                not (
+                    isinstance(node, Terminal)
+                    and isinstance(node.value, TransformerMixin)
+                )
+            )
         ]
     )
