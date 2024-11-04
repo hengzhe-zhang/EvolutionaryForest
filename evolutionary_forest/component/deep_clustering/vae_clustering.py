@@ -115,7 +115,7 @@ class DeepClustering(BaseEstimator, ClusterMixin):
                 f"Pretrain Epoch {epoch + 1}/{self.pretrain_epochs}, VAE Loss: {epoch_loss / len(dataloader):.4f}"
             )
 
-    def fit(self, X, y=None):
+    def fit(self, X, y=None, continue_training=False):
         # Preprocess data
         X_scaled = self.scaler.fit_transform(X)
         X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
@@ -123,33 +123,40 @@ class DeepClustering(BaseEstimator, ClusterMixin):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
         input_dim = X.shape[1]
-        self.model = VAE(input_dim, self.latent_dim).to(self.device)
 
-        # Optimizer for VAE
-        optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+        # Initialize or reuse model and optimizer
+        if not continue_training or not hasattr(self, "model"):
+            self.model = VAE(input_dim, self.latent_dim).to(self.device)
 
-        # Step 1: Pre-train the VAE
-        self.pretrain_vae(dataloader, optimizer)
+            # Optimizer for VAE
+            optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
 
-        # Step 2: Initialize cluster centers with K-means
-        print("Initializing cluster centers using K-means...")
-        self.model.eval()
-        latent_all = []
-        with torch.no_grad():
-            for batch in DataLoader(dataset, batch_size=self.batch_size):
-                batch_x = batch[0].to(self.device)
-                _, mu, logvar = self.model(batch_x)
-                latent_all.append(mu.cpu())  # Use mean (mu) as latent representation
-        latent_all = torch.cat(latent_all, dim=0)
+        # Pretrain VAE if not in continuous training mode
+        if not continue_training:
+            # Step 1: Pre-train the VAE
+            self.pretrain_vae(dataloader, optimizer)
 
-        # Perform K-means to initialize cluster centers
-        kmeans = KMeans(n_clusters=self.n_clusters, n_init=20, random_state=42)
-        kmeans.fit(latent_all.numpy())
-        self.cluster_centers = nn.Parameter(
-            torch.tensor(
-                kmeans.cluster_centers_, dtype=torch.float32, device=self.device
+            # Step 2: Initialize cluster centers with K-means
+            print("Initializing cluster centers using K-means...")
+            self.model.eval()
+            latent_all = []
+            with torch.no_grad():
+                for batch in DataLoader(dataset, batch_size=self.batch_size):
+                    batch_x = batch[0].to(self.device)
+                    _, mu, logvar = self.model(batch_x)
+                    latent_all.append(
+                        mu.cpu()
+                    )  # Use mean (mu) as latent representation
+            latent_all = torch.cat(latent_all, dim=0)
+
+            # Perform K-means to initialize cluster centers
+            kmeans = KMeans(n_clusters=self.n_clusters, n_init=20, random_state=42)
+            kmeans.fit(latent_all.numpy())
+            self.cluster_centers = nn.Parameter(
+                torch.tensor(
+                    kmeans.cluster_centers_, dtype=torch.float32, device=self.device
+                )
             )
-        )
 
         # Step 3: Jointly train the VAE and clustering objective with regularization and early stopping based on training loss
         optimizer = optim.Adam(
