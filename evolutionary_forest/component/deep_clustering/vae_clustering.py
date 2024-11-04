@@ -4,18 +4,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from sklearn.base import BaseEstimator, ClusterMixin
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.metrics import normalized_mutual_info_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import normalize
 from torch.utils.data import DataLoader, TensorDataset
-import numpy as np
-from sklearn.cluster import KMeans, AgglomerativeClustering
-from sklearn.metrics import normalized_mutual_info_score
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import normalize
-import matplotlib.pyplot as plt
 
 
 class VAE(nn.Module):
@@ -395,7 +389,7 @@ if __name__ == "__main__":
 
     # Define deep clustering
     deep_clustering = DeepClustering(
-        n_clusters=n_clusters, latent_dim=10, epochs=50, lr=1e-3, lambda_=0.001
+        n_clusters=n_clusters, latent_dim=10, epochs=50, lr=1e-2, lambda_=0.001
     )
 
     # Fit the deep clustering model on training data
