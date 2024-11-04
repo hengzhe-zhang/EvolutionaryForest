@@ -124,15 +124,14 @@ class DeepClustering(BaseEstimator, ClusterMixin):
 
         input_dim = X.shape[1]
 
-        # Initialize or reuse model and optimizer
-        if not continue_training or not hasattr(self, "model"):
+        # Check if model has been fitted or initialized before
+        if not hasattr(self, "model") or not hasattr(self, "cluster_centers"):
+            print("Training from scratch...")
             self.model = VAE(input_dim, self.latent_dim).to(self.device)
 
             # Optimizer for VAE
             optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
 
-        # Pretrain VAE if not in continuous training mode
-        if not continue_training:
             # Step 1: Pre-train the VAE
             self.pretrain_vae(dataloader, optimizer)
 
@@ -157,6 +156,8 @@ class DeepClustering(BaseEstimator, ClusterMixin):
                     kmeans.cluster_centers_, dtype=torch.float32, device=self.device
                 )
             )
+        else:
+            print("Continuing training with existing model...")
 
         # Step 3: Jointly train the VAE and clustering objective with regularization and early stopping based on training loss
         optimizer = optim.Adam(
@@ -334,7 +335,7 @@ def visualize_clusters_2d(X, labels, title="Cluster Visualization"):
 
 if __name__ == "__main__":
     # Parameters for dataset
-    n_samples = 10000
+    n_samples = 1000
     n_clusters = 5
     n_features = 3  # Extend to high dimensions
 
@@ -400,6 +401,7 @@ if __name__ == "__main__":
     )
 
     # Fit the deep clustering model on training data
+    deep_clustering.fit(X_train)
     deep_clustering.fit(X_train)
 
     # Predict cluster labels on test data

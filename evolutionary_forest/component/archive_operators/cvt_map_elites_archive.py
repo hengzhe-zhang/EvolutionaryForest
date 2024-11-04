@@ -3,12 +3,11 @@ from deap.tools import HallOfFame, selBest
 from sklearn.cluster import (
     AgglomerativeClustering,
     SpectralClustering,
-    KMeans,
 )
-from sklearn.decomposition import PCA, KernelPCA
 from sklearn.cluster import KMeans
-from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
+from evolutionary_forest.component.deep_clustering.vae_clustering import DeepClustering
 from evolutionary_forest.model.clustering.shapley_pruning import (
     prune_models_based_on_shapley_for_regression,
 )
@@ -17,7 +16,6 @@ from evolutionary_forest.model.cosine_kmeans import (
     CosineKMedoids,
     select_medoid,
 )
-from evolutionary_forest.model.clustering.optimal_k import determine_optimal_k
 
 
 def visualize_kmeans_clustering_separately(
@@ -138,6 +136,38 @@ class CVTMAPElitesHOF(HallOfFame):
         self.y = y
         assert isinstance(self.y, np.ndarray)
 
+        if self.clustering_method.startswith("Agglomerative"):
+            _, metric, linkage = self.clustering_method.split("-")
+            metric = metric.lower()
+            linkage = linkage.lower()
+            clustering = AgglomerativeClustering(
+                n_clusters=self.maxsize, metric=metric, linkage=linkage
+            )
+        elif (
+            self.clustering_method == "KMeans-Cosine"
+            or self.clustering_method == "Shapley-KMeans-Cosine"
+        ):
+            clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
+        elif (
+            self.clustering_method == "KMedoids-Cosine"
+            or self.clustering_method == "KMedoids-Cosine+"
+        ):
+            clustering = CosineKMedoids(n_clusters=self.maxsize, random_state=0)
+        elif self.clustering_method == "KMeans":
+            clustering = KMeans(n_clusters=self.maxsize, random_state=0)
+        elif self.clustering_method == "DeepClustering":
+            clustering = DeepClustering(
+                n_clusters=self.maxsize, epochs=100, lr=1e-2, lambda_=0.001
+            )
+        elif self.clustering_method == "Spectral":
+            clustering = SpectralClustering(
+                n_clusters=self.maxsize, affinity="nearest_neighbors"
+            )
+        else:
+            raise ValueError("Unsupported clustering method")
+
+        self.clustering = clustering
+
     def update(self, population):
         if self.map_elites_hof_mode == "Independent":
             best_candidate = selBest(
@@ -169,50 +199,12 @@ class CVTMAPElitesHOF(HallOfFame):
             symmetric_semantics = -semantics
             semantics = np.concatenate([semantics, symmetric_semantics], axis=0)
 
-        if self.clustering_method.startswith("PCA"):
-            pca = KernelPCA(n_components=10, kernel="cosine", random_state=0)
-            semantics = pca.fit_transform(semantics)
-
-        if self.clustering_method.startswith("Agglomerative"):
-            _, metric, linkage = self.clustering_method.split("-")
-            metric = metric.lower()
-            linkage = linkage.lower()
-            clustering = AgglomerativeClustering(
-                n_clusters=self.maxsize, metric=metric, linkage=linkage
-            )
-        # elif self.clustering_method == "KMeans-Cosine":
-        #     semantics = normalize(semantics, norm="l2")
-        #     clustering = KMeans(n_clusters=self.maxsize, random_state=0)
-        elif self.clustering_method.startswith(
-            "KMeans-Cosine-"
-        ) or self.clustering_method.startswith("PCA-KMeans-Cosine-"):
-            method = self.clustering_method.split("-")[-1]
-            method = method.lower()
-            k_values_linear = (
-                list(range(3, 11)) + list(range(10, 51, 5)) + list(range(50, 101, 10))
-            )
-            self.maxsize = determine_optimal_k(semantics, k_values_linear, method)
-            clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
-        elif (
-            self.clustering_method == "KMeans-Cosine"
-            or self.clustering_method == "Shapley-KMeans-Cosine"
-        ):
-            clustering = CosineKMeans(n_clusters=self.maxsize, random_state=0)
-        elif (
-            self.clustering_method == "KMedoids-Cosine"
-            or self.clustering_method == "KMedoids-Cosine+"
-        ):
-            clustering = CosineKMedoids(n_clusters=self.maxsize, random_state=0)
-        elif self.clustering_method == "KMeans":
-            clustering = KMeans(n_clusters=self.maxsize, random_state=0)
-        elif self.clustering_method == "Spectral":
-            clustering = SpectralClustering(
-                n_clusters=self.maxsize, affinity="nearest_neighbors"
-            )
+        if isinstance(self.clustering, DeepClustering):
+            semantics = StandardScaler().fit_transform(semantics)
+            self.clustering.fit(semantics)
+            labels = self.clustering.predict(semantics)
         else:
-            raise ValueError("Unsupported clustering method")
-
-        labels = clustering.fit_predict(semantics)
+            labels = self.clustering.fit_predict(semantics)
 
         cluster_individuals = {i: [] for i in range(self.maxsize)}
         original_length = len(best_candidate)
