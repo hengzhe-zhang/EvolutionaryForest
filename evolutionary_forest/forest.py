@@ -3355,7 +3355,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Train the final model using lazy training
         self.final_model_lazy_training(self.hof, force_training=self.force_retrain)
 
-        if self.meta_learner is not None:
+        if self.meta_learner is not None and self.meta_learner != "DeepDES":
             return self.final_meta_learner.predict(X)
 
         predictions = []
@@ -3390,7 +3390,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # Unscale predicted values if normalize flag is set
                 if len(predicted.shape) == 1:
                     predicted = predicted.reshape(-1, 1)
-                predicted = self.y_scaler.inverse_transform(predicted)
+
+                if self.meta_learner is not None:
+                    predicted = predicted
+                else:
+                    predicted = self.y_scaler.inverse_transform(predicted)
+
                 if len(predicted.shape) == 2 and predicted.shape[1] == 1:
                     predicted = predicted.flatten()
             if (
@@ -3402,7 +3407,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.hof.ensemble_weight[individual_to_tuple(individual)]
                 )
 
-            if len(weight_list) > 0 or return_std:
+            if len(weight_list) > 0 or return_std or self.meta_learner is not None:
                 # need to store all predictions
                 predictions.append(predicted)
             else:
@@ -3419,7 +3424,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if isinstance(self.hof, MetaLearner):
             return self.hof.predict(predictions)
-        if self.second_layer != "None" and self.second_layer != None:
+        if self.meta_learner is not None:
+            if isinstance(self.final_meta_learner, DESMetaRegressor):
+                final_prediction = self.final_meta_learner.predict(
+                    X, np.array(predictions).T
+                )
+                final_prediction = self.y_scaler.inverse_transform(
+                    final_prediction.reshape(-1, 1)
+                ).flatten()
+            else:
+                raise Exception
+        elif self.second_layer != "None" and self.second_layer != None:
             predictions = np.array(predictions).T
             final_prediction = predictions @ self.tree_weight
         elif len(weight_list) > 0:
@@ -3450,7 +3465,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.final_meta_learner = DESMetaRegressor(
                 verbose=False,
             )
-        self.final_meta_learner.fit(self.X, self.y)
+
+        if self.meta_learner == "DeepDES":
+            cross_val_predict = np.array([ind.predicted_values for ind in self.hof]).T
+            self.final_meta_learner.fit(self.X, cross_val_predict, self.y)
+        else:
+            self.final_meta_learner.fit(self.X, self.y)
 
     def weighted_ensemble_prediction(self, predictions, weight_list, return_std):
         predictions = np.array(predictions).T
