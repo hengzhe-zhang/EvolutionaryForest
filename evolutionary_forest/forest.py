@@ -131,6 +131,9 @@ from evolutionary_forest.component.ensemble_selection.DSE import (
     DynamicSelectionEnsemble,
 )
 from evolutionary_forest.component.ensemble_selection.RF_DSE import RFRoutingEnsemble
+from evolutionary_forest.component.ensemble_selection.dynamic_ensemble_selection.deep_dse import (
+    DESMetaRegressor,
+)
 from evolutionary_forest.component.environmental_selection import (
     NSGA2,
     EnvironmentalSelection,
@@ -3443,6 +3446,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.final_meta_learner = DynamicSelectionEnsemble(models)
         elif self.meta_learner == "RF-DES":
             self.final_meta_learner = RFRoutingEnsemble(models)
+        elif self.meta_learner == "DeepDES":
+            self.final_meta_learner = DESMetaRegressor(
+                verbose=False,
+            )
         self.final_meta_learner.fit(self.X, self.y)
 
     def weighted_ensemble_prediction(self, predictions, weight_list, return_std):

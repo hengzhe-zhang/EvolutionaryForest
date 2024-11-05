@@ -46,7 +46,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         lr=0.001,
         lambda_contrastive=1,
         lambda_entropy=0.01,
-        patience=5,
+        patience=10,
         verbose=False,
         mode="hybrid",  # New parameter for mode selection
     ):
@@ -60,7 +60,8 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         self.mode = mode  # Store the selected mode
         self.encoder = None
         self.weight_assigner = None
-        self.scaler = StandardScaler()  # Scaler for X
+        self.trained = False
+        self.scaler = StandardScaler()
         self.prediction_scaler = StandardScaler()
 
     def fit(self, X, predictions, y):
@@ -80,9 +81,13 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         elif self.mode == "hybrid":
             input_dim = X.shape[1] + predictions.shape[1]
 
-        # Initialize encoder and weight assigner with the calculated input_dim
-        self.encoder = Encoder(input_dim, self.latent_dim)
-        self.weight_assigner = WeightAssigner(self.latent_dim, predictions.shape[1])
+        # Initialize encoder and weight assigner only if not already trained
+        if not self.trained:
+            self.encoder = Encoder(input_dim, self.latent_dim)
+            self.weight_assigner = WeightAssigner(self.latent_dim, predictions.shape[1])
+        else:
+            if self.verbose:
+                print("Continuing training with existing model weights.")
 
         # Convert data to tensors
         X_tensor = torch.tensor(X, dtype=torch.float32)
@@ -151,6 +156,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
                     f"Entropy Loss: {entropy_loss.item():.4f}"
                 )
 
+            # Early stopping
             if total_loss.item() < best_loss:
                 best_loss = total_loss.item()
                 best_state = (
@@ -166,11 +172,15 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
                     break
 
         # Load best model weights
-        self.encoder.load_state_dict(best_state[0])
-        self.weight_assigner.load_state_dict(best_state[1])
+        if best_state:
+            self.encoder.load_state_dict(best_state[0])
+            self.weight_assigner.load_state_dict(best_state[1])
+
+        # Mark the model as trained for future continual learning
+        self.trained = True
 
     def predict(self, X_meta, predictions):
-        # Standardize the input data using the scaler fitted in training
+        # Standardize inputs using the scaler fitted in training
         X_meta = self.scaler.transform(X_meta)
         predictions = self.prediction_scaler.transform(predictions)
 
