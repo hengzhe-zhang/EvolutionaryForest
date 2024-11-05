@@ -1,7 +1,5 @@
 import copy
-from concurrent.futures import ProcessPoolExecutor
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,7 +7,6 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
 from sklearn.model_selection import cross_val_predict, KFold, train_test_split
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
@@ -48,7 +45,8 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         lambda_entropy=0.01,
         patience=10,
         verbose=False,
-        mode="hybrid",  # New parameter for mode selection
+        mode="hybrid",  # Mode selection parameter
+        regularization_type="entropy",  # New parameter for regularization type
     ):
         self.latent_dim = latent_dim
         self.num_epochs = num_epochs
@@ -58,6 +56,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         self.patience = patience
         self.verbose = verbose
         self.mode = mode  # Store the selected mode
+        self.regularization_type = regularization_type  # Store the regularization type
         self.encoder = None
         self.weight_assigner = None
         self.trained = False
@@ -135,16 +134,31 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
             else:
                 contrastive_loss = torch.tensor(0.0)
 
-            # Entropy regularization to reduce overconfidence
-            entropy_loss = -torch.sum(
-                weights * torch.log(weights + 1e-10)
-            ) / weights.size(0)
+            # Regularization based on the selected type
+            if self.regularization_type == "cosine":
+                # Cosine similarity regularization
+                normalized_weights = nn.functional.normalize(weights, p=2, dim=1)
+                diversity_penalty = 0
+                for i in range(weights.size(1) - 1):
+                    for j in range(i + 1, weights.size(1)):
+                        similarity = nn.functional.cosine_similarity(
+                            normalized_weights[:, i].unsqueeze(1),
+                            normalized_weights[:, j].unsqueeze(1),
+                            dim=0,
+                        )
+                        diversity_penalty += torch.mean(similarity)
+                regularization_loss = diversity_penalty
+            else:
+                # Entropy regularization
+                regularization_loss = -torch.sum(
+                    weights * torch.log(weights + 1e-10)
+                ) / weights.size(0)
 
-            # Total loss with entropy regularization
+            # Total loss with regularization
             total_loss = (
                 des_loss
                 + self.lambda_contrastive * contrastive_loss
-                + self.lambda_entropy * entropy_loss
+                + self.lambda_entropy * regularization_loss
             )
             total_loss.backward()
             optimizer.step()
@@ -153,7 +167,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
                 print(
                     f"Epoch {epoch+1}/{self.num_epochs}, Loss: {total_loss.item():.4f}, "
                     f"DES Loss: {des_loss.item():.4f}, Contrastive Loss: {contrastive_loss.item():.4f}, "
-                    f"Entropy Loss: {entropy_loss.item():.4f}"
+                    f"Regularization Loss: {regularization_loss.item():.4f}"
                 )
 
             # Early stopping
@@ -220,12 +234,16 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         return loss
 
 
-# Run experiment function at top level for parallel processing
+from sklearn.model_selection import ParameterGrid
+from concurrent.futures import ProcessPoolExecutor
+import numpy as np
+from sklearn.metrics import r2_score
+
+
+# Updated run_experiment function for parallel processing
 def run_experiment(args):
     (
-        lambda_contrastive,
-        lambda_entropy,
-        mode,
+        params,
         X_train,
         predictions_train,
         y_train,
@@ -234,15 +252,8 @@ def run_experiment(args):
         y_val,
     ) = args
 
-    des_regressor = DESMetaRegressor(
-        latent_dim=5,
-        lambda_contrastive=lambda_contrastive,
-        lambda_entropy=lambda_entropy,
-        num_epochs=500,
-        patience=10,
-        verbose=False,
-        mode=mode,  # Set mode here
-    )
+    # Create DESMetaRegressor instance using the parameter dictionary
+    des_regressor = DESMetaRegressor(**params)
 
     # Fit the model with X, predictions, and y
     des_regressor.fit(X_train, predictions_train, y_train)
@@ -253,26 +264,17 @@ def run_experiment(args):
         predictions_val,
     )
     r2 = r2_score(y_val, y_pred_des)
-    return lambda_contrastive, lambda_entropy, mode, r2
+    return params, r2
 
 
+# Main function for hyperparameter tuning using sklearn's ParameterGrid
 def run_hyperparameters(
-    X_train,
-    predictions_train,
-    y_train,
-    X_val,
-    predictions_val,
-    y_val,
-    lambda_contrastive_values,
-    lambda_entropy_values,
-    modes=["original", "predicted", "hybrid"],  # Default modes
+    X_train, predictions_train, y_train, X_val, predictions_val, y_val, param_grid
 ):
-    # Generate tasks for each combination of lambda_contrastive, lambda_entropy, and mode
+    # Generate tasks for each combination in ParameterGrid
     tasks = [
         (
-            lambda_contrastive,
-            lambda_entropy,
-            mode,
+            params,
             X_train,
             predictions_train,
             y_train,
@@ -280,9 +282,7 @@ def run_hyperparameters(
             predictions_val,
             y_val,
         )
-        for lambda_contrastive in lambda_contrastive_values
-        for lambda_entropy in lambda_entropy_values
-        for mode in modes
+        for params in ParameterGrid(param_grid)
     ]
 
     # Use ProcessPoolExecutor to parallelize hyperparameter tuning
@@ -292,6 +292,7 @@ def run_hyperparameters(
     return results
 
 
+# Function to handle hyperparameter tuning setup and execution
 def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
     # Generate predictions from base learners for training and validation sets
     predictions_train = np.column_stack(
@@ -301,28 +302,23 @@ def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
         [learner.predict(X_val) for learner in base_learners]
     )
 
-    # Define ranges for lambda_contrastive and lambda_entropy
-    lambda_contrastive_values = [0.1, 1.0, 10]
-    lambda_entropy_values = [0.001, 0.01, 0.1]
+    # Define the parameter grid
+    param_grid = {
+        "lambda_contrastive": [1],
+        "lambda_entropy": [0.001, 0.01, 0.1, 1.0],
+        "mode": ["hybrid"],
+        "regularization_type": ["cosine", "entropy"],
+    }
 
     # Run hyperparameter tuning with generated predictions
     results = run_hyperparameters(
-        X_train,
-        predictions_train,
-        y_train,
-        X_val,
-        predictions_val,
-        y_val,
-        lambda_contrastive_values,
-        lambda_entropy_values,
+        X_train, predictions_train, y_train, X_val, predictions_val, y_val, param_grid
     )
 
     # Print results
     print("Hyperparameter tuning results:")
-    for lambda_contrastive, lambda_entropy, mode, r2 in results:
-        print(
-            f"Mode: {mode}, lambda_contrastive: {lambda_contrastive}, lambda_entropy: {lambda_entropy}, R2: {r2:.4f}"
-        )
+    for params, r2 in results:
+        print(f"Params: {params}, R2: {r2:.4f}")
 
 
 def evaluate_base_learners_and_average(base_learners, X_val, y_val):
