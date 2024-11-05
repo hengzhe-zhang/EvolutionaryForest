@@ -45,39 +45,56 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         num_epochs=50,
         lr=0.001,
         lambda_contrastive=0.1,
-        lambda_entropy=0.01,  # New regularization parameter for entropy
+        lambda_entropy=0.01,
         patience=5,
         verbose=False,
+        mode="hybrid",  # New parameter for mode selection
     ):
         self.latent_dim = latent_dim
         self.num_epochs = num_epochs
         self.lr = lr
         self.lambda_contrastive = lambda_contrastive
-        self.lambda_entropy = lambda_entropy  # Entropy regularization weight
+        self.lambda_entropy = lambda_entropy
         self.patience = patience
-        self.verbose = verbose  # Toggle training log printing
+        self.verbose = verbose
+        self.mode = mode  # Store the selected mode
         self.encoder = None
         self.weight_assigner = None
         self.scaler = StandardScaler()  # Scaler for X
-        self.y_scaler = StandardScaler()  # Scaler for y
+        self.prediction_scaler = StandardScaler()
 
-    def fit(self, X, y):
-        # Standardize the input data
+    def fit(self, X, predictions, y):
+        # Standardize X and y
         X = self.scaler.fit_transform(X)
-        y = self.y_scaler.fit_transform(
-            y.reshape(-1, 1)
-        ).ravel()  # Standardize y and flatten
+        predictions = self.prediction_scaler.fit_transform(predictions)
+        y = StandardScaler().fit_transform(y.reshape(-1, 1)).ravel()
 
-        # Initialize encoder and weight assigner after knowing the input dimension
-        input_dim = X.shape[1]
+        # Convert predictions to tensor format
+        predictions = torch.tensor(predictions, dtype=torch.float32)
+
+        # Define the input dimensions based on the selected mode
+        if self.mode == "original":
+            input_dim = X.shape[1]
+        elif self.mode == "predicted":
+            input_dim = predictions.shape[1]
+        elif self.mode == "hybrid":
+            input_dim = X.shape[1] + predictions.shape[1]
+
+        # Initialize encoder and weight assigner with the calculated input_dim
         self.encoder = Encoder(input_dim, self.latent_dim)
-        self.weight_assigner = WeightAssigner(
-            self.latent_dim, X.shape[1]
-        )  # Number of base learners
+        self.weight_assigner = WeightAssigner(self.latent_dim, predictions.shape[1])
 
         # Convert data to tensors
         X_tensor = torch.tensor(X, dtype=torch.float32)
         y_tensor = torch.tensor(y, dtype=torch.float32).view(-1, 1)
+
+        # Prepare the combined input based on the selected mode
+        if self.mode == "original":
+            combined_input = X_tensor
+        elif self.mode == "predicted":
+            combined_input = predictions
+        elif self.mode == "hybrid":
+            combined_input = torch.cat([X_tensor, predictions], dim=1)
 
         # Training model with early stopping
         optimizer = optim.Adam(
@@ -93,20 +110,18 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
             self.weight_assigner.train()
             optimizer.zero_grad()
 
-            z = self.encoder(X_tensor)  # Latent representation
-            weights = self.weight_assigner(z)  # Softmax weights
+            # Encode combined input to get latent representation
+            z = self.encoder(combined_input)  # Latent representation
+            weights = self.weight_assigner(
+                z
+            )  # Weights assigned to each base learner prediction
 
-            # Convert predictions to tensor format
-            ensemble_preds_tensor = torch.tensor(X, dtype=torch.float32)
-
-            # Compute DES regression loss
-            weighted_preds = torch.sum(
-                weights * ensemble_preds_tensor, dim=1, keepdim=True
-            )
+            # Compute weighted predictions using base learner predictions
+            weighted_preds = torch.sum(weights * predictions, dim=1, keepdim=True)
             des_loss = nn.functional.mse_loss(weighted_preds, y_tensor)
 
             # Contrastive loss (InfoNCE)
-            if z.size(0) > 1:  # Ensure batch size > 1 for contrastive pairs
+            if z.size(0) > 1:
                 contrastive_loss = self._info_nce_loss(z[:-1], z[1:])
             else:
                 contrastive_loss = torch.tensor(0.0)
@@ -150,39 +165,59 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         self.encoder.load_state_dict(best_state[0])
         self.weight_assigner.load_state_dict(best_state[1])
 
-    def predict(self, X_meta):
+    def predict(self, X_meta, predictions):
         # Standardize the input data using the scaler fitted in training
         X_meta = self.scaler.transform(X_meta)
+        predictions = self.prediction_scaler.transform(predictions)
 
         self.encoder.eval()
         self.weight_assigner.eval()
         X_tensor = torch.tensor(X_meta, dtype=torch.float32)
+        predictions_tensor = torch.tensor(predictions, dtype=torch.float32)
 
+        # Prepare the combined input for prediction based on mode
+        if self.mode == "original":
+            combined_input = X_tensor
+        elif self.mode == "predicted":
+            combined_input = predictions_tensor
+        elif self.mode == "hybrid":
+            combined_input = torch.cat([X_tensor, predictions_tensor], dim=1)
+
+        # Obtain latent representations and calculate weights
         with torch.no_grad():
-            z = self.encoder(X_tensor)
+            z = self.encoder(combined_input)
             weights = self.weight_assigner(z)
-            ensemble_preds_tensor = torch.tensor(
-                self.scaler.inverse_transform(X_meta), dtype=torch.float32
-            )
-            weighted_preds = torch.sum(weights * ensemble_preds_tensor, dim=1)
 
-        return weighted_preds.numpy()
+        # Combine provided predictions using weights
+        weighted_preds = (weights.numpy() * predictions).sum(axis=1)
+
+        # Return the weighted predictions directly
+        return weighted_preds
 
     def _info_nce_loss(self, z_i, z_j, temperature=0.5):
         z_i = nn.functional.normalize(z_i, dim=-1)
         z_j = nn.functional.normalize(z_j, dim=-1)
         pos_sim = torch.exp(torch.sum(z_i * z_j, dim=-1) / temperature)
         neg_sim = torch.exp(torch.matmul(z_i, z_j.T) / temperature)
-        neg_sim = (
-            torch.sum(neg_sim, dim=-1) - pos_sim
-        )  # Exclude positive from denominator
+        neg_sim = torch.sum(neg_sim, dim=-1) - pos_sim
         loss = -torch.log(pos_sim / neg_sim).mean()
         return loss
 
 
 # Run experiment function at top level for parallel processing
 def run_experiment(args):
-    lambda_contrastive, lambda_entropy, X_meta_train, y_train, X_meta_val, y_val = args
+    (
+        lambda_contrastive,
+        lambda_entropy,
+        mode,
+        X_train,
+        predictions_train,
+        y_train,
+        X_val,
+        predictions_val,
+        y_val,
+    ) = args
+
     des_regressor = DESMetaRegressor(
         latent_dim=5,
         lambda_contrastive=lambda_contrastive,
@@ -190,43 +225,77 @@ def run_experiment(args):
         num_epochs=500,
         patience=10,
         verbose=False,
+        mode=mode,  # Set mode here
     )
-    des_regressor.fit(X_meta_train, y_train)
-    y_pred_des = des_regressor.predict(X_meta_val)
+
+    # Fit the model with X, predictions, and y
+    des_regressor.fit(X_train, predictions_train, y_train)
+
+    # Predict on the validation set
+    y_pred_des = des_regressor.predict(
+        X_val,
+        predictions_val,
+    )
     r2 = r2_score(y_val, y_pred_des)
-    return lambda_contrastive, lambda_entropy, r2
+    return lambda_contrastive, lambda_entropy, mode, r2
 
 
 def run_hyperparameters(
-    X_meta_train,
+    X_train,
+    predictions_train,
     y_train,
-    X_meta_val,
+    X_val,
+    predictions_val,
     y_val,
     lambda_contrastive_values,
     lambda_entropy_values,
+    modes=["original", "predicted", "hybrid"],  # Default modes
 ):
+    # Generate tasks for each combination of lambda_contrastive, lambda_entropy, and mode
     tasks = [
-        (lambda_contrastive, lambda_entropy, X_meta_train, y_train, X_meta_val, y_val)
+        (
+            lambda_contrastive,
+            lambda_entropy,
+            mode,
+            X_train,
+            predictions_train,
+            y_train,
+            X_val,
+            predictions_val,
+            y_val,
+        )
         for lambda_contrastive in lambda_contrastive_values
         for lambda_entropy in lambda_entropy_values
+        for mode in modes
     ]
 
+    # Use ProcessPoolExecutor to parallelize hyperparameter tuning
     with ProcessPoolExecutor() as executor:
         results = list(executor.map(run_experiment, tasks))
 
     return results
 
 
-def run_parameter_tuning():
-    # Define ranges for lambda_contrastive and lambda_entropy
-    lambda_contrastive_values = [1.0, 10]
-    lambda_entropy_values = [0.001, 0]
+def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
+    # Generate predictions from base learners for training and validation sets
+    predictions_train = np.column_stack(
+        [learner.fit(X_train, y_train).predict(X_train) for learner in base_learners]
+    )
+    predictions_val = np.column_stack(
+        [learner.predict(X_val) for learner in base_learners]
+    )
 
-    # Run hyperparameter tuning
+    # Define ranges for lambda_contrastive and lambda_entropy
+    lambda_contrastive_values = [0.1, 1.0, 10]
+    lambda_entropy_values = [0.001, 0.01, 0.1]
+
+    # Run hyperparameter tuning with generated predictions
     results = run_hyperparameters(
-        X_meta_train,
+        X_train,
+        predictions_train,
         y_train,
-        X_meta_val,
+        X_val,
+        predictions_val,
         y_val,
         lambda_contrastive_values,
         lambda_entropy_values,
@@ -234,9 +303,9 @@ def run_parameter_tuning():
 
     # Print results
     print("Hyperparameter tuning results:")
-    for lambda_contrastive, lambda_entropy, r2 in results:
+    for lambda_contrastive, lambda_entropy, mode, r2 in results:
         print(
-            f"lambda_contrastive: {lambda_contrastive}, lambda_entropy: {lambda_entropy}, R2: {r2:.4f}"
+            f"Mode: {mode}, lambda_contrastive: {lambda_contrastive}, lambda_entropy: {lambda_entropy}, R2: {r2:.4f}"
         )
 
 
@@ -330,7 +399,7 @@ if __name__ == "__main__":
     # # Display weights for a few samples from the validation set
     # display_sample_weights_on_validation(des_model, base_learners, X_val, num_samples=5)
 
-    r2_avg = evaluate_base_learners_and_average(base_learners, X_val, y_val)
+    # r2_avg = evaluate_base_learners_and_average(base_learners, X_val, y_val)
 
     # Run parameter tuning
-    # run_parameter_tuning()
+    run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val)
