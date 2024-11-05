@@ -42,9 +42,9 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
     def __init__(
         self,
         latent_dim=5,
-        num_epochs=50,
+        num_epochs=500,
         lr=0.001,
-        lambda_contrastive=0.1,
+        lambda_contrastive=1,
         lambda_entropy=0.01,
         patience=5,
         verbose=False,
@@ -117,7 +117,11 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
             )  # Weights assigned to each base learner prediction
 
             # Compute weighted predictions using base learner predictions
-            weighted_preds = torch.sum(weights * predictions, dim=1, keepdim=True)
+            weighted_preds = torch.sum(
+                weights * predictions,
+                dim=1,
+                keepdim=True,
+            )
             des_loss = nn.functional.mse_loss(weighted_preds, y_tensor)
 
             # Contrastive loss (InfoNCE)
@@ -189,7 +193,9 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
             weights = self.weight_assigner(z)
 
         # Combine provided predictions using weights
-        weighted_preds = (weights.numpy() * predictions).sum(axis=1)
+        weighted_preds = (
+            weights.numpy() * self.prediction_scaler.inverse_transform(predictions)
+        ).sum(axis=1)
 
         # Return the weighted predictions directly
         return weighted_preds
