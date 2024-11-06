@@ -16,7 +16,8 @@ class EvolutionaryFeatureLearner(EvolutionaryForestRegressor):
             ensemble_size=100,
             initial_tree_size="0-6",
             gene_num=10,
-            basic_primitives="Add,Sub,Mul,AQ,Sqrt,AbsLog,Abs,Square,RSin,RCos,Max,Min,Neg",
+            # Div is more interpretable than AQ
+            basic_primitives="Add,Sub,Mul,Div,Sqrt,AbsLog,Abs,Square,SinPi,CosPi,Max,Min,Neg",
             base_learner="Random-DT",
             verbose=False,
             normalize=True,

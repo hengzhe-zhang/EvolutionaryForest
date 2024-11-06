@@ -21,11 +21,11 @@ def degree_cos(x):
     return np.cos(np.deg2rad(x))
 
 
-def radian_sin(x):
+def sin_pi(x):
     return np.sin(np.pi * x)
 
 
-def radian_cos(x):
+def cos_pi(x):
     return np.cos(np.pi * x)
 
 

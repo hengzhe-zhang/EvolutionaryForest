@@ -26,8 +26,8 @@ from evolutionary_forest.component.configuration import EvaluationConfiguration
 from evolutionary_forest.component.primitive_functions import (
     analytical_log,
     analytical_quotient,
-    radian_sin,
-    radian_cos,
+    sin_pi,
+    cos_pi,
     sqrt_signed,
     analytical_log_signed,
 )
@@ -379,12 +379,12 @@ def add_smooth_math_operators(pset, flag):
             float,
         ),
         "RSin": (
-            partial_wrapper(smooth_operator_1, operator=radian_sin),
+            partial_wrapper(smooth_operator_1, operator=sin_pi),
             [float, Parameter],
             float,
         ),
         "RCos": (
-            partial_wrapper(smooth_operator_1, operator=radian_cos),
+            partial_wrapper(smooth_operator_1, operator=cos_pi),
             [float, Parameter],
             float,
         ),

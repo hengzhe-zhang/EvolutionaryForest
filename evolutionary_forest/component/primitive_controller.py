@@ -85,10 +85,10 @@ def get_functions(p):
         ),  # Analytical Logarithm base 10 for symbolic differentiation
         "Sin": (np.sin, 1),  # Sine function
         "Cos": (np.cos, 1),  # Cosine function
-        "RSin": (radian_sin, 1),  # Sine function
-        "RCos": (radian_cos, 1),  # Cosine function
-        "SinPi": (radian_sin, 1),  # Sine function
-        "CosPi": (radian_cos, 1),  # Cosine function
+        "RSin": (sin_pi, 1),  # Sine function
+        "RCos": (cos_pi, 1),  # Cosine function
+        "SinPi": (sin_pi, 1),  # Sine function
+        "CosPi": (cos_pi, 1),  # Cosine function
         "DSin": (degree_sin, 1),  # Sine function
         "DCos": (degree_cos, 1),  # Cosine function
         "Arcsin": (np.arcsin, 1),  # Cosine function
