@@ -1,12 +1,17 @@
 import copy
+from concurrent.futures import ProcessPoolExecutor
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+from sklearn.model_selection import ParameterGrid
 from sklearn.model_selection import cross_val_predict, KFold, train_test_split
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
@@ -234,12 +239,6 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         return loss
 
 
-from sklearn.model_selection import ParameterGrid
-from concurrent.futures import ProcessPoolExecutor
-import numpy as np
-from sklearn.metrics import r2_score
-
-
 # Updated run_experiment function for parallel processing
 def run_experiment(args):
     (
@@ -341,50 +340,97 @@ def evaluate_base_learners_and_average(base_learners, X_val, y_val):
     return r2_avg
 
 
-# Add function to show weights assigned to each model on a few samples
-def show_model_weights(des_model, X_meta_samples):
-    """Displays weights assigned by DESMetaRegressor to each model for given samples."""
+# Function to display weights assigned to each model for multiple samples as a heatmap
+def show_model_weights_heatmap(
+    des_model, X_meta_samples, predictions_samples, mode="hybrid", num_samples=20
+):
+    """Displays a heatmap of weights assigned by DESMetaRegressor to each model for multiple samples."""
     des_model.encoder.eval()
     des_model.weight_assigner.eval()
-    X_tensor = torch.tensor(X_meta_samples, dtype=torch.float32)
+
+    # Prepare the input tensor based on the mode
+    if mode == "original":
+        X_tensor = torch.tensor(X_meta_samples, dtype=torch.float32)
+    elif mode == "predicted":
+        X_tensor = torch.tensor(predictions_samples, dtype=torch.float32)
+    elif mode == "hybrid":
+        X_tensor = torch.cat(
+            [
+                torch.tensor(X_meta_samples, dtype=torch.float32),
+                torch.tensor(predictions_samples, dtype=torch.float32),
+            ],
+            dim=1,
+        )
+    else:
+        raise ValueError(f"Invalid mode: {mode}")
 
     with torch.no_grad():
         z = des_model.encoder(X_tensor)
         weights = des_model.weight_assigner(z)
 
-    weights_np = weights.numpy()  # Convert to numpy for easier inspection
-    for i, weight_vector in enumerate(weights_np):
-        print(f"Sample {i + 1} - Weights: {weight_vector}")
+    # Convert weights to numpy array for easier visualization
+    weights_np = weights.numpy()
+
+    # Plot heatmap
+    plt.figure(figsize=(10, 8))
+    plt.imshow(weights_np, aspect="auto", cmap="viridis")
+    plt.colorbar(label="Weight")
+    plt.xlabel("Base Learner Model Index")
+    plt.ylabel("Sample Index")
+    plt.title(f"Model Weights Heatmap for {num_samples} Samples")
+    plt.show()
 
 
-# Add function to use validation data and display model weights on selected samples
+# Function to use validation data and display model weights heatmap for selected samples
 def display_sample_weights_on_validation(
-    des_model, base_learners, X_val, num_samples=5
+    des_model, base_learners, X_val, num_samples=20, mode="hybrid"
 ):
-    """Uses the validation data to display weights for a few samples."""
+    """Uses the validation data to display weights heatmap for a few samples."""
     # Generate meta-features for the validation data using the base learners
-    X_meta_val = np.column_stack([learner.predict(X_val) for learner in base_learners])
+    predictions_val = np.column_stack(
+        [learner.predict(X_val) for learner in base_learners]
+    )
 
     # Select a few samples to display weights
-    sample_indices = np.random.choice(X_meta_val.shape[0], num_samples, replace=False)
-    X_meta_samples = X_meta_val[sample_indices]
+    sample_indices = np.random.choice(X_val.shape[0], num_samples, replace=False)
+    X_meta_samples = X_val[sample_indices]
+    predictions_samples = predictions_val[sample_indices]
 
-    print(f"\nShowing model weights for {num_samples} random validation samples:")
-    show_model_weights(des_model, X_meta_samples)
+    # Display heatmap of weights for selected samples
+    print(
+        f"\nShowing model weights heatmap for {num_samples} random validation samples:"
+    )
+    show_model_weights_heatmap(
+        des_model, X_meta_samples, predictions_samples, mode=mode
+    )
+
+
+# Main function to initialize and visualize weights
+def weight_visualization(base_learners, X_train, y_train, X_val, y_val, mode="hybrid"):
+    # Initialize and train DESMetaRegressor with the specified mode
+    des_model = DESMetaRegressor(mode=mode)
+    des_model.fit(X_train, X_meta_train, y_train)
+
+    # Display weights for a few samples from the validation set
+    display_sample_weights_on_validation(
+        des_model, base_learners, X_val, num_samples=20, mode=mode
+    )
 
 
 if __name__ == "__main__":
     data = load_diabetes()
     X, y = data.data, data.target
     X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y, test_size=0.2, random_state=0
     )
 
     # Define base learners and obtain meta features
     base_learners = [
         LinearRegression(),
-        RandomForestRegressor(n_estimators=10, random_state=42),
+        RandomForestRegressor(n_estimators=10, random_state=0),
+        GradientBoostingRegressor(n_estimators=10, random_state=0),
         KNeighborsRegressor(n_neighbors=5),
+        KNeighborsRegressor(n_neighbors=3),
     ]
 
     kf = KFold(n_splits=5)
@@ -397,21 +443,9 @@ if __name__ == "__main__":
     X_meta_train = np.hstack(oof_preds)
     X_meta_val = np.column_stack([learner.predict(X_val) for learner in base_learners])
 
-    # # Initialize and train DESMetaRegressor
-    # des_model = DESMetaRegressor(
-    #     latent_dim=10,
-    #     num_epochs=100,
-    #     patience=10,
-    #     lambda_contrastive=0.1,
-    #     lambda_entropy=0.1,
-    #     verbose=True,
-    # )
-    # des_model.fit(X_meta_train, y_train)
-    #
-    # # Display weights for a few samples from the validation set
-    # display_sample_weights_on_validation(des_model, base_learners, X_val, num_samples=5)
+    weight_visualization(base_learners, X_train, y_train, X_val, y_val, mode="hybrid")
 
     # r2_avg = evaluate_base_learners_and_average(base_learners, X_val, y_val)
 
     # Run parameter tuning
-    run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val)
+    # run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val)
