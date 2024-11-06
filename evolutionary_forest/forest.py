@@ -3,6 +3,7 @@ import inspect
 from multiprocessing import Pool
 
 import dill
+import numpy as np
 import scipy
 from category_encoders import TargetEncoder
 from deap import gp
@@ -3714,7 +3715,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         ) and self.evaluation_configuration.sample_weight.startswith("Adaptive"):
             for o in self.pop:
                 # top 50% of samples are assigned with weight 1, the rest are assigned with weight 0
-                weights = np.zeros_like(o.case_values)
+                weights = np.full_like(
+                    o.case_values, self.evaluation_configuration.minor_sample_weight
+                )
                 weights[np.argsort(o.case_values)[: len(o.case_values) // 2]] = 1
                 o.individual_configuration.sample_weight = weights
 

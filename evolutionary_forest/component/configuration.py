@@ -356,6 +356,7 @@ class EvaluationConfiguration(Configuration):
         constant_type=None,
         feature_smoothing=False,
         sample_weight=None,
+        minor_sample_weight=0.1,
         **params
     ):
         # prediction results of the neural network
@@ -407,6 +408,7 @@ class EvaluationConfiguration(Configuration):
 
         # weights
         self.sample_weight = sample_weight
+        self.minor_sample_weight = minor_sample_weight
 
         # max height, maybe useful for some evaluation stages
         self.max_height = max_height
