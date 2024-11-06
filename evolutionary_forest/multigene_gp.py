@@ -107,7 +107,6 @@ class IndividualConfiguration:
 class AdaptiveParameters:
     def __init__(self):
         self.lasso = np.random.uniform(-5, -2, 1)[0]
-        self.adaptive_weights = None
 
 
 class MultipleGeneGP:

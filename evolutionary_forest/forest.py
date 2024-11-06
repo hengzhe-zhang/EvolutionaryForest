@@ -1428,7 +1428,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         individual.coef = feature_importance_process(individual.coef)
 
-    def calculate_fitness_value(self, individual, estimators, Y, y_pred):
+    def calculate_fitness_value(
+        self, individual: MultipleGeneGP, estimators, Y, y_pred
+    ):
         """
         Calculates the fitness value of an individual based on the score function.
 
@@ -1461,6 +1463,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.X, self.test_X, self.y, self.imbalanced_configuration
                 )
                 score = r2_score(Y, y_pred, sample_weight=sample_weight)
+            elif (
+                self.evaluation_configuration.sample_weight == "Adaptive-Plus"
+                and individual.individual_configuration.sample_weight is not None
+            ):
+                score = r2_score(
+                    Y,
+                    y_pred,
+                    sample_weight=individual.individual_configuration.sample_weight,
+                )
             else:
                 score = r2_score(Y, y_pred)
 
@@ -1526,6 +1537,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ) ** 2
             else:
                 individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
+
+            if (
+                self.evaluation_configuration.sample_weight == "Adaptive-Plus"
+                and individual.individual_configuration.sample_weight is not None
+            ):
+                individual.case_values = individual.case_values * (
+                    individual.individual_configuration.sample_weight
+                )
+
             if self.evaluation_configuration.loss_discretization != None:
                 bin, strategy = self.evaluation_configuration.loss_discretization.split(
                     "-"
@@ -3558,13 +3578,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return False
 
     def callback(self):
-        if self.evaluation_configuration.sample_weight == "Adaptive":
-            for o in self.pop:
-                # top 50% of samples are assigned with weight 1, the rest are assigned with weight 0
-                weights = np.zeros_like(o.case_values)
-                weights[np.argsort(o.case_values)[: len(o.case_values) // 2]] = 1
-                o.individual_configuration.sample_weight = weights
-
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval
@@ -3694,6 +3707,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.current_gen % 20 == 0 and self.current_gen != 0
         ):
             automatic_perturbation_std(self, self.pop)
+
+    def update_instance_weights(self):
+        if isinstance(
+            self.evaluation_configuration.sample_weight, str
+        ) and self.evaluation_configuration.sample_weight.startswith("Adaptive"):
+            for o in self.pop:
+                # top 50% of samples are assigned with weight 1, the rest are assigned with weight 0
+                weights = np.zeros_like(o.case_values)
+                weights[np.argsort(o.case_values)[: len(o.case_values) // 2]] = 1
+                o.individual_configuration.sample_weight = weights
 
     def validation_set_generation(self):
         if self.archive_configuration.dynamic_validation:
@@ -5587,6 +5610,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # automatically determine the weight length
             ind.fitness.weights = tuple(-1 for _ in range(len(value)))
             ind.fitness.values = value
+
+        self.update_instance_weights()
         return invalid_ind
 
     def cos_distance_calculation(self, population=None):

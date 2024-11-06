@@ -160,7 +160,7 @@ def calculate_score(args):
     if not isinstance(func, list):
         func = dill.loads(func)
 
-    if sample_weight == "Adaptive":
+    if isinstance(sample_weight, str) and sample_weight.startswith("Adaptive"):
         sample_weight = individual_configuration.sample_weight
 
     # GP evaluation
