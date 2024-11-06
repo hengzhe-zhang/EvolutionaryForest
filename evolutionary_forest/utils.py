@@ -137,6 +137,7 @@ def get_feature_importance(
     mean_fitness=False,
     ensemble_weighted=True,
     simple_version=None,
+    **params,
 ):
     """
     :param regressor: evolutionary forest
@@ -229,7 +230,7 @@ def select_top_features(code_importance_dict, ratio=None):
     return features
 
 
-def feature_append(regr, X_input, feature_list, only_new_features=False):
+def combine_features(regr, X_input, feature_list, only_new_features=False):
     if isinstance(X_input, pd.DataFrame):
         X = X_input.to_numpy()
     else:

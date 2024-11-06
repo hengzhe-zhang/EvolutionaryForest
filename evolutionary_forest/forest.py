@@ -2001,18 +2001,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert pipe["Ridge"].max_depth == self.max_tree_depth
         return pipe
 
-    def transform(self, X, ratio=0.5):
+    def transform(self, X, ratio=0.5, **params):
         ratio = 1 - ratio
         if self.normalize:
             X = self.x_scaler.transform(X)
         code_importance_dict = get_feature_importance(
-            self, latex_version=False, fitness_weighted=False
+            self, latex_version=False, **params
         )
         if self.ensemble_size == 1:
             top_features = list(code_importance_dict.keys())
         else:
             top_features = select_top_features(code_importance_dict, ratio)
-        transformed_features = feature_append(
+        transformed_features = combine_features(
             self, X, top_features, only_new_features=True
         )
         return transformed_features
