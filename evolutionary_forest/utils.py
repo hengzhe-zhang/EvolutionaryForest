@@ -6,6 +6,7 @@ import random
 import time
 from collections import defaultdict
 from itertools import chain
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,12 @@ from sklearn.linear_model import RidgeCV
 from sympy import latex, parse_expr
 
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
+
+
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
+
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
 class MeanRegressor(BaseEstimator, RegressorMixin):
@@ -116,8 +122,16 @@ def efficient_deepcopy(self, memo=None, custom_filter=None):
     return result
 
 
+# Generating a Python code fragment
+def code_generation(regressor, tree):
+    code = str(tree)
+    args = ",".join(arg for arg in regressor.pset.arguments)
+    code = "lambda {args}: {code}".format(args=args, code=code)
+    return code
+
+
 def get_feature_importance(
-    regr,
+    regressor: "EvolutionaryForestRegressor",
     latex_version=True,
     fitness_weighted=False,
     mean_fitness=False,
@@ -125,12 +139,16 @@ def get_feature_importance(
     simple_version=None,
 ):
     """
-    :param regr: evolutionary forest
+    :param regressor: evolutionary forest
     :param latex_version: return simplified symbol, which is used for printing
     :param fitness_weighted: assign different weights to features based on fitness values
     :param mean_fitness: return mean feature importance instead of summative feature importance
     :param simple_version: alias for latex_version
     :return:
+    """
+
+    """
+    Alias setting: just for compatibility
     """
     if simple_version is not None:
         latex_version = simple_version
@@ -149,33 +167,31 @@ def get_feature_importance(
         )
         processing_code = lambda g: f"${latex_string(g)}$"
     else:
-        # Generating a Python code fragment
-        def code_generation(gene):
-            code = str(gene)
-            args = ",".join(arg for arg in regr.pset.arguments)
-            code = "lambda {args}: {code}".format(args=args, code=code)
-            return code
+        processing_code = lambda g: f"{code_generation(regressor,g)}"
 
-        processing_code = lambda g: f"{code_generation(g)}"
-
-    for x in regr.hof:
+    for x in regressor.hof:
         for o_g, h, c in zip(x.gene, x.hash_result, np.abs(x.coef)):
             # Taking the fitness of each model into consideration
             importance_value = c
             if fitness_weighted:
                 importance_value = importance_value * x.fitness.wvalues[0]
-            if ensemble_weighted and hasattr(regr.hof, "ensemble_weight"):
+
+            if ensemble_weighted and hasattr(regressor.hof, "ensemble_weight"):
                 importance_value = (
-                    importance_value * regr.hof.ensemble_weight[individual_to_tuple(x)]
+                    importance_value
+                    * regressor.hof.ensemble_weight[individual_to_tuple(x)]
                 )
+
             # Merge features with equivalent hash values
             if h not in hash_dict or len(o_g) < len(hash_dict[h]):
                 hash_dict[h] = o_g
-            # Deciding using summation or mean technique to calculate the importance value
+
+            # Deciding to use summation or mean technique to calculate the importance value
             if mean_fitness:
                 all_genes_map[h].append(importance_value)
             else:
                 all_genes_map[h] += importance_value
+
     # Forming a dict
     all_genes_map = {
         processing_code(hash_dict[k]): all_genes_map[k] for k in all_genes_map.keys()
@@ -183,6 +199,7 @@ def get_feature_importance(
     if mean_fitness:
         for k, v in all_genes_map.items():
             all_genes_map[k] = np.mean(v)
+
     feature_importance_dict = {
         k: v for k, v in sorted(all_genes_map.items(), key=lambda item: -item[1])
     }
