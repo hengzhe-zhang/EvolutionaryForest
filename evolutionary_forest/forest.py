@@ -1169,7 +1169,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "AdaptiveLasso":
             pipe = self.get_base_model(
-                lasso_alpha=np.power(10, individual.parameters["Lasso"])
+                lasso_alpha=np.power(10, individual.parameters.lasso)
             )
         else:
             pipe = self.get_base_model()
@@ -4145,7 +4145,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     num_of_trees = self.num_of_active_trees
                 # check_number_of_unique_tree_semantics(offspring, num_of_trees)
                 if self.base_learner == "AdaptiveLasso":
-                    lasso_parameter = [o.parameters["Lasso"] for o in offspring]
+                    lasso_parameter = [o.parameters.lasso for o in offspring]
                     print(
                         "Average Lasso",
                         np.mean(lasso_parameter),
@@ -5100,10 +5100,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.base_learner == "AdaptiveLasso":
             factor = np.random.uniform(0.5, 1, 1)[0]
             a, b = selRandom(population, 2)
-            o.parameters["Lasso"] = o.parameters["Lasso"] + factor * (
-                a.parameters["Lasso"] - b.parameters["Lasso"]
+            o.parameters.lasso = o.parameters.lasso + factor * (
+                a.parameters.lasso - b.parameters.lasso
             )
-            o.parameters["Lasso"] = np.clip(o.parameters["Lasso"], -5, 0)
+            o.parameters.lasso = np.clip(o.parameters.lasso, -5, 0)
         if self.mgp_mode == "Register":
             new_register = np.random.randint(0, self.number_of_register, self.gene_num)
             flip_bit = (

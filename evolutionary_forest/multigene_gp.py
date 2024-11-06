@@ -102,6 +102,12 @@ class IndividualConfiguration:
             self.dynamic_standardization = dynamic_standardization
 
 
+class AdaptiveParameters:
+    def __init__(self):
+        self.lasso = np.random.uniform(-5, -2, 1)[0]
+        self.adaptive_weights = None
+
+
 class MultipleGeneGP:
     introns_results: List[dict]
     case_values: np.ndarray
@@ -186,7 +192,7 @@ class MultipleGeneGP:
             self.register = None
 
         # self-adaptive evolution (for Lasso)
-        self.parameters = {"Lasso": np.random.uniform(-5, -2, 1)[0]}
+        self.parameters = AdaptiveParameters()
         self.parent_fitness: tuple[float] = None
         self.crossover_type = None
         self.individual_configuration = IndividualConfiguration(**kwargs)
