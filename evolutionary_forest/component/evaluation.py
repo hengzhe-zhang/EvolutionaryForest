@@ -156,8 +156,12 @@ def calculate_score(args):
     pipe: GPPipeline
     individual_configuration: IndividualConfiguration
     pipe, func, individual_configuration = args
+
     if not isinstance(func, list):
         func = dill.loads(func)
+
+    if sample_weight == "Adaptive":
+        sample_weight = individual_configuration.sample_weight
 
     # GP evaluation
     start_time = time.time()

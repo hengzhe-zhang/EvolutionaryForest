@@ -355,6 +355,7 @@ class EvaluationConfiguration(Configuration):
         semantic_library=None,
         constant_type=None,
         feature_smoothing=False,
+        sample_weight=None,
         **params
     ):
         # prediction results of the neural network
@@ -405,7 +406,7 @@ class EvaluationConfiguration(Configuration):
         self.classification = classification
 
         # weights
-        self.sample_weight = None
+        self.sample_weight = sample_weight
 
         # max height, maybe useful for some evaluation stages
         self.max_height = max_height

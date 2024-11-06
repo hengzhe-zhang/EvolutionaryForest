@@ -3558,6 +3558,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return False
 
     def callback(self):
+        if self.evaluation_configuration.sample_weight == "Adaptive":
+            for o in self.pop:
+                # top 50% of samples are assigned with weight 1, the rest are assigned with weight 0
+                weights = np.zeros_like(o.case_values)
+                weights[np.argsort(o.case_values)[: len(o.case_values) // 2]] = 1
+                o.individual_configuration.sample_weight = weights
+
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval

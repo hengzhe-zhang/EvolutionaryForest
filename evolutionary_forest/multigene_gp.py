@@ -101,6 +101,8 @@ class IndividualConfiguration:
         else:
             self.dynamic_standardization = dynamic_standardization
 
+        self.sample_weight = None
+
 
 class AdaptiveParameters:
     def __init__(self):
