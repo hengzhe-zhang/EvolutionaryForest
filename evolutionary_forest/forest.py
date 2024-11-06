@@ -3426,6 +3426,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return self.hof.predict(predictions)
         if self.meta_learner is not None:
             if isinstance(self.final_meta_learner, DESMetaRegressor):
+                if self.verbose:
+                    self.final_meta_learner.plot_sample_weights(
+                        X[:20], np.array(predictions).T[:20]
+                    )
                 final_prediction = self.final_meta_learner.predict(
                     X, np.array(predictions).T
                 )

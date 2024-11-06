@@ -1,5 +1,6 @@
 import copy
 from concurrent.futures import ProcessPoolExecutor
+import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +16,7 @@ from sklearn.model_selection import ParameterGrid
 from sklearn.model_selection import cross_val_predict, KFold, train_test_split
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
+import seaborn as sns
 
 
 # Encoder and WeightAssigner as in the previous code
@@ -51,7 +53,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         patience=10,
         verbose=False,
         mode="hybrid",  # Mode selection parameter
-        regularization_type="entropy",  # New parameter for regularization type
+        regularization_type="cosine",  # New parameter for regularization type
     ):
         self.latent_dim = latent_dim
         self.num_epochs = num_epochs
@@ -141,17 +143,25 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
 
             # Regularization based on the selected type
             if self.regularization_type == "cosine":
-                # Cosine similarity regularization
-                normalized_weights = nn.functional.normalize(weights, p=2, dim=1)
-                diversity_penalty = 0
-                for i in range(weights.size(1) - 1):
-                    for j in range(i + 1, weights.size(1)):
-                        similarity = nn.functional.cosine_similarity(
-                            normalized_weights[:, i].unsqueeze(1),
-                            normalized_weights[:, j].unsqueeze(1),
-                            dim=0,
-                        )
-                        diversity_penalty += torch.mean(similarity)
+                # Normalize the weights
+                normalized_weights = F.normalize(
+                    weights, p=2, dim=1
+                )  # shape: (batch_size, num_weights)
+
+                # Compute pairwise cosine similarity
+                cosine_sim_matrix = torch.matmul(
+                    normalized_weights.T, normalized_weights
+                )  # shape: (num_weights, num_weights)
+
+                # Remove the diagonal elements (self-similarity)
+                num_weights = weights.size(1)
+                mask = torch.eye(num_weights, device=weights.device).bool()
+                cosine_sim_matrix = cosine_sim_matrix.masked_fill(mask, 0)
+
+                # Calculate the mean of the non-diagonal cosine similarities for regularization loss
+                diversity_penalty = cosine_sim_matrix.sum() / (
+                    num_weights * (num_weights - 1)
+                )
                 regularization_loss = diversity_penalty
             else:
                 # Entropy regularization
@@ -237,6 +247,51 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         neg_sim = torch.sum(neg_sim, dim=-1) - pos_sim
         loss = -torch.log(pos_sim / neg_sim).mean()
         return loss
+
+    def plot_sample_weights(self, X_meta_samples, predictions_samples, mode="hybrid"):
+        """Plots the weights assigned to each model for each sample in X_meta_samples."""
+        self.encoder.eval()
+        self.weight_assigner.eval()
+
+        # Prepare the input tensor based on the mode
+        if mode == "original":
+            X_tensor = torch.tensor(X_meta_samples, dtype=torch.float32)
+        elif mode == "predicted":
+            X_tensor = torch.tensor(predictions_samples, dtype=torch.float32)
+        elif mode == "hybrid":
+            X_tensor = torch.cat(
+                [
+                    torch.tensor(X_meta_samples, dtype=torch.float32),
+                    torch.tensor(predictions_samples, dtype=torch.float32),
+                ],
+                dim=1,
+            )
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+
+        with torch.no_grad():
+            z = self.encoder(X_tensor)
+            weights = self.weight_assigner(z)
+
+        # Convert weights to numpy for plotting
+        weights_np = weights.numpy()
+
+        # Plot heatmap
+        plt.figure(
+            figsize=(10, min(1 + weights_np.shape[0] * 0.4, 12))
+        )  # Adaptive height for number of samples
+        sns.heatmap(
+            weights_np,
+            annot=False,
+            cmap="viridis",
+            cbar=True,
+            xticklabels=True,
+            yticklabels=True,
+        )
+        plt.xlabel("Model Index")
+        plt.ylabel("Sample Index")
+        plt.title("Model Weights Heatmap for Multiple Samples")
+        plt.show()
 
 
 # Updated run_experiment function for parallel processing
