@@ -131,7 +131,7 @@ def code_generation(regressor, tree):
 
 
 def get_feature_importance(
-    regressor: "EvolutionaryForestRegressor",
+    regressor_model: "EvolutionaryForestRegressor",
     latex_version=True,
     fitness_weighted=False,
     mean_fitness=False,
@@ -140,7 +140,7 @@ def get_feature_importance(
     **params,
 ):
     """
-    :param regressor: evolutionary forest
+    :param regressor_model: evolutionary forest
     :param latex_version: return simplified symbol, which is used for printing
     :param fitness_weighted: assign different weights to features based on fitness values
     :param mean_fitness: return mean feature importance instead of summative feature importance
@@ -168,19 +168,19 @@ def get_feature_importance(
         )
         processing_code = lambda g: f"${latex_string(g)}$"
     else:
-        processing_code = lambda g: f"{code_generation(regressor,g)}"
+        processing_code = lambda g: f"{code_generation(regressor_model, g)}"
 
-    for x in regressor.hof:
+    for x in regressor_model.hof:
         for o_g, h, c in zip(x.gene, x.hash_result, np.abs(x.coef)):
             # Taking the fitness of each model into consideration
             importance_value = c
             if fitness_weighted:
                 importance_value = importance_value * x.fitness.wvalues[0]
 
-            if ensemble_weighted and hasattr(regressor.hof, "ensemble_weight"):
+            if ensemble_weighted and hasattr(regressor_model.hof, "ensemble_weight"):
                 importance_value = (
                     importance_value
-                    * regressor.hof.ensemble_weight[individual_to_tuple(x)]
+                    * regressor_model.hof.ensemble_weight[individual_to_tuple(x)]
                 )
 
             # Merge features with equivalent hash values

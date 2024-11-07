@@ -132,7 +132,7 @@ from evolutionary_forest.component.ensemble_selection.DSE import (
     DynamicSelectionEnsemble,
 )
 from evolutionary_forest.component.ensemble_selection.RF_DSE import RFRoutingEnsemble
-from evolutionary_forest.component.ensemble_selection.dynamic_ensemble_selection.deep_dse import (
+from evolutionary_forest.component.ensemble_selection.dynamic_ensemble_selection.deep_des import (
     DESMetaRegressor,
 )
 from evolutionary_forest.component.environmental_selection import (
