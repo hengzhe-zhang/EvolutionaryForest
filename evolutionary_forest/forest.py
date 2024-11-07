@@ -5638,11 +5638,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def number_of_non_zero_features(self):
         top_1 = self.hof[0]
-        coef = top_1.pipe["Ridge"].coef_
-        non_zero = 0
-        for g, c in zip(top_1.gene, coef):
-            if c != 0:
-                non_zero += 1
+        if isinstance(top_1.pipe["Ridge"], LinearModel):
+            # only for linear model
+            coef = top_1.pipe["Ridge"].coef_
+            non_zero = 0
+            for g, c in zip(top_1.gene, coef):
+                if c != 0:
+                    non_zero += 1
+        else:
+            non_zero = len(top_1.gene)
         return non_zero
 
     def euclidian_diversity_calculation(self, individuals=None):
