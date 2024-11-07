@@ -341,6 +341,10 @@ map_elite_series = [
 reset_random(0)
 
 
+def transform_y(y_data, y_scaler):
+    return y_scaler.inverse_transform(y_data.reshape(-1, 1)).flatten()
+
+
 class StaticRandomProjection(TransformerMixin, BaseEstimator):
     def __init__(self, components_: int):
         self.components_ = components_
@@ -495,6 +499,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         norevisit_strategy="",
         lamarck_constant=False,
         categorical_encoding=None,
+        validation_based_ensemble_selection=0,
         **params,
     ):
         """
@@ -891,6 +896,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.automatic_local_search_initialization()
         self.categorical_encoding = categorical_encoding
         self.remove_constant_features = True
+        self.validation_based_ensemble_selection = validation_based_ensemble_selection
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -3084,6 +3090,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
             self.valid_y = self.valid_y.flatten()
 
+        if self.validation_based_ensemble_selection > 0:
+            X, self.des_valid_x, y, self.des_valid_y = train_test_split(
+                X, y, test_size=self.validation_based_ensemble_selection
+            )
+            self.des_valid_y = self.des_valid_y.flatten()
+
         X = self.pretrain(X, y)
 
         if (
@@ -3412,10 +3424,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if len(predicted.shape) == 1:
                     predicted = predicted.reshape(-1, 1)
 
-                if self.meta_learner is not None:
-                    predicted = predicted
-                else:
-                    predicted = self.y_scaler.inverse_transform(predicted)
+                predicted = self.y_scaler.inverse_transform(predicted)
 
                 if len(predicted.shape) == 2 and predicted.shape[1] == 1:
                     predicted = predicted.flatten()
@@ -3454,9 +3463,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 final_prediction = self.final_meta_learner.predict(
                     X, np.array(predictions).T
                 )
-                final_prediction = self.y_scaler.inverse_transform(
-                    final_prediction.reshape(-1, 1)
-                ).flatten()
             else:
                 raise Exception
         elif self.second_layer != "None" and self.second_layer != None:
@@ -3492,8 +3498,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
 
         if self.meta_learner == "DeepDES":
-            cross_val_predict = np.array([ind.predicted_values for ind in self.hof]).T
-            self.final_meta_learner.fit(self.X, cross_val_predict, self.y)
+            # learn on an original y-scale
+            if self.validation_based_ensemble_selection > 0:
+                y = transform_y(self.des_valid_y, self.y_scaler)
+                valid_predictions = self.individual_prediction(
+                    self.des_valid_x, self.hof
+                )
+                valid_predictions = np.array(
+                    [transform_y(p, self.y_scaler) for p in valid_predictions]
+                ).T
+                self.final_meta_learner.fit(self.des_valid_x, valid_predictions, y)
+            else:
+                cross_val_predict = np.array(
+                    [
+                        transform_y(ind.predicted_values, self.y_scaler)
+                        for ind in self.hof
+                    ]
+                ).T
+                y = transform_y(self.y, self.y_scaler)
+                self.final_meta_learner.fit(self.X, cross_val_predict, y)
         else:
             self.final_meta_learner.fit(self.X, self.y)
 
