@@ -2018,8 +2018,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             top_features = list(code_importance_dict.keys())
         else:
             top_features = select_top_features(code_importance_dict, ratio)
+
+        only_new_feature = not self.evaluation_configuration.original_features
         transformed_features = combine_features(
-            self, X, top_features, only_new_features=True
+            self, X, top_features, only_new_features=only_new_feature
         )
         return transformed_features
 
