@@ -54,6 +54,8 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         verbose=False,
         mode="hybrid",  # Mode selection parameter
         regularization_type="cosine",  # New parameter for regularization type
+        use_uniform_weights=False,  # Flag to use uniform weights for testing
+        **param,
     ):
         self.latent_dim = latent_dim
         self.num_epochs = num_epochs
@@ -64,6 +66,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         self.verbose = verbose
         self.mode = mode  # Store the selected mode
         self.regularization_type = regularization_type  # Store the regularization type
+        self.use_uniform_weights = use_uniform_weights  # Store the uniform weights flag
         self.encoder = None
         self.weight_assigner = None
         self.trained = False
@@ -94,6 +97,12 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         else:
             if self.verbose:
                 print("Continuing training with existing model weights.")
+
+        if self.use_uniform_weights:
+            if self.verbose:
+                print("Using uniform weights, skipping NN training.")
+            self.trained = True  # Mark as trained for pipeline testing
+            return  # Exit early since we don't need NN training with uniform weights
 
         # Convert data to tensors
         X_tensor = torch.tensor(X, dtype=torch.float32)
@@ -212,6 +221,14 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         # Standardize inputs using the scaler fitted in training
         X_meta = self.scaler.transform(X_meta)
         predictions = self.prediction_scaler.transform(predictions)
+
+        if self.use_uniform_weights:
+            # Use uniform weights if the flag is set
+            uniform_weights = np.ones(predictions.shape[1]) / predictions.shape[1]
+            weighted_preds = (
+                uniform_weights * self.prediction_scaler.inverse_transform(predictions)
+            ).sum(axis=1)
+            return weighted_preds
 
         self.encoder.eval()
         self.weight_assigner.eval()

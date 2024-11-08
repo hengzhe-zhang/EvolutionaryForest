@@ -2608,7 +2608,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.add_primitives_to_pset(pset)
 
         if self.remove_constant_features:
-            remove_constant_variables(pset, x)
+            self.columns_without_constants = remove_constant_variables(pset, x)
 
         # add constant
         for constant in ["rand101", "pi", "e"]:
@@ -3458,10 +3458,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return self.hof.predict(predictions)
         if self.meta_learner is not None:
             if isinstance(self.final_meta_learner, DESMetaRegressor):
-                if self.verbose:
-                    self.final_meta_learner.plot_sample_weights(
-                        X[:20], np.array(predictions).T[:20]
-                    )
+                # if self.verbose:
+                #     print(
+                #         "Mean of X",
+                #         np.mean(X),
+                #         "Mean of Predictions",
+                #         np.mean(predictions),
+                #     )
+                #     self.final_meta_learner.plot_sample_weights(
+                #         X[:20], np.array(predictions).T[:20]
+                #     )
                 final_prediction = self.final_meta_learner.predict(
                     X, np.array(predictions).T
                 )
@@ -3495,9 +3501,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.meta_learner == "RF-DES":
             self.final_meta_learner = RFRoutingEnsemble(models)
         elif self.meta_learner == "DeepDES":
-            self.final_meta_learner = DESMetaRegressor(
-                verbose=False,
-            )
+            self.final_meta_learner = DESMetaRegressor(verbose=False, **self.param)
 
         if self.meta_learner == "DeepDES":
             # learn on an original y-scale

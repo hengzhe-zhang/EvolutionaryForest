@@ -5,11 +5,14 @@ import numpy as np
 def remove_constant_variables(pset, x):
     """Remove constant variables from a primitive set based on dataset x."""
     constant_indices = []
+    seleceted_indices = []
 
     # Detect constant variables
     for i in range(x.shape[1]):
         if np.all(x[:, i] == x[0, i]):  # Check if all values in the column are the same
             constant_indices.append(i)  # Record the index of constant variable
+        else:
+            seleceted_indices.append(i)
 
     # Delete in reverse order to avoid index shifting
     for i in reversed(constant_indices):
@@ -32,4 +35,6 @@ def remove_constant_variables(pset, x):
         # 5. Adjust the terms count
         pset.terms_count -= 1
 
-    return constant_indices  # Return the indices of removed variables for reporting
+    return np.array(
+        seleceted_indices
+    )  # Return the indices of removed variables for reporting

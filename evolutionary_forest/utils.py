@@ -230,12 +230,16 @@ def select_top_features(code_importance_dict, ratio=None):
     return features
 
 
-def combine_features(regr, X_input, feature_list, only_new_features=False):
+def combine_features(
+    regr: "EvolutionaryForestRegressor", X_input, feature_list, only_new_features=False
+):
     if isinstance(X_input, pd.DataFrame):
         X = X_input.to_numpy()
     else:
         X = X_input
 
+    if regr.remove_constant_features:
+        X = X[:, regr.columns_without_constants]
     if only_new_features:
         data = []
     else:
