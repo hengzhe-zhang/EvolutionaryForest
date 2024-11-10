@@ -162,11 +162,12 @@ def get_feature_importance(
 
     # Processing function
     if latex_version:
-        latex_string = lambda g: latex(
-            parse_expr(gene_to_string(g).replace("ARG", "X").replace("_", "-")),
-            mul_symbol="dot",
-        )
-        processing_code = lambda g: f"${latex_string(g)}$"
+        # latex_string = lambda g: latex(
+        #     parse_expr(gene_to_string(g).replace("ARG", "X").replace("_", "-")),
+        #     mul_symbol="dot",
+        # )
+        # processing_code = lambda g: f"${latex_string(g)}$"
+        processing_code = lambda g: gene_to_string(g)
     else:
         processing_code = lambda g: f"{code_generation(regressor_model, g)}"
 
@@ -231,6 +232,8 @@ def select_top_features(code_importance_dict, ratio=None):
 
 
 def plot_feature_importance(feature_importance_dict, save_fig=False):
+    import textwrap
+
     names, importance = list(feature_importance_dict.keys()), list(
         feature_importance_dict.values()
     )
@@ -245,8 +248,13 @@ def plot_feature_importance(feature_importance_dict, save_fig=False):
     # Sort the DataFrame in order decreasing feature importance
     fi_df.sort_values(by=["feature_importance"], ascending=False, inplace=True)
 
+    # Wrap long feature names
+    fi_df["feature_names"] = fi_df["feature_names"].apply(
+        lambda x: "\n".join(textwrap.wrap(x, width=45))
+    )
+
     # Define size of bar plot
-    plt.figure(figsize=(18, 8))
+    plt.figure(figsize=(16, 16))
     sns.set(style="white", font_scale=1.5)
     # Plot Seaborn bar chart
     sns.barplot(

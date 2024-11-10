@@ -181,7 +181,8 @@ def calculate_score(args):
             X,
             evaluation_configuration=configuration,
         )
-        hash_result = [get_hash_value(x) for x in Yp]
+        hash_result = [get_hash_value(x) for x in Yp.T]
+        assert len(hash_result) == len(func), f"{len(hash_result)}, {len(func)}"
         correlation_results = None
         introns_results = None
         if configuration.save_semantics:
@@ -208,6 +209,7 @@ def calculate_score(args):
             semantic_results = Yp
         if transductive_learning:
             Yp = Yp[: len(Y)]
+        assert len(hash_result) == len(func), f"{len(hash_result)}, {len(func)}"
         assert isinstance(Yp, (np.ndarray, torch.Tensor))
         if isinstance(Yp, np.ndarray):
             assert not np.any(np.isnan(Yp)), f"Type: {Yp.dtype}, Yp"

@@ -2014,6 +2014,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         code_importance_dict = get_feature_importance(
             self, latex_version=False, **params
         )
+        # code_importance_dict_latex = get_feature_importance(
+        #     self, latex_version=True, mean_fitness=True
+        # )
+        # plot_feature_importance(code_importance_dict_latex)
         if self.ensemble_size == 1:
             top_features = list(code_importance_dict.keys())
         else:
