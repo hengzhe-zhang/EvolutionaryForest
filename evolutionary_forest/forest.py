@@ -3,7 +3,6 @@ import inspect
 from multiprocessing import Pool
 
 import dill
-import numpy as np
 import scipy
 from category_encoders import TargetEncoder
 from deap import gp
@@ -295,6 +294,7 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
+from evolutionary_forest.utility.feature_engineering_utils import combine_features
 from evolutionary_forest.utility.feature_importance_util import (
     feature_importance_process,
 )

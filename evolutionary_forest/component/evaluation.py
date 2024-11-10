@@ -181,7 +181,7 @@ def calculate_score(args):
             X,
             evaluation_configuration=configuration,
         )
-        hash_result = None
+        hash_result = [get_hash_value(x) for x in Yp]
         correlation_results = None
         introns_results = None
         if configuration.save_semantics:
@@ -659,10 +659,8 @@ def multi_tree_evaluation(
             quick_result = single_tree_evaluation(gene, pset, input_data)
             quick_result = quick_fill([quick_result], data)[0]
             # save hash of semantics
-            if isinstance(quick_result, np.ndarray):
-                hash_result.append(hash(quick_result.tostring()))
-            else:
-                hash_result.append(hash(str(quick_result)))
+            hash_value = get_hash_value(quick_result)
+            hash_result.append(hash_value)
             # store to register
             register[:, register_array[id]] = quick_result
         result = register.T
@@ -743,6 +741,14 @@ def multi_tree_evaluation(
             correlation_results=correlation_results,
             introns_results=introns_results,
         )
+
+
+def get_hash_value(quick_result):
+    if isinstance(quick_result, np.ndarray):
+        hash_value = hash(quick_result.tostring())
+    else:
+        hash_value = hash(str(quick_result))
+    return hash_value
 
 
 def add_hash_value(quick_result, hash_result):

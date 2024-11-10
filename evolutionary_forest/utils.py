@@ -230,41 +230,6 @@ def select_top_features(code_importance_dict, ratio=None):
     return features
 
 
-def combine_features(
-    regr: "EvolutionaryForestRegressor", X_input, feature_list, only_new_features=False
-):
-    if isinstance(X_input, pd.DataFrame):
-        X = X_input.to_numpy()
-    else:
-        X = X_input
-
-    if regr.remove_constant_features:
-        X = X[:, regr.columns_without_constants]
-    if only_new_features:
-        data = []
-    else:
-        data = [X]
-    for f in feature_list:
-        func = eval(f, regr.pset.context)
-        features = func(*X.T)
-        if isinstance(features, np.ndarray) and len(features) == len(X):
-            data.append(features.reshape(-1, 1))
-    transformed_features = np.concatenate(data, axis=1)
-    # Fix outliers (In extreme cases, some functions will produce unexpected results)
-    transformed_features = np.nan_to_num(transformed_features, posinf=0, neginf=0)
-    if isinstance(X_input, pd.DataFrame):
-        if only_new_features:
-            transformed_features = pd.DataFrame(
-                transformed_features, columns=[f.split(":")[1] for f in feature_list]
-            )
-        else:
-            transformed_features = pd.DataFrame(
-                transformed_features,
-                columns=list(X_input.columns) + [f.split(":")[1] for f in feature_list],
-            )
-    return transformed_features
-
-
 def plot_feature_importance(feature_importance_dict, save_fig=False):
     names, importance = list(feature_importance_dict.keys()), list(
         feature_importance_dict.values()
@@ -281,7 +246,7 @@ def plot_feature_importance(feature_importance_dict, save_fig=False):
     fi_df.sort_values(by=["feature_importance"], ascending=False, inplace=True)
 
     # Define size of bar plot
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(18, 8))
     sns.set(style="white", font_scale=1.5)
     # Plot Seaborn bar chart
     sns.barplot(
