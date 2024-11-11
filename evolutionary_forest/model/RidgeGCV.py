@@ -21,7 +21,7 @@ class RidgeGCV(_RidgeGCV):
 
     def fit(self, X, y, sample_weight=None):
         super().fit(X, y, sample_weight)
-        if self.store_cv_values:
+        if self.store_cv_results:
             self.cv_values_ = np.nan_to_num(
                 self.cv_values_, nan=0.0, posinf=0.0, neginf=0.0
             )
@@ -48,12 +48,12 @@ def compare_ridge_gcv_with_ridgecv():
     alphas = np.logspace(-6, 6, 13)
 
     # Use the custom RidgeGCV class
-    ridge_gcv = RidgeGCV(alphas=alphas, store_cv_values=True)
+    ridge_gcv = RidgeGCV(alphas=alphas, store_cv_results=True)
     ridge_gcv.fit(X_train, y_train)
     y_pred_custom = ridge_gcv.predict(X_test)
 
     # Use the standard RidgeCV class from sklearn
-    ridge_cv = RidgeCV(alphas=alphas, store_cv_values=True)
+    ridge_cv = RidgeCV(alphas=alphas, store_cv_results=True)
     ridge_cv.fit(X_train, y_train)
     y_pred_sklearn = ridge_cv.predict(X_test)
 

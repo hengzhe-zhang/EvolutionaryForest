@@ -1786,7 +1786,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == "MTL-Ridge":
             if len(self.y.shape) == 1:
                 ridge_model = RidgeCV(
-                    store_cv_values=True, scoring=make_scorer(r2_score)
+                    store_cv_results=True, scoring=make_scorer(r2_score)
                 )
             else:
                 ridge_model = MTLRidgeCV()
@@ -1848,34 +1848,34 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 else:
                     ridge = eval(self.ridge_alphas)
             ridge_model = RidgeGCV(
-                alphas=ridge, store_cv_values=True, scoring=make_scorer(safe_r2_score)
+                alphas=ridge, store_cv_results=True, scoring=make_scorer(safe_r2_score)
             )
         elif self.base_learner == "RidgeCV-Mixup":
             ridge_model = MixupRegressor(
                 RidgeGCV(
                     alphas=[0.1, 1, 10],
-                    store_cv_values=True,
+                    store_cv_results=True,
                     scoring=make_scorer(r2_score),
                 )
             )
         elif self.base_learner == "SplineRidgeCV" or base_model == "SplineRidgeCV":
             ridge_model = SplineRidgeCV(
-                store_cv_values=True, scoring=make_scorer(r2_score)
+                store_cv_results=True, scoring=make_scorer(r2_score)
             )
         elif self.base_learner == "Bounded-RidgeCVSimple":
             ridge_model = BoundedRidgeCVSimple(
-                store_cv_values=True, scoring=make_scorer(r2_score)
+                store_cv_results=True, scoring=make_scorer(r2_score)
             )
         elif (
             self.base_learner == "Bounded-RidgeCV"
             or self.base_learner == "BoundedRidgeCV-ENet"
         ):
             ridge_model = BoundedRidgeCV(
-                store_cv_values=True, scoring=make_scorer(r2_score)
+                store_cv_results=True, scoring=make_scorer(r2_score)
             )
         elif self.base_learner == "Smooth-RidgeCV":
             ridge_model = SmoothRidgeCV(
-                store_cv_values=True, scoring=make_scorer(r2_score)
+                store_cv_results=True, scoring=make_scorer(r2_score)
             )
         elif self.base_learner == "ElasticNetCV":
             ridge_model = ElasticNetCV(

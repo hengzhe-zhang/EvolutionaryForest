@@ -10,7 +10,7 @@ class MTLRidgeCV(RidgeCV):
     def __init__(self):
         super().__init__()
         self.mtl_ridge = MultiOutputRegressor(
-            RidgeCV(store_cv_values=True, scoring=make_scorer(r2_score))
+            RidgeCV(store_cv_results=True, scoring=make_scorer(r2_score))
         )
         self.coef_ = None
 
