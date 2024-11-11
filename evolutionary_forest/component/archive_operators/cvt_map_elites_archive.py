@@ -179,6 +179,10 @@ class CVTMAPElitesHOF(HallOfFame):
                 population + list(self.items),
                 self.map_archive_candidate_size,
             )
+        if len(best_candidate) < self.maxsize:
+            self.clear()
+            super().update(best_candidate)
+            return
         # centered
         semantics = np.array([ind.predicted_values for ind in best_candidate]) - self.y
 
