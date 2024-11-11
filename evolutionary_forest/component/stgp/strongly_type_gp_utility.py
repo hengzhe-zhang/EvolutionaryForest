@@ -30,6 +30,10 @@ from evolutionary_forest.component.primitive_functions import (
     cos_pi,
     sqrt_signed,
     analytical_log_signed,
+    protected_division,
+    protect_sqrt,
+    protect_log,
+    abs_log,
 )
 from evolutionary_forest.component.stgp.categorical_processor import *
 from evolutionary_forest.component.stgp.fast_binary_encoder import BinaryEncoder
@@ -226,6 +230,7 @@ def get_typed_pset(
 ) -> gp.PrimitiveSetTyped:
     pset = gp.PrimitiveSetTyped("MAIN", [float for _ in range(shape)], float, "ARG")
     if primitive_type.endswith("Smooth"):
+        # Smooth operators, just have parameters, but does not have types
         if len(primitive_type.split("-")) == 3:
             flag = primitive_type.split("-")[1]
         else:
@@ -233,12 +238,7 @@ def get_typed_pset(
         add_smooth_math_operators(pset, flag)
         pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
         return pset
-    if primitive_type.endswith("-Basic"):
-        add_math_operators(pset)
-        return pset
-    add_math_operators(pset)
-    add_scaling_primitives(pset)
-    # pset.addPrimitive(binning, [float, Parameter], float)
+    flag = primitive_type.split("-")[1]
     if primitive_type.endswith("-Categorical"):
         feature_types = [
             CategoricalFeature if categorical_features[idx] else float
@@ -253,7 +253,7 @@ def get_typed_pset(
         add_scaling_primitives(pset)
         if has_numerical_features:
             pset.addPrimitive(identity, [float], FeatureLayer)
-            add_math_operators(pset)
+            add_math_operators(pset, flag)
         if has_numerical_features and has_categorical_features:
             # must have categorical features
             pset.addPrimitive(
@@ -277,20 +277,18 @@ def get_typed_pset(
                 [CategoricalFeature, CategoricalFeature, Parameter],
                 CategoricalFeature,
             )
-            # pset.addPrimitive(
-            #     binary_feature_cross,
-            #     [CategoricalFeature, CategoricalFeature, Parameter],
-            #     FeatureLayer,
-            # )
-            # pset.addPrimitive(
-            #     triple_feature_cross,
-            #     [CategoricalFeature, CategoricalFeature, CategoricalFeature, Parameter],
-            #     FeatureLayer,
-            # )
             pset.addPrimitive(
                 onehot_encoding, [CategoricalFeature, Parameter], FeatureLayer
             )
-            pset.addPrimitive(ordinal_encoding, [CategoricalFeature, Parameter], float)
+            pset.addPrimitive(
+                binary_encoding, [CategoricalFeature, Parameter], FeatureLayer
+            )
+            pset.addPrimitive(
+                ordinal_encoding, [CategoricalFeature, Parameter], FeatureLayer
+            )
+    else:
+        add_math_operators(pset, flag)
+        add_scaling_primitives(pset)
     pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
     # pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1), float)
     return pset
@@ -304,17 +302,84 @@ def add_scaling_primitives(pset):
     pset.addPrimitive(normal_quantile_transformer, [float, Parameter], float)
 
 
-def add_math_operators(pset):
-    pset.addPrimitive(np.add, [float, float], float)
-    pset.addPrimitive(np.subtract, [float, float], float)
-    pset.addPrimitive(np.multiply, [float, float], float)
-    pset.addPrimitive(_protected_division, [float, float], float)
-    pset.addPrimitive(_protected_sqrt, [float], float)
-    pset.addPrimitive(_protected_log, [float], float)
-    pset.addPrimitive(_sigmoid, [float], float)
-    pset.addPrimitive(np.minimum, [float, float], float)
-    pset.addPrimitive(np.maximum, [float, float], float)
-    pset.addPrimitive(np.square, [float], float)
+def add_math_operators(pset, flag):
+    operators = flag.split(",")
+    tools = {
+        "Add": (
+            np.add,
+            [float, float],
+            float,
+        ),
+        "Sub": (
+            np.subtract,
+            [float, float],
+            float,
+        ),
+        "Mul": (
+            np.multiply,
+            [float, float],
+            float,
+        ),
+        "Div": (
+            protected_division,
+            [float, float],
+            float,
+        ),
+        "Sqrt": (
+            protect_sqrt,
+            [float],
+            float,
+        ),
+        "SinPi": (
+            sin_pi,
+            [float],
+            float,
+        ),
+        "CosPi": (
+            cos_pi,
+            [float],
+            float,
+        ),
+        "Abs": (
+            np.abs,
+            [float],
+            float,
+        ),
+        "Square": (
+            np.square,
+            [float],
+            float,
+        ),
+        "Min": (
+            np.minimum,
+            [float, float],
+            float,
+        ),
+        "Max": (
+            np.maximum,
+            [float, float],
+            float,
+        ),
+        "Neg": (
+            np.negative,
+            [float],
+            float,
+        ),
+        "AQ": (
+            analytical_quotient,
+            [float, float],
+            float,
+        ),
+        "AbsLog": (
+            abs_log,
+            [float],
+            float,
+        ),
+    }
+    for operator in operators:
+        a, b, c = tools[operator]
+        # a.__name__ = operator
+        pset.addPrimitive(a, b, c)
 
 
 def smooth_fitting(function, data):
@@ -447,17 +512,21 @@ def multi_tree_evaluation_typed(
     evaluation_configuration: EvaluationConfiguration,
 ):
     results = []
+    feature_numbers = []
     for tree in gp_trees:
         result = quick_evaluate(
             tree, pset, data, evaluation_configuration=evaluation_configuration
         )
         if isinstance(result, np.ndarray) and len(result.shape) == 2:
             # 2D array
-            results.extend(list(result.T))
+            features = list(result.T)
+            results.extend(features)
+            feature_numbers.append(len(features))
         else:
             results.append(result)
+            feature_numbers.append(1)
     results = quick_fill(results, data)
-    return results.T
+    return results.T, feature_numbers
 
 
 def quick_evaluate(

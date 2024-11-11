@@ -29,7 +29,7 @@ def combine_features(
     for f in feature_list:
         features = single_tree_evaluation(gp_tree_dict[f], regr.pset, X)
         if isinstance(features, np.ndarray) and len(features) == len(X):
-            data.append(features.reshape(-1, 1))
+            data.append(features.reshape(len(X), -1))
     transformed_features = np.concatenate(data, axis=1)
     # Fix outliers (In extreme cases, some functions will produce unexpected results)
     transformed_features = np.nan_to_num(transformed_features, posinf=0, neginf=0)

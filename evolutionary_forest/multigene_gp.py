@@ -157,7 +157,7 @@ class MultipleGeneGP:
         intron_threshold=0,
         initial_max_gene_num=1,
         algorithm: "EvolutionaryForestRegressor" = None,
-        **kwargs
+        **kwargs,
     ):
         configuration = algorithm.mutation_configuration
         self.gene: List[PrimitiveTree] = []
@@ -1314,7 +1314,9 @@ def staticLimit_multiple_gene(
                         ind.gene[j] = gene
                         if gene is None:
                             continue
-                    assert key(ind.gene[j]) <= height_limitation
+                    assert (
+                        key(ind.gene[j]) <= height_limitation
+                    ), f"Key: {key(ind.gene[j])} > {height_limitation}, {ind.gene[j]}"
                     assert key(ind.gene[j]) >= min_value
                 ind.gene = remove_none_values(ind.gene)
             return new_inds

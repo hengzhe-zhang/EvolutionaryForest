@@ -90,10 +90,6 @@ def mutUniformSTGP(individual, expr, pset):
 
 
 def generate_STGP(pset, min_, max_, condition, type_=None):
-    if any(primitive == FeatureLayer for primitive in pset.primitives.keys()):
-        # may need to increase one layer, because FeatureLayer is not counted
-        min_ += 1
-        max_ += 1
     if type_ is None:
         type_ = pset.ret
     expr = []

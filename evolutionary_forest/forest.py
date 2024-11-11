@@ -295,6 +295,9 @@ from evolutionary_forest.strategies.multifidelity_evaluation import (
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.feature_engineering_utils import combine_features
+from evolutionary_forest.utility.feature_importance.aggregation import (
+    aggregate_feature_importances,
+)
 from evolutionary_forest.utility.feature_importance_util import (
     feature_importance_process,
 )
@@ -1122,13 +1125,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             coef = base_learner.pi_values
         elif isinstance(base_learner, (LinearModel, LinearClassifierMixin)):
             if len(base_learner.coef_.shape) == 2:
-                coef = np.max(np.abs(base_learner.coef_), axis=0)[: self.gene_num]
+                coef = np.max(np.abs(base_learner.coef_), axis=0)
             else:
-                coef = np.abs(base_learner.coef_)[: self.gene_num]
+                coef = np.abs(base_learner.coef_)
         elif isinstance(base_learner, (BaseDecisionTree, LGBMModel)):
-            coef = base_learner.feature_importances_[: self.gene_num]
+            coef = base_learner.feature_importances_
         elif isinstance(base_learner, (GBDTLRClassifier)):
-            coef = base_learner.gbdt_.feature_importances_[: self.gene_num]
+            coef = base_learner.gbdt_.feature_importances_
         elif isinstance(base_learner, SVR):
             coef = np.ones(self.X.shape[1])
         elif isinstance(base_learner, (RidgeDT, LRDTClassifier)):
@@ -1310,6 +1313,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual.semantics = individual.semantics.detach().numpy()
         individual.correlation_results = information.correlation_results
         self.importance_post_process(individual, estimators)
+        if information.feature_numbers is not None:
+            individual.coef = aggregate_feature_importances(
+                individual.coef, information.feature_numbers
+            )
 
         if self.mgp_mode and self.importance_propagation:
             # Importance Propagation

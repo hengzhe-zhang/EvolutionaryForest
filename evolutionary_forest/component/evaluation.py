@@ -83,6 +83,9 @@ from evolutionary_forest.multigene_gp import (
     IndividualConfiguration,
 )
 from evolutionary_forest.sklearn_utils import cross_val_predict
+from evolutionary_forest.utility.feature_importance.aggregation import (
+    split_arrays_by_splits,
+)
 from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
 from evolutionary_forest.utility.sampling_utils import (
     sample_according_to_distance,
@@ -115,6 +118,7 @@ class EvaluationResults:
         correlation_results=None,
         introns_results=None,
         semantic_results=None,
+        feature_numbers=None,
     ):
         self.gp_evaluation_time: int = gp_evaluation_time
         self.ml_evaluation_time: int = ml_evaluation_time
@@ -126,6 +130,9 @@ class EvaluationResults:
         self.introns_results: list = introns_results
         # semantic of each features
         self.semantic_results: list = semantic_results
+        # in ususal case, it is useless
+        # however, it could [1,1,2] in case has categorical features trnasformed by one-hot encoding
+        self.feature_numbers = feature_numbers
 
 
 def calculate_score(args):
@@ -174,17 +181,23 @@ def calculate_score(args):
     else:
         register_array = None
 
+    feature_numbers = None
+
     if configuration.basic_primitives.startswith("Pipeline"):
-        Yp = multi_tree_evaluation_typed(
+        Yp, feature_numbers = multi_tree_evaluation_typed(
             func,
             pset,
             X,
             evaluation_configuration=configuration,
         )
-        hash_result = [get_hash_value(x) for x in Yp.T]
+        # feature cross may extend features
+        hash_result = [
+            get_hash_value(x) for x in split_arrays_by_splits(Yp.T, feature_numbers)
+        ]
         assert len(hash_result) == len(func), f"{len(hash_result)}, {len(func)}"
         correlation_results = None
         introns_results = None
+        feature_numbers = np.array(feature_numbers)
         if configuration.save_semantics:
             semantic_results = Yp
     else:
@@ -418,6 +431,7 @@ def calculate_score(args):
             correlation_results=correlation_results,
             introns_results=introns_results,
             semantic_results=semantic_results,
+            feature_numbers=feature_numbers,
         ),
     )
 
