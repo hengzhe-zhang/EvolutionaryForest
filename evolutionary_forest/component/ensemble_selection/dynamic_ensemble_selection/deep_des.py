@@ -52,7 +52,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         lambda_entropy=0.01,
         patience=10,
         verbose=False,
-        mode="hybrid",  # Mode selection parameter
+        mode="original",  # Mode selection parameter
         regularization_type="cosine",  # New parameter for regularization type
         use_uniform_weights=False,  # Flag to use uniform weights for testing
         **param,
@@ -73,7 +73,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         self.scaler = StandardScaler()
         self.prediction_scaler = StandardScaler()
 
-    def fit(self, X, predictions, y):
+    def fit(self, X, predictions, y, batch_size=32):
         # Standardize X and y
         X = self.scaler.fit_transform(X)
         predictions = self.prediction_scaler.fit_transform(predictions)
@@ -128,71 +128,76 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         for epoch in range(self.num_epochs):
             self.encoder.train()
             self.weight_assigner.train()
-            optimizer.zero_grad()
 
-            # Encode combined input to get latent representation
-            z = self.encoder(combined_input)  # Latent representation
-            weights = self.weight_assigner(
-                z
-            )  # Weights assigned to each base learner prediction
+            # Batch training
+            num_samples = combined_input.size(0)
+            indices = torch.randperm(num_samples)  # Shuffle data
+            for start in range(0, num_samples, batch_size):
+                end = min(start + batch_size, num_samples)
+                batch_indices = indices[start:end]
 
-            # Compute weighted predictions using base learner predictions
-            weighted_preds = torch.sum(
-                weights * predictions,
-                dim=1,
-                keepdim=True,
-            )
-            des_loss = nn.functional.mse_loss(weighted_preds, y_tensor)
+                batch_input = combined_input[batch_indices]
+                batch_predictions = predictions[batch_indices]
+                batch_y = y_tensor[batch_indices]
 
-            # Contrastive loss (InfoNCE)
-            if z.size(0) > 1:
-                contrastive_loss = self._info_nce_loss(z[:-1], z[1:])
-            else:
-                contrastive_loss = torch.tensor(0.0)
+                sorted_indices = torch.argsort(batch_y.view(-1))
+                batch_input = batch_input[sorted_indices]
+                batch_y = batch_y[sorted_indices]
 
-            # Regularization based on the selected type
-            if self.regularization_type == "cosine":
-                # Normalize the weights
-                normalized_weights = F.normalize(
-                    weights, p=2, dim=1
-                )  # shape: (batch_size, num_weights)
+                optimizer.zero_grad()
 
-                # Compute pairwise cosine similarity
-                cosine_sim_matrix = torch.matmul(
-                    normalized_weights.T, normalized_weights
-                )  # shape: (num_weights, num_weights)
+                # Encode combined input to get latent representation
+                z = self.encoder(batch_input)  # Latent representation
+                weights = self.weight_assigner(
+                    z
+                )  # Weights assigned to each base learner prediction
 
-                # Remove the diagonal elements (self-similarity)
-                num_weights = weights.size(1)
-                mask = torch.eye(num_weights, device=weights.device).bool()
-                cosine_sim_matrix = cosine_sim_matrix.masked_fill(mask, 0)
-
-                # Calculate the mean of the non-diagonal cosine similarities for regularization loss
-                diversity_penalty = cosine_sim_matrix.sum() / (
-                    num_weights * (num_weights - 1)
+                # Compute weighted predictions using base learner predictions
+                weighted_preds = torch.sum(
+                    weights * batch_predictions, dim=1, keepdim=True
                 )
-                regularization_loss = diversity_penalty
-            else:
-                # Entropy regularization
-                regularization_loss = -torch.sum(
-                    weights * torch.log(weights + 1e-10)
-                ) / weights.size(0)
+                des_loss = nn.functional.mse_loss(weighted_preds, batch_y)
 
-            # Total loss with regularization
-            total_loss = (
-                des_loss
-                + self.lambda_contrastive * contrastive_loss
-                + self.lambda_entropy * regularization_loss
-            )
-            total_loss.backward()
-            optimizer.step()
+                # Contrastive loss (InfoNCE)
+                if z.size(0) > 1:
+                    contrastive_loss = self._info_nce_loss(z[:-1], z[1:])
+                else:
+                    contrastive_loss = torch.tensor(0.0)
 
-            if self.verbose:
-                print(
-                    f"Epoch {epoch+1}/{self.num_epochs}, Loss: {total_loss.item():.4f}, "
-                    f"DES Loss: {des_loss.item():.4f}, Contrastive Loss: {contrastive_loss.item():.4f}, "
-                    f"Regularization Loss: {regularization_loss.item():.4f}"
+                # Regularization based on the selected type
+                if self.regularization_type == "cosine":
+                    # Normalize the weights
+                    normalized_weights = F.normalize(weights, p=2, dim=1)
+
+                    # Compute pairwise cosine similarity
+                    cosine_sim_matrix = torch.matmul(
+                        normalized_weights.T, normalized_weights
+                    )
+
+                    # Remove the diagonal elements (self-similarity)
+                    num_weights = weights.size(1)
+                    mask = torch.eye(num_weights, device=weights.device).bool()
+                    cosine_sim_matrix = cosine_sim_matrix.masked_fill(mask, 0)
+
+                    # Calculate the mean of the non-diagonal cosine similarities for regularization loss
+                    diversity_penalty = cosine_sim_matrix.sum() / (
+                        num_weights * (num_weights - 1)
+                    )
+                    regularization_loss = diversity_penalty
+                else:
+                    # Entropy regularization
+                    regularization_loss = -torch.sum(
+                        weights * torch.log(weights + 1e-10)
+                    ) / weights.size(0)
+
+                # Total loss with regularization
+                total_loss = (
+                    des_loss
+                    + self.lambda_contrastive * contrastive_loss
+                    + self.lambda_entropy * regularization_loss
                 )
+                total_loss.backward()
+                optimizer.step()
 
             # Early stopping
             if total_loss.item() < best_loss:
@@ -217,7 +222,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         # Mark the model as trained for future continual learning
         self.trained = True
 
-    def predict(self, X_meta, predictions):
+    def predict(self, X_meta, predictions, batch_size=32):
         # Standardize inputs using the scaler fitted in training
         X_meta = self.scaler.transform(X_meta)
         predictions = self.prediction_scaler.transform(predictions)
@@ -232,6 +237,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
 
         self.encoder.eval()
         self.weight_assigner.eval()
+
         X_tensor = torch.tensor(X_meta, dtype=torch.float32)
         predictions_tensor = torch.tensor(predictions, dtype=torch.float32)
 
@@ -243,18 +249,28 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         elif self.mode == "hybrid":
             combined_input = torch.cat([X_tensor, predictions_tensor], dim=1)
 
-        # Obtain latent representations and calculate weights
+        # Batch prediction
+        num_samples = combined_input.size(0)
+        predictions_list = []
+
         with torch.no_grad():
-            z = self.encoder(combined_input)
-            weights = self.weight_assigner(z)
+            for start in range(0, num_samples, batch_size):
+                end = min(start + batch_size, num_samples)
+                batch_input = combined_input[start:end]
 
-        # Combine provided predictions using weights
-        weighted_preds = (
-            weights.numpy() * self.prediction_scaler.inverse_transform(predictions)
-        ).sum(axis=1)
+                # Obtain latent representations and calculate weights
+                z = self.encoder(batch_input)
+                weights = self.weight_assigner(z)
 
-        # Return the weighted predictions directly
-        return weighted_preds
+                # Combine provided predictions using weights
+                batch_predictions = (
+                    weights.numpy()
+                    * self.prediction_scaler.inverse_transform(predictions[start:end])
+                ).sum(axis=1)
+                predictions_list.append(batch_predictions)
+
+        # Concatenate batch predictions
+        return np.concatenate(predictions_list)
 
     def _info_nce_loss(self, z_i, z_j, temperature=0.5):
         z_i = nn.functional.normalize(z_i, dim=-1)
@@ -329,13 +345,22 @@ def run_experiment(args):
     # Fit the model with X, predictions, and y
     des_regressor.fit(X_train, predictions_train, y_train)
 
-    # Predict on the validation set
-    y_pred_des = des_regressor.predict(
+    # Predict on the training and validation sets
+    y_pred_train = des_regressor.predict(
+        X_train,
+        predictions_train,
+    )
+    y_pred_val = des_regressor.predict(
         X_val,
         predictions_val,
     )
-    r2 = r2_score(y_val, y_pred_des)
-    return params, r2
+
+    # Calculate R2 scores for training and validation sets
+    r2_train = r2_score(y_train, y_pred_train)
+    r2_val = r2_score(y_val, y_pred_val)
+
+    # Return parameters and R2 scores wrapped in a dictionary
+    return params, {"r2_train": r2_train, "r2_val": r2_val}
 
 
 # Main function for hyperparameter tuning using sklearn's ParameterGrid
@@ -367,7 +392,7 @@ def run_hyperparameters(
 def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
     # Generate predictions from base learners for training and validation sets
     predictions_train = np.column_stack(
-        [learner.fit(X_train, y_train).predict(X_train) for learner in base_learners]
+        [learner.predict(X_train) for learner in base_learners]
     )
     predictions_val = np.column_stack(
         [learner.predict(X_val) for learner in base_learners]
@@ -375,10 +400,12 @@ def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
 
     # Define the parameter grid
     param_grid = {
-        "lambda_contrastive": [1],
-        "lambda_entropy": [0.001, 0.01, 0.1, 1.0],
+        "lambda_contrastive": [10, 100, 1000],
+        "lr": [0.001, 0.01],
+        "lambda_entropy": [0.01],
         "mode": ["hybrid"],
         "regularization_type": ["cosine", "entropy"],
+        "use_uniform_weights": [False],
     }
 
     # Run hyperparameter tuning with generated predictions
@@ -388,8 +415,8 @@ def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
 
     # Print results
     print("Hyperparameter tuning results:")
-    for params, r2 in results:
-        print(f"Params: {params}, R2: {r2:.4f}")
+    for params, scores in results:
+        print(f"Params: {params}, Scores: {scores}")
 
 
 def evaluate_base_learners_and_average(base_learners, X_val, y_val):
@@ -515,9 +542,9 @@ if __name__ == "__main__":
     X_meta_train = np.hstack(oof_preds)
     X_meta_val = np.column_stack([learner.predict(X_val) for learner in base_learners])
 
-    weight_visualization(base_learners, X_train, y_train, X_val, y_val, mode="hybrid")
+    # weight_visualization(base_learners, X_train, y_train, X_val, y_val, mode="original")
 
     # r2_avg = evaluate_base_learners_and_average(base_learners, X_val, y_val)
 
     # Run parameter tuning
-    # run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val)
+    run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val)
