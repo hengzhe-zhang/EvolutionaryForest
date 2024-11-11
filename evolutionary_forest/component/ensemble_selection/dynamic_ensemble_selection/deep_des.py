@@ -32,12 +32,14 @@ class Encoder(nn.Module):
 
 
 class WeightAssigner(nn.Module):
-    def __init__(self, latent_dim, num_classifiers):
+    def __init__(self, latent_dim, num_classifiers, temperature=1.0):
         super(WeightAssigner, self).__init__()
         self.fc = nn.Linear(latent_dim, num_classifiers)
+        self.temperature = temperature  # New temperature parameter
 
     def forward(self, z):
-        weights = torch.softmax(self.fc(z), dim=-1)  # Ensures weights sum to 1
+        # Adjust softmax using temperature
+        weights = torch.softmax(self.fc(z) / self.temperature, dim=-1)
         return weights
 
 
@@ -53,8 +55,9 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         patience=10,
         verbose=False,
         mode="original",  # Mode selection parameter
-        regularization_type="cosine",  # New parameter for regularization type
+        regularization_type="entropy",  # New parameter for regularization type
         use_uniform_weights=False,  # Flag to use uniform weights for testing
+        temperature=1,  # New temperature parameter
         **param,
     ):
         self.latent_dim = latent_dim
@@ -67,6 +70,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         self.mode = mode  # Store the selected mode
         self.regularization_type = regularization_type  # Store the regularization type
         self.use_uniform_weights = use_uniform_weights  # Store the uniform weights flag
+        self.temperature = temperature  # Store the temperature for WeightAssigner
         self.encoder = None
         self.weight_assigner = None
         self.trained = False
@@ -93,7 +97,9 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         # Initialize encoder and weight assigner only if not already trained
         if not self.trained:
             self.encoder = Encoder(input_dim, self.latent_dim)
-            self.weight_assigner = WeightAssigner(self.latent_dim, predictions.shape[1])
+            self.weight_assigner = WeightAssigner(
+                self.latent_dim, predictions.shape[1], self.temperature
+            )
         else:
             if self.verbose:
                 print("Continuing training with existing model weights.")
@@ -382,7 +388,7 @@ def run_hyperparameters(
     ]
 
     # Use ProcessPoolExecutor to parallelize hyperparameter tuning
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(max_workers=8) as executor:
         results = list(executor.map(run_experiment, tasks))
 
     return results
@@ -400,10 +406,11 @@ def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
 
     # Define the parameter grid
     param_grid = {
-        "lambda_contrastive": [10, 100, 1000],
-        "lr": [0.001, 0.01],
+        "lambda_contrastive": [0.1, 1, 10],
+        "lr": [0.001],
         "lambda_entropy": [0.01],
         "mode": ["hybrid"],
+        "temperature": [1, 0.1, 0.01],
         "regularization_type": ["cosine", "entropy"],
         "use_uniform_weights": [False],
     }
@@ -446,6 +453,9 @@ def show_model_weights_heatmap(
     """Displays a heatmap of weights assigned by DESMetaRegressor to each model for multiple samples."""
     des_model.encoder.eval()
     des_model.weight_assigner.eval()
+
+    X_meta_samples = des_model.scaler.transform(X_meta_samples)
+    predictions_samples = des_model.prediction_scaler.transform(predictions_samples)
 
     # Prepare the input tensor based on the mode
     if mode == "original":
@@ -505,14 +515,16 @@ def display_sample_weights_on_validation(
 
 
 # Main function to initialize and visualize weights
-def weight_visualization(base_learners, X_train, y_train, X_val, y_val, mode="hybrid"):
+def weight_visualization(
+    base_learners, X_train, y_train, X_meta_train, X_val, y_val, mode="hybrid"
+):
     # Initialize and train DESMetaRegressor with the specified mode
     des_model = DESMetaRegressor(mode=mode)
     des_model.fit(X_train, X_meta_train, y_train)
 
     # Display weights for a few samples from the validation set
     display_sample_weights_on_validation(
-        des_model, base_learners, X_val, num_samples=20, mode=mode
+        des_model, base_learners, X_val, num_samples=10, mode=mode
     )
 
 
