@@ -2034,6 +2034,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         transformed_features = combine_features(
             self, X, top_features, only_new_features=only_new_feature
         )
+        transformed_features = np.nan_to_num(
+            transformed_features.astype(np.float32), posinf=0, neginf=0
+        )
         return transformed_features
 
     def reference_copy(self):
