@@ -22,8 +22,8 @@ class RidgeGCV(_RidgeGCV):
     def fit(self, X, y, sample_weight=None):
         super().fit(X, y, sample_weight)
         if self.store_cv_results:
-            self.cv_values_ = np.nan_to_num(
-                self.cv_values_, nan=0.0, posinf=0.0, neginf=0.0
+            self.cv_results_ = np.nan_to_num(
+                self.cv_results_, nan=0.0, posinf=0.0, neginf=0.0
             )
         return self
 

@@ -35,11 +35,11 @@ class BoundedRidgeCVSimple(RidgeCV):
 class BoundedRidgeCV(BoundedRidgeCVSimple):
     def fit(self, X, y, sample_weight=None):
         super().fit(X, y, sample_weight)
-        self.cv_values_ = np.clip(
-            self.cv_values_, self.min - y.mean(), self.max - y.mean()
+        self.cv_results_ = np.clip(
+            self.cv_results_, self.min - y.mean(), self.max - y.mean()
         )
         # get mean squared error
-        error = (self.cv_values_ - y.reshape(-1, 1)) ** 2
+        error = (self.cv_results_ - y.reshape(-1, 1)) ** 2
         # print(error.shape)
         mse = np.mean(error, axis=0)
         best_alpha = np.argmin(mse)

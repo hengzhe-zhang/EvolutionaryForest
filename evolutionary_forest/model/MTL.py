@@ -19,8 +19,8 @@ class MTLRidgeCV(RidgeCV):
             y = np.reshape(y, (len(X), -1))
         self.mtl_ridge.fit(X, y)
         self.coef_ = np.mean([e.coef_ for e in self.mtl_ridge.estimators_], axis=0)
-        self.cv_values_ = np.concatenate(
-            [e.cv_values_ for e in self.mtl_ridge.estimators_], axis=0
+        self.cv_results_ = np.concatenate(
+            [e.cv_results_ for e in self.mtl_ridge.estimators_], axis=0
         )
         return self
 

@@ -478,7 +478,7 @@ def calculate_permutation_importance(estimators, Yp, Y):
 
 def statistical_best_alpha(base_model, Y, new_best_index):
     # new_best_index = statistical_best_alpha(base_model, Y, new_best_index)
-    all_y_pred = base_model.cv_values_ + Y.mean()
+    all_y_pred = base_model.cv_results_ + Y.mean()
     # get all error values
     errors = (Y.reshape(-1, 1) - all_y_pred) ** 2
     b_idx = None

@@ -38,7 +38,7 @@ class MixupRegressor(BaseEstimator, RegressorMixin):
             self.alphas = self.regressor_.alphas
             self.alpha_ = self.regressor_.alpha_
             self.coef_ = self.regressor_.coef_
-            self.cv_values_ = self.regressor_.cv_values_
+            self.cv_results_ = self.regressor_.cv_results_
         return self
 
     def predict(self, X: np.ndarray):
