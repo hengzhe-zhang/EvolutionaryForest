@@ -311,6 +311,58 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         loss = -torch.log(pos_sim / neg_sim).mean()
         return loss
 
+    def count_base_learner_usage(self, X_meta, predictions, batch_size=32, mode="sum"):
+        # Standardize inputs using the scaler fitted during training
+        X_meta = self.scaler.transform(X_meta)
+        predictions = self.prediction_scaler.transform(predictions)
+
+        self.encoder.eval()
+        self.weight_assigner.eval()
+
+        # Prepare tensors
+        X_tensor = torch.tensor(X_meta, dtype=torch.float32)
+        predictions_tensor = torch.tensor(predictions, dtype=torch.float32)
+
+        # Prepare the combined input based on the mode
+        if self.mode == "original":
+            combined_input = X_tensor
+        elif self.mode == "predicted":
+            combined_input = predictions_tensor
+        elif self.mode == "hybrid":
+            combined_input = torch.cat([X_tensor, predictions_tensor], dim=1)
+        else:
+            raise ValueError(f"Invalid mode: {self.mode}")
+
+        num_samples = combined_input.size(0)
+        total_weights = None
+
+        # Accumulate weights across all batches
+        with torch.no_grad():
+            for start in range(0, num_samples, batch_size):
+                end = min(start + batch_size, num_samples)
+                batch_input = combined_input[start:end]
+
+                # Obtain latent representations and calculate weights
+                z = self.encoder(batch_input)
+                weights = self.weight_assigner(z)  # Shape: (batch_size, n_models)
+
+                # Sum weights for the current batch
+                if total_weights is None:
+                    total_weights = weights.sum(dim=0)
+                else:
+                    total_weights += weights.sum(dim=0)
+
+        # Convert total weights to numpy
+        total_weights = total_weights.numpy()
+
+        # Aggregate based on mode
+        if mode == "sum":
+            return total_weights
+        elif mode == "average":
+            return total_weights / num_samples
+        else:
+            raise ValueError(f"Invalid aggregation mode: {mode}")
+
     def plot_sample_weights(self, X_meta_samples, predictions_samples, mode="hybrid"):
         """Plots the weights assigned to each model for each sample in X_meta_samples."""
         self.encoder.eval()

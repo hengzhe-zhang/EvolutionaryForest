@@ -3472,16 +3472,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return self.hof.predict(predictions)
         if self.meta_learner is not None:
             if isinstance(self.final_meta_learner, DESMetaRegressor):
-                # if self.verbose:
-                #     print(
-                #         "Mean of X",
-                #         np.mean(X),
-                #         "Mean of Predictions",
-                #         np.mean(predictions),
-                #     )
-                #     self.final_meta_learner.plot_sample_weights(
-                #         X[:20], np.array(predictions).T[:20]
-                #     )
+                if self.verbose:
+                    self.final_meta_learner.plot_sample_weights(
+                        X[:20], np.array(predictions).T[:20]
+                    )
                 final_prediction = self.final_meta_learner.predict(
                     X, np.array(predictions).T
                 )
@@ -3536,6 +3530,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     ]
                 ).T
                 y = transform_y(self.y, self.y_scaler)
+                # self.final_meta_learner.fit(self.X, cross_val_predict, y)
+                # usage = self.final_meta_learner.count_base_learner_usage(
+                #     self.X, cross_val_predict
+                # )
+                # indices = np.argsort(usage)[:30]
+                # hall_of_fame = [self.hof[i] for i in indices]
+                # self.hof.clear()
+                # self.hof.update(hall_of_fame)
+                # cross_val_predict = np.array(
+                #     [
+                #         transform_y(ind.predicted_values, self.y_scaler)
+                #         for ind in self.hof
+                #     ]
+                # ).T
                 self.final_meta_learner.fit(self.X, cross_val_predict, y)
         else:
             self.final_meta_learner.fit(self.X, self.y)
