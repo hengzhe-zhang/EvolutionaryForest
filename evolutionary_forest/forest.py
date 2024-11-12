@@ -804,7 +804,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if isinstance(self, ClassifierMixin):
                 self.base_model_list = "DT,LogisticRegression"
             else:
-                self.base_model_list = "DT,Ridge"
+                self.base_model_list = "DT,RidgeCV"
         elif self.base_learner == "RDT-LR":
             self.base_model_list = "Random-DT,LogisticRegression"
         elif self.base_learner == "Balanced-RDT-LR":
@@ -1792,14 +1792,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ridge_model = MTLRidgeCV()
         elif self.base_learner == "MTL-Lasso":
             ridge_model = MTLLassoCV()
-        elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
-            ridge_model = DecisionTreeRegressor(
-                min_samples_leaf=int(self.base_learner.split("-")[1])
-            )
-        elif isinstance(base_model, str) and base_model.startswith("DT"):
-            ridge_model = DecisionTreeRegressor(
-                min_samples_leaf=int(base_model.split("-")[1])
-            )
         elif self.base_learner == "SimpleDT-RandomDT":
             ridge_model = DecisionTreeRegressor(max_depth=3)
         elif self.base_learner in [
@@ -1883,6 +1875,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "LR":
             ridge_model = LinearRegression()
+        elif isinstance(self.base_learner, str) and self.base_learner.startswith("DT"):
+            ridge_model = DecisionTreeRegressor(
+                min_samples_leaf=int(self.base_learner.split("-")[1])
+            )
+        elif isinstance(base_model, str) and base_model.startswith("DT"):
+            ridge_model = DecisionTreeRegressor(
+                min_samples_leaf=int(base_model.split("-")[1])
+            )
         elif self.base_learner == "Mean":
             ridge_model = MeanRegressor()
         elif self.base_learner == "Median":

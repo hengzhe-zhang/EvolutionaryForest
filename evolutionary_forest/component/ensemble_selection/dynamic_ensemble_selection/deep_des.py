@@ -24,7 +24,9 @@ class Encoder(nn.Module):
     def __init__(self, input_dim, latent_dim):
         super(Encoder, self).__init__()
         self.fc = nn.Sequential(
-            nn.Linear(input_dim, 128), nn.ReLU(), nn.Linear(128, latent_dim)
+            nn.Linear(input_dim, latent_dim),
+            nn.GELU(),
+            nn.Linear(latent_dim, latent_dim),
         )
 
     def forward(self, x):
@@ -47,14 +49,14 @@ class WeightAssigner(nn.Module):
 class DESMetaRegressor(BaseEstimator, RegressorMixin):
     def __init__(
         self,
-        latent_dim=5,
+        latent_dim=32,
         num_epochs=500,
-        lr=0.001,
-        lambda_contrastive=1,
+        lr=0.01,
+        lambda_contrastive=0.01,
         lambda_entropy=0.01,
         patience=10,
         verbose=False,
-        mode="original",  # Mode selection parameter
+        mode="hybrid",  # Mode selection parameter
         regularization_type="entropy",  # New parameter for regularization type
         use_uniform_weights=False,  # Flag to use uniform weights for testing
         temperature=1,  # New temperature parameter
@@ -83,8 +85,19 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         predictions = self.prediction_scaler.fit_transform(predictions)
         y = StandardScaler().fit_transform(y.reshape(-1, 1)).ravel()
 
+        # Train-validation split
+        (
+            X_train,
+            X_val,
+            predictions_train,
+            predictions_val,
+            y_train,
+            y_val,
+        ) = train_test_split(X, predictions, y, test_size=0.2, random_state=0)
+
         # Convert predictions to tensor format
-        predictions = torch.tensor(predictions, dtype=torch.float32)
+        predictions_train = torch.tensor(predictions_train, dtype=torch.float32)
+        predictions_val = torch.tensor(predictions_val, dtype=torch.float32)
 
         # Define the input dimensions based on the selected mode
         if self.mode == "original":
@@ -110,24 +123,29 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
             self.trained = True  # Mark as trained for pipeline testing
             return  # Exit early since we don't need NN training with uniform weights
 
-        # Convert data to tensors
-        X_tensor = torch.tensor(X, dtype=torch.float32)
-        y_tensor = torch.tensor(y, dtype=torch.float32).view(-1, 1)
+        # Convert training data to tensors
+        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+        y_train_tensor = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
+        X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
+        y_val_tensor = torch.tensor(y_val, dtype=torch.float32).view(-1, 1)
 
-        # Prepare the combined input based on the selected mode
+        # Prepare the combined input for training and validation
         if self.mode == "original":
-            combined_input = X_tensor
+            train_input = X_train_tensor
+            val_input = X_val_tensor
         elif self.mode == "predicted":
-            combined_input = predictions
+            train_input = predictions_train
+            val_input = predictions_val
         elif self.mode == "hybrid":
-            combined_input = torch.cat([X_tensor, predictions], dim=1)
+            train_input = torch.cat([X_train_tensor, predictions_train], dim=1)
+            val_input = torch.cat([X_val_tensor, predictions_val], dim=1)
 
         # Training model with early stopping
         optimizer = optim.Adam(
             list(self.encoder.parameters()) + list(self.weight_assigner.parameters()),
             lr=self.lr,
         )
-        best_loss = float("inf")
+        best_val_loss = float("inf")
         best_state = None
         patience_counter = 0
 
@@ -136,15 +154,15 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
             self.weight_assigner.train()
 
             # Batch training
-            num_samples = combined_input.size(0)
+            num_samples = train_input.size(0)
             indices = torch.randperm(num_samples)  # Shuffle data
             for start in range(0, num_samples, batch_size):
                 end = min(start + batch_size, num_samples)
                 batch_indices = indices[start:end]
 
-                batch_input = combined_input[batch_indices]
-                batch_predictions = predictions[batch_indices]
-                batch_y = y_tensor[batch_indices]
+                batch_input = train_input[batch_indices]
+                batch_predictions = predictions_train[batch_indices]
+                batch_y = y_train_tensor[batch_indices]
 
                 sorted_indices = torch.argsort(batch_y.view(-1))
                 batch_input = batch_input[sorted_indices]
@@ -172,31 +190,22 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
 
                 # Regularization based on the selected type
                 if self.regularization_type == "cosine":
-                    # Normalize the weights
                     normalized_weights = F.normalize(weights, p=2, dim=1)
-
-                    # Compute pairwise cosine similarity
                     cosine_sim_matrix = torch.matmul(
                         normalized_weights.T, normalized_weights
                     )
-
-                    # Remove the diagonal elements (self-similarity)
                     num_weights = weights.size(1)
                     mask = torch.eye(num_weights, device=weights.device).bool()
                     cosine_sim_matrix = cosine_sim_matrix.masked_fill(mask, 0)
-
-                    # Calculate the mean of the non-diagonal cosine similarities for regularization loss
                     diversity_penalty = cosine_sim_matrix.sum() / (
                         num_weights * (num_weights - 1)
                     )
                     regularization_loss = diversity_penalty
                 else:
-                    # Entropy regularization
                     regularization_loss = -torch.sum(
                         weights * torch.log(weights + 1e-10)
                     ) / weights.size(0)
 
-                # Total loss with regularization
                 total_loss = (
                     des_loss
                     + self.lambda_contrastive * contrastive_loss
@@ -205,9 +214,24 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
                 total_loss.backward()
                 optimizer.step()
 
-            # Early stopping
-            if total_loss.item() < best_loss:
-                best_loss = total_loss.item()
+            # Validation loss
+            self.encoder.eval()
+            self.weight_assigner.eval()
+            with torch.no_grad():
+                z_val = self.encoder(val_input)
+                weights_val = self.weight_assigner(z_val)
+                weighted_preds_val = torch.sum(
+                    weights_val * predictions_val, dim=1, keepdim=True
+                )
+                val_loss = nn.functional.mse_loss(weighted_preds_val, y_val_tensor)
+
+                if self.verbose:
+                    print(
+                        f"Epoch: {epoch + 1}, Total Loss: {total_loss.item():.4f}, Validation Loss: {val_loss.item():.4f}"
+                    )
+
+            if val_loss.item() < best_val_loss:
+                best_val_loss = val_loss.item()
                 best_state = (
                     copy.deepcopy(self.encoder.state_dict()),
                     copy.deepcopy(self.weight_assigner.state_dict()),
@@ -406,12 +430,12 @@ def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
 
     # Define the parameter grid
     param_grid = {
-        "lambda_contrastive": [0.1, 1, 10],
-        "lr": [0.001],
+        "lambda_contrastive": [0.001, 0.01, 0.1, 1],
+        "lr": [0.01, 0.001],
         "lambda_entropy": [0.01],
         "mode": ["hybrid"],
-        "temperature": [1, 0.1, 0.01],
-        "regularization_type": ["cosine", "entropy"],
+        "temperature": [1],
+        "regularization_type": ["entropy"],
         "use_uniform_weights": [False],
     }
 
