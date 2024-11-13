@@ -1,6 +1,7 @@
 import gc
 import inspect
 from multiprocessing import Pool
+from typing import Optional
 
 import dill
 import scipy
@@ -897,7 +898,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.automatic_operator_selection_initialization()
         self.automatic_local_search_initialization()
-        self.categorical_encoding = categorical_encoding
+        self.categorical_encoding: Optional[str] = categorical_encoding
         self.remove_constant_features = True
         self.validation_based_ensemble_selection = validation_based_ensemble_selection
 
