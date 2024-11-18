@@ -189,22 +189,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
                     contrastive_loss = torch.tensor(0.0)
 
                 # Regularization based on the selected type
-                if self.regularization_type == "cosine":
-                    normalized_weights = F.normalize(weights, p=2, dim=1)
-                    cosine_sim_matrix = torch.matmul(
-                        normalized_weights.T, normalized_weights
-                    )
-                    num_weights = weights.size(1)
-                    mask = torch.eye(num_weights, device=weights.device).bool()
-                    cosine_sim_matrix = cosine_sim_matrix.masked_fill(mask, 0)
-                    diversity_penalty = cosine_sim_matrix.sum() / (
-                        num_weights * (num_weights - 1)
-                    )
-                    regularization_loss = diversity_penalty
-                else:
-                    regularization_loss = -torch.sum(
-                        weights * torch.log(weights + 1e-10)
-                    ) / weights.size(0)
+                regularization_loss = self._compute_regularization_loss(weights)
 
                 total_loss = (
                     des_loss
@@ -251,6 +236,29 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
 
         # Mark the model as trained for future continual learning
         self.trained = True
+
+    def _compute_regularization_loss(self, weights):
+        if self.regularization_type == "cosine":
+            regularization_loss = self._cosine_regularization_loss(weights)
+        else:
+            regularization_loss = -torch.sum(
+                weights * torch.log(weights + 1e-10)
+            ) / weights.size(0)
+        return regularization_loss
+
+    def _cosine_regularization_loss(self, weights):
+        normalized_weights = F.normalize(weights, p=2, dim=1)
+        cosine_sim_matrix = torch.matmul(
+            normalized_weights.T, normalized_weights
+        )
+        num_weights = weights.size(1)
+        mask = torch.eye(num_weights, device=weights.device).bool()
+        cosine_sim_matrix = cosine_sim_matrix.masked_fill(mask, 0)
+        diversity_penalty = cosine_sim_matrix.sum() / (
+            num_weights * (num_weights - 1)
+        )
+        regularization_loss = diversity_penalty
+        return regularization_loss
 
     def predict(self, X_meta, predictions, batch_size=32):
         # Standardize inputs using the scaler fitted in training
