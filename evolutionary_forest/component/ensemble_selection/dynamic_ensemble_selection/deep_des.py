@@ -21,11 +21,15 @@ import seaborn as sns
 
 # Encoder and WeightAssigner as in the previous code
 class Encoder(nn.Module):
-    def __init__(self, input_dim, latent_dim):
+    def __init__(self, input_dim: int, latent_dim: int, dropout_prob=0.1):
         super(Encoder, self).__init__()
         self.fc = nn.Sequential(
             nn.Linear(input_dim, latent_dim),
-            nn.GELU(),
+            nn.Dropout(dropout_prob),
+            nn.SiLU(),
+            nn.Linear(latent_dim, latent_dim),
+            nn.Dropout(dropout_prob),
+            nn.SiLU(),
             nn.Linear(latent_dim, latent_dim),
         )
 
@@ -43,6 +47,7 @@ class WeightAssigner(nn.Module):
         # Adjust softmax using temperature
         weights = torch.softmax(self.fc(z) / self.temperature, dim=-1)
         return weights
+        # return self.fc(z)
 
 
 # The Meta-Learner class compatible with sklearn
@@ -54,12 +59,13 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         lr=0.01,
         lambda_contrastive=0.01,
         lambda_entropy=0.01,
-        patience=10,
+        patience=20,
         verbose=False,
         mode="hybrid",  # Mode selection parameter
         regularization_type="entropy",  # New parameter for regularization type
         use_uniform_weights=False,  # Flag to use uniform weights for testing
         temperature=1,  # New temperature parameter
+        dropout_prob=0.1,
         **param,
     ):
         self.latent_dim = latent_dim
@@ -78,6 +84,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         self.trained = False
         self.scaler = StandardScaler()
         self.prediction_scaler = StandardScaler()
+        self.dropout_prob = dropout_prob
 
     def fit(self, X, predictions, y, batch_size=32):
         # Standardize X and y
@@ -109,7 +116,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
 
         # Initialize encoder and weight assigner only if not already trained
         if not self.trained:
-            self.encoder = Encoder(input_dim, self.latent_dim)
+            self.encoder = Encoder(input_dim, self.latent_dim, self.dropout_prob)
             self.weight_assigner = WeightAssigner(
                 self.latent_dim, predictions.shape[1], self.temperature
             )
@@ -166,6 +173,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
 
                 sorted_indices = torch.argsort(batch_y.view(-1))
                 batch_input = batch_input[sorted_indices]
+                batch_predictions = batch_predictions[sorted_indices]
                 batch_y = batch_y[sorted_indices]
 
                 optimizer.zero_grad()
@@ -181,6 +189,14 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
                     weights * batch_predictions, dim=1, keepdim=True
                 )
                 des_loss = nn.functional.mse_loss(weighted_preds, batch_y)
+
+                if self.verbose:
+                    baseline_loss = nn.functional.mse_loss(
+                        batch_predictions.mean(dim=1, keepdim=True), batch_y
+                    )
+                    print(
+                        f"DES Loss: {des_loss.item():.4f}, Baseline Loss: {baseline_loss.item():.4f}"
+                    )
 
                 # Contrastive loss (InfoNCE)
                 if z.size(0) > 1:
@@ -248,15 +264,11 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
 
     def _cosine_regularization_loss(self, weights):
         normalized_weights = F.normalize(weights, p=2, dim=1)
-        cosine_sim_matrix = torch.matmul(
-            normalized_weights.T, normalized_weights
-        )
+        cosine_sim_matrix = torch.matmul(normalized_weights.T, normalized_weights)
         num_weights = weights.size(1)
         mask = torch.eye(num_weights, device=weights.device).bool()
         cosine_sim_matrix = cosine_sim_matrix.masked_fill(mask, 0)
-        diversity_penalty = cosine_sim_matrix.sum() / (
-            num_weights * (num_weights - 1)
-        )
+        diversity_penalty = cosine_sim_matrix.sum() / (num_weights * (num_weights - 1))
         regularization_loss = diversity_penalty
         return regularization_loss
 
@@ -318,6 +330,14 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         neg_sim = torch.sum(neg_sim, dim=-1) - pos_sim
         loss = -torch.log(pos_sim / neg_sim).mean()
         return loss
+
+    def enable_training_mode(self):
+        self.encoder.train()
+        self.weight_assigner.train()
+
+    def enable_evaluation_mode(self):
+        self.encoder.eval()
+        self.weight_assigner.eval()
 
     def count_base_learner_usage(self, X_meta, predictions, batch_size=32, mode="sum"):
         # Standardize inputs using the scaler fitted during training
@@ -490,12 +510,12 @@ def run_parameter_tuning(base_learners, X_train, y_train, X_val, y_val):
 
     # Define the parameter grid
     param_grid = {
-        "lambda_contrastive": [0.001, 0.01, 0.1, 1],
-        "lr": [0.01, 0.001],
-        "lambda_entropy": [0.01],
+        "lambda_contrastive": [0.01, 0.1],
+        "lr": [0.01],
+        "lambda_entropy": [0.01, 0.1],
         "mode": ["hybrid"],
         "temperature": [1],
-        "regularization_type": ["entropy"],
+        "regularization_type": ["entropy", "cosine"],
         "use_uniform_weights": [False],
     }
 
