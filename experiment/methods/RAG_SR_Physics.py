@@ -44,7 +44,6 @@ est = EvolutionaryForestRegressor(
     change_semantic_after_deletion=True,
     include_subtree_to_lib=True,
     library_updating_mode="Recent",
-    categorical_encoder="TargetCV",
     root_crossover=True,
     scaling_before_replacement=False,
     score_func="R2",
