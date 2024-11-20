@@ -169,7 +169,9 @@ class CVTMAPElitesHOF(HallOfFame):
         self.clustering = clustering
 
     def update(self, population):
-        if self.map_elites_hof_mode == "Independent":
+        if self.map_elites_hof_mode == "Free":
+            best_candidate = population + list(self.items)
+        elif self.map_elites_hof_mode == "Independent":
             best_candidate = selBest(
                 population,
                 self.map_archive_candidate_size,
