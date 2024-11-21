@@ -65,7 +65,7 @@ class DESMetaRegressor(BaseEstimator, RegressorMixin):
         regularization_type="entropy",  # New parameter for regularization type
         use_uniform_weights=False,  # Flag to use uniform weights for testing
         temperature=1,  # New temperature parameter
-        dropout_prob=0.1,
+        dropout_prob=0.2,
         **param,
     ):
         self.latent_dim = latent_dim
