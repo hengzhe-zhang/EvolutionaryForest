@@ -1128,6 +1128,7 @@ class NeuralSemanticLibrary(nn.Module):
         verbose=False,
         loss_weight=0,
         sort_gp_tree=False,
+        shuffle=True,
     ):
         self.contrastive_loss_weight = loss_weight
 
@@ -1139,7 +1140,7 @@ class NeuralSemanticLibrary(nn.Module):
         # targets = [torch.flip(t, [0]) for t in targets]
 
         train_tensors, val_tensors, train_targets, val_targets = self.split_data(
-            tensors, targets, val_split
+            tensors, targets, val_split, shuffle=shuffle
         )
         if self.simple_data_augmentation:
             train_tensors = np.concatenate([train_tensors, -train_tensors], axis=0)
@@ -1228,13 +1229,13 @@ class NeuralSemanticLibrary(nn.Module):
         tensors = torch.stack(tensors)
         return tensors, targets
 
-    def split_data(self, tensors, targets, val_split):
+    def split_data(self, tensors, targets, val_split, shuffle=True):
         train_tensors, val_tensors, train_targets, val_targets = train_test_split(
             tensors.numpy(),
             targets,
             test_size=val_split,
             random_state=0,
-            shuffle=True,
+            shuffle=shuffle,
         )
         self.train_tensors, self.train_targets = train_tensors, train_targets
         return train_tensors, val_tensors, train_targets, val_targets

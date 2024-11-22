@@ -245,6 +245,7 @@ class MutationConfiguration(Configuration):
         neural_pool_mlp_layers=3,
         selective_retrain=True,
         retrieval_augmented_generation=True,
+        temporal_validation=False,
         **params
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -313,6 +314,7 @@ class MutationConfiguration(Configuration):
         self.neural_pool_dropout = neural_pool_dropout
         self.selective_retrain = selective_retrain
         self.retrieval_augmented_generation = retrieval_augmented_generation
+        self.temporal_validation = temporal_validation
 
 
 class ImbalancedConfiguration(Configuration):
