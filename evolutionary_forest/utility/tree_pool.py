@@ -957,5 +957,4 @@ class SemanticLibrary:
                 verbose=False,
                 patience=5,
                 loss_weight=self.mutation_configuration.weight_of_contrastive_learning,
-                shuffle=not self.mutation_configuration.temporal_validation,
             )
