@@ -1,5 +1,28 @@
 import numpy as np
+from deap.gp import PrimitiveTree
 from matplotlib import pyplot as plt
+
+
+def llm_complexity(tree: PrimitiveTree):
+    complexity_dict = {
+        "Add": 1,
+        "Sub": 1,
+        "Mul": 2,
+        "AQ": 5,
+        "Sqrt": 3,
+        "AbsLog": 4,
+        "Abs": 2,
+        "Square": 2,
+        "Max": 2,
+        "Min": 2,
+        "Neg": 1,
+        "SinPi": 4,
+        "CosPi": 4,
+    }
+    score = 0
+    for node in tree:
+        score += complexity_dict.get(node.name, 1)
+    return score
 
 
 def function_second_order_smoothness(y, y_truth):

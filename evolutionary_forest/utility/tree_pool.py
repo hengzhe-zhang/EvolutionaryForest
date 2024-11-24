@@ -390,6 +390,7 @@ class SemanticLibrary:
         incumbent_distance=math.inf,
         negative_search=True,
         weight_vector=None,
+        complexity_function=None,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -447,8 +448,14 @@ class SemanticLibrary:
             # Find the smallest tree that satisfies the constraints
             smallest_index = -1
             for idx in range(len(index)):
+                custom_complexity_criteria = complexity_function is not None and (
+                    complexity_function(self.trees[index[idx]]) <= incumbent_size
+                )
                 if (
-                    len(self.trees[index[idx]]) <= incumbent_size
+                    (
+                        (len(self.trees[index[idx]]) <= incumbent_size)
+                        or custom_complexity_criteria
+                    )
                     and self.trees[index[idx]].height <= incumbent_depth
                     and dist[idx] < incumbent_distance
                 ):

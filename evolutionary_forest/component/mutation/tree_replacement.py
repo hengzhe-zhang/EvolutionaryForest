@@ -10,6 +10,7 @@ from sklearn.linear_model import LinearRegression
 from evolutionary_forest.component.external_archive.semantic_library_mode_controller import (
     semantic_library_mode_controller,
 )
+from evolutionary_forest.component.generalization.smoothness import llm_complexity
 from evolutionary_forest.component.gradient_optimization.linear_scaling import (
     calculate_slope,
     calculate_intercept,
@@ -129,10 +130,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             current_gen=algorithm.current_gen,
             n_gen=algorithm.n_gen,
         )
-        if (
-            pool_addition_mode == "Smallest"
-            or pool_addition_mode.startswith("Smallest~Auto")
-            or pool_addition_mode.startswith("Smallest~Curiosity")
+        if pool_addition_mode == "Smallest" or pool_addition_mode.startswith(
+            "Smallest~Auto"
         ):
             incumbent_depth = math.inf
             incumbent_distance = np.linalg.norm(
@@ -142,13 +141,19 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 # No need to check better than current
                 incumbent_distance = np.inf
             weight_vector = None
+            complexity_function = None
             if pool_addition_mode == "Smallest~Auto":
                 pass
             elif pool_addition_mode == "Smallest~Auto-Depth":
                 incumbent_depth = ind.gene[id].height
                 incumbent_size = math.inf
+            elif pool_addition_mode == "Smallest~Auto~LLM":
+                # LLM-defined complexity
+                incumbent_size = llm_complexity(ind.gene[id])
+                complexity_function = llm_complexity
             else:
                 incumbent_size = 0
+                assert pool_addition_mode == "Smallest"
 
             value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                 normalize_vector(residual),
@@ -159,6 +164,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 top_k=mutation_configuration.top_k_candidates,
                 negative_search=mutation_configuration.negative_local_search,
                 weight_vector=weight_vector,
+                complexity_function=complexity_function,
             )
         else:
             value = algorithm.tree_pool.retrieve_nearest_tree(
