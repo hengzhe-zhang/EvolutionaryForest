@@ -26,6 +26,9 @@ from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness,
 )
+from evolutionary_forest.utility.memory.instance_selection import (
+    semantic_instance_selection,
+)
 from evolutionary_forest.utility.mlp_library import (
     NeuralSemanticLibrary,
     filter_train_data_by_node_count,
@@ -814,6 +817,10 @@ class SemanticLibrary:
             # Find the index of the nearest sample to each centroid
             nearest_indexes, _ = pairwise_distances_argmin_min(centroids, features)
             self.clustering_indexes = nearest_indexes
+        elif mode == "Hardest-KMeans":
+            self.clustering_indexes = semantic_instance_selection(
+                error, self.semantics_length
+            )
         elif mode == "Worst":
             errors = np.median(error, axis=0)
             self.clustering_indexes = np.argsort(errors)[-self.semantics_length :]
