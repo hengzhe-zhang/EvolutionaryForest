@@ -45,6 +45,16 @@ from evolutionary_forest.utility.feature_importance_util import (
 from evolutionary_forest.utility.normalization_tool import normalize_vector
 
 
+def sum_rank(first_column, second_column):
+    first_column_rank = rankdata(first_column, method="average") - 1
+    second_column_rank = rankdata(second_column, method="average") - 1
+    # Compute the sum of ranks
+    sum_of_ranks = first_column_rank + second_column_rank
+    # Get the sorted indices based on the sum of ranks
+    sorted_index = np.argsort(sum_of_ranks)
+    return sorted_index
+
+
 def get_irrelevant_features(pearson_matrix, top_features):
     # Step 1: Create a dictionary of feature importances
     importance_dict = {
@@ -379,11 +389,6 @@ class SemanticLibrary:
         incumbent_depth=math.inf,
         incumbent_distance=math.inf,
         negative_search=True,
-        curiosity_driven=False,
-        multi_generation_curiosity=False,
-        negative_distance=False,
-        negative_curiosity=False,
-        lexicase_sort=False,
         weight_vector=None,
     ):
         if self.kd_tree is None:
@@ -411,41 +416,9 @@ class SemanticLibrary:
             # From short to long
             dist = np.concatenate([dist, dist_neg])
             sorted_index = np.argsort(dist)
-            if negative_distance:
-                sorted_index = sorted_index[::-1]
         else:
             dist, index = self.kd_tree.query(semantics, k=top_k)
             sorted_index = np.argsort(dist)
-
-        if curiosity_driven:
-            if multi_generation_curiosity:
-                curiosity_and_distance = np.array(
-                    [(self.curiosity[idx], dis) for idx, dis in zip(index, dist)]
-                )
-            else:
-                curiosity_and_distance = np.array(
-                    [(self.frequency[idx], dis) for idx, dis in zip(index, dist)]
-                )
-            first_column = curiosity_and_distance[:, 0]
-            second_column = curiosity_and_distance[:, 1]
-
-            # Rank the columns
-            if negative_distance:
-                second_column *= -1
-            if negative_curiosity:
-                first_column *= -1
-
-            if lexicase_sort:
-                sorted_index = np.lexsort((second_column, first_column))
-            else:
-                first_column_rank = rankdata(first_column, method="average") - 1
-                second_column_rank = rankdata(second_column, method="average") - 1
-
-                # Compute the sum of ranks
-                sum_of_ranks = first_column_rank + second_column_rank
-
-                # Get the sorted indices based on the sum of ranks
-                sorted_index = np.argsort(sum_of_ranks)
 
         if weight_vector is not None:
             dist = np.array(

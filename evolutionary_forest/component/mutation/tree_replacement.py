@@ -135,11 +135,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             or pool_addition_mode.startswith("Smallest~Curiosity")
         ):
             incumbent_depth = math.inf
-            multi_generation_curiosity = True
-            curiosity_driven = False
-            negative_distance = False
-            negative_curiosity = False
-            lexicase_sort = False
             incumbent_distance = np.linalg.norm(
                 normalize_vector(residual) - normalize_vector(delete_semantics)
             )
@@ -152,51 +147,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             elif pool_addition_mode == "Smallest~Auto-Depth":
                 incumbent_depth = ind.gene[id].height
                 incumbent_size = math.inf
-            elif mutation_configuration.pool_addition_mode.startswith(
-                "Smallest~Curiosity"
-            ):
-                curiosity_driven = True
-                if pool_addition_mode.startswith("Smallest~CuriosityS"):
-                    multi_generation_curiosity = False
-                if "Depth+" in pool_addition_mode:
-                    plus_depth = int(pool_addition_mode.split("+")[-1])
-                    incumbent_size = math.inf
-                    incumbent_depth = ind.gene[id].height + plus_depth
-                if "Size+" in pool_addition_mode:
-                    plus_size = int(pool_addition_mode.split("+")[-1])
-                    incumbent_size = incumbent_size + plus_size
-                    incumbent_depth = math.inf
-                if "Depth~" in pool_addition_mode:
-                    plus_depth = int(pool_addition_mode.split("~")[-1])
-                    incumbent_size = math.inf
-                    incumbent_depth = max(ind.gene[id].height, plus_depth)
-                if "Size~" in pool_addition_mode:
-                    plus_size = int(pool_addition_mode.split("~")[-1])
-                    incumbent_size = max(len(ind.gene[id]), plus_size)
-                    incumbent_depth = math.inf
-                if "LastHalf" in pool_addition_mode:
-                    # Only To Explore in Later Generations
-                    if algorithm.current_gen < algorithm.n_gen // 2:
-                        curiosity_driven = False
-                if "FirstHalf" in pool_addition_mode:
-                    # Only To Explore in Early Generations
-                    if algorithm.current_gen > algorithm.n_gen // 2:
-                        curiosity_driven = False
-                if "Probability" in pool_addition_mode:
-                    enable_prob = 1
-                    for param in pool_addition_mode.split("-"):
-                        if "Probability" in param:
-                            enable_prob = float(param.split("+")[-1])
-                            break
-                    if random.random() > enable_prob:
-                        # with probability to disable
-                        curiosity_driven = False
-                if "NegDis" in pool_addition_mode:
-                    negative_distance = True
-                if "NegCur" in pool_addition_mode:
-                    negative_curiosity = True
-                if "Lex" in pool_addition_mode:
-                    lexicase_sort = True
             else:
                 incumbent_size = 0
 
@@ -208,12 +158,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_distance=incumbent_distance,
                 top_k=mutation_configuration.top_k_candidates,
                 negative_search=mutation_configuration.negative_local_search,
-                # curiosity_driven
-                curiosity_driven=curiosity_driven,
-                multi_generation_curiosity=multi_generation_curiosity,
-                negative_distance=negative_distance,
-                negative_curiosity=negative_curiosity,
-                lexicase_sort=lexicase_sort,
                 weight_vector=weight_vector,
             )
         else:
