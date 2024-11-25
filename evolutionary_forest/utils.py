@@ -343,9 +343,9 @@ def gene_to_string(gene):
                     string += f"sin({args[0]})"
                 elif prim.name == "Cos":
                     string += f"cos({args[0]})"
-                elif prim.name == "RSin":
+                elif prim.name in ["SinPi", "RSin"]:
                     string += f"sin({math.pi}*{args[0]})"
-                elif prim.name == "RCos":
+                elif prim.name in ["CosPi", "RCos"]:
                     string += f"cos({math.pi}*{args[0]})"
                 elif prim.name == "Abs":
                     string += f"Abs({args[0]})"
