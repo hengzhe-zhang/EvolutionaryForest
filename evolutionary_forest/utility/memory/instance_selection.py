@@ -6,11 +6,13 @@ def semantic_instance_selection(loss_matrix, semantics_length):
     # Step 1: Transpose the loss matrix to get instance-wise losses
     instance_losses = loss_matrix.T  # Shape: (num_instances, num_individuals)
 
+    norms = np.linalg.norm(instance_losses, axis=1)
+    norms[norms == 0] = 1e-10  # Replace zero with a small epsilon
+    normalized_instance_losses = (instance_losses.T / norms).T
+
     # Step 2: Cluster instances into `semantics_length` clusters
     kmeans = KMeans(n_clusters=semantics_length, random_state=0)
-    cluster_labels = kmeans.fit_predict(
-        (instance_losses.T / np.linalg.norm(instance_losses, axis=1)).T
-    )  # Shape: (num_instances,)
+    cluster_labels = kmeans.fit_predict(normalized_instance_losses)
 
     # Step 3: Select the hardest instance from each cluster
     selected_indices = []

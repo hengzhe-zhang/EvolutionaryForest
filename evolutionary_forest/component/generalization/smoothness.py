@@ -3,7 +3,7 @@ from deap.gp import PrimitiveTree
 from matplotlib import pyplot as plt
 
 
-def llm_complexity(tree: PrimitiveTree):
+def llm_complexity(tree: PrimitiveTree, semantics: np.ndarray):
     complexity_dict = {
         "Add": 1,
         "Sub": 1,
@@ -23,6 +23,18 @@ def llm_complexity(tree: PrimitiveTree):
     for node in tree:
         score += complexity_dict.get(node.name, 1)
     return score
+
+
+def smoothness(semantics: np.ndarray, x):
+    # normalize semantics
+    semantics = semantics / np.linalg.norm(semantics)
+
+    y = semantics
+    smoothness = np.inf
+    for x_i in x.T:
+        idx = np.argsort(x_i)
+        smoothness = min(smoothness, np.mean(np.diff(y[idx]) ** 2))
+    return smoothness
 
 
 def function_second_order_smoothness(y, y_truth):

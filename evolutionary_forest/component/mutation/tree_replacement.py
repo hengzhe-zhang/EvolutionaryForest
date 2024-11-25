@@ -10,7 +10,10 @@ from sklearn.linear_model import LinearRegression
 from evolutionary_forest.component.external_archive.semantic_library_mode_controller import (
     semantic_library_mode_controller,
 )
-from evolutionary_forest.component.generalization.smoothness import llm_complexity
+from evolutionary_forest.component.generalization.smoothness import (
+    llm_complexity,
+    smoothness,
+)
 from evolutionary_forest.component.gradient_optimization.linear_scaling import (
     calculate_slope,
     calculate_intercept,
@@ -149,8 +152,14 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_size = math.inf
             elif pool_addition_mode == "Smallest~Auto~LLM":
                 # LLM-defined complexity
-                incumbent_size = llm_complexity(ind.gene[id])
+                incumbent_size = llm_complexity(ind.gene[id], None)
                 complexity_function = llm_complexity
+            elif pool_addition_mode == "Smallest~Auto-Complexity":
+                semantics = ind.semantics[indexes, id]
+                complexity_function = lambda tree, semantics: smoothness(
+                    semantics, algorithm.X[indexes]
+                )
+                incumbent_size = complexity_function(ind.gene[id], semantics)
             else:
                 incumbent_size = 0
                 assert pool_addition_mode == "Smallest"

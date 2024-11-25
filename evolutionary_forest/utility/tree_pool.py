@@ -452,7 +452,11 @@ class SemanticLibrary:
             smallest_index = -1
             for idx in range(len(index)):
                 custom_complexity_criteria = complexity_function is not None and (
-                    complexity_function(self.trees[index[idx]]) <= incumbent_size
+                    complexity_function(
+                        self.trees[index[idx]],
+                        self.normalized_semantics_list[index[idx]],
+                    )
+                    <= incumbent_size
                 )
                 if (
                     (
