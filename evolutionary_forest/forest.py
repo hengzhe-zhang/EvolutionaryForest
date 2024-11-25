@@ -3642,6 +3642,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 transformed_X = StandardScaler().fit_transform(self.X)
                 self.pearson_matrix = np.corrcoef(transformed_X, rowvar=False)
 
+            if self.verbose:
+                print("Library Size", len(self.tree_pool.trees))
             if interval > 0 and self.current_gen % interval == 0:
                 if (
                     self.current_gen > 0

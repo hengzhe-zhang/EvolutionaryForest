@@ -19,6 +19,8 @@ def semantic_instance_selection(loss_matrix, semantics_length):
     for cluster in range(semantics_length):
         # Get the indices of instances in the current cluster
         cluster_indices = np.where(cluster_labels == cluster)[0]
+        if len(cluster_indices) == 0:
+            continue
 
         # Compute the median loss for each instance in the cluster
         cluster_medians = np.median(loss_matrix[:, cluster_indices], axis=0)

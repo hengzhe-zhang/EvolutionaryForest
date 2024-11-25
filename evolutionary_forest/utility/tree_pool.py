@@ -157,9 +157,7 @@ class SemanticLibrary:
         self.random_order_replacement = random_order_replacement
         self.verbose = verbose
         self.target_semantics: np.ndarray = None
-        self.skip_single_terminal = (
-            skip_single_terminal  # Skip tree with single terminal
-        )
+        self.skip_single_terminal = skip_single_terminal
 
         self.log_initialization()
         self.forbidden_list = set()
@@ -475,7 +473,8 @@ class SemanticLibrary:
                         and isinstance(self.trees[index[idx]][0], Terminal)
                         and self.skip_single_terminal
                     ):
-                        # not a meaningful tree
+                        # Skip tree with single terminal
+                        # Empirically lead to faster convergence, smaller tree size
                         continue
                     smallest_index = index[idx]
                     # str(self.trees[index[idx]])
