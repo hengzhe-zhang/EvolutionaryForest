@@ -134,7 +134,8 @@ class SemanticLibrary:
         verbose=False,
         mutation_configuration: MutationConfiguration = None,
         x_columns=0,
-        skip_single_terminal=True, **params,
+        skip_single_terminal=True,
+        **params,
     ):
         self.plain_semantics_list = []
         self.clustering_indexes = None
@@ -156,7 +157,9 @@ class SemanticLibrary:
         self.random_order_replacement = random_order_replacement
         self.verbose = verbose
         self.target_semantics: np.ndarray = None
-        self.skip_single_terminal = skip_single_terminal # Skip tree with single terminal
+        self.skip_single_terminal = (
+            skip_single_terminal  # Skip tree with single terminal
+        )
 
         self.log_initialization()
         self.forbidden_list = set()
@@ -467,9 +470,11 @@ class SemanticLibrary:
                     and self.trees[index[idx]].height <= incumbent_depth
                     and dist[idx] < incumbent_distance
                 ):
-                    if len(self.trees[index[idx]]) == 1 and isinstance(
-                        self.trees[index[idx]][0], Terminal
-                    ) and self.skip_single_terminal:
+                    if (
+                        len(self.trees[index[idx]]) == 1
+                        and isinstance(self.trees[index[idx]][0], Terminal)
+                        and self.skip_single_terminal
+                    ):
                         # not a meaningful tree
                         continue
                     smallest_index = index[idx]
