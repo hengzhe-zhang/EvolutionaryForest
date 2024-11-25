@@ -25,6 +25,22 @@ def llm_complexity(tree: PrimitiveTree, semantics: np.ndarray):
     return score
 
 
+def calculate_pearson_correlation(x, y):
+    # Calculate means
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+
+    # Calculate the numerator and denominator of the Pearson formula
+    numerator = np.sum((x - x_mean) * (y - y_mean))
+    denominator = np.sqrt(np.sum((x - x_mean) ** 2) * np.sum((y - y_mean) ** 2))
+
+    # Avoid division by zero
+    if denominator == 0:
+        return 0.0
+
+    return numerator / denominator
+
+
 def smoothness(semantics: np.ndarray, x):
     # normalize semantics
     semantics = semantics / np.linalg.norm(semantics)
@@ -34,6 +50,11 @@ def smoothness(semantics: np.ndarray, x):
     for x_i in x.T:
         idx = np.argsort(x_i)
         smoothness = min(smoothness, np.mean(np.diff(y[idx]) ** 2))
+        # try:
+        #     pearson = abs(calculate_pearson_correlation(x_i, y))
+        # except ValueError:
+        #     pearson = np.inf
+        smoothness = min(smoothness, smoothness)
     return smoothness
 
 
