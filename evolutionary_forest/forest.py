@@ -504,6 +504,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         lamarck_constant=False,
         categorical_encoding=None,
         validation_based_ensemble_selection=0,
+        remove_constant_features=True,
         **params,
     ):
         """
@@ -899,7 +900,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.automatic_operator_selection_initialization()
         self.automatic_local_search_initialization()
         self.categorical_encoding: Optional[str] = categorical_encoding
-        self.remove_constant_features = True
+        self.remove_constant_features = remove_constant_features
         self.validation_based_ensemble_selection = validation_based_ensemble_selection
 
     def automatic_operator_selection_initialization(self):
