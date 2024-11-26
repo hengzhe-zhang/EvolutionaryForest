@@ -2571,7 +2571,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def primitive_initialization(self, x):
         # Initialize the function set
-        if self.basic_primitives.startswith("Pipeline"):
+        if isinstance(self.basic_primitives, str) and self.basic_primitives.startswith(
+            "Pipeline"
+        ):
             pset = get_typed_pset(
                 self.X.shape[1],
                 self.basic_primitives,
