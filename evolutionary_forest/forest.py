@@ -3054,8 +3054,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.cx_threshold = threshold
 
     def fit(self, X, y, test_X=None, categorical_features=None):
-        X = X.astype(np.float32)
-        y = y.astype(np.float32)
+        float32 = False
+        if float32:
+            X = X.astype(np.float32)
+            y = y.astype(np.float32)
         self.counter_initialization()
         self.history_initialization()
 

@@ -26,7 +26,7 @@ def handle_inf_nan(result, include_tensor):
     if not include_tensor:
         result = np.array(
             [
-                np.nan_to_num(yp.astype(np.float32), posinf=0, neginf=0)
+                np.nan_to_num(yp, posinf=0, neginf=0)
                 if isinstance(yp, np.ndarray)
                 else yp
                 for yp in result
