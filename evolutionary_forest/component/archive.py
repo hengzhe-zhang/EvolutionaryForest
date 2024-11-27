@@ -546,6 +546,24 @@ class MultiTaskHallOfFame(HallOfFame):
         self.items = all_models
 
 
+class EarlyStoppingHallOfFame(HallOfFame):
+    def __init__(
+        self,
+        validation_function,
+        similar=eq,
+    ):
+        self.validation_function = validation_function
+        super().__init__(1, similar)
+
+    def update(self, population):
+        best_individual = max(population, key=lambda x: x.fitness.wvalues)
+        validation_score = self.validation_function(best_individual)
+        if len(self.items) == 0 or validation_score > self.items[0].validation_score:
+            best_individual.validation_score = validation_score
+            self.clear()
+            super().update([best_individual])
+
+
 class ValidationHallOfFame(HallOfFame):
     def __init__(
         self,

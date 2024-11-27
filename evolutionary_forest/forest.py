@@ -3001,9 +3001,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof.novelty_weight = self.novelty_weight
         elif self.ensemble_selection == "MultiTask":
             self.hof = MultiTaskHallOfFame(self.ensemble_size, self.base_model_list)
-        elif self.validation_size > 0:
-            self.hof = HallOfFame(self.ensemble_size)
-            self.validation_hof = ValidationHallOfFame(self.get_validation_score)
+        elif self.validation_size > 0 and self.early_stop == 0:
+            # in multi-objective case
+            # don't need to save hof
+            self.hof = ValidationHallOfFame(self.get_validation_score)
+        elif self.validation_size > 0 and self.early_stop > 0:
+            self.hof = EarlyStoppingHallOfFame(self.get_validation_score)
         elif self.ensemble_selection == None or self.ensemble_selection in [
             "None",
             "none",
@@ -3220,8 +3223,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.final_model_lazy_training(self.hof)
             self.stacking_strategy.stacking_layer_generation(X, y)
         self.training_with_validation_set()
-        if self.validation_size > 0:
-            self.hof = self.validation_hof
         return self
 
     def pretrain(self, X, y):
@@ -4292,10 +4293,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         ss = ss.replace(f"ARG{s}", f"INS{s - self.X.shape[1]}")
                     return ss
 
-                if self.validation_size > 0:
-                    best_model = self.validation_hof[0]
-                else:
-                    best_model = self.hof[0]
+                best_model = self.hof[0]
 
                 print(
                     "\n".join([replace(str(g)) for g in best_model.gene]),
@@ -4499,7 +4497,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     hoistMutation(gene, best_id)
 
     def get_current_best_fitness(self):
-        if isinstance(self.score_func, R2PACBayesian):
+        if self.validation_size > 0:
+            current_best_fitness = self.hof[0].validation_score
+        elif isinstance(self.score_func, R2PACBayesian):
             current_best_fitness = np.max([-1 * ind.sam_loss for ind in self.hof])
         else:
             current_best_fitness = np.max([ind.fitness.wvalues[0] for ind in self.hof])
@@ -5038,12 +5038,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.training_with_validation_set()
             self.stacking_strategy.stacking_layer_generation(self.X, self.y)
 
-            # temporarily change to the validation best individual
-            temp_hof = None
-            if self.validation_size > 0:
-                temp_hof = self.hof
-                self.hof = self.validation_hof
-
             if len(self.test_fun) > 0:
                 training_loss = self.test_fun[0].predict_loss()
                 self.train_data_history.append(training_loss)
@@ -5054,10 +5048,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.test_data_history.append(testing_loss)
                 if verbose:
                     print("Test Loss", testing_loss)
-
-            # restore back
-            if self.validation_size > 0:
-                self.hof = temp_hof
 
             if "PopulationAverageDiversity" in self.log_item:
                 self.pop_diversity_history.append(
@@ -5117,16 +5107,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.validation_size <= 0:
             # In the case of not using a validation set, no need to do anything
             return
-        self.validation_hof.update(self.hof)
         # Train the final model with the validation set if data combination is enabled and validation set is provided
         if self.archive_configuration.data_combination and self.validation_size > 0:
             # Combine the training and validation sets
             X = np.concatenate((self.X, self.valid_x), axis=0)
             y = np.concatenate((self.y, self.valid_y), axis=0)
             # Train the final model using the combined set
-            self.final_model_lazy_training(
-                self.validation_hof, X, y, force_training=True
-            )
+            hof = self.hof
+            self.final_model_lazy_training(hof, X, y, force_training=True)
 
     def gp_tree_entropy_calculation(self, population):
         # Calculate the entropy of the genotype and phenotype distributions in the population
