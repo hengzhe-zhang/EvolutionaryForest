@@ -3005,6 +3005,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # in multi-objective case
             # don't need to save hof
             self.hof = ValidationHallOfFame(self.get_validation_score)
+            assert (
+                self.environmental_selection is not None
+            ), "Need to specify Environmental Selection!"
         elif self.validation_size > 0 and self.early_stop > 0:
             self.hof = EarlyStoppingHallOfFame(self.get_validation_score)
         elif self.ensemble_selection == None or self.ensemble_selection in [
