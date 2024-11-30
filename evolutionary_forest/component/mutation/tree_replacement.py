@@ -183,7 +183,11 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             )
 
         if value is None:
+            algorithm.semantic_lib_log.semantic_lib_forbid += 1
             continue
+        else:
+            algorithm.semantic_lib_log.semantic_lib_pass += 1
+
         tree, proposed_semantics, proposed_index = value
 
         if np.all(normalize_vector(ind.semantics[indexes, id]) == proposed_semantics):

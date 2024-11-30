@@ -168,6 +168,7 @@ from evolutionary_forest.component.initialization import (
     initialize_crossover_operator,
     unique_initialization,
 )
+from evolutionary_forest.component.log_tool.semantic_lib_log import SemanticLibLog
 from evolutionary_forest.component.mutation.common import MutationOperator
 from evolutionary_forest.component.mutation.learning_based_mutation import (
     BuildingBlockLearning,
@@ -902,6 +903,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.categorical_encoding: Optional[str] = categorical_encoding
         self.remove_constant_features = remove_constant_features
         self.validation_based_ensemble_selection = validation_based_ensemble_selection
+        self.semantic_lib_log = SemanticLibLog()
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -3653,6 +3655,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             if self.verbose:
                 print("Library Size", len(self.tree_pool.trees))
+
+            if "SemanticLibSize" in self.log_item:
+                self.semantic_lib_log.semantic_lib_size_history.append(
+                    len(self.tree_pool.trees)
+                )
+                self.semantic_lib_log.success_rate_update()
+
             if interval > 0 and self.current_gen % interval == 0:
                 if (
                     self.current_gen > 0
