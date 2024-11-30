@@ -219,10 +219,6 @@ class SemanticLibrary:
                 semantics = self.index_semantics(semantics)
                 if isinstance(semantics, torch.Tensor):
                     semantics = semantics.detach().numpy()
-                # Normalize semantics and skip if norm is 0
-                norm = np.linalg.norm(semantics)
-                if norm == 0:
-                    continue  # Skip this semantics as its norm is 0
 
                 normalized_semantics = normalize_vector(semantics)
                 if (
@@ -230,6 +226,9 @@ class SemanticLibrary:
                     or np.isinf(normalized_semantics).any()
                 ):
                     continue
+
+                if np.linalg.norm(normalized_semantics) == 0:
+                    continue  # Skip this semantics as its norm is 0
 
                 semantics_hash = tuple(normalized_semantics)
                 if semantics_hash in self.seen_semantics:
@@ -275,14 +274,13 @@ class SemanticLibrary:
 
     def append_subtree(self, semantics: np.ndarray, tree: PrimitiveTree):
         semantics = self.index_semantics(semantics)
-        # Normalize semantics and skip if norm is 0
-        norm = np.linalg.norm(semantics)
-        if norm == 0:
-            return  # Skip this semantics as its norm is 0
 
         normalized_semantics = normalize_vector(semantics)
         if np.isnan(normalized_semantics).any() or np.isinf(normalized_semantics).any():
             return
+        if np.linalg.norm(normalized_semantics) == 0:
+            return  # Skip this semantics as its norm is 0
+
         semantics_hash = tuple(normalized_semantics)
         if semantics_hash in self.seen_semantics:
             # self.seen_semantics_counter += 1
