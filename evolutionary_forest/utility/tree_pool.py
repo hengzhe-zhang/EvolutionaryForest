@@ -37,6 +37,7 @@ from evolutionary_forest.utility.shapley_tool import copy_and_rename_tree
 from evolutionary_forest.utility.tree_pool_util.adaptive_instance_selection import (
     adaptive_selection_strategy_controller,
 )
+from evolutionary_forest.utility.tree_pool_util.ball_tree import ScipyBallTree
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -135,8 +136,10 @@ class SemanticLibrary:
         mutation_configuration: MutationConfiguration = None,
         x_columns=0,
         skip_single_terminal=True,
+        library_implementation="KD-Tree",
         **params,
     ):
+        self.library_implementation = library_implementation
         self.plain_semantics_list = []
         self.clustering_indexes = None
         self.frequency = defaultdict(int)
@@ -259,7 +262,14 @@ class SemanticLibrary:
         # print("Number of trees in the library: ", len(self.trees))
         if len(self.normalized_semantics_list) > 0:
             # Create the KDTree with all collected points
-            self.kd_tree = cKDTree(self.normalized_semantics_list)
+            if self.library_implementation == "KD-Tree":
+                self.kd_tree = cKDTree(self.normalized_semantics_list)
+            elif self.library_implementation == "Ball-Tree":
+                self.kd_tree = ScipyBallTree(
+                    self.normalized_semantics_list, leaf_size=16
+                )
+            else:
+                raise Exception("Invalid library implementation")
             assert len(self.trees) == len(self.normalized_semantics_list)
         self.frequency.clear()
 

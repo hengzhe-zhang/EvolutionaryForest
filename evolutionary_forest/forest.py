@@ -498,7 +498,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         validation_ratio=0,
         post_selection_method=None,
         stochastic_mode=False,
-        log_item="",
+        log_item=None,
         feature_clipping=False,
         seed_with_linear_model=False,
         norevisit_strategy="",
@@ -542,6 +542,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         """
         self.seed_with_linear_model = seed_with_linear_model
         self.init_some_logs()
+        if log_item is None:
+            log_item = ""
         self.log_item = log_item
         self.post_selection_method = post_selection_method
         self.validation_ratio = validation_ratio
