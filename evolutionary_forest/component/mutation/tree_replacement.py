@@ -258,15 +258,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                     algorithm.fs_success_rate.add_values(1)
                 else:
                     algorithm.fs_success_rate.add_values(0)
-
-                # print(
-                #     "Current Gen",
-                #     current_gen,
-                #     "Success Rate",
-                #     algorithm.fs_success_rate.get_moving_averages(),
-                # )
-            else:
-                pass
             pass
 
     if len(skip_id) > 0 and not mutation_configuration.local_search_dropout_ensemble:

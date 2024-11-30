@@ -135,7 +135,7 @@ class SemanticLibrary:
         verbose=False,
         mutation_configuration: MutationConfiguration = None,
         x_columns=0,
-        skip_single_terminal=True,
+        skip_single_terminal=False,
         library_implementation="KD-Tree",
         **params,
     ):
