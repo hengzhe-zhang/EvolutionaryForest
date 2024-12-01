@@ -248,7 +248,7 @@ class SemanticLibrary:
                 # self.plain_semantics_list.append(semantics)
                 self.normalized_semantics_list.append(
                     normalized_semantics
-                )  # Store the normalized semantics\
+                )  # Store the normalized semantics
                 if self.mutation_configuration.negative_data_augmentation:
                     self.trees.append(tree)
                     self.normalized_semantics_list.append(-1 * normalized_semantics)
