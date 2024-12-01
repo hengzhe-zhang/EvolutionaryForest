@@ -3656,9 +3656,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 transformed_X = StandardScaler().fit_transform(self.X)
                 self.pearson_matrix = np.corrcoef(transformed_X, rowvar=False)
 
-            if self.verbose:
-                print("Library Size", len(self.tree_pool.trees))
-
             if "SemanticLibSize" in self.log_item:
                 self.semantic_lib_log.semantic_lib_size_history.append(
                     len(self.tree_pool.trees)
@@ -3701,6 +3698,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     )
             self.tree_pool.append_full_tree(self.pop, self.y)
             self.tree_pool.train_nn()
+
+            if self.verbose:
+                print("Library Size", len(self.tree_pool.trees))
         # self.model_size_archive.update(self.pop)
         self.validation_set_generation()
         gc.collect()
