@@ -506,6 +506,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         categorical_encoding=None,
         validation_based_ensemble_selection=0,
         remove_constant_features=True,
+        precision="Float32",
         **params,
     ):
         """
@@ -540,6 +541,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.precision = precision
         self.seed_with_linear_model = seed_with_linear_model
         self.init_some_logs()
         if log_item is None:
@@ -3064,8 +3066,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.cx_threshold = threshold
 
     def fit(self, X, y, test_X=None, categorical_features=None):
-        float32 = False
-        if float32:
+        if self.precision == "Float32":
             X = X.astype(np.float32)
             y = y.astype(np.float32)
         self.counter_initialization()

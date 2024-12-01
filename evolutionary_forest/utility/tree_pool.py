@@ -7,7 +7,7 @@ import numpy as np
 import seaborn as sns
 import shap
 import torch
-from deap.gp import PrimitiveTree, Terminal
+from deap.gp import PrimitiveTree, Terminal, MetaEphemeral
 from deap.tools import selBest
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
@@ -219,6 +219,8 @@ class SemanticLibrary:
                 semantics = self.index_semantics(semantics)
                 if isinstance(semantics, torch.Tensor):
                     semantics = semantics.detach().numpy()
+                if np.linalg.norm(semantics) == 0:
+                    continue  # Skip this semantics as its norm is 0
 
                 normalized_semantics = normalize_vector(semantics)
                 if (
@@ -226,9 +228,6 @@ class SemanticLibrary:
                     or np.isinf(normalized_semantics).any()
                 ):
                     continue
-
-                if np.linalg.norm(normalized_semantics) == 0:
-                    continue  # Skip this semantics as its norm is 0
 
                 semantics_hash = tuple(normalized_semantics)
                 if semantics_hash in self.seen_semantics:
@@ -274,12 +273,12 @@ class SemanticLibrary:
 
     def append_subtree(self, semantics: np.ndarray, tree: PrimitiveTree):
         semantics = self.index_semantics(semantics)
+        if np.linalg.norm(semantics) == 0:
+            return  # Skip this semantics as its norm is 0
 
         normalized_semantics = normalize_vector(semantics)
         if np.isnan(normalized_semantics).any() or np.isinf(normalized_semantics).any():
             return
-        if np.linalg.norm(normalized_semantics) == 0:
-            return  # Skip this semantics as its norm is 0
 
         semantics_hash = tuple(normalized_semantics)
         if semantics_hash in self.seen_semantics:
@@ -458,27 +457,28 @@ class SemanticLibrary:
                 # return None
                 return None
         else:
+            # self.check_constant_trees()
             # Find the smallest tree that satisfies the constraints
             smallest_index = -1
             for idx in range(len(index)):
+                proposed_tree = self.trees[index[idx]]
                 custom_complexity_criteria = complexity_function is not None and (
                     complexity_function(
-                        self.trees[index[idx]],
-                        self.normalized_semantics_list[index[idx]],
+                        proposed_tree, self.normalized_semantics_list[index[idx]]
                     )
                     <= incumbent_size
                 )
                 if (
                     (
-                        (len(self.trees[index[idx]]) <= incumbent_size)
+                        (len(proposed_tree) <= incumbent_size)
                         or custom_complexity_criteria
                     )
-                    and self.trees[index[idx]].height <= incumbent_depth
+                    and proposed_tree.height <= incumbent_depth
                     and dist[idx] < incumbent_distance
                 ):
                     if (
-                        len(self.trees[index[idx]]) == 1
-                        and isinstance(self.trees[index[idx]][0], Terminal)
+                        len(proposed_tree) == 1
+                        and isinstance(proposed_tree[0], Terminal)
                         and self.skip_single_terminal
                     ):
                         # Skip tree with single terminal
@@ -499,6 +499,11 @@ class SemanticLibrary:
                 smallest_index,
             )
         return self.trees[smallest_index]  # Return the corresponding tree
+
+    def check_constant_trees(self):
+        for idx, tree in enumerate(self.trees):
+            if tree[0].name == "rand101":
+                print(idx, tree, self.normalized_semantics_list[idx])
 
     def retrieve_smooth_nearest_tree(
         self,
