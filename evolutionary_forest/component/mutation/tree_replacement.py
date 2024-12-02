@@ -145,7 +145,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_distance = np.inf
             weight_vector = None
             complexity_function = None
-            if pool_addition_mode == "Smallest~Auto":
+            if pool_addition_mode in ["Smallest~Auto", "Smallest~Auto~Degrade"]:
                 pass
             elif pool_addition_mode == "Smallest~Auto-Depth":
                 incumbent_depth = ind.gene[id].height
@@ -164,6 +164,11 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_size = 0
                 assert pool_addition_mode == "Smallest"
 
+            if pool_addition_mode == "Smallest~Auto~Degrade":
+                degrade = True
+            else:
+                degrade = False
+
             value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                 normalize_vector(residual),
                 return_semantics=True,
@@ -174,6 +179,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 negative_search=mutation_configuration.negative_local_search,
                 weight_vector=weight_vector,
                 complexity_function=complexity_function,
+                degrade=degrade,
             )
         else:
             value = algorithm.tree_pool.retrieve_nearest_tree(

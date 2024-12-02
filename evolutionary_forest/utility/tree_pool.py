@@ -403,6 +403,7 @@ class SemanticLibrary:
         negative_search=True,
         weight_vector=None,
         complexity_function=None,
+        degrade=False,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -487,6 +488,9 @@ class SemanticLibrary:
                     smallest_index = index[idx]
                     # str(self.trees[index[idx]])
                     break
+            else:
+                if degrade and dist[0] < incumbent_distance:
+                    smallest_index = 0
 
         if smallest_index == -1:
             # Non suitable tree
