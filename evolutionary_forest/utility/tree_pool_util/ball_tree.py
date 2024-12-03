@@ -4,15 +4,17 @@ from sklearn.neighbors import BallTree
 
 class ScipyBallTree(BallTree):
     def query(self, X, k=1, return_distance=True, dualtree=False, breadth_first=False):
-        assert len(X.shape) == 1, "X must be a single query point"
-        distances, indices = super().query(
-            X.reshape(1, -1), k, return_distance, dualtree, breadth_first
-        )
-        if len(distances[0]) == 1:
-            # return a single value if k=1
-            return distances[0][0], indices[0][0]
+        if len(X.shape) == 1:
+            distances, indices = super().query(
+                X.reshape(1, -1), k, return_distance, dualtree, breadth_first
+            )
+            if len(distances[0]) == 1:
+                # return a single value if k=1
+                return distances[0][0], indices[0][0]
+            else:
+                return distances[0], indices[0]
         else:
-            return distances[0], indices[0]
+            return super().query(X, k, return_distance, dualtree, breadth_first)
 
 
 if __name__ == "__main__":
