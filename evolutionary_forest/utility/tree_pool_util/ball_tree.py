@@ -8,7 +8,11 @@ class ScipyBallTree(BallTree):
         distances, indices = super().query(
             X.reshape(1, -1), k, return_distance, dualtree, breadth_first
         )
-        return distances[0], indices[0]
+        if len(distances[0]) == 1:
+            # return a single value if k=1
+            return distances[0][0], indices[0][0]
+        else:
+            return distances[0], indices[0]
 
 
 if __name__ == "__main__":
