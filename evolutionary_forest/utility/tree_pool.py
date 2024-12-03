@@ -490,7 +490,8 @@ class SemanticLibrary:
                     break
             else:
                 if degrade and dist[0] < incumbent_distance:
-                    smallest_index = 0
+                    # in fallback mode, this can be invoked very frequently
+                    smallest_index = index[0]
 
         if smallest_index == -1:
             # Non suitable tree
