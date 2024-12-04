@@ -1,6 +1,38 @@
 import numpy as np
 from sklearn.cluster import KMeans
 
+from scipy.spatial.distance import cdist
+
+
+def informed_down_sampling(population_errors, n_samples):
+    """
+    Performs informed down-sampling to select diverse training cases.
+
+    Parameters:
+    - population_errors (array-like): Errors of individuals on training cases (matrix).
+    - n_samples (int): Number of training cases to sample.
+
+    Returns:
+    - selected_cases (array-like): Indices of selected diverse training cases.
+    """
+    # Infer the number of training cases from population_errors
+    n_cases = population_errors.shape[1]
+
+    # Compute Euclidean distances between training cases based on errors
+    distances = cdist(
+        population_errors.T, population_errors.T, metric="euclidean"
+    )  # Transpose for case-wise distance
+
+    # Farthest-First Traversal to select diverse cases
+    selected_cases = []
+    selected_cases.append(np.random.choice(n_cases))  # Start with a random case
+    while len(selected_cases) < n_samples:
+        dist_to_selected = np.min(distances[selected_cases], axis=0)
+        next_case = np.argmax(dist_to_selected)
+        selected_cases.append(next_case)
+
+    return np.array(selected_cases)
+
 
 def semantic_instance_selection(loss_matrix, semantics_length):
     # Step 1: Transpose the loss matrix to get instance-wise losses

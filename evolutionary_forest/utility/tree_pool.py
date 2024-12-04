@@ -28,6 +28,7 @@ from evolutionary_forest.component.generalization.smoothness import (
 )
 from evolutionary_forest.utility.memory.instance_selection import (
     semantic_instance_selection,
+    informed_down_sampling,
 )
 from evolutionary_forest.utility.mlp_library import (
     NeuralSemanticLibrary,
@@ -842,6 +843,10 @@ class SemanticLibrary:
             # Find the index of the nearest sample to each centroid
             nearest_indexes, _ = pairwise_distances_argmin_min(centroids, features)
             self.clustering_indexes = nearest_indexes
+        elif mode == "Informed-Down-Sampling":
+            self.clustering_indexes = informed_down_sampling(
+                error, self.semantics_length
+            )
         elif mode == "Hardest-KMeans":
             self.clustering_indexes = semantic_instance_selection(
                 error, self.semantics_length
