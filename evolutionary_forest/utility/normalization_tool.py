@@ -7,27 +7,15 @@ from sklearn.metrics import r2_score
 from evolutionary_forest.model.cosine_kmeans import cosine_similarity
 
 
-def uniform_generator(x):
-    vector = np.ones(len(x))
-    normalized_vector = vector / np.linalg.norm(vector)
-    return normalized_vector.astype(np.float32)
-
-
 def normalize_vector(v):
     if isinstance(v, torch.Tensor):
         v = v.detach().numpy()
     v = v - np.mean(v)
     norm = np.linalg.norm(v)
     if norm == 0:
-        return uniform_generator(v)  # Return the zero vector as is
+        # undefined correlation
+        return v
     normalized_v = v / norm
-    # Find the first non-zero element
-    # for i in range(len(normalized_v)):
-    #     if normalized_v[i] != 0:
-    #         # If the first non-zero element is negative, invert the vector
-    #         if normalized_v[i] < 0:
-    #             normalized_v = -normalized_v
-    #         break
     return normalized_v
 
 

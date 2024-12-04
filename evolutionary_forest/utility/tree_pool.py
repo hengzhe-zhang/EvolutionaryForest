@@ -220,14 +220,16 @@ class SemanticLibrary:
                 semantics = self.index_semantics(semantics)
                 if isinstance(semantics, torch.Tensor):
                     semantics = semantics.detach().numpy()
-                if np.linalg.norm(semantics) == 0:
-                    continue  # Skip this semantics as its norm is 0
 
                 normalized_semantics = normalize_vector(semantics)
                 if (
                     np.isnan(normalized_semantics).any()
                     or np.isinf(normalized_semantics).any()
                 ):
+                    continue
+
+                if np.linalg.norm(normalized_semantics) == 0:
+                    # undefined correlation
                     continue
 
                 semantics_hash = tuple(normalized_semantics)
@@ -279,6 +281,10 @@ class SemanticLibrary:
 
         normalized_semantics = normalize_vector(semantics)
         if np.isnan(normalized_semantics).any() or np.isinf(normalized_semantics).any():
+            return
+
+        if np.linalg.norm(normalized_semantics) == 0:
+            # undefined correlation
             return
 
         semantics_hash = tuple(normalized_semantics)
