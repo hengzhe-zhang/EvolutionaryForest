@@ -124,6 +124,8 @@ class MultipleGeneGP:
     sam_loss: float
     r2_score: float
     scaler: StandardScaler
+    # operators for generation
+    generation_operator: str
 
     @property
     def gene_num(self):

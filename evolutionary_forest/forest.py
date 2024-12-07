@@ -3661,6 +3661,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     len(self.tree_pool.trees)
                 )
                 self.semantic_lib_log.success_rate_update()
+            if "SemanticLibOperator" in self.log_item:
+                self.semantic_lib_log.best_individual_update(self.hof)
 
             if interval > 0 and self.current_gen % interval == 0:
                 if (

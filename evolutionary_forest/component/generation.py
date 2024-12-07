@@ -110,6 +110,10 @@ def varAndPlus(
                 # exclusive
                 for i in range(len(offspring)):
                     tree_replacement(offspring[i], algorithm)
+
+                for o in offspring:
+                    o.generation_operator = "LocalSearch"
+
                 algorithm.tree_pool.callback()
                 if (mutation_configuration.semantic_local_search_pb != 1) and (
                     mutation_configuration.independent_local_search is None
@@ -117,6 +121,9 @@ def varAndPlus(
                 ):
                     # independent mode
                     return offspring
+            else:
+                for o in offspring:
+                    o.generation_operator = "Evolution"
         # Apply crossover and mutation on the offspring
         # Support both VarAnd and VarOr
         i = 0
