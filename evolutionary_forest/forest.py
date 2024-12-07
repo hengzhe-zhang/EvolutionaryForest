@@ -506,7 +506,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         categorical_encoding=None,
         validation_based_ensemble_selection=0,
         remove_constant_features=True,
-        precision="Float32",
+        precision="Float64",
         **params,
     ):
         """
