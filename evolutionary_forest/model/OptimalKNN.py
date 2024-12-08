@@ -209,11 +209,11 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
                 weights=weights,
                 p=reduced_dimension,
             )
-            # self.print_mse(D_group, GP_X_group, weight)
+            self.print_mse(D_group, GP_X_group, weight)
             self.weights.append(weight)
 
         # Transform the entire training data using the computed weights and concatenate them
-        transformed_data_list = [GP_X @ weight for weight in self.weights]
+        transformed_data_list = [GP_X @ weight.T for weight in self.weights]
         training_data = np.concatenate(transformed_data_list, axis=1)
         self.training_data = training_data
 
@@ -224,20 +224,21 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
 
     def print_mse(self, D_group, GP_X_group, weight):
         print(
-            "Original MSE",
-            np.mean(
-                (pairwise_distances(GP_X_group, metric="euclidean") - D_group) ** 2
+            "Original R2",
+            r2_score(
+                pairwise_distances(GP_X_group, metric="euclidean").flatten(),
+                D_group.flatten(),
             ),
-            "MSE",
-            np.mean(
-                (pairwise_distances(GP_X_group @ weight, metric="euclidean") - D_group)
-                ** 2
+            "R2",
+            r2_score(
+                pairwise_distances(GP_X_group @ weight.T, metric="euclidean").flatten(),
+                D_group.flatten(),
             ),
         )
 
     def predict(self, x_test):
         # Transform test data using each weight matrix and concatenate the results
-        test_data_list = [x_test @ weight for weight in self.weights]
+        test_data_list = [x_test @ weight.T for weight in self.weights]
         test_data = np.concatenate(test_data_list, axis=1)
 
         # Predict using the KNN model
