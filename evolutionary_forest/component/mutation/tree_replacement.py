@@ -195,6 +195,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
         tree, proposed_semantics, proposed_index = value
 
         if np.all(normalize_vector(ind.semantics[indexes, id]) == proposed_semantics):
+            algorithm.semantic_lib_log.semantic_lib_fail += 1
             continue
 
         if dropout_mode and mutation_configuration.local_search_dropout_ensemble:
