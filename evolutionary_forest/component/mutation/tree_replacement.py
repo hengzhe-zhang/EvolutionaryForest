@@ -189,10 +189,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             )
 
         if value is None:
-            algorithm.semantic_lib_log.semantic_lib_forbid += 1
+            algorithm.semantic_lib_log.semantic_lib_fail += 1
             continue
-        else:
-            algorithm.semantic_lib_log.semantic_lib_pass += 1
 
         tree, proposed_semantics, proposed_index = value
 
@@ -219,6 +217,12 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
         if pool_addition_mode.startswith("Smallest~Curriculum"):
             trial_mse = np.sum((trail_semantics - target) ** 2 * weight_vector)
             current_mse = np.sum((current_semantics - target) ** 2 * weight_vector)
+
+        if trial_mse < current_mse:
+            algorithm.semantic_lib_log.semantic_lib_success += 1
+        else:
+            algorithm.semantic_lib_log.semantic_lib_fail += 1
+
         if trial_mse <= mutation_configuration.trial_check_ratio * current_mse or (
             not mutation_configuration.trial_check
         ):
