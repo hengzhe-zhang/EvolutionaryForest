@@ -7,6 +7,7 @@ from sklearn.metrics import pairwise_distances, r2_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_array, check_is_fitted
 
+from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
 from evolutionary_forest.model.weight_solver import (
     solve_transformation_matrix,
     compute_lambda_matrix,
@@ -153,7 +154,16 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
             self.knn = SoftmaxWeightedKNNRegressor(
                 n_neighbors=self.n_neighbors, weights="distance"
             )
+        elif distance == "SkipUniform":
+            self.knn = SkipKNeighborsRegressor(n_neighbors=self.n_neighbors)
+        elif distance == "SkipDistance":
+            self.knn = SkipKNeighborsRegressor(
+                n_neighbors=self.n_neighbors, weights="distance"
+            )
+        elif distance == "Uniform":
+            self.knn = KNeighborsRegressor(n_neighbors=self.n_neighbors)
         else:
+            assert distance == "Euclidean"
             self.knn = KNeighborsRegressor(
                 n_neighbors=self.n_neighbors, weights="distance"
             )
@@ -209,7 +219,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
                 weights=weights,
                 p=reduced_dimension,
             )
-            self.print_mse(D_group, GP_X_group, weight)
+            # self.print_mse(D_group, GP_X_group, weight)
             self.weights.append(weight)
 
         # Transform the entire training data using the computed weights and concatenate them
