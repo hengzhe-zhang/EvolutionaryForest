@@ -1762,9 +1762,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 **self.param, distance="Euclidean", weighted_instance=True
             )
         elif self.base_learner == "NCA+Ridge":
-            ridge_model = WeightedKNNWithGPRidge(**self.param, distance="Softmax")
+            ridge_model = WeightedKNNWithGPRidge(**self.param, distance="SkipUniform")
         elif self.base_learner == "NCA-Euclidean+Ridge":
-            ridge_model = WeightedKNNWithGPRidge(**self.param, distance="Euclidean")
+            ridge_model = WeightedKNNWithGPRidge(**self.param, distance="SkipDistance")
         elif self.base_learner == "NCA+Ridge~Split":
             ridge_model = WeightedKNNWithGPRidge(
                 **self.param, distance="Softmax", mode="split"
