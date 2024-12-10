@@ -223,7 +223,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
             self.weights.append(weight)
 
         # Transform the entire training data using the computed weights and concatenate them
-        transformed_data_list = [GP_X @ weight.T for weight in self.weights]
+        transformed_data_list = [GP_X @ weight for weight in self.weights]
         training_data = np.concatenate(transformed_data_list, axis=1)
         self.training_data = training_data
 
@@ -236,19 +236,19 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         print(
             "Original R2",
             r2_score(
-                pairwise_distances(GP_X_group, metric="euclidean").flatten(),
                 D_group.flatten(),
+                pairwise_distances(GP_X_group, metric="euclidean").flatten(),
             ),
             "R2",
             r2_score(
-                pairwise_distances(GP_X_group @ weight.T, metric="euclidean").flatten(),
                 D_group.flatten(),
+                pairwise_distances(GP_X_group @ weight, metric="euclidean").flatten(),
             ),
         )
 
     def predict(self, x_test):
         # Transform test data using each weight matrix and concatenate the results
-        test_data_list = [x_test @ weight.T for weight in self.weights]
+        test_data_list = [x_test @ weight for weight in self.weights]
         test_data = np.concatenate(test_data_list, axis=1)
 
         # Predict using the KNN model
