@@ -140,6 +140,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         n_groups=1,
         reduced_dimension=None,
         weighted_instance=False,
+        knn_subsampling=100,
         **params
     ):
         self.n_neighbors = n_neighbors
@@ -170,11 +171,15 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
 
         self.weights = []  # List to store transformation matrices for each group
         self.weighted_instance = weighted_instance
+        self.knn_subsampling = knn_subsampling
 
     def fit(self, GP_X, y):
         # Determine if we need to subsample
-        if len(y) > 100:
-            subsample_indices = self.random_state.choice(len(y), 100, replace=False)
+        knn_subsampling = self.knn_subsampling
+        if len(y) > knn_subsampling:
+            subsample_indices = self.random_state.choice(
+                len(y), knn_subsampling, replace=False
+            )
             GP_X_subsample = GP_X[subsample_indices]
             y_subsample = y[subsample_indices]
         else:
