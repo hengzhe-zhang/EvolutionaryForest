@@ -270,6 +270,10 @@ from evolutionary_forest.model.SafeRidgeCV import (
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
+from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
+    pca_plot,
+    plot_pairwise_distances,
+)
 from evolutionary_forest.multigene_gp import *
 from evolutionary_forest.preprocess_utils import (
     NumericalFeature,
@@ -3627,6 +3631,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             return False
 
     def callback(self):
+        # self.plot_distance()
+
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool: SemanticLibrary
             interval = self.mutation_configuration.pool_hard_instance_interval
@@ -3767,6 +3773,32 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.current_gen % 20 == 0 and self.current_gen != 0
         ):
             automatic_perturbation_std(self, self.pop)
+
+    def plot_distance(self):
+        if isinstance(self.hof[0].pipe["Ridge"], WeightedKNNWithGP):
+            best_ind = self.hof[0]
+            n_samples = 100
+            features = self.feature_generation(self.X[:n_samples], best_ind)
+            labels = self.y[:n_samples]
+            std_features = StandardScaler().fit_transform(features)
+            transformed_features = best_ind.pipe.transform(features)
+            pca_plot(std_features, labels)
+            pca_plot(transformed_features, labels)
+            plot_pairwise_distances(
+                std_features, transformed_features, labels.reshape(-1, 1)
+            )
+            print(
+                r2_score(
+                    pairwise_distances(labels.reshape(-1, 1)).flatten(),
+                    pairwise_distances(transformed_features).flatten(),
+                )
+            )
+            print(
+                r2_score(
+                    pairwise_distances(labels.reshape(-1, 1)).flatten(),
+                    pairwise_distances(std_features).flatten(),
+                )
+            )
 
     def update_instance_weights(self):
         if isinstance(

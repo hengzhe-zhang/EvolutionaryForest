@@ -225,6 +225,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
                 p=reduced_dimension,
             )
             # self.print_mse(D_group, GP_X_group, weight)
+            # pairwise_distances(GP_X_group @ weight, metric="euclidean")
             self.weights.append(weight)
 
         # Transform the entire training data using the computed weights and concatenate them
@@ -236,6 +237,12 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         self.knn.fit(training_data, y)
 
         return self
+
+    def transform(self, GP_X):
+        # Transform the input data using the computed weights and concatenate the results
+        transformed_data_list = [GP_X @ weight for weight in self.weights]
+        transformed_data = np.concatenate(transformed_data_list, axis=1)
+        return transformed_data
 
     def print_mse(self, D_group, GP_X_group, weight):
         print(
