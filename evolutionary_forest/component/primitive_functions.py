@@ -168,6 +168,10 @@ def analytical_quotient_torch(x1, x2):
     return x1 / torch.sqrt(1 + (x2**2))
 
 
+def abs_log_torch(x):
+    return torch.log(1 + torch.abs(x))
+
+
 def analytical_log_torch(x):
     return torch.log(torch.sqrt(1 + x**2))
 

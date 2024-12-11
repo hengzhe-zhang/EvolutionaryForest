@@ -3,7 +3,9 @@ import torch
 import torch.optim as optim
 from deap.gp import Terminal
 from sklearn.linear_model import Ridge
+from sklearn.metrics import pairwise_distances
 
+from evolutionary_forest.model.weight_solver import solve_transformation_matrix
 from evolutionary_forest.utility.gradient_optimization.scaling import (
     feature_standardization_torch,
 )
@@ -33,6 +35,54 @@ def perform_gradient_descent(variables, Y_pred, Y, lr=1.0):
     criterion = torch.nn.MSELoss()
     optimizer = optim.SGD(variables, lr=lr)
     loss = criterion(Y_pred, torch.from_numpy(Y).detach().float())
+    loss.backward()
+    optimizer.step()
+    optimizer.zero_grad()
+
+
+def contrastive_gradient_optimization(constructed_features, Y, func):
+    constructed_features_normalized = feature_standardization_torch(
+        constructed_features
+    )
+    knn_subsampling = 100
+    subsample_indices = np.random.choice(len(Y), knn_subsampling, replace=False)
+    GP_X_subsample = constructed_features_normalized[subsample_indices]
+    y_subsample = Y[subsample_indices]
+    D_group = pairwise_distances(y_subsample.reshape(-1, 1), metric="euclidean")
+
+    weight = solve_transformation_matrix(
+        GP_X_subsample.detach().numpy(),
+        D_group,
+    )
+    weights_torch = torch.tensor(weight, dtype=torch.float32, requires_grad=True)
+    free_variables = [
+        f.value
+        for tree in func
+        for f in tree
+        if isinstance(f, Terminal) and isinstance(f.value, torch.Tensor)
+    ]
+
+    for v in free_variables:
+        assert v.requires_grad is True
+
+    torch_variables = [weights_torch] + free_variables
+    # print(free_variables)
+    criterion = torch.nn.MSELoss()
+    optimizer = optim.SGD(torch_variables, lr=0.1)
+    Y_pred = GP_X_subsample.to(dtype=torch.float32) @ weights_torch
+
+    # Step 1: Compute squared norms for each row
+    squared_norms = (Y_pred**2).sum(dim=1).unsqueeze(1)  # Shape: (100, 1)
+
+    # Step 2: Compute pairwise squared distances
+    pairwise_distances_squared = (
+        squared_norms - 2 * Y_pred @ Y_pred.T + squared_norms.T
+    )  # Shape: (100, 100)
+
+    loss = criterion(
+        pairwise_distances_squared.flatten(),
+        torch.from_numpy(D_group.flatten()).detach().float(),
+    )
     loss.backward()
     optimizer.step()
     optimizer.zero_grad()

@@ -57,6 +57,7 @@ from evolutionary_forest.component.generalization.pac_utils.random_node_selectio
 )
 from evolutionary_forest.component.gradient_optimization.gradient_descent import (
     gradient_optimization,
+    contrastive_gradient_optimization,
 )
 from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 from evolutionary_forest.component.stgp.shared_type import (
@@ -182,6 +183,7 @@ def calculate_score(args):
         register_array = None
 
     feature_numbers = None
+    base_model = pipe["Ridge"]
 
     if configuration.basic_primitives.startswith("Pipeline"):
         Yp, feature_numbers = multi_tree_evaluation_typed(
@@ -240,7 +242,10 @@ def calculate_score(args):
     gp_evaluation_time = time.time() - start_time
 
     if configuration.gradient_descent:
-        gradient_optimization(Yp, Y, configuration, func)
+        if isinstance(base_model, WeightedKNNWithGP):
+            contrastive_gradient_optimization(Yp, Y, func)
+        else:
+            gradient_optimization(Yp, Y, configuration, func)
         # evaluate again
         Yp = multi_tree_evaluation(
             func,
@@ -263,7 +268,6 @@ def calculate_score(args):
 
     # ML evaluation
     start_time = time.time()
-    base_model = pipe["Ridge"]
     regression_task = isinstance(base_model, RegressorMixin)
 
     if not configuration.cross_validation:

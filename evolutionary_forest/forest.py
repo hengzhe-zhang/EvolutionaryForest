@@ -2354,9 +2354,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         max_=max_height,
                     )
             else:
-                toolbox.expr = partial(
-                    gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
-                )
+                if self.constant_ratio > 0:
+                    toolbox.expr = partial(
+                        genHalfAndHalf_STGP_constant_biased,
+                        pset=pset,
+                        min_=min_height,
+                        max_=max_height,
+                        constant_ratio=self.constant_ratio,
+                    )
+                else:
+                    toolbox.expr = partial(
+                        gp.genHalfAndHalf, pset=pset, min_=min_height, max_=max_height
+                    )
 
     def mutation_expression_function(self, toolbox: TypedToolbox):
         if self.mutation_configuration.mutation_expr_height is not None:

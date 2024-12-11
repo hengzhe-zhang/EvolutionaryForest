@@ -183,6 +183,7 @@ def get_differentiable_functions(p):
         ),  # Protected Division for handling divide-by-zero errors
         "AQ": (analytical_quotient_torch, 2),
         "ALog": (analytical_quotient_torch, 2),
+        "AbsLog": (abs_log_torch, 1),
         # Analytical Quotient for symbolic differentiation
         "Sqrt": (protect_sqrt_torch, 1),
         # Protected square root for handling negative values
@@ -196,7 +197,9 @@ def get_differentiable_functions(p):
             1,
         ),  # Unary negation function (i.e. negate the input value)
         "RSin": (radian_sin_torch, 1),  # Sine function
+        "SinPi": (radian_sin_torch, 1),  # Sine function
         "RCos": (radian_cos_torch, 1),  # Cosine function
+        "CosPi": (radian_cos_torch, 1),  # Cosine function
         "Gaussian": (
             gaussian_torch,
             1,

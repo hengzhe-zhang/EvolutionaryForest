@@ -194,7 +194,7 @@ if __name__ == "__main__":
     D = np.zeros((n_samples, n_samples))
     for i in range(n_samples):
         for j in range(n_samples):
-            D[i, j] = np.abs(y[i] - y[j])  # Example: binary labels distance
+            D[i, j] = (y[i] - y[j]) ** 2  # Example: binary labels distance
 
     # Solve for W with verbose output
     W = solve_transformation_matrix(
