@@ -1,3 +1,5 @@
+import os
+
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -6,7 +8,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import pairwise_distances
 
 
-def pca_plot(transformer_feature, y, n_components=2):
+def pca_plot(transformer_feature, y, figname, n_components=2):
     # Apply PCA to reduce dimensions
     pca = PCA(n_components=n_components)
     space = pca.fit_transform(transformer_feature)
@@ -16,7 +18,7 @@ def pca_plot(transformer_feature, y, n_components=2):
     cmap = cm.viridis
 
     # Create the scatter plot
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     scatter = plt.scatter(
         space[:, 0], space[:, 1], c=y, cmap=cmap, norm=norm, alpha=0.7
     )
@@ -26,45 +28,73 @@ def pca_plot(transformer_feature, y, n_components=2):
     cbar.set_label("Continuous Value")
 
     # Set plot titles and labels
-    plt.title("PCA Visualization of Features (Continuous y)")
     plt.xlabel("PCA Component 1")
     plt.ylabel("PCA Component 2")
     plt.tight_layout()
+    plt.savefig(os.path.join("result", figname), format="eps")
     plt.show()
 
 
-def plot_pairwise_distances(original_feature, transformed_feature, y):
+def plot_pairwise_distances(
+    original_feature,
+    constructed_feature,
+    transformed_feature,
+    y,
+    result_folder="result",
+):
     # Calculate pairwise distances
     dist_original = pairwise_distances(original_feature, metric="euclidean")
+    dist_constructed = pairwise_distances(constructed_feature, metric="euclidean")
     dist_transformed = pairwise_distances(transformed_feature, metric="euclidean")
     dist_y = pairwise_distances(y.reshape(-1, 1), metric="euclidean")
 
-    # Plot pairwise distances
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
-    # Original Feature Distances
-    im0 = axes[0].imshow(dist_original, aspect="auto", cmap="viridis")
-    axes[0].set_title("Original Feature Pairwise Distances")
-    axes[0].set_xlabel("Sample Index")
-    axes[0].set_ylabel("Sample Index")
-    fig.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
-
-    # Transformed Feature Distances
-    im1 = axes[1].imshow(dist_transformed, aspect="auto", cmap="viridis")
-    axes[1].set_title("Transformed Feature Pairwise Distances")
-    axes[1].set_xlabel("Sample Index")
-    axes[1].set_ylabel("Sample Index")
-    fig.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
-
-    # Target Feature Distances
-    im2 = axes[2].imshow(dist_y, aspect="auto", cmap="viridis")
-    axes[2].set_title("Target Feature Pairwise Distances")
-    axes[2].set_xlabel("Sample Index")
-    axes[2].set_ylabel("Sample Index")
-    fig.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
-
+    # Plot and save Original Feature Distances
+    plt.figure(figsize=(8 * 0.5, 6 * 0.5))
+    plt.imshow(dist_original, aspect="auto", cmap="viridis")
+    plt.xlabel("Sample Index")
+    plt.ylabel("Sample Index")
+    plt.colorbar(fraction=0.046, pad=0.04)
     plt.tight_layout()
-    plt.show()
+    plt.savefig(
+        os.path.join(result_folder, "original_feature_distances.eps"), format="eps"
+    )
+    plt.close()
+
+    # Plot and save Constructed Feature Distances
+    plt.figure(figsize=(8 * 0.5, 6 * 0.5))
+    plt.imshow(dist_constructed, aspect="auto", cmap="viridis")
+    plt.xlabel("Sample Index")
+    plt.ylabel("Sample Index")
+    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(result_folder, "constructed_feature_distances.eps"), format="eps"
+    )
+    plt.close()
+
+    # Plot and save Transformed Feature Distances
+    plt.figure(figsize=(8 * 0.5, 6 * 0.5))
+    plt.imshow(dist_transformed, aspect="auto", cmap="viridis")
+    plt.xlabel("Sample Index")
+    plt.ylabel("Sample Index")
+    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(result_folder, "transformed_feature_distances.eps"), format="eps"
+    )
+    plt.close()
+
+    # Plot and save Target Pairwise Distances
+    plt.figure(figsize=(8 * 0.5, 6 * 0.5))
+    plt.imshow(dist_y, aspect="auto", cmap="viridis")
+    plt.xlabel("Sample Index")
+    plt.ylabel("Sample Index")
+    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(result_folder, "target_pairwise_distances.eps"), format="eps"
+    )
+    plt.close()
 
 
 def pairwise_distance_plot():

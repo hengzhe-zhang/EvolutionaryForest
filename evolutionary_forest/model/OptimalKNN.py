@@ -268,6 +268,7 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         reduced_dimension=None,
         weighted_instance=False,
         knn_subsampling=100,
+        base_learner=None,
         **params
     ):
         self.n_neighbors = n_neighbors
@@ -278,7 +279,9 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
         self.reduced_dimension = reduced_dimension
 
         # Initialize KNN regressor based on distance type
-        if distance == "Softmax":
+        if base_learner is not None:
+            self.knn = base_learner
+        elif distance == "Softmax":
             self.knn = SoftmaxWeightedKNNRegressor(
                 n_neighbors=self.n_neighbors, weights="distance"
             )

@@ -1747,6 +1747,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "InContextLearner":
             ridge_model = InContextLearnerRegressor(**self.param)
+        elif self.base_learner.startswith("SNCA-DT"):
+            leaf = int(self.base_learner.split("-")[-1])
+            ridge_model = WeightedKNNWithGP(
+                **self.param, base_learner=DecisionTreeRegressor(min_samples_leaf=leaf)
+            )
         elif self.base_learner == "NCA":
             ridge_model = WeightedKNNWithGP(**self.param, distance="Softmax")
         elif self.base_learner == "SNCA-Uniform":
