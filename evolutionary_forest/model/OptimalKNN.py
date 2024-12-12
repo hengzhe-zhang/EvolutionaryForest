@@ -5,6 +5,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import Ridge
 from sklearn.metrics import pairwise_distances, r2_score
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
@@ -12,6 +13,132 @@ from evolutionary_forest.model.weight_solver import (
     solve_transformation_matrix,
     compute_lambda_matrix,
 )
+
+
+class EnsembleUniformKNNRegressor(KNeighborsRegressor):
+    def __init__(self, n_neighbors=5, n_groups=1):
+        super().__init__(n_neighbors=n_neighbors)
+        self.n_groups = n_groups
+        self.group_knn_models = []
+        self.decision_tree = None
+
+    def fit(self, X, y):
+        """
+        Fit the KNN model for each feature group and train a decision tree classifier to select the best group.
+
+        Parameters:
+        X : array-like, shape (n_samples, n_features)
+            Training data.
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        Returns:
+        self : object
+            Returns the instance itself.
+        """
+        X = check_array(X, accept_sparse="csr")
+        self._y = y
+
+        # Split the data into groups based on feature sets
+        group_size = X.shape[1] // self.n_groups
+        self.group_knn_models = []
+
+        # Store variability of predictions for decision tree training
+        prediction_variability = np.zeros((X.shape[0], self.n_groups))
+
+        for i in range(self.n_groups):
+            # Select the feature group for training
+            start_idx = i * group_size
+            end_idx = (i + 1) * group_size if i < self.n_groups - 1 else X.shape[1]
+            X_group = X[:, start_idx:end_idx]
+
+            # Initialize and fit a KNeighborsRegressor for this group
+            knn = KNeighborsRegressor(n_neighbors=self.n_neighbors + 1)
+            knn.fit(X_group, y)
+
+            # Store the model for this group
+            self.group_knn_models.append(knn)
+
+            # Compute predictions and variability for this group
+            distances, neighbors = knn.kneighbors(X_group)
+
+            # Check if the nearest neighbor's distance is zero for all samples
+            skip_nearest = np.all(distances[:, 0] == 0)
+
+            if skip_nearest:
+                # Exclude the closest neighbor and use the next neighbors
+                neighbors = neighbors[:, 1:]
+            else:
+                # Use only the first k neighbors
+                neighbors = neighbors[:, : self.n_neighbors]
+
+            neighbor_targets = y[neighbors]
+            prediction_variability[:, i] = (np.mean(neighbor_targets, axis=1) - y) ** 2
+
+        # Train a decision tree classifier to select the best group based on minimum variability
+        best_group_indices = np.argmin(prediction_variability, axis=1)
+        self.decision_tree = DecisionTreeClassifier(max_depth=3)
+        self.decision_tree.fit(X, best_group_indices)
+        # print(self.decision_tree.score(X, best_group_indices))
+
+        self._fit_X = X
+        return self
+
+    def predict(self, X):
+        """
+        Predict using uniform-weighted KNN with an ensemble approach, selecting the best group dynamically.
+
+        Parameters:
+        X : array-like, shape (n_samples, n_features)
+            Test samples.
+
+        Returns:
+        y_pred : array, shape (n_samples,)
+            Target values for each sample.
+        """
+        # Ensure the model is already fitted
+        check_is_fitted(self, ["group_knn_models", "decision_tree"])
+        X = check_array(X, accept_sparse="csr")
+
+        # Split the data into groups based on feature sets
+        group_size = X.shape[1] // self.n_groups
+        group_predictions = []
+
+        for i, knn_model in enumerate(self.group_knn_models):
+            # Select the feature group for testing
+            start_idx = i * group_size
+            end_idx = (i + 1) * group_size if i < self.n_groups - 1 else X.shape[1]
+            X_group = X[:, start_idx:end_idx]
+
+            # Predict using the KNN model for this group
+            distances, neighbors = knn_model.kneighbors(
+                X_group, n_neighbors=self.n_neighbors + 1
+            )
+
+            # Check if the nearest neighbor's distance is zero for all samples
+            skip_nearest = np.all(distances[:, 0] == 0)
+
+            if skip_nearest:
+                # Exclude the closest neighbor and use the next neighbors
+                neighbors = neighbors[:, 1:]
+            else:
+                # Use only the first k neighbors
+                neighbors = neighbors[:, : self.n_neighbors]
+
+            group_predictions.append(neighbors)
+
+        # Select the best group for each sample using the decision tree
+        best_group_indices = self.decision_tree.predict(X)
+
+        # Predict target values using the best group for each sample
+        y_pred = np.array(
+            [
+                np.mean(self._y[group_predictions[group_idx][i]])
+                for i, group_idx in enumerate(best_group_indices)
+            ]
+        )
+
+        return y_pred
 
 
 class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
@@ -156,7 +283,12 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
                 n_neighbors=self.n_neighbors, weights="distance"
             )
         elif distance == "SkipUniform":
-            self.knn = SkipKNeighborsRegressor(n_neighbors=self.n_neighbors)
+            if self.n_groups > 1:
+                self.knn = EnsembleUniformKNNRegressor(
+                    n_neighbors=self.n_neighbors, n_groups=self.n_groups
+                )
+            else:
+                self.knn = SkipKNeighborsRegressor(n_neighbors=self.n_neighbors)
         elif distance == "SkipDistance":
             self.knn = SkipKNeighborsRegressor(
                 n_neighbors=self.n_neighbors, weights="distance"
@@ -188,8 +320,11 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
 
         # Initialize the coefficient vector
         self.coef_ = np.ones(GP_X_subsample.shape[1])
-        # Divide GP_X into `n_groups` subsets and calculate weights for each
-        group_size = GP_X_subsample.shape[0] // self.n_groups
+
+        # revise: divide feature to several groups
+        # learn weight to each group
+        group_size = GP_X_subsample.shape[1] // self.n_groups
+        self.group_size = group_size
         self.weights = []
 
         for i in range(self.n_groups):
@@ -198,17 +333,18 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
             end_idx = (
                 (i + 1) * group_size
                 if i < self.n_groups - 1
-                else GP_X_subsample.shape[0]
+                else GP_X_subsample.shape[1]
             )
-            GP_X_group = GP_X_subsample[start_idx:end_idx]
-            y_group = y_subsample[start_idx:end_idx]
+
+            GP_X_group = GP_X_subsample[:, start_idx:end_idx]
+            y_group = y_subsample
 
             # Compute the distance matrix D for this subset
             D_group = pairwise_distances(y_group.reshape(-1, 1), metric="euclidean")
 
             # Compute the transformation matrix for this group
             # reduced_dimension = GP_X_group.shape[1]
-            if self.reduced_dimension == None:
+            if self.reduced_dimension is None:
                 reduced_dimension = GP_X_group.shape[1]
             else:
                 reduced_dimension = self.reduced_dimension
@@ -229,7 +365,11 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
             self.weights.append(weight)
 
         # Transform the entire training data using the computed weights and concatenate them
-        transformed_data_list = [GP_X @ weight for weight in self.weights]
+        # each weight transform corresponding group
+        transformed_data_list = [
+            GP_X[:, i * group_size : (i + 1) * group_size] @ weight
+            for i, weight in enumerate(self.weights)
+        ]
         training_data = np.concatenate(transformed_data_list, axis=1)
         self.training_data = training_data
 
@@ -240,7 +380,10 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
 
     def transform(self, GP_X):
         # Transform the input data using the computed weights and concatenate the results
-        transformed_data_list = [GP_X @ weight for weight in self.weights]
+        transformed_data_list = [
+            GP_X[:, i * self.group_size : (i + 1) * self.group_size] @ weight
+            for i, weight in enumerate(self.weights)
+        ]
         transformed_data = np.concatenate(transformed_data_list, axis=1)
         return transformed_data
 
@@ -260,7 +403,10 @@ class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
 
     def predict(self, x_test):
         # Transform test data using each weight matrix and concatenate the results
-        test_data_list = [x_test @ weight for weight in self.weights]
+        test_data_list = [
+            x_test[:, i * self.group_size : (i + 1) * self.group_size] @ weight
+            for i, weight in enumerate(self.weights)
+        ]
         test_data = np.concatenate(test_data_list, axis=1)
 
         # Predict using the KNN model
