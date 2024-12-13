@@ -1,6 +1,6 @@
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.datasets import load_diabetes, make_friedman1
-from sklearn.linear_model import LinearRegression
+from sklearn.datasets import make_friedman1
+from sklearn.linear_model import LinearRegression, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
@@ -22,7 +22,7 @@ class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
         X, y = check_X_y(X, y)
 
         # Step 1: Fit the initial model (Linear Regression)
-        self.initial_model_ = LinearRegression()
+        self.initial_model_ = RidgeCV()
         self.initial_model_.fit(X, y)
 
         # Store predictions of the initial model
