@@ -9,7 +9,7 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 
 class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
-    def __init__(self, knn_params=None):
+    def __init__(self, knn_params=None, des_neighbours=None):
         """
         Gradient Boosting Regressor using Linear Regression and OptimalKNN.
 
@@ -17,6 +17,7 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         - knn_params: dict, Parameters for OptimalKNN.
         """
         self.knn_params = knn_params if knn_params is not None else {}
+        self.des_neighbours = des_neighbours
 
     def fit(self, X, y):
         """Fit the gradient boosting model."""
@@ -45,7 +46,7 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         X = check_array(X)
 
         # Find nearest neighbors using the KNN model
-        _, indices = self.knn_model_.knn.kneighbors(X)
+        _, indices = self.knn_model_.knn.kneighbors(X, n_neighbors=self.des_neighbours)
 
         # Calculate average errors for the neighbors
         near_lr_error = np.mean(self.lr_error[indices], axis=1)
@@ -69,7 +70,7 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
 
 # Example usage
 if __name__ == "__main__":
-    from sklearn.datasets import make_friedman1
+    from sklearn.datasets import make_friedman1, load_diabetes
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import r2_score
 
@@ -95,12 +96,14 @@ if __name__ == "__main__":
     print("KNN R2:", r2_score(y_test, knn_predictions))
 
     # Initialize the gradient boosting model
-    model = DynamicSelectionOptimalKNN(
-        knn_params={"n_neighbors": 5, "distance": "SkipUniform"},
-    )
+    for des_neighbour in [5, 10, 20]:
+        model = DynamicSelectionOptimalKNN(
+            knn_params={"n_neighbors": 5, "distance": "SkipUniform"},
+            des_neighbours=des_neighbour,
+        )
 
-    # Fit and evaluate
-    model.fit(X_train, y_train)
-    predictions = model.predict(X_test)
-    print("Training R2 Score:", r2_score(y_train, model.predict(X_train)))
-    print("R2 Score:", r2_score(y_test, predictions))
+        # Fit and evaluate
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+        print("Training R2 Score:", r2_score(y_train, model.predict(X_train)))
+        print("R2 Score:", r2_score(y_test, predictions))
