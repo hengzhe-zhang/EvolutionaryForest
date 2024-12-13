@@ -3,6 +3,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
@@ -18,6 +19,7 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         """
         self.knn_params = knn_params if knn_params is not None else {}
         self.des_neighbours = des_neighbours
+        self.dt = DecisionTreeClassifier(max_depth=1)
 
     def fit(self, X, y):
         """Fit the gradient boosting model."""
@@ -38,6 +40,19 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         self.lr_error = (y - lr_predictions) ** 2
         self.knn_error = (y - knn_predictions) ** 2
 
+        # Find nearest neighbors
+        _, indices = self.knn_model_.knn.kneighbors(X, n_neighbors=self.des_neighbours)
+
+        # Compute variance of KNN errors for the nearest neighbors
+        near_knn_error = np.var(self.knn_error[indices], axis=1)
+
+        # Determine which model performs better for each sample
+        label = np.argmin(np.vstack((self.lr_error, self.knn_error)).T, axis=1)
+
+        # Train the decision tree on near_knn_error and labels
+        self.dt.fit(near_knn_error.reshape(-1, 1), label)
+        # plot_tree(self.dt)
+        # plt.show()
         return self
 
     def predict(self, X):
@@ -48,20 +63,19 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         # Find nearest neighbors using the KNN model
         _, indices = self.knn_model_.knn.kneighbors(X, n_neighbors=self.des_neighbours)
 
-        # Calculate average errors for the neighbors
-        near_lr_error = np.mean(self.lr_error[indices], axis=1)
-        near_knn_error = np.mean(self.knn_error[indices], axis=1)
+        # Compute variance of KNN errors for the nearest neighbors
+        near_knn_error = np.var(self.knn_error[indices], axis=1)
 
-        # Decide which model to use for each sample
-        select = near_lr_error < near_knn_error
+        # Use the decision tree to select the model for each sample
+        select = self.dt.predict(near_knn_error.reshape(-1, 1)).astype(bool)
 
         final_prediction = np.zeros(X.shape[0])
 
-        # Initial prediction from the linear model
+        # Use Linear Regression for selected samples
         if np.any(select):
             final_prediction[select] = self.linear_model_.predict(X[select])
 
-        # Add contributions from the KNN model
+        # Use KNN for the remaining samples
         if np.any(~select):
             final_prediction[~select] = self.knn_model_.predict(X[~select])
 
@@ -70,7 +84,7 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
 
 # Example usage
 if __name__ == "__main__":
-    from sklearn.datasets import make_friedman1, load_diabetes
+    from sklearn.datasets import make_friedman1
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import r2_score
 
