@@ -73,7 +73,7 @@ from evolutionary_forest.component.tree_utils import (
 from evolutionary_forest.model.MTL import MTLRidgeCV, MTLLassoCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
 from evolutionary_forest.model.OptimalKNN import (
-    WeightedKNNWithGP,
+    OptimalKNN,
     WeightedKNNWithGPRidge,
 )
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
@@ -242,7 +242,7 @@ def calculate_score(args):
     gp_evaluation_time = time.time() - start_time
 
     if configuration.gradient_descent:
-        if isinstance(base_model, WeightedKNNWithGP):
+        if isinstance(base_model, OptimalKNN):
             contrastive_gradient_optimization(Yp, Y, func)
         else:
             gradient_optimization(Yp, Y, configuration, func)
@@ -441,7 +441,7 @@ def calculate_score(args):
 
 
 def consistency_check(pipe, clone_pipe):
-    if isinstance(pipe["Ridge"], (WeightedKNNWithGP, WeightedKNNWithGPRidge)):
+    if isinstance(pipe["Ridge"], (OptimalKNN, WeightedKNNWithGPRidge)):
         assert pipe["Ridge"].distance == clone_pipe["Ridge"].distance
 
 

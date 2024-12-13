@@ -195,7 +195,7 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
         self.alpha = alpha
         self.mode = mode
         self.random_seed = random_seed
-        self.knn_with_gp = WeightedKNNWithGP(
+        self.knn_with_gp = OptimalKNN(
             n_neighbors=n_neighbors,
             distance=distance,
             random_seed=random_seed,
@@ -258,11 +258,11 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
         return final_predictions
 
 
-class WeightedKNNWithGP(BaseEstimator, RegressorMixin):
+class OptimalKNN(BaseEstimator, RegressorMixin):
     def __init__(
         self,
         n_neighbors=5,
-        distance="Euclidean",
+        distance="SkipUniform",
         random_seed=0,
         n_groups=1,
         reduced_dimension=None,
@@ -444,7 +444,7 @@ if __name__ == "__main__":
     )
 
     # Instantiate and train the model
-    model = WeightedKNNWithGP(n_neighbors=5)
+    model = OptimalKNN(n_neighbors=5)
     model.fit(GP_X_train, y_train)
 
     # Make predictions

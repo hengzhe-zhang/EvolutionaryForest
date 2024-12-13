@@ -244,7 +244,7 @@ from evolutionary_forest.model.FeatureClipper import FeatureClipper, FeatureSmoo
 from evolutionary_forest.model.MTL import MTLRidgeCV, MTLLassoCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
 from evolutionary_forest.model.OptimalKNN import (
-    WeightedKNNWithGP,
+    OptimalKNN,
     WeightedKNNWithGPRidge,
 )
 from evolutionary_forest.model.PLTree import (
@@ -270,6 +270,12 @@ from evolutionary_forest.model.SafeRidgeCV import (
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
+from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
+    DynamicSelectionOptimalKNN,
+)
+from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
+    GradientBoostingWithOptimalKNN,
+)
 from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
     pca_plot,
     plot_pairwise_distances,
@@ -1749,25 +1755,29 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner.startswith("SNCA-DT"):
             leaf = int(self.base_learner.split("-")[-1])
-            ridge_model = WeightedKNNWithGP(
+            ridge_model = OptimalKNN(
                 **self.param, base_learner=DecisionTreeRegressor(min_samples_leaf=leaf)
             )
         elif self.base_learner == "NCA":
-            ridge_model = WeightedKNNWithGP(**self.param, distance="Softmax")
+            ridge_model = OptimalKNN(**self.param, distance="Softmax")
         elif self.base_learner == "SNCA-Uniform":
-            ridge_model = WeightedKNNWithGP(**self.param, distance="SkipUniform")
+            ridge_model = OptimalKNN(**self.param, distance="SkipUniform")
+        elif self.base_learner == "GB-OptimalKNN":
+            ridge_model = GradientBoostingWithOptimalKNN(self.param)
+        elif self.base_learner == "DS-OptimalKNN":
+            ridge_model = DynamicSelectionOptimalKNN(self.param)
         elif self.base_learner == "SNCA-Distance":
-            ridge_model = WeightedKNNWithGP(**self.param, distance="SkipDistance")
+            ridge_model = OptimalKNN(**self.param, distance="SkipDistance")
         elif self.base_learner == "NCA-Uniform":
-            ridge_model = WeightedKNNWithGP(**self.param, distance="Uniform")
+            ridge_model = OptimalKNN(**self.param, distance="Uniform")
         elif self.base_learner == "NCA-Euclidean":
-            ridge_model = WeightedKNNWithGP(**self.param, distance="Euclidean")
+            ridge_model = OptimalKNN(**self.param, distance="Euclidean")
         elif self.base_learner == "NCA~Weighted":
-            ridge_model = WeightedKNNWithGP(
+            ridge_model = OptimalKNN(
                 **self.param, distance="Softmax", weighted_instance=True
             )
         elif self.base_learner == "NCA-Euclidean~Weighted":
-            ridge_model = WeightedKNNWithGP(
+            ridge_model = OptimalKNN(
                 **self.param, distance="Euclidean", weighted_instance=True
             )
         elif self.base_learner == "NCA+Ridge":
@@ -3789,7 +3799,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             automatic_perturbation_std(self, self.pop)
 
     def plot_distance(self):
-        if isinstance(self.hof[0].pipe["Ridge"], WeightedKNNWithGP):
+        if isinstance(self.hof[0].pipe["Ridge"], OptimalKNN):
             best_ind = self.hof[0]
             n_samples = 100
             features = self.feature_generation(self.X[:n_samples], best_ind)
