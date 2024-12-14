@@ -1766,6 +1766,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = GradientBoostingWithOptimalKNN(self.param)
         elif self.base_learner == "DS-OptimalKNN":
             ridge_model = DynamicSelectionOptimalKNN(**self.param)
+        elif self.base_learner == "Informed-OptimalKNN":
+            ridge_model = OptimalKNN(
+                **self.param, distance="SkipUniform", informed_optimal_knn_sampling=True
+            )
         elif self.base_learner == "SNCA-Distance":
             ridge_model = OptimalKNN(**self.param, distance="SkipDistance")
         elif self.base_learner == "NCA-Uniform":

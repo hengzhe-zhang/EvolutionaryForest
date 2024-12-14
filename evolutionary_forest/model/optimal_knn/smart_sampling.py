@@ -1,6 +1,9 @@
 import numpy as np
 
+from evolutionary_forest.utility.lru_cache import custom_lru_cache
 
+
+@custom_lru_cache(key_func=lambda _, *args: str(args))
 def uniform_sampling_indices(labels, n_samples, n_bins=10, random_state=None):
     """
     Perform uniform sampling for regression problems by stratifying the labels into bins.
@@ -95,7 +98,7 @@ def uniform_sampling_indices(labels, n_samples, n_bins=10, random_state=None):
 
 if __name__ == "__main__":
     features = np.random.rand(100, 5)  # 100 samples with 5 features each
-    labels = np.random.uniform(0, 100, 100)  # Continuous target variable (0 to 100)
+    labels = np.random.randint(0, 5, 100)  # Continuous target variable (0 to 100)
 
     # Parameters
     n_samples = 50  # Total samples to draw
@@ -109,6 +112,6 @@ if __name__ == "__main__":
     sampled_labels = labels[sampled_indices]
 
     # Display results
-    print("Sampled Indices:", len(sampled_indices))
-    print("Sampled Features:", len(sampled_features))
-    print("Sampled Labels:", len(sampled_labels))
+    print("Sampled Indices:", sampled_indices, len(sampled_indices))
+    print("Sampled Features:", sampled_features, len(sampled_features))
+    print("Sampled Labels:", sampled_labels, len(sampled_labels))

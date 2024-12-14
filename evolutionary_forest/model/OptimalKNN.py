@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
@@ -261,6 +263,14 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
         return final_predictions
 
 
+@lru_cache
+def random_sampling(knn_subsampling, length):
+    subsample_indices = np.random.RandomState(0).choice(
+        length, knn_subsampling, replace=False
+    )
+    return subsample_indices
+
+
 class OptimalKNN(BaseEstimator, RegressorMixin):
     def __init__(
         self,
@@ -317,9 +327,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         # Determine if we need to subsample
         knn_subsampling = self.knn_subsampling
         if len(y) > knn_subsampling:
-            subsample_indices = self.random_state.choice(
-                len(y), knn_subsampling, replace=False
-            )
+            subsample_indices = random_sampling(knn_subsampling, len(y))
             GP_X_subsample = GP_X[subsample_indices]
             y_subsample = y[subsample_indices]
         else:
