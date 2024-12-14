@@ -10,7 +10,7 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 
 class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
-    def __init__(self, knn_params=None, des_neighbours=None):
+    def __init__(self, des_neighbours=None, criteria="density", **knn_params):
         """
         Gradient Boosting Regressor using Linear Regression and OptimalKNN.
 
@@ -19,7 +19,32 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         """
         self.knn_params = knn_params if knn_params is not None else {}
         self.des_neighbours = des_neighbours
+        self.criteria = criteria
         self.dt = DecisionTreeClassifier(max_depth=1)
+
+    def calculate_criteria(self, criteria, errors, distances, indices):
+        """
+        Compute criteria values based on the provided method.
+
+        Parameters:
+        - criteria: str, Criteria type ('variance', 'density', 'mean_error', etc.).
+        - errors: array, Errors for the model.
+        - distances: array, Distances to nearest neighbors.
+        - indices: array, Indices of nearest neighbors.
+
+        Returns:
+        - array, Criteria values.
+        """
+        if criteria == "variance":
+            return np.var(errors[indices], axis=1)
+        elif criteria == "density":
+            return 1 / (np.mean(distances, axis=1) + 1e-8)
+        elif criteria == "mean_error":
+            return np.mean(errors[indices], axis=1)
+        elif criteria == "max_error":
+            return np.max(errors[indices], axis=1)
+        else:
+            raise ValueError(f"Unknown criteria: {criteria}")
 
     def fit(self, X, y):
         """Fit the gradient boosting model."""
@@ -41,10 +66,14 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         self.knn_error = (y - knn_predictions) ** 2
 
         # Find nearest neighbors
-        _, indices = self.knn_model_.knn.kneighbors(X, n_neighbors=self.des_neighbours)
+        distances, indices = self.knn_model_.knn.kneighbors(
+            X, n_neighbors=self.des_neighbours
+        )
 
-        # Compute variance of KNN errors for the nearest neighbors
-        near_knn_error = np.var(self.knn_error[indices], axis=1)
+        # Compute criteria for nearest neighbors
+        near_knn_error = self.calculate_criteria(
+            self.criteria, self.knn_error, distances, indices
+        )
 
         # Determine which model performs better for each sample
         label = np.argmin(np.vstack((self.lr_error, self.knn_error)).T, axis=1)
@@ -61,10 +90,14 @@ class DynamicSelectionOptimalKNN(BaseEstimator, RegressorMixin):
         X = check_array(X)
 
         # Find nearest neighbors using the KNN model
-        _, indices = self.knn_model_.knn.kneighbors(X, n_neighbors=self.des_neighbours)
+        distances, indices = self.knn_model_.knn.kneighbors(
+            X, n_neighbors=self.des_neighbours
+        )
 
-        # Compute variance of KNN errors for the nearest neighbors
-        near_knn_error = np.var(self.knn_error[indices], axis=1)
+        # Compute criteria for nearest neighbors
+        near_knn_error = self.calculate_criteria(
+            self.criteria, self.knn_error, distances, indices
+        )
 
         # Use the decision tree to select the model for each sample
         select = self.dt.predict(near_knn_error.reshape(-1, 1)).astype(bool)
@@ -95,6 +128,20 @@ if __name__ == "__main__":
         X, y, test_size=0.2, random_state=0
     )
 
+    # Initialize the gradient boosting model
+    for c in ["variance", "density", "mean_error", "max_error"]:
+        model = DynamicSelectionOptimalKNN(
+            des_neighbours=5,
+            criteria=c,
+        )
+
+        # Fit and evaluate
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+        print(c)
+        print("Training R2 Score:", r2_score(y_train, model.predict(X_train)))
+        print("R2 Score:", r2_score(y_test, predictions))
+
     # Compare with pure Linear Regression
     lr_model = LinearRegression()
     lr_model.fit(X_train, y_train)
@@ -108,16 +155,3 @@ if __name__ == "__main__":
     knn_predictions = knn_model.predict(X_test)
     print("KNN Train R2:", r2_score(y_train, knn_model.predict(X_train)))
     print("KNN R2:", r2_score(y_test, knn_predictions))
-
-    # Initialize the gradient boosting model
-    for des_neighbour in [5, 10, 20]:
-        model = DynamicSelectionOptimalKNN(
-            knn_params={"n_neighbors": 5, "distance": "SkipUniform"},
-            des_neighbours=des_neighbour,
-        )
-
-        # Fit and evaluate
-        model.fit(X_train, y_train)
-        predictions = model.predict(X_test)
-        print("Training R2 Score:", r2_score(y_train, model.predict(X_train)))
-        print("R2 Score:", r2_score(y_test, predictions))

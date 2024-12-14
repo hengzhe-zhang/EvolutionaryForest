@@ -10,10 +10,10 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
     def __init__(self, knn_params=None):
         """
-        Gradient Boosting Regressor using Linear Regression and WeightedKNNWithGP.
+        Gradient Boosting Regressor using OptimalKNN and Linear Regression.
 
         Parameters:
-        - knn_params: dict, Parameters for WeightedKNNWithGP.
+        - knn_params: dict, Parameters for OptimalKNN.
         """
         self.knn_params = knn_params if knn_params is not None else {}
 
@@ -21,16 +21,16 @@ class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
         """Fit the gradient boosting model."""
         X, y = check_X_y(X, y)
 
-        # Step 1: Fit the initial model (Linear Regression)
-        self.initial_model_ = RidgeCV()
-        self.initial_model_.fit(X, y)
-
-        # Store predictions of the initial model
-        residuals = y - self.initial_model_.predict(X)
-
-        # Step 2: Fit WeightedKNNWithGP on residuals
+        # Step 1: Fit the initial model (OptimalKNN)
         self.knn_model_ = OptimalKNN(**self.knn_params)
-        self.knn_model_.fit(X, residuals)
+        self.knn_model_.fit(X, y)
+
+        # Store residuals from the KNN model
+        residuals = y - self.knn_model_.predict(X)
+
+        # Step 2: Fit Linear Regression on residuals
+        self.initial_model_ = RidgeCV()
+        self.initial_model_.fit(X, residuals)
 
         return self
 
@@ -39,11 +39,11 @@ class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
         check_is_fitted(self, ["initial_model_", "knn_model_"])
         X = check_array(X)
 
-        # Initial prediction from the linear model
-        predictions = self.initial_model_.predict(X)
+        # Initial prediction from the KNN model
+        predictions = self.knn_model_.predict(X)
 
-        # Add contributions from the KNN model
-        predictions += self.knn_model_.predict(X)
+        # Add contributions from the Linear Regression model
+        predictions += self.initial_model_.predict(X)
 
         return predictions
 

@@ -9,6 +9,9 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
+from evolutionary_forest.model.optimal_knn.smart_sampling import (
+    uniform_sampling_indices,
+)
 from evolutionary_forest.model.weight_solver import (
     solve_transformation_matrix,
     compute_lambda_matrix,
@@ -269,6 +272,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         weighted_instance=False,
         knn_subsampling=100,
         base_learner=None,
+        informed_optimal_knn_sampling=False,
         **params
     ):
         self.n_neighbors = n_neighbors
@@ -307,6 +311,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.weights = []  # List to store transformation matrices for each group
         self.weighted_instance = weighted_instance
         self.knn_subsampling = knn_subsampling
+        self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
 
     def fit(self, GP_X, y):
         # Determine if we need to subsample
@@ -320,6 +325,11 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         else:
             GP_X_subsample = GP_X
             y_subsample = y
+
+        if self.informed_optimal_knn_sampling:
+            subsample_indices = uniform_sampling_indices(y, knn_subsampling)
+            GP_X_subsample = GP_X[subsample_indices]
+            y_subsample = y[subsample_indices]
 
         # Initialize the coefficient vector
         self.coef_ = np.ones(GP_X_subsample.shape[1])
