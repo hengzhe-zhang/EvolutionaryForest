@@ -118,9 +118,9 @@ class RacingFunctionSelector:
         # Train the Random Forest
         model.fit(X, y)
 
-        # Get feature importances
-        feature_importances = model.feature_importances_
-        return feature_importances
+        # Get feature importance
+        feature_importance = model.feature_importances_
+        return feature_importance
 
     def get_index(self, element):
         all_list = self.pset.terminals[object] + self.pset.primitives[object]
@@ -222,6 +222,29 @@ class RacingFunctionSelector:
         # Ensure the list does not exceed the maximum size by removing the worst fitness value
         if len(self.best_individuals_fitness_list) > self.racing_list_size:
             self.best_individuals_fitness_list.pop(0)
+
+    def mark_weights(self, pop):
+        for ind in pop:
+            for tree in ind.gene:
+                tree: gp.PrimitiveTree
+                weights = []
+                for idx in range(len(tree)):
+                    sub_idx = tree.searchSubtree(idx)
+                    weight = 0
+                    for sub in range(sub_idx.start, sub_idx.stop):
+                        node = tree[sub]
+                        if (
+                            isinstance(node, gp.Primitive)
+                            and node in self.pset.primitives[object]
+                        ):
+                            weight += 1
+                        elif (
+                            isinstance(node, gp.Terminal)
+                            and node in self.pset.terminals[object]
+                        ):
+                            weight += 1
+                    weights.append(weight / (sub_idx.stop - sub_idx.start))
+                tree.subtree_weights = weights
 
     def update(self, individuals: List[MultipleGeneGP]):
         """
@@ -666,11 +689,11 @@ class RacingFunctionSelector:
             self.racing_environmental_selection == True
             or self.racing_environmental_selection == "HardConstraint"
         ):
-            return self.hard_constriant(n, offspring, parents)
+            return self.hard_constraint(n, offspring, parents)
         elif self.racing_environmental_selection == "SoftConstraint":
             return self.soft_constraint(n, offspring, parents)
 
-    def hard_constriant(self, n, offspring, parents):
+    def hard_constraint(self, n, offspring, parents):
         combined_population = parents + offspring
         combined_population = self.remove_duplicates(combined_population)
         valid_individuals = [ind for ind in combined_population if self.isValid(ind)]

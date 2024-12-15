@@ -218,10 +218,6 @@ def cxOnePointWithRoot(ind1, ind2, configuration: CrossoverConfiguration):
         type_ = random.choice(list(common_types))
 
         index1 = random.choice(types1[type_])
-        # # Maybe only allowing to exchange two features is good
-        # if index1 == 0:
-        #     index2 = 0
-        # else:
         index2 = random.choice(types2[type_])
 
         slice1 = ind1.searchSubtree(index1)

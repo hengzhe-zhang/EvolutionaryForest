@@ -131,6 +131,10 @@ def varAndPlus(
             # in default, gene_num is the number of trees in each individual
             gene_num = offspring[i].gene_num
 
+            if i % 2 == 0 and crossover_configuration.tree_selection == "PseudoRandom":
+                offspring[i].pseudo_random.shuffle()
+                offspring[i + 1].pseudo_random.shuffle()
+
             # Execute mutation and selection operator N-times
             if (
                 i % 2 == 0

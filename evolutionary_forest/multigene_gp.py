@@ -44,8 +44,10 @@ from evolutionary_forest.component.crossover_mutation import (
     mutUniformSizeSafe,
 )
 from evolutionary_forest.component.post_processing.value_alignment import quick_fill
+from evolutionary_forest.component.racing.weighted_crossover import cxOnePointWeighted
 from evolutionary_forest.component.stgp.strong_type_generation import mutUniformSTGP
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
+from evolutionary_forest.utility.pseduo_random import PseudoRandom
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -199,6 +201,7 @@ class MultipleGeneGP:
         self.parent_fitness: tuple[float] = None
         self.crossover_type = None
         self.individual_configuration = IndividualConfiguration(**kwargs)
+        self.pseudo_random = PseudoRandom(self.gene_num)
 
     def tree_initialization(self, content, gene_num):
         # This flag is only used for controlling the mutation and crossover
@@ -215,6 +218,10 @@ class MultipleGeneGP:
 
     def random_select_index(self):
         return random.randint(0, self.gene_num - 1)
+
+    def pseudo_random_select_index(self):
+        index = self.pseudo_random.randint()
+        return self.gene[index], index
 
     def random_select(self, with_id=False):
         if with_id:
@@ -351,6 +358,9 @@ def cxOnePoint_multiple_gene(
                 id2 = id1
             else:
                 gene2, id2 = ind2.random_select(with_id=True)
+        elif crossover_configuration.tree_selection == "PseudoRandom":
+            gene1, id1 = ind1.pseudo_random_select_index()
+            gene2, id2 = ind2.pseudo_random_select_index()
         elif crossover_configuration.tree_selection == "Self-Competitive":
             gene1_a, id1_a = ind1.best_gene(with_id=True)
             gene2_a, id2_a = ind2.best_gene(with_id=True)
@@ -420,7 +430,8 @@ def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration, pset=Non
                 tree_b[slice(0, len(tree_b))] = [k] + tree_b[:] + tree_a[:]
         else:
             gene1, gene2 = cxOnePointWithRoot(gene1, gene2, configuration)
-
+    elif configuration.weighted_crossover:
+        gene1, gene2 = cxOnePointWeighted(gene1, gene2, configuration)
     elif configuration.root_crossover:
         gene1, gene2 = cxOnePointWithRoot(gene1, gene2, configuration)
     else:

@@ -147,6 +147,7 @@ class CrossoverConfiguration(Configuration):
         sc_temperature=1 / 20,
         dimension_crossover_rate=0,
         merge_crossover=False,
+        weighted_crossover=False,
         **params
     ):
         # max height after crossover
@@ -184,6 +185,9 @@ class CrossoverConfiguration(Configuration):
         # self-competitive crossover
         self.sc_tournament_size = sc_tournament_size
         self.sc_temperature = sc_temperature
+
+        # for racing selection
+        self.weighted_crossover = weighted_crossover
 
 
 class MAPElitesConfiguration(Configuration):

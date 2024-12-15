@@ -244,6 +244,7 @@ from evolutionary_forest.component.verification.configuration_check import (
 from evolutionary_forest.model.FeatureClipper import FeatureClipper, FeatureSmoother
 from evolutionary_forest.model.MTL import MTLRidgeCV, MTLLassoCV
 from evolutionary_forest.model.MixupPredictor import MixupRegressor
+from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
 from evolutionary_forest.model.OptimalKNN import (
     OptimalKNN,
     WeightedKNNWithGPRidge,
@@ -1961,6 +1962,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = SVR()
         elif self.base_learner == "KNN" or base_model == "KNN":
             ridge_model = KNeighborsRegressor(weights="uniform")
+        elif self.base_learner == "SkipKNN" or base_model == "SkipKNN":
+            ridge_model = SkipKNeighborsRegressor()
         elif self.base_learner.startswith("KNN-"):
             n_neighbors = int(self.base_learner.split("-")[1])
             ridge_model = KNeighborsRegressor(
@@ -3672,6 +3675,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def callback(self):
         # self.plot_distance()
+        if isinstance(self.racing, RacingFunctionSelector):
+            self.racing.mark_weights(self.pop)
 
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool: SemanticLibrary
