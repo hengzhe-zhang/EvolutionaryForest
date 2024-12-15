@@ -261,6 +261,7 @@ def plot_graph_with_centrality(G, current_gen):
     # Fix: Provide the `ax` argument to `plt.colorbar()`
     plt.colorbar(nodes, ax=ax, label="Betweenness Centrality")
 
+    plt.savefig("result/graph_with_centrality.eps", format="eps")
     plt.show()
 
 
@@ -329,7 +330,7 @@ def get_all_node_labels(graph):
     return node_labels
 
 
-def get_centrality_ratios(good_graph, bad_graph, centrality_type="betweenness"):
+def get_centrality_score(good_graph, bad_graph, centrality_type="betweenness"):
     """
     Calculate the ratio of centrality values for nodes with the same labels in good_graph and bad_graph.
 
@@ -339,7 +340,7 @@ def get_centrality_ratios(good_graph, bad_graph, centrality_type="betweenness"):
     - centrality_type: Type of centrality measure to use ('degree', 'betweenness', 'closeness', 'eigenvector').
 
     Returns:
-    - centrality_ratios: A dictionary mapping node labels to their centrality ratio (good_graph / bad_graph).
+    - centrality_scores: A dictionary mapping node labels to their centrality ratio (good_graph / bad_graph).
     """
 
     # Function to calculate centrality based on type
@@ -360,7 +361,7 @@ def get_centrality_ratios(good_graph, bad_graph, centrality_type="betweenness"):
     bad_centrality = calculate_centrality(bad_graph, centrality_type)
 
     # Compute the ratio of centrality values for nodes with the same label
-    centrality_ratios = {}
+    centrality_scores = {}
     for node in good_graph.nodes():
         label = good_graph.nodes[node].get("label", node)
         # if (
@@ -368,11 +369,11 @@ def get_centrality_ratios(good_graph, bad_graph, centrality_type="betweenness"):
         #     and label in bad_centrality
         #     and bad_centrality[label] != 0
         # ):
-        #     centrality_ratios[label] = good_centrality[label] / bad_centrality[label]
-        centrality_ratios[label] = good_centrality[label]
-        # centrality_ratios[label] = bad_centrality[label]
+        #     centrality_scores[label] = good_centrality[label] / bad_centrality[label]
+        centrality_scores[label] = good_centrality[label]
+        # centrality_scores[label] = bad_centrality[label]
 
-    return centrality_ratios
+    return centrality_scores
 
 
 def select_important_nodes_by_ratio(centrality_ratios, threshold=2.0):

@@ -289,7 +289,7 @@ class RacingFunctionSelector:
                 good_graph = merge_trees_list_to_graph(unique_good_trees)
             # partition, communities_list = detect_communities_louvain(graph)
             # plot_graph_with_communities(graph, communities_list)
-            if self.algorithm.current_gen % 10 == 0:
+            if self.algorithm.verbose and self.algorithm.current_gen % 10 == 0:
                 plot_graph_with_centrality(good_graph, self.algorithm.current_gen)
             # plot_graph_with_centrality(bad_graph)
 
@@ -297,32 +297,19 @@ class RacingFunctionSelector:
             # all_nodes = get_all_node_labels(graph)
 
             if self.global_graph:
-                """
-                One idea: Bad node-Good nodes
-                """
-                # bad_nodes = get_important_nodes_labels(
-                #     bad_graph, threshold=self.important_node_threshold
-                # )
-                # good_nodes = get_important_nodes_labels(
-                #     good_graph, threshold=self.important_node_threshold
-                # )
-                # nodes = set(list(bad_nodes)) - set(list(good_nodes))
                 centrality_type = self.centrality_type
-                centrality_ratios = get_centrality_ratios(
+                centrality_score = get_centrality_score(
                     good_graph, bad_graph, centrality_type=centrality_type
                 )
-                # nodes = select_important_nodes_by_ratio(
-                #     centrality_ratios, threshold=2.0
-                # )
                 top_primitives = get_top_nodes_by_centrality_ratios(
                     good_graph,
-                    centrality_ratios,
+                    centrality_score,
                     node_type="primitive",
                     top_k=self.important_node_threshold,
                 )
                 top_terminals = get_top_nodes_by_centrality_ratios(
                     good_graph,
-                    centrality_ratios,
+                    centrality_score,
                     node_type="terminal",
                     top_k=self.important_node_threshold,
                 )
