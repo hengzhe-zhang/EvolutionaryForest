@@ -6,6 +6,7 @@ from typing import Optional
 import dill
 import scipy
 from category_encoders import TargetEncoder
+import category_encoders
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -276,6 +277,7 @@ from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
 from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
     GradientBoostingWithOptimalKNN,
 )
+from evolutionary_forest.model.optimal_knn.mixup_regression import data_augmentation
 from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
     pca_plot,
     plot_pairwise_distances,
@@ -517,6 +519,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         validation_based_ensemble_selection=0,
         remove_constant_features=True,
         precision="Float64",
+        data_augmentation=False,
         **params,
     ):
         """
@@ -918,6 +921,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.remove_constant_features = remove_constant_features
         self.validation_based_ensemble_selection = validation_based_ensemble_selection
         self.semantic_lib_log = SemanticLibLog()
+        self.data_augmentation = data_augmentation
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -3099,6 +3103,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ), f"Mismatch between categorical indices and number of features, {len(categorical_features)} vs {X.shape[1]}"
             if self.categorical_encoding == "Target":
                 self.categorical_encoder = TargetEncoder(cols=categorical_indices)
+            elif self.categorical_encoding == "OneHot":
+                self.categorical_encoder = category_encoders.OneHotEncoder(
+                    cols=categorical_indices
+                )
             else:
                 raise Exception(
                     f"Unknown categorical encoding method {self.categorical_encoding}"
@@ -3158,6 +3166,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.y: np.ndarray
         if len(y.shape) == 2 and y.shape[1] == 1:
             y = y.flatten()
+
+        if self.data_augmentation:
+            X, y = data_augmentation(X, y)
+
         self.X, self.y = X, y
 
         # Initialize population with lazy initialization
