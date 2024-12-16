@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch
 from deap.gp import PrimitiveTree
-from hdfe import Groupby
 from numba import njit
 from scipy.stats import mode
 
@@ -501,6 +500,8 @@ def get_ratio_of_unique_values(keys):
 
 
 def group_mode(x1, x2):
+    from hdfe import Groupby
+
     if np.isscalar(x1) and np.isscalar(x2):
         return x2
     x1, x2 = shape_wrapper(x1, x2)

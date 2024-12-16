@@ -15,7 +15,6 @@ import torch
 from deap.gp import Primitive
 from matplotlib import pyplot as plt
 from numba import njit
-from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.linear_model import RidgeCV
 from sympy import latex, parse_expr
@@ -494,6 +493,8 @@ def cv_prediction_from_ridge(Y, base_model: (RidgeCV, RidgeGCV)):
 
 
 def pareto_front_2d(points, mode="min") -> [np.ndarray, float]:
+    from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
+
     """
     Calculate the Pareto front for a 2D problem using pymoo.
 

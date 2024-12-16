@@ -12,7 +12,6 @@ from deap.tools import (
     selNSGA3,
     uniform_reference_points,
 )
-from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
 from scipy.stats import wilcoxon
 from sklearn.base import ClassifierMixin
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
@@ -55,7 +54,6 @@ from evolutionary_forest.utility.multiobjective.fitness_normalization import (
     fitness_normalization,
     fitness_restore_back,
 )
-from evolutionary_forest.utility.statistics.variance_tool import mean_without_outliers
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -121,6 +119,8 @@ def knee_point_detection(front, knee_point_strategy: Union[bool, str] = "Knee"):
     elif knee_point_strategy == "BestHarmonicRank":
         return best_harmonic_rank(front)
     elif knee_point_strategy == "HighTradeoff":
+        from pymoo.mcdm.high_tradeoff import HighTradeoffPoints
+
         ht = HighTradeoffPoints()
         try:
             # convert to minimization

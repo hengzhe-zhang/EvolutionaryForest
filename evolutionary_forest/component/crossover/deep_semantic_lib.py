@@ -1,6 +1,4 @@
 import numpy as np
-import torch
-import torch.nn as nn
 from deap import gp, base, creator, tools
 from sklearn.datasets import load_diabetes
 from sklearn.ensemble import RandomForestClassifier

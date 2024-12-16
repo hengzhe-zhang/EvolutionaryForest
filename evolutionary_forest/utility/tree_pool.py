@@ -5,7 +5,6 @@ from typing import List, TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import shap
 import torch
 from deap.gp import PrimitiveTree, Terminal, MetaEphemeral
 from deap.tools import selBest
@@ -693,6 +692,8 @@ class SemanticLibrary:
         fs_mode,
         algorithm: "EvolutionaryForestRegressor",
     ):
+        import shap
+
         # self.group_selection(pop, total_features)
         # Count feature usage in each group
         features = defaultdict(float)

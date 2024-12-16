@@ -1,16 +1,20 @@
 from typing import List
 
-import community as community_louvain
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import seaborn as sns
 from deap.gp import PrimitiveTree, Primitive
 
+from evolutionary_forest.component.racing_selection import (
+    get_important_nodes_labels_by_type,
+)
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
 def detect_communities_louvain(graph):
+    import community as community_louvain
+
     """
     Perform community detection using the Louvain method.
 
@@ -426,3 +430,38 @@ def get_top_nodes_by_centrality_ratios(graph, centrality_ratios, node_type, top_
     top_nodes = [node[0] for node in sorted_nodes[:top_k]]
 
     return top_nodes
+
+
+def get_top_primitives_and_terminals(
+    good_graph, bad_graph, centrality_type, threshold: int
+):
+    centrality_score = get_centrality_score(
+        good_graph, bad_graph, centrality_type=centrality_type
+    )
+    top_primitives = get_top_nodes_by_centrality_ratios(
+        good_graph,
+        centrality_score,
+        node_type="primitive",
+        top_k=threshold,
+    )
+    top_terminals = get_top_nodes_by_centrality_ratios(
+        good_graph,
+        centrality_score,
+        node_type="terminal",
+        top_k=threshold,
+    )
+    nodes = top_primitives + top_terminals
+    return nodes
+
+
+def get_primitives_and_terminals_by_ratio(
+    good_graph, centrality_type, threshold: float
+):
+    good_primitive_nodes = get_important_nodes_labels_by_type(
+        good_graph, "primitive", centrality_type, threshold=threshold
+    )
+    good_terminal_nodes = get_important_nodes_labels_by_type(
+        good_graph, "terminal", centrality_type, threshold=threshold
+    )
+    nodes = good_primitive_nodes + good_terminal_nodes
+    return nodes

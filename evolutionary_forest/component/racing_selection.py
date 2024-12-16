@@ -1,14 +1,13 @@
 import copy
 from collections import defaultdict
 from itertools import chain
-from typing import Set
+from typing import Set, Union
 
 import pandas as pd
 from deap import gp
 from deap.tools import HallOfFame, selNSGA2
 from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
-from statsmodels.tsa.arima.model import ARIMA
 
 import evolutionary_forest.forest as forest
 from evolutionary_forest.component.function_selection.community_detection import *
@@ -42,7 +41,7 @@ class RacingFunctionSelector:
         important_node_threshold=0.02,
         racing_top_individuals=0,
         exploitation_stage=0,
-        global_graph=False,
+        graph_selection_criterion=False,
         starting_point=0,
         unique_trees_racing=False,
         centrality_type="betweenness",
@@ -78,7 +77,7 @@ class RacingFunctionSelector:
         # remove insignificant primitives
         self.remove_insignificant = remove_insignificant
 
-        self.important_node_threshold = important_node_threshold
+        self.important_node_threshold: Union[int, float] = important_node_threshold
         self.central_node_detection = central_node_detection
 
         self.algorithm = algorithm
@@ -90,7 +89,7 @@ class RacingFunctionSelector:
             self.racing_hof = HallOfFame(racing_top_individuals)
         self.starting_point = starting_point
         self.exploitation_stage = exploitation_stage
-        self.global_graph = global_graph
+        self.graph_selection_criterion = graph_selection_criterion
         self.centrality_type = centrality_type
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
@@ -296,24 +295,17 @@ class RacingFunctionSelector:
             # only preserve a few elements
             # all_nodes = get_all_node_labels(graph)
 
-            if self.global_graph:
-                centrality_type = self.centrality_type
-                centrality_score = get_centrality_score(
-                    good_graph, bad_graph, centrality_type=centrality_type
-                )
-                top_primitives = get_top_nodes_by_centrality_ratios(
+            if self.graph_selection_criterion == "TopK":
+                nodes = get_top_primitives_and_terminals(
                     good_graph,
-                    centrality_score,
-                    node_type="primitive",
-                    top_k=self.important_node_threshold,
+                    bad_graph,
+                    self.centrality_type,
+                    self.important_node_threshold,
                 )
-                top_terminals = get_top_nodes_by_centrality_ratios(
-                    good_graph,
-                    centrality_score,
-                    node_type="terminal",
-                    top_k=self.important_node_threshold,
+            elif self.graph_selection_criterion == "TopRatio":
+                nodes = get_primitives_and_terminals_by_ratio(
+                    good_graph, self.centrality_type, self.important_node_threshold
                 )
-                nodes = top_primitives + top_terminals
             else:
                 threshold = self.important_node_threshold
                 good_primitive_nodes = get_important_nodes_labels_by_type(
@@ -530,6 +522,8 @@ class RacingFunctionSelector:
         return elements_to_remove
 
     def ts_predict(self, fitness_list):
+        from statsmodels.tsa.arima.model import ARIMA
+
         auto_regressive_order = 5
         integrate_order = 1
         if (self.ts_num_predictions == "Auto" or self.ts_num_predictions > 0) and len(
