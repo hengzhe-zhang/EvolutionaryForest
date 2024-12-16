@@ -550,6 +550,8 @@ def get_important_nodes_labels_by_type(
         for node, val in centrality.items()
         if graph.nodes[node].get("type") == node_type
     }
+
+    # please never use sum, because sum is influenced by the number of functions/terminals
     max_centrality = max(type_centrality.values(), default=1)
     normalized_centrality = {
         node: val / max_centrality for node, val in type_centrality.items()
