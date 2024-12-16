@@ -6,9 +6,6 @@ import numpy as np
 import seaborn as sns
 from deap.gp import PrimitiveTree, Primitive
 
-from evolutionary_forest.component.racing_selection import (
-    get_important_nodes_labels_by_type,
-)
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
@@ -465,3 +462,84 @@ def get_primitives_and_terminals_by_ratio(
     )
     nodes = good_primitive_nodes + good_terminal_nodes
     return nodes
+
+
+def get_bad_primitive_and_terminals_by_ratio(
+    good_graph, bad_graph, centrality_type, threshold: float
+):
+    # Extract bad fetures
+    good_primitive_nodes = get_important_nodes_labels_by_type(
+        good_graph, "primitive", centrality_type, threshold=threshold
+    )
+    good_terminal_nodes = get_important_nodes_labels_by_type(
+        good_graph, "terminal", centrality_type, threshold=threshold
+    )
+    bad_primitive_nodes = get_important_nodes_labels_by_type(
+        bad_graph, "primitive", centrality_type, threshold=threshold
+    )
+    bad_terminal_nodes = get_important_nodes_labels_by_type(
+        bad_graph, "terminal", centrality_type, threshold=threshold
+    )
+    primitive_nodes = list(
+        set(list(bad_terminal_nodes)) - set(list(good_terminal_nodes))
+    )
+    terminal_nodes = list(
+        set(list(bad_primitive_nodes)) - set(list(good_primitive_nodes))
+    )
+    nodes = primitive_nodes + terminal_nodes
+    return nodes
+
+
+def get_important_nodes_labels_by_type(
+    graph, node_type, centrality_type="betweenness", threshold=0.1
+):
+    """
+    Identify and get the labels of important nodes of a specific type in a graph based on a specified centrality measure,
+    considering the entire graph structure for centrality calculation.
+
+    Parameters:
+    - graph: A NetworkX graph object.
+    - node_type: Type of nodes to consider ('primitive' or 'terminal').
+    - centrality_type: Type of centrality measure to use ('degree', 'betweenness', 'closeness', 'eigenvector').
+    - threshold: Centrality threshold to consider a node as important (range: 0 to 1, after normalization).
+
+    Returns:
+    - important_nodes_labels: A list of labels of the important nodes of the specified type.
+    """
+
+    # Calculate centrality for all nodes in the graph based on the specified centrality type
+    if centrality_type == "degree":
+        centrality = nx.degree_centrality(graph)
+    elif centrality_type == "betweenness":
+        centrality = nx.betweenness_centrality(graph)
+    elif centrality_type == "closeness":
+        centrality = nx.closeness_centrality(graph)
+    elif centrality_type == "eigenvector":
+        centrality = nx.eigenvector_centrality(
+            graph, max_iter=1000
+        )  # max_iter may need adjustment
+    else:
+        raise ValueError(f"Unsupported centrality type: {centrality_type}")
+
+    # Normalize centrality values for nodes of the specified type
+    type_centrality = {
+        node: val
+        for node, val in centrality.items()
+        if graph.nodes[node].get("type") == node_type
+    }
+    max_centrality = max(type_centrality.values(), default=1)
+    normalized_centrality = {
+        node: val / max_centrality for node, val in type_centrality.items()
+    }
+
+    # Identify important nodes of the specified type based on the normalized centrality threshold
+    important_nodes = [
+        node for node, val in normalized_centrality.items() if val >= threshold
+    ]
+
+    # Get the labels of important nodes
+    important_nodes_labels = [
+        graph.nodes[node].get("label", node) for node in important_nodes
+    ]
+
+    return important_nodes_labels
