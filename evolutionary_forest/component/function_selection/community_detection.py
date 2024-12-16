@@ -331,7 +331,7 @@ def get_all_node_labels(graph):
     return node_labels
 
 
-def get_centrality_score(good_graph, bad_graph, centrality_type="betweenness"):
+def get_centrality_score(good_graph, centrality_type="betweenness"):
     """
     Calculate the ratio of centrality values for nodes with the same labels in good_graph and bad_graph.
 
@@ -359,20 +359,12 @@ def get_centrality_score(good_graph, bad_graph, centrality_type="betweenness"):
 
     # Calculate centrality for all nodes in both graphs
     good_centrality = calculate_centrality(good_graph, centrality_type)
-    bad_centrality = calculate_centrality(bad_graph, centrality_type)
 
     # Compute the ratio of centrality values for nodes with the same label
     centrality_scores = {}
     for node in good_graph.nodes():
         label = good_graph.nodes[node].get("label", node)
-        # if (
-        #     label in good_centrality
-        #     and label in bad_centrality
-        #     and bad_centrality[label] != 0
-        # ):
-        #     centrality_scores[label] = good_centrality[label] / bad_centrality[label]
         centrality_scores[label] = good_centrality[label]
-        # centrality_scores[label] = bad_centrality[label]
 
     return centrality_scores
 
@@ -429,12 +421,8 @@ def get_top_nodes_by_centrality_ratios(graph, centrality_ratios, node_type, top_
     return top_nodes
 
 
-def get_top_primitives_and_terminals(
-    good_graph, bad_graph, centrality_type, threshold: int
-):
-    centrality_score = get_centrality_score(
-        good_graph, bad_graph, centrality_type=centrality_type
-    )
+def get_top_primitives_and_terminals(good_graph, centrality_type, threshold: int):
+    centrality_score = get_centrality_score(good_graph, centrality_type=centrality_type)
     top_primitives = get_top_nodes_by_centrality_ratios(
         good_graph,
         centrality_score,
@@ -448,6 +436,41 @@ def get_top_primitives_and_terminals(
         top_k=threshold,
     )
     nodes = top_primitives + top_terminals
+    return nodes
+
+
+def get_bad_primitives_and_terminals(
+    good_graph, bad_graph, centrality_type, threshold: int
+):
+    centrality_score = get_centrality_score(good_graph, centrality_type=centrality_type)
+    top_primitives = get_top_nodes_by_centrality_ratios(
+        good_graph,
+        centrality_score,
+        node_type="primitive",
+        top_k=threshold,
+    )
+    top_terminals = get_top_nodes_by_centrality_ratios(
+        good_graph,
+        centrality_score,
+        node_type="terminal",
+        top_k=threshold,
+    )
+    centrality_score = get_centrality_score(bad_graph, centrality_type=centrality_type)
+    bad_primitives = get_top_nodes_by_centrality_ratios(
+        bad_graph,
+        centrality_score,
+        node_type="primitive",
+        top_k=threshold,
+    )
+    bad_terminals = get_top_nodes_by_centrality_ratios(
+        bad_graph,
+        centrality_score,
+        node_type="terminal",
+        top_k=threshold,
+    )
+    primitive_nodes = list(set(list(bad_terminals)) - set(list(top_terminals)))
+    terminal_nodes = list(set(list(bad_primitives)) - set(list(top_primitives)))
+    nodes = primitive_nodes + terminal_nodes
     return nodes
 
 

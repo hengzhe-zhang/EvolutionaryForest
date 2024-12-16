@@ -267,7 +267,7 @@ class RacingFunctionSelector:
             # construct a graph of bad individuals
             bad_individuals = sorted(
                 individuals, key=lambda x: x.fitness, reverse=True
-            )[-100:]
+            )[-50:]
             bad_graph = merge_trees_to_graph(bad_individuals)
 
             # construct a graph of good individual
@@ -298,7 +298,6 @@ class RacingFunctionSelector:
             if self.graph_selection_criterion == "TopK":
                 nodes = get_top_primitives_and_terminals(
                     good_graph,
-                    bad_graph,
                     self.centrality_type,
                     self.important_node_threshold,
                 )
@@ -306,6 +305,14 @@ class RacingFunctionSelector:
                 nodes = get_primitives_and_terminals_by_ratio(
                     good_graph, self.centrality_type, self.important_node_threshold
                 )
+            elif self.graph_selection_criterion == "BadTopK":
+                nodes = get_bad_primitives_and_terminals(
+                    good_graph,
+                    bad_graph,
+                    self.centrality_type,
+                    self.important_node_threshold,
+                )
+                exploitation_mode = False
             elif self.graph_selection_criterion == "BadTopRatio":
                 threshold = self.important_node_threshold
                 nodes = get_bad_primitive_and_terminals_by_ratio(
