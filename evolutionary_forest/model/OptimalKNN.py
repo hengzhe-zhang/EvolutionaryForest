@@ -283,6 +283,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         knn_subsampling=100,
         base_learner=None,
         informed_optimal_knn_sampling=False,
+        random_knn_subsampling=False,
         **params
     ):
         self.n_neighbors = n_neighbors
@@ -321,6 +322,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.weights = []  # List to store transformation matrices for each group
         self.weighted_instance = weighted_instance
         self.knn_subsampling = knn_subsampling
+        self.random_knn_subsampling = random_knn_subsampling
         self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
 
     def fit(self, GP_X, y):
