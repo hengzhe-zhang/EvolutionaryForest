@@ -14,6 +14,7 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
+from evolutionary_forest.component.llm.llm_crossover import llm_crossover
 from evolutionary_forest.component.mutation.tree_replacement import tree_replacement
 from evolutionary_forest.component.stgp.strongly_type_gp_utility import revert_back
 from evolutionary_forest.component.toolbox import TypedToolbox
@@ -147,6 +148,35 @@ def varAndPlus(
                     # skip micro-crossover after macro-crossover
                     i += 2
                     continue
+
+            # Execute LLM crossover
+            if (
+                i % 2 == 0
+                and crossover_configuration.llm_crossover > 0
+                and random.random() < crossover_configuration.llm_crossover
+            ):
+                # top_ind = list(
+                #     sorted(
+                #         algorithm.pop, key=lambda x: x.fitness.wvalues[0], reverse=True
+                #     )[:2]
+                # )
+                try:
+                    assert len(offspring) == 2
+                    llm_offspring = llm_crossover(
+                        # top_ind,
+                        offspring[i : i + 2],
+                        crossover_configuration.llm_pattern,
+                        toolbox.pset,
+                    )
+                    offspring[i] = llm_offspring[0]
+                    offspring[i + 1] = llm_offspring[1]
+                    del offspring[i].fitness.values
+                    del offspring[i + 1].fitness.values
+                    i += 2
+                    continue
+                except Exception as e:
+                    print(e)
+                    pass
 
             if isinstance(cxpb, np.ndarray):
                 # MGP crossover

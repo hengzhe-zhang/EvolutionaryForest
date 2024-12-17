@@ -3,10 +3,10 @@ import inspect
 from multiprocessing import Pool
 from typing import Optional
 
+import category_encoders
 import dill
 import scipy
 from category_encoders import TargetEncoder
-import category_encoders
 from deap import gp
 from deap import tools
 from deap.algorithms import varAnd
@@ -168,6 +168,9 @@ from evolutionary_forest.component.generation import varAndPlus
 from evolutionary_forest.component.initialization import (
     initialize_crossover_operator,
     unique_initialization,
+)
+from evolutionary_forest.component.llm.llm_crossover import (
+    llm_pattern_extraction,
 )
 from evolutionary_forest.component.log_tool.semantic_lib_log import SemanticLibLog
 from evolutionary_forest.component.mutation.common import MutationOperator
@@ -3677,6 +3680,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # self.plot_distance()
         if isinstance(self.racing, RacingFunctionSelector):
             self.racing.mark_weights(self.pop)
+
+        if (
+            self.crossover_configuration.llm_crossover > 0
+            and self.crossover_configuration.llm_pattern_extraction
+            and self.current_gen % 10 == 0
+        ):
+            pattern = llm_pattern_extraction(self.pop)
+            self.crossover_configuration.llm_pattern = pattern
 
         if self.mutation_configuration.pool_based_addition:
             self.tree_pool: SemanticLibrary

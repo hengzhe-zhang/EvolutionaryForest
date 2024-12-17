@@ -148,6 +148,8 @@ class CrossoverConfiguration(Configuration):
         dimension_crossover_rate=0,
         merge_crossover=False,
         weighted_crossover=False,
+        llm_crossover=False,
+        llm_pattern_extraction=False,
         **params
     ):
         # max height after crossover
@@ -188,6 +190,11 @@ class CrossoverConfiguration(Configuration):
 
         # for racing selection
         self.weighted_crossover = weighted_crossover
+
+        # LLM
+        self.llm_crossover = llm_crossover
+        self.llm_pattern_extraction = llm_pattern_extraction
+        self.llm_pattern = ""
 
 
 class MAPElitesConfiguration(Configuration):

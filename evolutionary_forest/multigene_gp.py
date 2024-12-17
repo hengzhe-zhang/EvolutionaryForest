@@ -163,7 +163,6 @@ class MultipleGeneGP:
         algorithm: "EvolutionaryForestRegressor" = None,
         **kwargs,
     ):
-        configuration = algorithm.mutation_configuration
         self.gene: List[PrimitiveTree] = []
         self.fitness = FitnessMin()
         self.mgp_mode = False
@@ -172,8 +171,13 @@ class MultipleGeneGP:
         self.max_gene_num = gene_num
         self.num_of_active_trees = num_of_active_trees
         self.content = content
-        if configuration.gene_addition_rate > 0 or configuration.gene_deletion_rate > 0:
-            gene_num = random.randint(1, initial_max_gene_num)
+        if algorithm is not None:
+            configuration = algorithm.mutation_configuration
+            if (
+                configuration.gene_addition_rate > 0
+                or configuration.gene_deletion_rate > 0
+            ):
+                gene_num = random.randint(1, initial_max_gene_num)
         self.tree_initialization(content, gene_num)
         if tpot_model != None:
             self.base_model = tpot_model._toolbox.individual()
@@ -409,15 +413,15 @@ def modular_gp_crossover(ind1, ind2):
     return gene1, gene2, id1, id2
 
 
-def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration, pset=None):
+def gene_crossover(tree1, tree2, configuration: CrossoverConfiguration, pset=None):
     if configuration.safe_crossover:
-        gene1, gene2 = cxOnePointSizeSafe(gene1, gene2, configuration)
+        tree1, tree2 = cxOnePointSizeSafe(tree1, tree2, configuration)
     elif configuration.merge_crossover:
         if random.random() < 0.5:
             pset_dict = pset.primitives[object]
             k = random.sample(pset_dict, 1)[0]
-            tree_a = gene1
-            tree_b = gene2
+            tree_a = tree1
+            tree_b = tree2
             if k.arity == 1:
                 tree_a[slice(0, len(tree_a))] = [k] + tree_a[:]
             else:
@@ -429,14 +433,14 @@ def gene_crossover(gene1, gene2, configuration: CrossoverConfiguration, pset=Non
             else:
                 tree_b[slice(0, len(tree_b))] = [k] + tree_b[:] + tree_a[:]
         else:
-            gene1, gene2 = cxOnePointWithRoot(gene1, gene2, configuration)
+            tree1, tree2 = cxOnePointWithRoot(tree1, tree2, configuration)
     elif configuration.weighted_crossover:
-        gene1, gene2 = cxOnePointWeighted(gene1, gene2, configuration)
+        tree1, tree2 = cxOnePointWeighted(tree1, tree2, configuration)
     elif configuration.root_crossover:
-        gene1, gene2 = cxOnePointWithRoot(gene1, gene2, configuration)
+        tree1, tree2 = cxOnePointWithRoot(tree1, tree2, configuration)
     else:
-        gene1, gene2 = cxOnePoint(gene1, gene2)
-    return gene1, gene2
+        tree1, tree2 = cxOnePoint(tree1, tree2)
+    return tree1, tree2
 
 
 # Perform a mutation that takes a MultipleGeneGP individual and a primitive set as inputs
