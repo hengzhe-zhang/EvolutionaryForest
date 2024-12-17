@@ -427,6 +427,8 @@ class EvaluationConfiguration(Configuration):
         self.semantic_library = semantic_library
         self.enable_library = False
 
+        self.contrastive_loss = None
+
 
 class BloatControlConfiguration(Configuration):
     def __init__(

@@ -355,7 +355,10 @@ def cxOnePoint_multiple_gene(
     if ind1.mgp_mode == True:
         gene1, gene2, id1, id2 = modular_gp_crossover(ind1, ind2)
     else:
-        if crossover_configuration.tree_selection == "Random":
+        if (
+            crossover_configuration.tree_selection == "Random"
+            or crossover_configuration.tree_selection == None
+        ):
             gene1, id1 = ind1.random_select(with_id=True)
             if same_index:
                 gene2 = ind2.gene[id1]
