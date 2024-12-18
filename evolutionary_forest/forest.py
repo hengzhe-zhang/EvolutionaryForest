@@ -2291,12 +2291,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.random_index = np.random.randint(0, len(self.X), 5)
 
-        def shuffle_along_axis(a, axis):
-            idx = np.random.rand(*a.shape).argsort(axis=axis)
-            return np.take_along_axis(a, idx, axis=axis)
-
-        self.prediction_x = shuffle_along_axis(np.copy(self.X), axis=0)
-
         self.thread_pool_initialization()
         self.toolbox.root_crossover = self.crossover_configuration.root_crossover
         self.evaluation_configuration.pset = pset
