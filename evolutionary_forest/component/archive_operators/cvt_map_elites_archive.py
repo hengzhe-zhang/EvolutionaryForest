@@ -176,11 +176,13 @@ class CVTMAPElitesHOF(HallOfFame):
                 population,
                 self.map_archive_candidate_size,
             ) + list(self.items)
-        else:
+        elif self.map_elites_hof_mode == "Combined":
             best_candidate = selBest(
                 population + list(self.items),
                 self.map_archive_candidate_size,
             )
+        else:
+            raise ValueError("Unsupported map elites hof mode")
         if len(best_candidate) < self.maxsize:
             self.clear()
             super().update(best_candidate)
