@@ -37,12 +37,12 @@ def cxOnePointWeighted(ind1, ind2, configuration: CrossoverConfiguration):
         type_ = random.choice(list(common_types))
 
         # Weighted selection of "good" and "bad" subtrees
-        index1_good = normalize_by_to_one(ind1.subtree_weights, reverse=True)
-        index2_good = normalize_by_to_one(ind2.subtree_weights, reverse=True)
+        index1_good = normalize_by_to_one(ind1.subtree_weights)
+        index2_good = normalize_by_to_one(ind2.subtree_weights)
         assert index1_good < len(ind1), f"{index1_good} >= {len(ind1)}"
         assert index2_good < len(ind2), f"{index2_good} >= {len(ind2)}"
-        index1_bad = normalize_by_to_one(ind1.subtree_weights)
-        index2_bad = normalize_by_to_one(ind2.subtree_weights)
+        index1_bad = normalize_by_to_one(ind1.subtree_weights, reverse=True)
+        index2_bad = normalize_by_to_one(ind2.subtree_weights, reverse=True)
 
         # Find slices of the selected subtrees
         slice1_good = ind1.searchSubtree(index1_good)
