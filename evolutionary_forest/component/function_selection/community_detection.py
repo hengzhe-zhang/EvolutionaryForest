@@ -222,7 +222,7 @@ def merge_trees_list_to_graph(inds: List[MultipleGeneGP]):
     return G
 
 
-def plot_graph_with_centrality(G, current_gen):
+def plot_graph_with_centrality(G, current_gen, centrality_type="eigenvector"):
     """
     Plots the graph with nodes sized by their betweenness centrality.
 
@@ -230,7 +230,18 @@ def plot_graph_with_centrality(G, current_gen):
     - G: A NetworkX graph object.
     """
     # Calculate betweenness centrality for each node
-    centrality = nx.betweenness_centrality(G, weight="weight")
+    if centrality_type == "degree":
+        centrality = nx.degree_centrality(G, weight="weight")
+    elif centrality_type == "betweenness":
+        centrality = nx.betweenness_centrality(G, weight="weight")
+    elif centrality_type == "closeness":
+        centrality = nx.closeness_centrality(G, weight="weight")
+    elif centrality_type == "eigenvector":
+        centrality = nx.eigenvector_centrality(
+            G, max_iter=1000, weight="weight"
+        )  # max_iter may need adjustment
+    else:
+        raise Exception(f"Unsupported centrality type: {centrality_type}")
 
     # Normalize the centrality values to use for node size
     # Multiply by a constant to scale the sizes to your preference
@@ -281,14 +292,14 @@ def get_important_nodes_labels(graph, centrality_type="betweenness", threshold=0
 
     # Calculate centrality for all nodes based on the specified centrality type
     if centrality_type == "degree":
-        centrality = nx.degree_centrality(graph)
+        centrality = nx.degree_centrality(graph, weight="weight")
     elif centrality_type == "betweenness":
-        centrality = nx.betweenness_centrality(graph)
+        centrality = nx.betweenness_centrality(graph, weight="weight")
     elif centrality_type == "closeness":
-        centrality = nx.closeness_centrality(graph)
+        centrality = nx.closeness_centrality(graph, weight="weight")
     elif centrality_type == "eigenvector":
         centrality = nx.eigenvector_centrality(
-            graph, max_iter=1000
+            graph, max_iter=1000, weight="weight"
         )  # max_iter may need adjustment
     else:
         raise ValueError(f"Unsupported centrality type: {centrality_type}")
@@ -532,14 +543,14 @@ def get_important_nodes_labels_by_type(
 
     # Calculate centrality for all nodes in the graph based on the specified centrality type
     if centrality_type == "degree":
-        centrality = nx.degree_centrality(graph)
+        centrality = nx.degree_centrality(graph, weight="weight")
     elif centrality_type == "betweenness":
-        centrality = nx.betweenness_centrality(graph)
+        centrality = nx.betweenness_centrality(graph, weight="weight")
     elif centrality_type == "closeness":
-        centrality = nx.closeness_centrality(graph)
+        centrality = nx.closeness_centrality(graph, weight="weight")
     elif centrality_type == "eigenvector":
         centrality = nx.eigenvector_centrality(
-            graph, max_iter=1000
+            graph, max_iter=1000, weight="weight"
         )  # max_iter may need adjustment
     else:
         raise ValueError(f"Unsupported centrality type: {centrality_type}")
