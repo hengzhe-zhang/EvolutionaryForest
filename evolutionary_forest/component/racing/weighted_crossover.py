@@ -10,7 +10,7 @@ from evolutionary_forest.component.configuration import (
 
 def normalize_by_to_one(weights, reverse=False):
     # Clip weights to avoid zeros
-    weights = [max(w, 1e-6) for w in weights]
+    weights = [w + 1 for w in weights]
 
     if reverse:
         weights = [1 / w for w in weights]  # Inverse for lower weights
