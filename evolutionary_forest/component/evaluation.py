@@ -120,6 +120,7 @@ class EvaluationResults:
         introns_results=None,
         semantic_results=None,
         feature_numbers=None,
+        contrastive_loss=None,
     ):
         self.gp_evaluation_time: int = gp_evaluation_time
         self.ml_evaluation_time: int = ml_evaluation_time
@@ -134,6 +135,9 @@ class EvaluationResults:
         # in ususal case, it is useless
         # however, it could [1,1,2] in case has categorical features trnasformed by one-hot encoding
         self.feature_numbers = feature_numbers
+
+        # for contrastive learning
+        self.contrastive_loss = contrastive_loss
 
 
 def calculate_score(args):
@@ -425,6 +429,11 @@ def calculate_score(args):
                 raise Exception
     ml_evaluation_time = time.time() - start_time
     configuration.enable_library = False
+
+    contrastive_loss = None
+    if configuration.contrastive_loss:
+        contrastive_loss = configuration.contrastive_loss(Yp, X, Y)
+
     return (
         y_pred,
         estimators,
@@ -436,6 +445,7 @@ def calculate_score(args):
             introns_results=introns_results,
             semantic_results=semantic_results,
             feature_numbers=feature_numbers,
+            contrastive_loss=contrastive_loss,
         ),
     )
 

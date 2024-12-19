@@ -1261,6 +1261,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.time_statistics["GP Evaluation"].append(information.gp_evaluation_time)
         self.time_statistics["ML Evaluation"].append(information.ml_evaluation_time)
 
+        if information.contrastive_loss is not None:
+            individual.contrastive_loss = information.contrastive_loss
+
         # calculate terminal importance based on the permutation importance method
         if self.mutation_scheme == "EDA-Terminal-PMI":
             individual.estimators = estimators
@@ -1524,6 +1527,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 score = r2_score(Y[:number], y_pred[:number])
                 validation_score = (Y[number:] - y_pred[number:]) ** 2
                 individual.validation_score = validation_score
+
+            if individual.contrastive_loss is not None:
+                score += 0.1 * individual.contrastive_loss
             # Return negative of R2 score
             return (-1 * score,)
         elif self.score_func == "R2-L2":

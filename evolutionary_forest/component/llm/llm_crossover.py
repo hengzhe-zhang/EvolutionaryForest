@@ -6,7 +6,9 @@ from evolutionary_forest.component.llm.gp_tree_converter import *
 
 @lru_cache(maxsize=None)
 def get_llm_model():
-    return ChatGP()
+    gpt = ChatGP()
+    gpt.lazy_load()
+    return gpt
 
 
 def llm_pattern_extraction(population):

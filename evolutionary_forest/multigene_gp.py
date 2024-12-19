@@ -206,6 +206,7 @@ class MultipleGeneGP:
         self.crossover_type = None
         self.individual_configuration = IndividualConfiguration(**kwargs)
         self.pseudo_random = PseudoRandom(self.gene_num)
+        self.contrastive_loss = None
 
     def tree_initialization(self, content, gene_num):
         # This flag is only used for controlling the mutation and crossover
