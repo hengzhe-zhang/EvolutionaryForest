@@ -242,6 +242,11 @@ class RacingFunctionSelector:
                             and node in self.pset.terminals[object]
                         ):
                             weight += 1
+                        elif isinstance(node, gp.Terminal) and isinstance(
+                            node.value, (int, float)
+                        ):
+                            # constant terminal
+                            weight += 1
                     weights.append(weight / (sub_idx.stop - sub_idx.start))
                 tree.subtree_weights = weights
 
@@ -445,9 +450,9 @@ class RacingFunctionSelector:
                     p
                     for p in primitives
                     # novelty/exploration
-                    if (p.name not in elements_to_preserve and not exploitation_mode)
+                    if ((p.name not in elements_to_preserve) and not exploitation_mode)
                     # exploitation
-                    or (p.name in elements_to_preserve and exploitation_mode)
+                    or ((p.name in elements_to_preserve) and exploitation_mode)
                 ]
                 if len(nodes) > 0:
                     self.pset.primitives[return_type] = nodes
@@ -460,14 +465,18 @@ class RacingFunctionSelector:
                     for t in terminals
                     if (
                         # exploitation
-                        t.name in elements_to_preserve
-                        or isinstance(t, gp.MetaEphemeral)
+                        (
+                            t.name in elements_to_preserve
+                            or isinstance(t, gp.MetaEphemeral)
+                        )
                         and exploitation_mode
                     )
                     or (
                         # novelty/exploration
-                        t.name not in elements_to_preserve
-                        or isinstance(t, gp.MetaEphemeral)
+                        (
+                            t.name not in elements_to_preserve
+                            or isinstance(t, gp.MetaEphemeral)
+                        )
                         and not exploitation_mode
                     )
                 ]
