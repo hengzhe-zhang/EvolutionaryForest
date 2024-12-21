@@ -155,6 +155,9 @@ from evolutionary_forest.component.external_archive.mutliobjective_archive impor
     ModelSizeArchive,
 )
 from evolutionary_forest.component.fitness import *
+from evolutionary_forest.component.function_selection.two_stage.two_stage_shapley import (
+    two_stage_feature_selection,
+)
 from evolutionary_forest.component.generalization.pac_bayesian import (
     PACBayesianConfiguration,
     SharpnessType,
@@ -3678,6 +3681,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def callback(self):
         # self.plot_distance()
+        if (
+            self.current_gen == self.n_gen // 2
+            and self.evaluation_configuration.two_stage_feature_selection is not None
+        ):
+            two_stage_feature_selection(
+                self.pop, self.pset, self.feature_generation, self.X, self.y
+            )
+            # re-initialize the population
+            self.pop = self.toolbox.population(n=self.n_pop)
+
         if isinstance(self.racing, RacingFunctionSelector):
             self.racing.mark_weights(self.pop)
 

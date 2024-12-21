@@ -11,6 +11,9 @@ from sklearn.ensemble import RandomForestRegressor
 
 import evolutionary_forest.forest as forest
 from evolutionary_forest.component.function_selection.community_detection import *
+from evolutionary_forest.component.function_selection.two_stage.two_stage_shapley import (
+    remove_functions,
+)
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.priority_queue import MinPriorityQueue
@@ -425,20 +428,8 @@ class RacingFunctionSelector:
         self.remove_functions_and_terminals(elements_to_remove)
 
     def remove_functions_and_terminals(self, elements_to_remove):
-        for element_name in elements_to_remove:
-            # Check and remove from pset.primitives
-            for return_type, primitives in list(self.pset.primitives.items()):
-                for p in primitives:
-                    if p.name == element_name:
-                        self.pset.primitives[return_type].remove(p)
-                        break
-
-            # Check and remove from pset.terminals
-            for return_type, terminals in list(self.pset.terminals.items()):
-                for t in terminals:
-                    if t.name == element_name:
-                        self.pset.terminals[return_type].remove(t)
-                        break
+        pset = self.pset
+        remove_functions(elements_to_remove, pset)
 
     def preserve_functions_and_terminals(
         self, elements_to_preserve, exploitation_mode=False

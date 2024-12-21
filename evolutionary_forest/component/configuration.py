@@ -368,6 +368,7 @@ class EvaluationConfiguration(Configuration):
         feature_smoothing=False,
         sample_weight=None,
         minor_sample_weight=0.1,
+        two_stage_feature_selection=None,
         **params
     ):
         # prediction results of the neural network
@@ -428,6 +429,9 @@ class EvaluationConfiguration(Configuration):
         self.enable_library = False
 
         self.contrastive_loss = None
+
+        # Two Stage Feature Selection
+        self.two_stage_feature_selection = two_stage_feature_selection
 
 
 class BloatControlConfiguration(Configuration):
