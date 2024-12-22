@@ -123,6 +123,7 @@ class CVTMAPElitesHOF(HallOfFame):
         y=None,
         symmetric_map_archive_mode=False,
         centered_cvt_map_elites=True,
+        deep_clustering_parameters=None,
         **kwargs,
     ):
         super().__init__(maxsize)
@@ -157,7 +158,8 @@ class CVTMAPElitesHOF(HallOfFame):
             clustering = KMeans(n_clusters=self.maxsize, random_state=0)
         elif self.clustering_method == "DeepClustering":
             clustering = DeepClustering(
-                n_clusters=self.maxsize, epochs=100, lr=1e-2, lambda_=0.001
+                n_clusters=self.maxsize,
+                **deep_clustering_parameters,
             )
         elif self.clustering_method == "Spectral":
             clustering = SpectralClustering(

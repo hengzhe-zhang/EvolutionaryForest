@@ -155,6 +155,9 @@ from evolutionary_forest.component.external_archive.mutliobjective_archive impor
     ModelSizeArchive,
 )
 from evolutionary_forest.component.fitness import *
+from evolutionary_forest.component.function_selection.prior.one_stage_selection import (
+    prior_feature_selection,
+)
 from evolutionary_forest.component.function_selection.two_stage.two_stage_shapley import (
     two_stage_feature_selection,
 )
@@ -492,7 +495,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         eager_training=False,  # Whether to train models eagerly
         useless_feature_ratio=None,  # Ratio of useless features to be removed
         weighted_coef=False,  # Whether to use weighted coefficients
-        feature_selection=False,  # Whether to perform feature selection
+        feature_selection=None,  # Whether to perform feature selection
         outlier_detection=False,  # Whether to perform outlier detection
         semantic_repair=0,  # Semantic repair method
         dynamic_reduction=0,  # Dynamic reduction strategy
@@ -2125,14 +2128,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # toolbox initialization
         toolbox = TypedToolbox()
         self.toolbox = toolbox
-        if self.feature_selection:
-            terminal_prob = self.get_terminal_probability()
-            toolbox.expr = partial(
-                genHalfAndHalf, pset=pset, min_=1, max_=2, terminal_prob=terminal_prob
-            )
-        else:
-            # generate initial population
-            self.tree_initialization_function(pset, toolbox)
+
+        # generate initial population
+        self.tree_initialization_function(pset, toolbox)
+        if self.feature_selection is not None:
+            prior_feature_selection(pset, self.X, self.y, self.feature_selection)
 
         # individual initialization
         toolbox.individual = partial(
@@ -2362,7 +2362,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         #     self.mutation_configuration.pool_addition_mode, self.X, self.y
         # )
 
-    def tree_initialization_function(self, pset, toolbox: TypedToolbox):
+    def tree_initialization_function(self, pset: PrimitiveSet, toolbox: TypedToolbox):
         if self.initial_tree_size is None:
             toolbox.expr = partial(gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
         else:
@@ -3067,20 +3067,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.lasso_hof = HallOfFame(candidates)
         else:
             self.lasso_hof = None
-
-    def get_terminal_probability(self):
-        """
-        Using feature importance at initialization
-        """
-        # get a probability distribution based on the importance of original features in a random forest
-        if isinstance(self, ClassifierMixin):
-            r = RandomForestClassifier(n_estimators=5)
-        else:
-            r = RandomForestRegressor(n_estimators=5)
-        r.fit(self.X, self.y)
-        terminal_prob = np.append(r.feature_importances_, 0.1)
-        terminal_prob = terminal_prob / np.sum(terminal_prob)
-        return terminal_prob
 
     def construct_global_feature_pool(self, pop):
         good_features, threshold = construct_feature_pools(

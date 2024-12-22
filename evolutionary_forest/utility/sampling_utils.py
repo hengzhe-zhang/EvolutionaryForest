@@ -4,25 +4,27 @@ from cachetools.keys import hashkey
 from sklearn.metrics.pairwise import rbf_kernel
 
 
-def sample_according_to_distance(distance_matrix, indices_a, inverse_prob=False):
-    prob_distribution = get_probability_matrix_from_distance_matrix(
+def sample_according_to_distance(
+    distance_matrix: np.ndarray, indices_a: np.ndarray, inverse_prob: bool = False
+) -> np.ndarray:
+    prob_distribution: np.ndarray = get_probability_matrix_from_distance_matrix(
         distance_matrix, indices_a, inverse_prob
     )
     # Sample indices according to the probability distribution
-    indices_b = [
+    indices_b: list[int] = [
         np.random.choice(len(distance_matrix), p=prob_distribution[i])
         for i in range(len(indices_a))
     ]
-    return indices_b
+    return np.array(indices_b)
 
 
 def get_probability_matrix_from_distance_matrix(
-    distance_matrix, indices_a, inverse_prob=False
-):
+    distance_matrix: np.ndarray, indices_a: np.ndarray, inverse_prob: bool = False
+) -> np.ndarray:
     """
     Sample indices according to the probability distribution given by the distance matrix.
     """
-    prob_distribution = distance_matrix[
+    prob_distribution: np.ndarray = distance_matrix[
         indices_a
     ]  # Extract probabilities for the given indices
     if inverse_prob:

@@ -24,6 +24,9 @@ from evolutionary_forest.component.generalization.iodc import (
     create_w,
     calculate_iodc,
 )
+from evolutionary_forest.component.generalization.mixup_utils.extrapolation import (
+    perform_extrapolation,
+)
 from evolutionary_forest.component.generalization.mixup_utils.mixup_mode_check import (
     mixup_mode_check_and_change,
 )
@@ -755,6 +758,8 @@ class R2PACBayesian(Fitness):
         else:
             gamma_value_in_kernel = self.mixup_bandwidth
 
+        # The RBF kernel has an inverse relationship between distance and kernel value:
+        # the farther apart the points, the smaller the kernel value!
         if mixup_strategy == "X-MixUp":
             distance_matrix = rbf_kernel(algorithm.X, gamma=gamma_value_in_kernel)
         elif mixup_strategy == "XY-MixUp":
@@ -786,8 +791,12 @@ class R2PACBayesian(Fitness):
                     mode=mixup_mode,
                 )
             indices_a = np.arange(0, len(algorithm.X))
+            # For the distance, the large the near, because it's Gaussian kernel
             indices_b = sample_according_to_distance(distance_matrix, indices_a)
             if alpha_beta == "Adaptive":
+                """
+                The kernel values are always between 0 and 1.
+                """
                 ratio = (
                     1
                     - 0.5
@@ -810,13 +819,6 @@ class R2PACBayesian(Fitness):
                 p=probability,
                 size=len(distance_matrix),
             )
-        elif mixup_strategy == "C-MixUp":
-            # sample indices
-            distance_matrix = rbf_kernel(
-                algorithm.y.reshape(-1, 1), gamma=gamma_value_in_kernel
-            )
-            # for the distance, the large the near, because it's Gaussian
-            indices_b = sample_according_to_distance(distance_matrix, indices_a)
         else:
             indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
 
@@ -825,24 +827,15 @@ class R2PACBayesian(Fitness):
         ] * (1 - ratio.reshape(-1, 1))
         label = algorithm.y[indices_a] * ratio + algorithm.y[indices_b] * (1 - ratio)
         if allow_extrapolate_mixup:
-            # For some point, the ratio could be larger than 1 to simulate extrapolation.
-            # However, 1.5 is a very dangerous value.
-            temp_ratio = (1 + ratio).reshape(-1, 1)
-            data_extrapolation = temp_ratio * algorithm.X[indices_a] + (
-                (1 - temp_ratio) * algorithm.X[indices_b]
+            data, label, ratio = perform_extrapolation(
+                algorithm_X=algorithm.X,
+                algorithm_y=algorithm.y,
+                indices_a=indices_a,
+                indices_b=indices_b,
+                data=data,
+                label=label,
+                ratio=ratio,
             )
-            label_extrapolation = temp_ratio.flatten() * algorithm.y[indices_a] + (
-                (1 - temp_ratio).flatten() * algorithm.y[indices_b]
-            )
-            # only consider out of distribution samples
-            replace_index = (label_extrapolation > algorithm.y.max()) | (
-                label_extrapolation < algorithm.y.min()
-            )
-            temp_ratio = temp_ratio.flatten()
-            ratio[replace_index] = temp_ratio[replace_index]
-            # print("Extrapolation instances", np.sum(replace_index))
-            data[replace_index] = data_extrapolation[replace_index]
-            label[replace_index] = label_extrapolation[replace_index]
         return data, label, ((indices_a, ratio), (indices_b, 1 - ratio))
 
     @lru_cache(maxsize=128)

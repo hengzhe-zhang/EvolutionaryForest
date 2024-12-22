@@ -79,7 +79,7 @@ class DeepClustering(BaseEstimator, ClusterMixin):
         pretrain_epochs=10,
         lr=1e-3,
         entropy_lambda=0,  # Entropy regularization weight
-        balance_lambda=0.1,  # Cluster balance regularization weight
+        balance_lambda=0,  # Cluster balance regularization weight
         patience=10,  # Early stopping patience
         device=None,
     ):
@@ -149,7 +149,7 @@ class DeepClustering(BaseEstimator, ClusterMixin):
             latent_all = torch.cat(latent_all, dim=0)
 
             # Perform K-means to initialize cluster centers
-            kmeans = KMeans(n_clusters=self.n_clusters, n_init=20, random_state=42)
+            kmeans = KMeans(n_clusters=self.n_clusters, random_state=0)
             kmeans.fit(latent_all.numpy())
             self.cluster_centers = nn.Parameter(
                 torch.tensor(
