@@ -24,6 +24,9 @@ from evolutionary_forest.component.generalization.iodc import (
     create_w,
     calculate_iodc,
 )
+from evolutionary_forest.component.generalization.mixup_utils.automatic_mixup import (
+    compute_mixup_ratio,
+)
 from evolutionary_forest.component.generalization.mixup_utils.extrapolation import (
     perform_extrapolation,
 )
@@ -761,14 +764,14 @@ class R2PACBayesian(Fitness):
         # The RBF kernel has an inverse relationship between distance and kernel value:
         # the farther apart the points, the smaller the kernel value!
         if mixup_strategy == "X-MixUp":
-            distance_matrix = rbf_kernel(algorithm.X, gamma=gamma_value_in_kernel)
+            kernel_matrix = rbf_kernel(algorithm.X, gamma=gamma_value_in_kernel)
         elif mixup_strategy == "XY-MixUp":
             X = algorithm.X
             y = algorithm.y.reshape(-1, 1)
             combined = np.concatenate((X, y), axis=1)
-            distance_matrix = rbf_kernel(combined, gamma=gamma_value_in_kernel)
+            kernel_matrix = rbf_kernel(combined, gamma=gamma_value_in_kernel)
         else:
-            distance_matrix = rbf_kernel(
+            kernel_matrix = rbf_kernel(
                 algorithm.y.reshape(-1, 1), gamma=gamma_value_in_kernel
             )
 
@@ -785,39 +788,31 @@ class R2PACBayesian(Fitness):
                 return safe_mixup_with_minifold_intrusion_detection(
                     algorithm.X,
                     algorithm.y,
-                    distance_matrix,
+                    kernel_matrix,
                     gamma_value_in_kernel,
                     alpha_beta,
                     mode=mixup_mode,
                 )
             indices_a = np.arange(0, len(algorithm.X))
             # For the distance, the large the near, because it's Gaussian kernel
-            indices_b = sample_according_to_distance(distance_matrix, indices_a)
+            indices_b = sample_according_to_distance(kernel_matrix, indices_a)
             if alpha_beta == "Adaptive":
-                """
-                The kernel values are always between 0 and 1.
-                """
-                ratio = (
-                    1
-                    - 0.5
-                    * distance_matrix[indices_a][range(0, len(indices_a)), indices_b]
-                )
-            if mixup_strategy == "I-MixUp":
-                ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
+                ratio = compute_mixup_ratio(kernel_matrix, indices_a, indices_b)
+            ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
         elif mixup_strategy == "D-MixUp":
             """
             1. First, determine the high density and low density data
             2. Then, determine a random index for cross-over
             """
             indices_a = np.arange(0, len(algorithm.X))
-            distance_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
-            probability = np.sum(distance_matrix, axis=1)
+            kernel_matrix = rbf_kernel(algorithm.y.reshape(-1, 1))
+            probability = np.sum(kernel_matrix, axis=1)
             probability = probability / np.sum(probability)
             # emphasize on high density region
             indices_b = np.random.choice(
-                len(distance_matrix),
+                len(kernel_matrix),
                 p=probability,
-                size=len(distance_matrix),
+                size=len(kernel_matrix),
             )
         else:
             indices_b = np.random.randint(0, len(algorithm.X), len(algorithm.X))
