@@ -764,16 +764,16 @@ class R2PACBayesian(Fitness):
         # The RBF kernel has an inverse relationship between distance and kernel value:
         # the farther apart the points, the smaller the kernel value!
         if mixup_strategy == "X-MixUp":
-            kernel_matrix = rbf_kernel(algorithm.X, gamma=gamma_value_in_kernel)
+            kernel_space = algorithm.X
+            kernel_matrix = rbf_kernel(kernel_space, gamma=gamma_value_in_kernel)
         elif mixup_strategy == "XY-MixUp":
             X = algorithm.X
             y = algorithm.y.reshape(-1, 1)
-            combined = np.concatenate((X, y), axis=1)
-            kernel_matrix = rbf_kernel(combined, gamma=gamma_value_in_kernel)
+            kernel_space = np.concatenate((X, y), axis=1)
+            kernel_matrix = rbf_kernel(kernel_space, gamma=gamma_value_in_kernel)
         else:
-            kernel_matrix = rbf_kernel(
-                algorithm.y.reshape(-1, 1), gamma=gamma_value_in_kernel
-            )
+            kernel_space = algorithm.y.reshape(-1, 1)
+            kernel_matrix = rbf_kernel(kernel_space, gamma=gamma_value_in_kernel)
 
         if alpha_beta == "Adaptive":
             ratio = None
@@ -788,6 +788,7 @@ class R2PACBayesian(Fitness):
                 return safe_mixup_with_minifold_intrusion_detection(
                     algorithm.X,
                     algorithm.y,
+                    kernel_space,
                     kernel_matrix,
                     gamma_value_in_kernel,
                     alpha_beta,

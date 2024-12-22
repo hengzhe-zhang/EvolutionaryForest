@@ -4,11 +4,13 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor, IsolationForest, ExtraTreesRegressor
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.neighbors import (
-    NearestNeighbors,
     KNeighborsRegressor,
     RadiusNeighborsRegressor,
 )
 
+from evolutionary_forest.component.generalization.mixup_utils.automatic_mixup import (
+    compute_mixup_ratio,
+)
 from evolutionary_forest.utility.sampling_utils import sample_according_to_distance
 
 
@@ -68,7 +70,7 @@ def sample_indices_within_cluster(cluster_labels, data, mixup_bandwidth):
 
 
 def safe_mixup_with_minifold_intrusion_detection(
-    X, y, distance_matrix, mixup_bandwidth, alpha_beta=None, mode=""
+    X, y, kernel_space, distance_matrix, mixup_bandwidth, alpha_beta=None, mode=""
 ):
     confidence_interval = 1
     if len(mode.split(",")) == 3:
@@ -81,16 +83,13 @@ def safe_mixup_with_minifold_intrusion_detection(
     cluster_labels = None
     if mixup_flag == "Clustering":
         kmeans = KMeans(n_clusters=mixup_bandwidth)
-        cluster_labels = kmeans.fit_predict(y.reshape(-1, 1))
+        cluster_labels = kmeans.fit_predict(kernel_space)
     elif mixup_flag == "Clustering+RBF":
         n_clusters = int(np.sqrt(len(X)))  # Determine number of clusters
         kmeans = KMeans(n_clusters=n_clusters)
-        cluster_labels = kmeans.fit_predict(y.reshape(-1, 1))
+        cluster_labels = kmeans.fit_predict(kernel_space)
 
     # Step 3: Generate initial synthetic data
-    ratio = np.random.beta(alpha_beta, alpha_beta, len(X))
-    ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
-
     # Indices for data generation
     indices_a = np.arange(0, len(X))
     if mixup_flag == "Clustering":
@@ -98,11 +97,16 @@ def safe_mixup_with_minifold_intrusion_detection(
         indices_b = sample_indices_from_same_cluster(cluster_labels)
     elif mixup_flag == "Clustering+RBF":
         indices_b = sample_indices_within_cluster(
-            cluster_labels, y.reshape(-1, 1), mixup_bandwidth
+            cluster_labels, kernel_space, mixup_bandwidth
         )
     else:
         assert mixup_flag == "RBF"
         indices_b = sample_according_to_distance(distance_matrix, indices_a)
+
+    ratio = np.random.beta(alpha_beta, alpha_beta, len(X))
+    if alpha_beta == "Adaptive":
+        ratio = compute_mixup_ratio(distance_matrix, indices_a, indices_b)
+    ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
 
     # Generate initial synthetic data
     data, label = create_synthetic_data(X, y, indices_a, indices_b, ratio)
@@ -144,8 +148,6 @@ def safe_mixup_with_minifold_intrusion_detection(
     for idx in range(len(data)):
         y_i, y_j = y[indices_a[idx]], y[indices_b[idx]]
         retries = 0
-        # y_temp = np.sin(10 * (ratio[idx] * X[idx] + (1 - ratio[idx]) * X[indices_b[idx]]))
-        # y_nn[idx]
         increased_alpha_beta = alpha_beta
         while (
             (
@@ -168,15 +170,17 @@ def safe_mixup_with_minifold_intrusion_detection(
             if retries > 0 and retries % 10 == 0:
                 increased_alpha_beta = increased_alpha_beta * 10
                 # print("Increase", increased_alpha_beta)
-            ratio[idx] = np.random.beta(increased_alpha_beta, alpha_beta)
-            ratio[idx] = np.where(
-                ratio[idx] < 1 - ratio[idx], 1 - ratio[idx], ratio[idx]
-            )
             indices_b[idx] = sample_according_to_distance(
                 distance_matrix, indices_a[idx : idx + 1]
             )[
                 0
             ]  # Sample new b
+            ratio[idx] = np.random.beta(increased_alpha_beta, alpha_beta)
+            ratio[idx] = np.where(
+                ratio[idx] < 1 - ratio[idx], 1 - ratio[idx], ratio[idx]
+            )
+            if alpha_beta == "Adaptive":
+                ratio = compute_mixup_ratio(distance_matrix, indices_a[idx], indices_b[idx])
             y_i, y_j = y[indices_a[idx]], y[indices_b[idx]]
             data[idx], label[idx] = create_point(
                 X[indices_a[idx]],
