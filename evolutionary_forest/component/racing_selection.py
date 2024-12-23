@@ -37,9 +37,10 @@ class RacingFunctionSelector:
         ts_num_predictions=0,
         priority_queue=False,
         # significant worse primitives
-        remove_significant_worse=False,
+        remove_significant_worse=True,
         remove_insignificant=True,
         algorithm: "forest.EvolutionaryForestRegressor" = None,
+        # graph technique
         central_node_detection=False,
         important_node_threshold=0.02,
         racing_top_individuals=0,
@@ -48,6 +49,7 @@ class RacingFunctionSelector:
         starting_point=0,
         unique_trees_racing=False,
         centrality_type="betweenness",
+        selection_each_generation=True,
         **kwargs,
     ):
         self.unique_trees_racing = unique_trees_racing
@@ -79,6 +81,7 @@ class RacingFunctionSelector:
         self.remove_significant_worse = remove_significant_worse
         # remove insignificant primitives
         self.remove_insignificant = remove_insignificant
+        self.selection_each_generation = selection_each_generation
 
         self.important_node_threshold: Union[int, float] = important_node_threshold
         self.central_node_detection = central_node_detection
@@ -94,6 +97,8 @@ class RacingFunctionSelector:
         self.exploitation_stage = exploitation_stage
         self.graph_selection_criterion = graph_selection_criterion
         self.centrality_type = centrality_type
+
+        self.number_of_terminals_history = []
 
     def sensitivity_analysis(self, pop: List[MultipleGeneGP]):
         model = RandomForestRegressor()
@@ -263,8 +268,9 @@ class RacingFunctionSelector:
         """
         The removal is not permanent. So, removed primitives can come back again.
         """
-        self.pset.primitives = copy.deepcopy(self.backup_pset.primitives)
-        self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
+        if self.selection_each_generation:
+            self.pset.primitives = copy.deepcopy(self.backup_pset.primitives)
+            self.pset.terminals = copy.deepcopy(self.backup_pset.terminals)
         if self.central_node_detection:
             # after some generations, the exploitation mode start
             exploitation_mode = (
@@ -430,6 +436,7 @@ class RacingFunctionSelector:
     def remove_functions_and_terminals(self, elements_to_remove):
         pset = self.pset
         remove_functions(elements_to_remove, pset)
+        self.number_of_terminals_history.append(len(self.pset.terminals[object]))
 
     def preserve_functions_and_terminals(
         self, elements_to_preserve, exploitation_mode=False
