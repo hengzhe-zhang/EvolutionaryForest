@@ -5,10 +5,10 @@ from sklearn.metrics.pairwise import rbf_kernel
 
 
 def sample_according_to_distance(
-    distance_matrix: np.ndarray, indices_a: np.ndarray, inverse_prob: bool = False
+    distance_matrix: np.ndarray, indices_a: np.ndarray, skip_self: bool = False
 ) -> np.ndarray:
     prob_distribution: np.ndarray = get_probability_matrix_from_distance_matrix(
-        distance_matrix, indices_a, inverse_prob
+        distance_matrix, indices_a, skip_self
     )
     # Sample indices according to the probability distribution
     indices_b: list[int] = [
@@ -19,7 +19,7 @@ def sample_according_to_distance(
 
 
 def get_probability_matrix_from_distance_matrix(
-    distance_matrix: np.ndarray, indices_a: np.ndarray, inverse_prob: bool = False
+    distance_matrix: np.ndarray, indices_a: np.ndarray, skip_self: bool = False
 ) -> np.ndarray:
     """
     Sample indices according to the probability distribution given by the distance matrix.
@@ -27,11 +27,8 @@ def get_probability_matrix_from_distance_matrix(
     prob_distribution: np.ndarray = distance_matrix[
         indices_a
     ]  # Extract probabilities for the given indices
-    if inverse_prob:
-        # inverse the probability vector
-        prob_distribution[prob_distribution != 0] = (
-            1 / prob_distribution[prob_distribution != 0]
-        )
+    if skip_self:
+        np.fill_diagonal(prob_distribution, 0)
     # Normalize to form a valid probability distribution
     prob_distribution = prob_distribution / np.sum(
         prob_distribution, axis=1, keepdims=True

@@ -95,6 +95,7 @@ class PACBayesianConfiguration(Configuration):
         mixup_mode="",
         adaptive_knee_point_metric=None,
         pac_bayesian_subsample=0,
+        mixup_skip_self=False,
         **params
     ):
         # For dropout
@@ -137,6 +138,7 @@ class PACBayesianConfiguration(Configuration):
 
         # mixup setting
         self.allow_extrapolate_mixup = allow_extrapolate_mixup
+        self.mixup_skip_self = mixup_skip_self
         self.linear_regularization = linear_regularization
         self.mixup_mode = mixup_mode
 

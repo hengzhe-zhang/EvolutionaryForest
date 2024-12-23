@@ -70,7 +70,14 @@ def sample_indices_within_cluster(cluster_labels, data, mixup_bandwidth):
 
 
 def safe_mixup_with_minifold_intrusion_detection(
-    X, y, kernel_space, distance_matrix, mixup_bandwidth, alpha_beta=None, mode=""
+    X,
+    y,
+    kernel_space,
+    distance_matrix,
+    mixup_bandwidth,
+    alpha_beta=None,
+    mode="",
+    skip_self=False,
 ):
     confidence_interval = 1
     if len(mode.split(",")) == 3:
@@ -101,7 +108,9 @@ def safe_mixup_with_minifold_intrusion_detection(
         )
     else:
         assert mixup_flag == "RBF"
-        indices_b = sample_according_to_distance(distance_matrix, indices_a)
+        indices_b = sample_according_to_distance(
+            distance_matrix, indices_a, skip_self=skip_self
+        )
 
     ratio = np.random.beta(alpha_beta, alpha_beta, len(X))
     if alpha_beta == "Adaptive":
@@ -171,16 +180,18 @@ def safe_mixup_with_minifold_intrusion_detection(
                 increased_alpha_beta = increased_alpha_beta * 10
                 # print("Increase", increased_alpha_beta)
             indices_b[idx] = sample_according_to_distance(
-                distance_matrix, indices_a[idx : idx + 1]
+                distance_matrix, indices_a[idx : idx + 1], skip_self=skip_self
             )[
                 0
             ]  # Sample new b
             ratio[idx] = np.random.beta(increased_alpha_beta, alpha_beta)
+            if alpha_beta == "Adaptive":
+                ratio = compute_mixup_ratio(
+                    distance_matrix, indices_a[idx], indices_b[idx]
+                )
             ratio[idx] = np.where(
                 ratio[idx] < 1 - ratio[idx], 1 - ratio[idx], ratio[idx]
             )
-            if alpha_beta == "Adaptive":
-                ratio = compute_mixup_ratio(distance_matrix, indices_a[idx], indices_b[idx])
             y_i, y_j = y[indices_a[idx]], y[indices_b[idx]]
             data[idx], label[idx] = create_point(
                 X[indices_a[idx]],

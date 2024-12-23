@@ -738,6 +738,7 @@ class R2PACBayesian(Fitness):
         alpha_beta=None,
     ):
         allow_extrapolate_mixup = self.algorithm.pac_bayesian.allow_extrapolate_mixup
+        skip_self = self.algorithm.pac_bayesian.mixup_skip_self
         # MixUp for data augmentation
         algorithm = self.algorithm
         # Temporarily using perturbation_std as the MixUp parameter
@@ -793,10 +794,13 @@ class R2PACBayesian(Fitness):
                     gamma_value_in_kernel,
                     alpha_beta,
                     mode=mixup_mode,
+                    skip_self=skip_self,
                 )
             indices_a = np.arange(0, len(algorithm.X))
             # For the distance, the large the near, because it's Gaussian kernel
-            indices_b = sample_according_to_distance(kernel_matrix, indices_a)
+            indices_b = sample_according_to_distance(
+                kernel_matrix, indices_a, skip_self=skip_self
+            )
             if alpha_beta == "Adaptive":
                 ratio = compute_mixup_ratio(kernel_matrix, indices_a, indices_b)
             ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
