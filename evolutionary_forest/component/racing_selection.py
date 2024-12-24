@@ -38,7 +38,7 @@ class RacingFunctionSelector:
         priority_queue=False,
         # significant worse primitives
         remove_significant_worse=True,
-        remove_insignificant=True,
+        remove_insignificant=False,
         algorithm: "forest.EvolutionaryForestRegressor" = None,
         # graph technique
         central_node_detection=False,
@@ -548,8 +548,6 @@ class RacingFunctionSelector:
             except np.linalg.LinAlgError:
                 print("Error list", fitness_list)
             return fitness_list
-        else:
-            return fitness_list
 
     def eliminate_elements(
         self,
@@ -560,7 +558,8 @@ class RacingFunctionSelector:
     ):
         # Check primitives
         for element, fitness_list in primitive_fitness_lists.items():
-            fitness_list = self.ts_predict(fitness_list)
+            if self.ts_num_predictions != 0:
+                fitness_list = self.ts_predict(fitness_list)
             if self.priority_queue:
                 best_primitive_fitness_list = list(best_primitive_fitness_list)
                 fitness_list = list(fitness_list)
