@@ -44,7 +44,11 @@ from evolutionary_forest.component.crossover_mutation import (
     mutUniformSizeSafe,
 )
 from evolutionary_forest.component.post_processing.value_alignment import quick_fill
-from evolutionary_forest.component.racing.weighted_crossover import cxOnePointWeighted
+from evolutionary_forest.component.racing.weighted_crossover import (
+    cxOnePointWeighted,
+    cxOnePointWeightedRandom,
+    cxOnePointWeightedEPS,
+)
 from evolutionary_forest.component.stgp.strong_type_generation import mutUniformSTGP
 from evolutionary_forest.component.tree_utils import StringDecisionTreeClassifier
 from evolutionary_forest.utility.pseduo_random import PseudoRandom
@@ -438,6 +442,10 @@ def gene_crossover(tree1, tree2, configuration: CrossoverConfiguration, pset=Non
                 tree_b[slice(0, len(tree_b))] = [k] + tree_b[:] + tree_a[:]
         else:
             tree1, tree2 = cxOnePointWithRoot(tree1, tree2, configuration)
+    elif configuration.weighted_crossover == "WeightedRandom":
+        tree1, tree2 = cxOnePointWeightedRandom(tree1, tree2, configuration)
+    elif configuration.weighted_crossover == "WeightedEPS":
+        tree1, tree2 = cxOnePointWeightedEPS(tree1, tree2, configuration)
     elif configuration.weighted_crossover:
         tree1, tree2 = cxOnePointWeighted(tree1, tree2, configuration)
     elif configuration.root_crossover:
