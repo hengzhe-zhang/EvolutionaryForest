@@ -3674,8 +3674,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             two_stage_feature_selection(
                 self.pop, self.pset, self.feature_generation, self.X, self.y
             )
-            # re-initialize the population
-            self.pop = self.toolbox.population(n=self.n_pop)
+            if not self.crossover_configuration.weighted_crossover:
+                # re-initialize the population
+                self.pop = self.toolbox.population(n=self.n_pop)
 
         if isinstance(self.racing, RacingFunctionSelector):
             self.racing.mark_weights(self.pop)
