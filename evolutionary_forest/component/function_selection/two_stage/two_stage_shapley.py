@@ -40,8 +40,10 @@ def two_stage_feature_selection(
             else:
                 importance_dict[key] = value
 
-    top_10 = sorted(importance_dict, key=importance_dict.get, reverse=True)[:10]
-    remaining_features = set(importance_dict.keys()) - set(top_10)
+    # Determine the threshold k using log2 and round to the nearest integer
+    k = int(np.log2(X.shape[1]).round())
+    top_k = sorted(importance_dict, key=importance_dict.get, reverse=True)[:k]
+    remaining_features = set(importance_dict.keys()) - set(top_k)
     remove_functions(list(remaining_features), pset)
 
 

@@ -177,7 +177,11 @@ def safe_mixup_with_minifold_intrusion_detection(
             )
         ) and retries < max_retries:
             # Regenerate this particular data point
-            if retries > 0 and retries % 10 == 0:
+            if (
+                retries > 0
+                and retries % 10 == 0
+                and (not isinstance(increased_alpha_beta, str))
+            ):
                 increased_alpha_beta = increased_alpha_beta * 10
                 # print("Increase", increased_alpha_beta)
             indices_b[idx] = sample_according_to_distance(
@@ -186,7 +190,7 @@ def safe_mixup_with_minifold_intrusion_detection(
                 0
             ]  # Sample new b
             if alpha_beta == "Adaptive":
-                ratio = compute_mixup_ratio(
+                ratio[idx] = compute_mixup_ratio(
                     distance_matrix, indices_a[idx], indices_b[idx]
                 )
             else:
