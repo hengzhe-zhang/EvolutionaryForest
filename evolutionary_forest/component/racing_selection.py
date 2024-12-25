@@ -5,6 +5,7 @@ from typing import Set, Union
 
 import pandas as pd
 from deap import gp
+from deap.gp import PrimitiveSet
 from deap.tools import HallOfFame, selNSGA2
 from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
@@ -17,6 +18,34 @@ from evolutionary_forest.component.function_selection.two_stage.two_stage_shaple
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.priority_queue import MinPriorityQueue
+
+
+def mark_weights(pop, pset: PrimitiveSet):
+    for ind in pop:
+        for tree in ind.gene:
+            tree: gp.PrimitiveTree
+            weights = []
+            for idx in range(len(tree)):
+                sub_idx = tree.searchSubtree(idx)
+                weight = 0
+                for sub in range(sub_idx.start, sub_idx.stop):
+                    node = tree[sub]
+                    if (
+                        isinstance(node, gp.Primitive)
+                        and node in pset.primitives[object]
+                    ):
+                        weight += 1
+                    elif (
+                        isinstance(node, gp.Terminal) and node in pset.terminals[object]
+                    ):
+                        weight += 1
+                    elif isinstance(node, gp.Terminal) and isinstance(
+                        node.value, (int, float)
+                    ):
+                        # constant terminal
+                        weight += 1
+                weights.append(weight / (sub_idx.stop - sub_idx.start))
+            tree.subtree_weights = weights
 
 
 class RacingFunctionSelector:
@@ -229,34 +258,6 @@ class RacingFunctionSelector:
         # Ensure the list does not exceed the maximum size by removing the worst fitness value
         if len(self.best_individuals_fitness_list) > self.racing_list_size:
             self.best_individuals_fitness_list.pop(0)
-
-    def mark_weights(self, pop):
-        for ind in pop:
-            for tree in ind.gene:
-                tree: gp.PrimitiveTree
-                weights = []
-                for idx in range(len(tree)):
-                    sub_idx = tree.searchSubtree(idx)
-                    weight = 0
-                    for sub in range(sub_idx.start, sub_idx.stop):
-                        node = tree[sub]
-                        if (
-                            isinstance(node, gp.Primitive)
-                            and node in self.pset.primitives[object]
-                        ):
-                            weight += 1
-                        elif (
-                            isinstance(node, gp.Terminal)
-                            and node in self.pset.terminals[object]
-                        ):
-                            weight += 1
-                        elif isinstance(node, gp.Terminal) and isinstance(
-                            node.value, (int, float)
-                        ):
-                            # constant terminal
-                            weight += 1
-                    weights.append(weight / (sub_idx.stop - sub_idx.start))
-                tree.subtree_weights = weights
 
     def update(self, individuals: List[MultipleGeneGP]):
         """

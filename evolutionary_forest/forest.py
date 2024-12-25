@@ -188,7 +188,10 @@ from evolutionary_forest.component.primitive_controller import (
     get_differentiable_functions,
 )
 from evolutionary_forest.component.primitive_functions import *
-from evolutionary_forest.component.racing_selection import RacingFunctionSelector
+from evolutionary_forest.component.racing_selection import (
+    RacingFunctionSelector,
+    mark_weights,
+)
 from evolutionary_forest.component.random_constant import *
 from evolutionary_forest.component.selection import (
     batch_tournament_selection,
@@ -3678,8 +3681,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # re-initialize the population
                 self.pop = self.toolbox.population(n=self.n_pop)
 
-        if isinstance(self.racing, RacingFunctionSelector):
-            self.racing.mark_weights(self.pop)
+        if self.crossover_configuration.weighted_crossover:
+            mark_weights(self.pop, self.pset)
 
         if (
             self.crossover_configuration.llm_crossover > 0
