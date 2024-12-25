@@ -3680,6 +3680,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if not self.crossover_configuration.weighted_crossover:
                 # re-initialize the population
                 self.pop = self.toolbox.population(n=self.n_pop)
+                self.hof.clear()
 
         if self.crossover_configuration.weighted_crossover:
             mark_weights(self.pop, self.pset)
