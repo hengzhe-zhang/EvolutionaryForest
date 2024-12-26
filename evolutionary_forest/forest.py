@@ -3679,7 +3679,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
             if not self.crossover_configuration.weighted_crossover:
                 # re-initialize the population
-                self.pop = self.toolbox.population(n=self.n_pop)
+                self.pop[:] = self.toolbox.population(n=self.n_pop)
                 self.hof.clear()
                 self.elites_archive.clear()
 
@@ -4086,6 +4086,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         offspring.append(b)
             else:
                 offspring = None
+
+            if (
+                self.current_gen == (self.n_gen // 2) + 1
+                and (
+                    self.evaluation_configuration.two_stage_feature_selection
+                    is not None
+                )
+                and all([not hasattr(ind, "case_values") for ind in population])
+            ):
+                # Re-initialization
+                new_offspring = population
 
             # offspring generation
             while len(new_offspring) < individuals_to_generate:
