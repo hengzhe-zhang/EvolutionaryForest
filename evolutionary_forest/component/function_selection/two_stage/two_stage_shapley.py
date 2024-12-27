@@ -1,8 +1,10 @@
+import time
 from typing import Callable, List
-
+from collections import Counter
 import numpy as np
 import shap
-from deap.gp import PrimitiveSet
+from deap import gp
+from deap.gp import PrimitiveSet, Terminal
 from sklearn.inspection import permutation_importance
 
 from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
@@ -27,12 +29,32 @@ def remove_functions(elements_to_remove: List, pset: PrimitiveSet):
 
 
 def two_stage_feature_selection(
-    pop: List[MultipleGeneGP], pset: PrimitiveSet, feature_generation: Callable, X, y
+    pop: List[MultipleGeneGP],
+    pset: PrimitiveSet,
+    feature_generation: Callable,
+    X,
+    y,
+    mode,
 ):
     importance_dict = {f"ARG{i}": 0 for i in range(X.shape[1])}
 
     for ind in sorted(pop, key=lambda x: x.fitness.wvalues[0], reverse=True)[:30]:
-        importance = permutation_feature_importance(ind, feature_generation, X, y)
+        if mode == "Permutation":
+            start = time.time()
+            importance = permutation_feature_importance(ind, feature_generation, X, y)
+            end = time.time()
+            print(f"Permutation time: {end-start}")
+        elif mode == "Shapley":
+            start = time.time()
+            importance = shapley_feature_selection(
+                ind, feature_generation, X, y, nsamples=5
+            )
+            end = time.time()
+            print(f"Shapley time: {end-start}")
+        elif mode == "Frequency":
+            importance = frequency_feature_selection(ind, X)
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
         for i, value in enumerate(importance):
             key = f"ARG{i}"
             if key in importance_dict:
@@ -47,17 +69,69 @@ def two_stage_feature_selection(
     remove_functions(list(remaining_features), pset)
 
 
+def frequency_feature_selection(ind: MultipleGeneGP, X) -> np.ndarray:
+    # Dictionary to count occurrences of each terminal (feature)
+    importance = Counter()
+
+    # Iterate over each tree in the individual
+    for tree in ind.gene:
+        # Ensure the tree is a PrimitiveTree from DEAP
+        tree: gp.PrimitiveTree
+
+        # Iterate over nodes in the tree
+        for node in tree:
+            # Check if the node is a terminal (feature)
+            if isinstance(node, Terminal):
+                importance[node.name] += 1
+
+    frequencies = np.array([importance.get(f"ARG{i}", 0) for i in range(X.shape[1])])
+
+    return frequencies
+
+
 def shapley_feature_selection(
-    ind: MultipleGeneGP, feature_generation: Callable, X, y
+    ind: MultipleGeneGP, feature_generation: Callable, X, y, nsamples=10
 ) -> np.ndarray:
-    gp_model = GPWrapper(ind, feature_generation, None, None)
-    model = lambda data: gp_model.predict(data)
-    data = X
-    explainer = shap.SamplingExplainer(model=model, data=X)
+    # Dictionary to count occurrences of each terminal (feature)
+    importance = Counter()
+
+    # Iterate over each tree in the individual
+    for tree in ind.gene:
+        for node in tree:
+            # Check if the node is a terminal (feature)
+            if isinstance(node, Terminal):  # Ensure Terminal is defined
+                importance[node.name] += 1
+
+    # Initialize Shapley values array
+    default_shap = np.zeros(X.shape[1])
+
+    # Identify used features
+    used_features = [f for f in range(X.shape[1]) if f"ARG{f}" in importance]
+    X_used = X[:, used_features]
+
+    # Define the model as a function to maintain the feature positions
+    def model(data):
+        # Fill the data to match the original feature size, maintaining the positions
+        full_data = np.zeros((data.shape[0], X.shape[1]))
+        full_data[:, used_features] = data
+        gp_model = GPWrapper(ind, feature_generation, None, None)
+        return gp_model.predict(full_data)
+
+    # Background data for SHAP
+    background_data = np.mean(X_used, axis=0).reshape(1, -1)
+
+    # Initialize SHAP explainer
+    explainer = shap.SamplingExplainer(
+        model=model, data=background_data, nsamples=nsamples
+    )
 
     # Calculate Shapley values
-    shap_values = explainer.shap_values(data, silent=True)
-    average_abs_shap_values = np.mean(np.abs(shap_values), axis=0)
+    shap_values = explainer.shap_values(X_used[np.random.choice(X_used.shape[0], 10)])
+
+    # Compute average absolute Shapley values
+    average_abs_shap_values = np.zeros_like(default_shap)
+    average_abs_shap_values[used_features] = np.mean(np.abs(shap_values), axis=0)
+
     return average_abs_shap_values
 
 

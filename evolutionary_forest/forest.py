@@ -3675,7 +3675,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             and self.evaluation_configuration.two_stage_feature_selection is not None
         ):
             two_stage_feature_selection(
-                self.pop, self.pset, self.feature_generation, self.X, self.y
+                self.pop,
+                self.pset,
+                self.feature_generation,
+                self.X,
+                self.y,
+                mode=self.evaluation_configuration.two_stage_feature_selection,
             )
             if not self.crossover_configuration.weighted_crossover:
                 # re-initialize the population
