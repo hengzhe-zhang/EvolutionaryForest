@@ -11,6 +11,8 @@ def compute_mixup_ratio(
         raise ValueError("Kernel matrix values must be between 0 and 1.")
 
     if inverse:
+        # far away -> equal to 0.5
+        # close -> equal to 1
         ratio = 0.5 + 0.5 * kernel_matrix[indices_a, indices_b]
     else:
         ratio = 1 - 0.5 * kernel_matrix[indices_a, indices_b]
