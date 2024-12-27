@@ -801,8 +801,13 @@ class R2PACBayesian(Fitness):
             indices_b = sample_according_to_distance(
                 kernel_matrix, indices_a, skip_self=skip_self
             )
-            if alpha_beta == "Adaptive":
-                ratio = compute_mixup_ratio(kernel_matrix, indices_a, indices_b)
+            if alpha_beta in ["Adaptive", "InverseAdaptive"]:
+                ratio = compute_mixup_ratio(
+                    kernel_matrix,
+                    indices_a,
+                    indices_b,
+                    alpha_beta == "InverseAdaptive",
+                )
             ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
         elif mixup_strategy == "D-MixUp":
             """

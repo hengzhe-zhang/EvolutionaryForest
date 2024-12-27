@@ -112,8 +112,10 @@ def safe_mixup_with_minifold_intrusion_detection(
             distance_matrix, indices_a, skip_self=skip_self
         )
 
-    if alpha_beta == "Adaptive":
-        ratio = compute_mixup_ratio(distance_matrix, indices_a, indices_b)
+    if alpha_beta in ["Adaptive", "InverseAdaptive"]:
+        ratio = compute_mixup_ratio(
+            distance_matrix, indices_a, indices_b, alpha_beta == "InverseAdaptive"
+        )
     else:
         ratio = np.random.beta(alpha_beta, alpha_beta, len(X))
     ratio = np.where(ratio < 1 - ratio, 1 - ratio, ratio)
@@ -189,9 +191,12 @@ def safe_mixup_with_minifold_intrusion_detection(
             )[
                 0
             ]  # Sample new b
-            if alpha_beta == "Adaptive":
+            if alpha_beta in ["Adaptive", "InverseAdaptive"]:
                 ratio[idx] = compute_mixup_ratio(
-                    distance_matrix, indices_a[idx], indices_b[idx]
+                    distance_matrix,
+                    indices_a[idx],
+                    indices_b[idx],
+                    alpha_beta == "InverseAdaptive",
                 )
             else:
                 ratio[idx] = np.random.beta(increased_alpha_beta, alpha_beta)
