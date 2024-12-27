@@ -776,7 +776,7 @@ class R2PACBayesian(Fitness):
             kernel_space = algorithm.y.reshape(-1, 1)
             kernel_matrix = rbf_kernel(kernel_space, gamma=gamma_value_in_kernel)
 
-        if alpha_beta == "Adaptive":
+        if alpha_beta in ["Adaptive", "InverseAdaptive"]:
             ratio = None
         elif isinstance(alpha_beta, str) and alpha_beta.startswith("Fix"):
             ratio = float(alpha_beta.split("-")[1])
