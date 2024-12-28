@@ -1,6 +1,6 @@
-import time
-from typing import Callable, List
 from collections import Counter
+from typing import Callable, List
+
 import numpy as np
 import shap
 from deap import gp
@@ -40,17 +40,11 @@ def two_stage_feature_selection(
 
     for ind in sorted(pop, key=lambda x: x.fitness.wvalues[0], reverse=True)[:30]:
         if mode == "Permutation":
-            start = time.time()
             importance = permutation_feature_importance(ind, feature_generation, X, y)
-            end = time.time()
-            print(f"Permutation time: {end-start}")
         elif mode == "Shapley":
-            start = time.time()
             importance = shapley_feature_selection(
                 ind, feature_generation, X, y, nsamples=5
             )
-            end = time.time()
-            print(f"Shapley time: {end-start}")
         elif mode == "Frequency":
             importance = frequency_feature_selection(ind, X)
         else:
@@ -126,7 +120,9 @@ def shapley_feature_selection(
     )
 
     # Calculate Shapley values
-    shap_values = explainer.shap_values(X_used[np.random.choice(X_used.shape[0], 10)])
+    shap_values = explainer.shap_values(
+        X_used[np.random.choice(X_used.shape[0], 10)], silent=True
+    )
 
     # Compute average absolute Shapley values
     average_abs_shap_values = np.zeros_like(default_shap)
