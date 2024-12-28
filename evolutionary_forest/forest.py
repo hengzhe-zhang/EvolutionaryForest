@@ -191,6 +191,7 @@ from evolutionary_forest.component.primitive_functions import *
 from evolutionary_forest.component.racing_selection import (
     RacingFunctionSelector,
     mark_weights,
+    mark_weights_only_terminal,
 )
 from evolutionary_forest.component.random_constant import *
 from evolutionary_forest.component.selection import (
@@ -3689,7 +3690,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.elites_archive.clear()
 
         if self.crossover_configuration.weighted_crossover:
-            mark_weights(self.pop, self.pset)
+            if isinstance(self.racing,RacingFunctionSelector) and self.racing.remove_primitives:
+                mark_weights(self.pop, self.pset)
+            else:
+                mark_weights_only_terminal(self.pop, self.pset)
 
         if (
             self.crossover_configuration.llm_crossover > 0
