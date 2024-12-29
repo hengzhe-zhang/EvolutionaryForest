@@ -331,6 +331,7 @@ from evolutionary_forest.utility.feature_importance_util import (
 )
 from evolutionary_forest.utility.feature_selection import remove_constant_variables
 from evolutionary_forest.utility.larmark_constant import lamarck_constant
+from evolutionary_forest.utility.log_util import log_check
 from evolutionary_forest.utility.metric.distance_metric import get_diversity_matrix
 from evolutionary_forest.utility.metric.evaluation_metric import safe_r2_score
 from evolutionary_forest.utility.metric.moving_average import MovingAverage
@@ -344,6 +345,7 @@ from evolutionary_forest.utility.skew_transformer import (
     SkewnessCorrector,
     CubeSkewnessCorrector,
 )
+from evolutionary_forest.utility.statistics.feature_count import number_of_used_features
 from evolutionary_forest.utility.tree_pool import SemanticLibrary
 from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import *
@@ -936,6 +938,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.validation_based_ensemble_selection = validation_based_ensemble_selection
         self.semantic_lib_log = SemanticLibLog()
         self.data_augmentation = data_augmentation
+        self.best_individual_number_of_features = []
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -3671,6 +3674,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def callback(self):
         # self.plot_distance()
+        log_check(self)
+
         if (
             self.current_gen == self.n_gen // 2
             and self.evaluation_configuration.two_stage_feature_selection is not None
@@ -3690,7 +3695,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.elites_archive.clear()
 
         if self.crossover_configuration.weighted_crossover:
-            if isinstance(self.racing,RacingFunctionSelector) and self.racing.remove_primitives:
+            if (
+                isinstance(self.racing, RacingFunctionSelector)
+                and self.racing.remove_primitives
+            ):
                 mark_weights(self.pop, self.pset)
             else:
                 mark_weights_only_terminal(self.pop, self.pset)
@@ -3778,34 +3786,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # if self.current_gen > 0 and self.current_gen % 3 == 0:
             #     self.tree_pool.plot_top_frequencies()
             pop = self.pop
-            if self.log_item != "":
-                best_ind: MultipleGeneGP = sorted(
-                    pop, key=lambda x: x.fitness.wvalues[0]
-                )[-1]
-
-                if "LOOCV" in self.log_item:
-                    self.loocv_logs.append(best_ind.fitness.wvalues[0])
-
-                if "SharpnessRatio" in self.log_item:
-                    self.sharpness_ratio_logs.append(
-                        best_ind.fitness.values[1] / best_ind.sam_loss
-                    )
-
-                if "SAM" in self.log_item:
-                    self.sharpness_logs.append(best_ind.fitness.values[1])
-
-                if "Duel" in self.log_item:
-                    if not np.all(
-                        np.equal(best_ind.case_values, self.hof[0].case_values)
-                    ):
-                        p_value = wilcoxon(
-                            best_ind.case_values / self.hof[0].case_values,
-                            np.ones(len(best_ind.case_values)),
-                            alternative="less",
-                        )[1]
-                        self.duel_logs.append(p_value)
-                    else:
-                        self.duel_logs.append(0)
 
             dt = defaultdict(int)
             # parameters = np.zeros(2)
@@ -5786,14 +5766,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return np.mean(dis)
 
     def number_of_used_features(self):
-        possible_terminals = set([t.name for t in self.pset.terminals[object]])
-        used_terminals = set()
-        for h in self.hof:
-            for g in h.gene:
-                for x in g:
-                    if isinstance(x, Terminal) and x.name in possible_terminals:
-                        used_terminals.add(x.name)
-        return len(used_terminals)
+        population = self.hof
+        pset = self.pset
+        return number_of_used_features(population, pset)
 
     def number_of_non_zero_features(self):
         top_1 = self.hof[0]
