@@ -63,6 +63,7 @@ est = EvolutionaryForestRegressor(
     intelligent_decision=False,
     adaptive_knee_point_metric="Adaptive",
     mixup_mode="Adaptive-ET",
+    mixup_skip_self=True,
 )
 
 
