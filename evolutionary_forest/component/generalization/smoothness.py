@@ -42,7 +42,7 @@ def calculate_pearson_correlation(x, y):
 
 
 def smoothness(semantics: np.ndarray, x):
-    # normalize semantics
+    # normalize semantics, because of linear scaling
     semantics = semantics / np.linalg.norm(semantics)
 
     y = semantics
@@ -50,11 +50,6 @@ def smoothness(semantics: np.ndarray, x):
     for x_i in x.T:
         idx = np.argsort(x_i)
         smoothness = min(smoothness, np.mean(np.diff(y[idx]) ** 2))
-        # try:
-        #     pearson = abs(calculate_pearson_correlation(x_i, y))
-        # except ValueError:
-        #     pearson = np.inf
-        smoothness = min(smoothness, smoothness)
     return smoothness
 
 
