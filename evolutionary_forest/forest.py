@@ -3998,7 +3998,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         discarded_individuals = 0
 
         while number_of_evaluations < total_evaluations:
-            if (time.time() - starting_time) > self.time_limit:
+            if (
+                self.time_limit is not None
+                and (time.time() - starting_time) > self.time_limit
+            ):
                 # reach time limit
                 break
 
