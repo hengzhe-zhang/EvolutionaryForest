@@ -1,5 +1,6 @@
 import gc
 import inspect
+import time
 from multiprocessing import Pool
 from typing import Optional
 
@@ -536,6 +537,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         remove_constant_features=True,
         precision="Float64",
         data_augmentation=False,
+        time_limit=None,
         **params,
     ):
         """
@@ -939,6 +941,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.semantic_lib_log = SemanticLibLog()
         self.data_augmentation = data_augmentation
         self.best_individual_number_of_features = []
+        self.time_limit = time_limit
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -3918,6 +3921,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         :param verbose:
         :return:
         """
+        starting_time = time.time()
 
         target = self.y
         if self.verbose:
@@ -3994,6 +3998,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         discarded_individuals = 0
 
         while number_of_evaluations < total_evaluations:
+            if (time.time() - starting_time) > self.time_limit:
+                # reach time limit
+                break
+
             gen += 1
             self.current_gen = gen
             self.evaluation_configuration.current_generation = self.current_gen

@@ -49,7 +49,7 @@ def smoothness(semantics: np.ndarray, x):
     smoothness = np.inf
     for x_i in x.T:
         idx = np.argsort(x_i)
-        smoothness = min(smoothness, np.mean(np.diff(y[idx]) ** 2))
+        smoothness = min(smoothness, np.mean(np.abs(np.diff(np.diff(y[idx])))))
     return smoothness
 
 
