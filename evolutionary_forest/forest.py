@@ -4450,7 +4450,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             self.statistical_result_update(population, verbose)
             self.callback()
-        if self.early_stop > 0:
+        if self.early_stop > 0 or self.time_limit is not None:
             required_evaluations = (self.current_gen + 1) * self.n_pop
             assert number_of_evaluations == required_evaluations
         else:
