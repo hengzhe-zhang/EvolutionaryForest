@@ -263,7 +263,6 @@ class SemanticLibrary:
             else:
                 raise Exception("Invalid library implementation")
             assert len(self.trees) == len(self.normalized_semantics_list)
-        self.frequency.clear()
 
     def append_subtree(self, semantics: np.ndarray, tree: PrimitiveTree):
         semantics = self.index_semantics(semantics)
@@ -317,9 +316,10 @@ class SemanticLibrary:
                 # The difference between frequency and curiosity is that frequency is clean when full, but curiosity is not.
                 # The frequency is cleaned when appending trees to avoid the untraceable indices.
                 indexes = sorted(
-                    indexes, key=lambda x: (self.frequency.get(x, 0), x), reverse=True
+                    indexes,
+                    key=lambda index: (self.frequency[str(self.trees[index])], index),
+                    reverse=True,
                 )[: self.max_trees]
-                self.frequency.clear()
             elif self.library_updating_mode == "Curiosity":
                 indexes = sorted(
                     indexes, key=lambda x: self.curiosity[x], reverse=True

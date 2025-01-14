@@ -158,6 +158,11 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 # LLM-defined complexity
                 incumbent_size = llm_complexity(ind.gene[id], None)
                 complexity_function = llm_complexity
+            elif pool_addition_mode == "Smallest~Auto~Frequency":
+                complexity_function = lambda tree: algorithm.tree_pool.frequency[
+                    str(tree)
+                ]
+                incumbent_size = complexity_function(ind.gene[id])
             elif pool_addition_mode == "Smallest~Auto~Complexity":
                 semantics = ind.semantics[indexes, id]
                 complexity_function = lambda tree, semantics: smoothness(
@@ -239,7 +244,8 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             # replacement
             ind.gene[id] = copy.deepcopy(tree)
             current_semantics = trail_semantics
-            algorithm.tree_pool.frequency[proposed_index] += 1
+            if "Frequency" in pool_addition_mode:
+                algorithm.tree_pool.frequency[str(tree)] += 1
             algorithm.tree_pool.curiosity[proposed_index] += 1
             if (
                 dropout_mode
