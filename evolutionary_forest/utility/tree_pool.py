@@ -449,7 +449,12 @@ class SemanticLibrary:
         dist = dist[sorted_index]
 
         if curiosity_driven:
-            sorted_index = sorted(index, key=lambda x: self.curiosity[x])
+            sorted_index = [
+                idx
+                for idx, _ in sorted(
+                    enumerate(index), key=lambda x: (self.curiosity[x[1]], x[0])
+                )
+            ]
             index = index[sorted_index]
             dist = dist[sorted_index]
 

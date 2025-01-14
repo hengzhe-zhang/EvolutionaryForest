@@ -145,7 +145,11 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_distance = np.inf
             weight_vector = None
             complexity_function = None
-            if pool_addition_mode in ["Smallest~Auto", "Smallest~Auto~Degrade"]:
+            if pool_addition_mode in [
+                "Smallest~Auto",
+                "Smallest~Auto~Curiosity",
+                "Smallest~Auto~Degrade",
+            ]:
                 pass
             elif pool_addition_mode == "Smallest~Auto-Depth":
                 incumbent_depth = ind.gene[id].height
@@ -154,10 +158,10 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 # LLM-defined complexity
                 incumbent_size = llm_complexity(ind.gene[id], None)
                 complexity_function = llm_complexity
-            elif pool_addition_mode == "Smallest~Auto-Complexity":
+            elif pool_addition_mode == "Smallest~Auto~Complexity":
                 semantics = ind.semantics[indexes, id]
                 complexity_function = lambda tree, semantics: smoothness(
-                    semantics, algorithm.X[indexes]
+                    semantics, algorithm.y, algorithm.X[indexes]
                 )
                 incumbent_size = complexity_function(ind.gene[id], semantics)
             else:
