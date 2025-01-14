@@ -189,14 +189,6 @@ class SemanticLibrary:
         pass
         if self.verbose:
             pass
-            if len(self.frequency) == 0:
-                return
-            # frequency = np.array(list(self.frequency.values()))
-            # print(
-            #     "Max Curiosity: ",
-            #     # np.array(self.curiosity)[np.argsort(self.curiosity)[-10:]],
-            #     np.sum(frequency[np.argsort(frequency)[-10:]]),
-            # )
 
     def forbidden_check(self, tree):
         for node in tree:
@@ -322,6 +314,8 @@ class SemanticLibrary:
                 excess = len(self.trees) - self.max_trees
                 indexes = indexes[excess:]
             elif self.library_updating_mode == "LeastFrequentUsed":
+                # The difference between frequency and curiosity is that frequency is clean when full, but curiosity is not.
+                # The frequency is cleaned when appending trees to avoid the untraceable indices.
                 indexes = sorted(
                     indexes, key=lambda x: (self.frequency.get(x, 0), x), reverse=True
                 )[: self.max_trees]
@@ -393,14 +387,13 @@ class SemanticLibrary:
 
         self.plot_distance_function(dist)
         # if self.library_updating_mode == "LeastFrequentUsed":
-        self.frequency[index] += 1
         if return_semantics:
             return self.trees[index], self.normalized_semantics_list[index], index
         return self.trees[index]  # Return the corresponding tree
 
     def retrieve_smallest_nearest_tree(
         self,
-        semantics: np.ndarray,
+        desire_semantics: np.ndarray,
         return_semantics=False,
         top_k=10,
         incumbent_size=math.inf,
@@ -410,6 +403,7 @@ class SemanticLibrary:
         weight_vector=None,
         complexity_function=None,
         degrade=False,
+        curiosity_driven=False,
     ):
         if self.kd_tree is None:
             raise ValueError("KD-Tree is empty. Please add some trees first.")
@@ -418,33 +412,33 @@ class SemanticLibrary:
             # Empty KD-Tree
             return None
 
-        semantics = self.index_semantics(semantics)
+        desire_semantics = self.index_semantics(desire_semantics)
 
         # Normalize the query semantics
-        norm = np.linalg.norm(semantics)
+        norm = np.linalg.norm(desire_semantics)
         if norm > 0:
-            semantics = semantics / norm
+            desire_semantics = desire_semantics / norm
         else:
             return None
 
         # Query the KDTree for the nearest point
         if negative_search:
             # Reduce the query set to half
-            dist, index = self.kd_tree.query(semantics, k=top_k // 2)
-            dist_neg, index_neg = self.kd_tree.query(-semantics, k=top_k // 2)
+            dist, index = self.kd_tree.query(desire_semantics, k=top_k // 2)
+            dist_neg, index_neg = self.kd_tree.query(-desire_semantics, k=top_k // 2)
             index = np.concatenate([index, index_neg])
             # From short to long
             dist = np.concatenate([dist, dist_neg])
             sorted_index = np.argsort(dist)
         else:
-            dist, index = self.kd_tree.query(semantics, k=top_k)
+            dist, index = self.kd_tree.query(desire_semantics, k=top_k)
             sorted_index = np.argsort(dist)
 
         if weight_vector is not None:
             dist = np.array(
                 [
                     np.linalg.norm(
-                        (semantics - self.normalized_semantics_list[idx])
+                        (desire_semantics - self.normalized_semantics_list[idx])
                         * weight_vector
                     )
                     for idx in index
@@ -453,6 +447,12 @@ class SemanticLibrary:
 
         index = index[sorted_index]
         dist = dist[sorted_index]
+
+        if curiosity_driven:
+            sorted_index = sorted(index, key=lambda x: self.curiosity[x])
+            index = index[sorted_index]
+            dist = dist[sorted_index]
+
         # [len(self.trees[index[idx]]) for idx in range(len(index))]
         # for idx in index[sorted_index]:
         #     print(self.trees[idx], self.frequency[idx])
@@ -603,9 +603,6 @@ class SemanticLibrary:
         if smallest_index == -1:
             return None
 
-        # if self.library_updating_mode == "LeastFrequentUsed":
-        self.frequency[smallest_index] += 1
-
         if return_semantics:
             return (
                 self.trees[smallest_index],
@@ -665,8 +662,6 @@ class SemanticLibrary:
             if best_tree_index != unweighted_best_index:
                 self.mismatch_times.append(1)
         self.plot_distance_function(best_distance)
-        if self.library_updating_mode == "LeastFrequentUsed":
-            self.frequency[best_tree_index] += 1
         return self.trees[best_tree_index]  # Return the corresponding tree
 
     def plot_distance_function(self, best_distance):

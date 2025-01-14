@@ -169,6 +169,11 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             else:
                 degrade = False
 
+            curiosity_driven = False
+            if pool_addition_mode == "Smallest~Auto~Curiosity":
+                if algorithm.current_gen <= algorithm.n_gen // 2:
+                    curiosity_driven = True
+
             value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                 normalize_vector(residual),
                 return_semantics=True,
@@ -180,6 +185,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 weight_vector=weight_vector,
                 complexity_function=complexity_function,
                 degrade=degrade,
+                curiosity_driven=curiosity_driven,
             )
         else:
             value = algorithm.tree_pool.retrieve_nearest_tree(
