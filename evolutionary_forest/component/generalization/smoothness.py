@@ -50,7 +50,7 @@ def smoothness(semantics: np.ndarray, target, x):
     for x_i in x.T:
         idx = np.argsort(x_i)
         smoothness = min(
-            smoothness, np.mean((np.diff(semantics[idx]) - np.diff(target[idx])) ** 2)
+            smoothness, np.mean((np.diff(semantics[idx]) - np.diff(target[idx]) ** 2))
         )
     return smoothness
 
