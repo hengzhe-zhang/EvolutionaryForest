@@ -462,7 +462,7 @@ class SemanticLibrary:
         # for idx in index[sorted_index]:
         #     print(self.trees[idx], self.frequency[idx])
 
-        if incumbent_size == 0:
+        if incumbent_size == -1:
             smallest_index = np.argmin([len(self.trees[idx]) for idx in index])
             if len(self.trees[smallest_index]) > incumbent_size:
                 # If the smallest tree is larger than the incumbent size,
