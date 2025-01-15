@@ -10,6 +10,7 @@ class SemanticLibLog:
         self.semantic_lib_fail = 0
         self.best_individual_operator = []
         self.unique_trees_in_pop = []
+        self.unique_fitness_in_pop = []
         self.semantic_lib_usage = []
 
     def success_rate_update(self):
@@ -37,6 +38,13 @@ class SemanticLibLog:
             for tree in ind.gene:
                 unique_trees.add(str(tree))
         self.unique_trees_in_pop.append(len(unique_trees))
+
+    def unique_fitness_in_pop_update(self, pop):
+        unique_trees = set()
+        for ind in pop:
+            ind: MultipleGeneGP
+            unique_trees.add(ind.fitness.wvalues)
+        self.unique_fitness_in_pop.append(len(unique_trees))
 
     def semantic_lib_usage_update(self, lib: SemanticLibrary):
         used = [

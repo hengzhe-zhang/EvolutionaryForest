@@ -150,7 +150,6 @@ class SemanticLibrary:
         self.kd_tree: KDTree = None  # This will be a cKDTree instance
         self.trees = []  # List to store PrimitiveTree objects
         self.normalized_semantics_list = []  # List to store normalized semantics
-        self.curiosity = []
         # Set to store hashes of seen semantics for uniqueness
         self.seen_semantics = dict()
         self.seen_semantics_counter = 0
@@ -237,7 +236,6 @@ class SemanticLibrary:
 
                 self.seen_semantics[semantics_hash] = len(tree)
                 self.trees.append(tree)
-                self.curiosity.append(0)
                 # self.seen_trees.add(str(tree))
                 # self.plain_semantics_list.append(semantics)
                 self.normalized_semantics_list.append(
@@ -246,7 +244,6 @@ class SemanticLibrary:
                 if self.mutation_configuration.negative_data_augmentation:
                     self.trees.append(tree)
                     self.normalized_semantics_list.append(-1 * normalized_semantics)
-                    self.curiosity.append(0)
                     self.seen_semantics[tuple(-1 * normalized_semantics)] = len(tree)
 
         self.clean_when_full(normalized_target_semantics)
@@ -290,18 +287,15 @@ class SemanticLibrary:
         self.normalized_semantics_list.append(
             normalized_semantics
         )  # Store the normalized semantics
-        self.curiosity.append(0)
         if self.mutation_configuration.negative_data_augmentation:
             self.trees.append(tree)
             self.normalized_semantics_list.append(
                 (-1 * normalized_semantics)
             )  # Store the normalized semantics
-            self.curiosity.append(0)
             self.seen_semantics[tuple(-1 * normalized_semantics)] = len(tree)
 
     def clean_when_full(self, normalized_target_semantics):
         assert len(self.trees) == len(self.normalized_semantics_list)
-        assert len(self.trees) == len(self.curiosity)
         # Handle excess trees
         if len(self.trees) > self.max_trees:
             indexes = np.arange(len(self.trees))
@@ -321,10 +315,6 @@ class SemanticLibrary:
                     key=lambda index: (self.frequency[str(self.trees[index])], index),
                     reverse=True,
                 )[: self.max_trees]
-            elif self.library_updating_mode == "Curiosity":
-                indexes = sorted(
-                    indexes, key=lambda x: self.curiosity[x], reverse=True
-                )[: self.max_trees]
             else:
                 raise ValueError("Invalid updating mode")
             # Remove the oldest trees
@@ -332,7 +322,6 @@ class SemanticLibrary:
             self.normalized_semantics_list = [
                 self.normalized_semantics_list[idx] for idx in indexes
             ]
-            self.curiosity = [self.curiosity[idx] for idx in indexes]
             # self.plain_semantics_list = [
             #     self.plain_semantics_list[idx] for idx in indexes
             # ]
@@ -462,7 +451,8 @@ class SemanticLibrary:
             sorted_index = [
                 idx
                 for idx, _ in sorted(
-                    enumerate(index), key=lambda x: (self.curiosity[x[1]], x[0])
+                    enumerate(index),
+                    key=lambda x: (self.frequency[str(self.trees[x[1]])], x[0]),
                 )
             ]
             index = index[sorted_index]
@@ -898,7 +888,6 @@ class SemanticLibrary:
 
     def clear_all(self):
         self.frequency.clear()
-        self.curiosity.clear()
         self.trees.clear()
         self.normalized_semantics_list.clear()
         self.plain_semantics_list.clear()
