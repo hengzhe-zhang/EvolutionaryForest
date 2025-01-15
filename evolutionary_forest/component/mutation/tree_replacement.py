@@ -181,7 +181,6 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             curiosity_driven = False
             if pool_addition_mode == "Smallest~Auto~Curiosity":
                 curiosity_driven = True
-                incumbent_size = math.inf
 
             value = algorithm.tree_pool.retrieve_smallest_nearest_tree(
                 normalize_vector(residual),

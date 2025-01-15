@@ -299,10 +299,10 @@ class SemanticLibrary:
             self.seen_semantics[tuple(-1 * normalized_semantics)] = len(tree)
 
     def clean_when_full(self, normalized_target_semantics):
+        assert len(self.trees) == len(self.normalized_semantics_list)
+        assert len(self.trees) == len(self.curiosity)
         # Handle excess trees
         if len(self.trees) > self.max_trees:
-            assert len(self.trees) == len(self.normalized_semantics_list)
-            assert len(self.trees) == len(self.curiosity)
             indexes = np.arange(len(self.trees))
             if self.library_updating_mode == "MAP-Elites":
                 indexes = self.update_by_map_elites(
