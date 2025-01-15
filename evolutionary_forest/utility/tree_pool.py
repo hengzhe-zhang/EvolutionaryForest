@@ -8,6 +8,7 @@ import seaborn as sns
 import torch
 from deap.gp import PrimitiveTree, Terminal, MetaEphemeral
 from deap.tools import selBest
+from sklearn.preprocessing import normalize
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
 from scipy.stats import pearsonr, rankdata
@@ -341,7 +342,11 @@ class SemanticLibrary:
         normalized_semantics_list = (
             np.array(normalized_semantics_list) - target_semantics
         )
-        kmeans = CosineKMeans(n_clusters=self.max_trees)
+        normalized_semantics_list = normalize(
+            normalized_semantics_list, norm="l2", axis=1
+        )
+        # clustering based on cosine distance
+        kmeans = KMeans(n_clusters=self.max_trees)
         kmeans.fit(normalized_semantics_list)
         indexes = kmeans.predict(normalized_semantics_list)
 
