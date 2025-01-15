@@ -8,6 +8,7 @@ class SemanticLibLog:
         self.semantic_lib_success = 0
         self.semantic_lib_fail = 0
         self.best_individual_operator = []
+        self.unique_trees_in_pop = []
 
     def success_rate_update(self):
         sum = self.semantic_lib_success + self.semantic_lib_fail
@@ -26,3 +27,11 @@ class SemanticLibLog:
             self.best_individual_operator.append(1)
         else:
             self.best_individual_operator.append(0)
+
+    def unique_trees_in_pop_update(self, pop):
+        unique_trees = set()
+        for ind in pop:
+            ind: MultipleGeneGP
+            for tree in ind.gene:
+                unique_trees.add(str(tree))
+        self.unique_trees_in_pop.append(len(unique_trees))
