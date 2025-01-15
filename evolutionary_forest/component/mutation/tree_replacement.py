@@ -244,8 +244,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             # replacement
             ind.gene[id] = copy.deepcopy(tree)
             current_semantics = trail_semantics
-            if "Frequency" in pool_addition_mode:
-                algorithm.tree_pool.frequency[str(tree)] += 1
+            algorithm.tree_pool.frequency[str(tree)] += 1
             algorithm.tree_pool.curiosity[proposed_index] += 1
             if (
                 dropout_mode

@@ -1,4 +1,5 @@
 from evolutionary_forest.multigene_gp import MultipleGeneGP
+from evolutionary_forest.utility.tree_pool import SemanticLibrary
 
 
 class SemanticLibLog:
@@ -9,6 +10,7 @@ class SemanticLibLog:
         self.semantic_lib_fail = 0
         self.best_individual_operator = []
         self.unique_trees_in_pop = []
+        self.semantic_lib_usage = []
 
     def success_rate_update(self):
         sum = self.semantic_lib_success + self.semantic_lib_fail
@@ -35,3 +37,9 @@ class SemanticLibLog:
             for tree in ind.gene:
                 unique_trees.add(str(tree))
         self.unique_trees_in_pop.append(len(unique_trees))
+
+    def semantic_lib_usage_update(self, lib: SemanticLibrary):
+        used = [
+            k for k, v in lib.frequency.items() if v > 0
+        ]  # Count all keys with v > 0
+        self.semantic_lib_usage.append(len(used))

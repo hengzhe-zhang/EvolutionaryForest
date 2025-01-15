@@ -25,6 +25,7 @@ from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness,
 )
+from evolutionary_forest.model.cosine_kmeans import CosineKMeans
 from evolutionary_forest.utility.memory.instance_selection import (
     semantic_instance_selection,
     informed_down_sampling,
@@ -346,22 +347,31 @@ class SemanticLibrary:
         normalized_semantics_list: List[np.ndarray],
         target_semantics,
     ):
-        correlation_to_targets = [
-            pearsonr(sem, target_semantics)[0] for sem in normalized_semantics_list
-        ]
-        kpca = Pipeline(
-            [
-                ("Standardization", StandardScaler(with_mean=False)),
-                ("KPCA", KernelPCA(kernel="cosine", n_components=2)),
-            ]
-        )
+        from sklearn.metrics.pairwise import cosine_similarity
 
-        kpca_semantics = kpca.fit_transform(np.array(normalized_semantics_list))
-        map_elites_configuration = MAPElitesConfiguration(map_elites_bins=30)
-        idx = map_elites_selection(
-            kpca_semantics, correlation_to_targets, math.inf, map_elites_configuration
+        normalized_semantics_list = (
+            np.array(normalized_semantics_list) - target_semantics
         )
-        return idx
+        kmeans = CosineKMeans(n_clusters=self.max_trees)
+        kmeans.fit(normalized_semantics_list)
+        indexes = kmeans.predict(normalized_semantics_list)
+
+        return_indexes = []
+        for cluster_idx in range(self.max_trees):
+            cluster_members = np.where(indexes == cluster_idx)[0]
+            if len(cluster_members) == 1:
+                # Only one member, directly select it
+                return_indexes.append(cluster_members[0])
+            else:
+                # Compute cosine similarity with the target semantics
+                similarities = cosine_similarity(
+                    normalized_semantics_list[cluster_members],
+                    target_semantics.reshape(1, -1),
+                )
+                # Find the index with the maximum absolute similarity
+                best_member = cluster_members[np.argmax(np.abs(similarities))]
+                return_indexes.append(best_member)
+        return return_indexes
 
     def retrieve_nearest_tree(
         self, semantics: np.ndarray, return_semantics=False, negative_search=True

@@ -3734,6 +3734,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.semantic_lib_log.best_individual_update(self.hof)
             if "UniqueTreeInPop" in self.log_item:
                 self.semantic_lib_log.unique_trees_in_pop_update(self.pop)
+            if "SemanticLibUsage" in self.log_item:
+                self.semantic_lib_log.semantic_lib_usage_update(self.tree_pool)
 
             if interval > 0 and self.current_gen % interval == 0:
                 if (
