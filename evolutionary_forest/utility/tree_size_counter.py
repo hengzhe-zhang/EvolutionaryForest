@@ -8,6 +8,7 @@ def get_tree_size(gp: PrimitiveTree):
             node
             for node in gp
             if (
+                # SAM-GP, smooth parameter is not counted
                 not (
                     isinstance(node, Terminal)
                     and isinstance(node.value, TransformerMixin)

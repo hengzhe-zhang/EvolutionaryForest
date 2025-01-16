@@ -5143,6 +5143,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.check_alpha_dominance_nsga2():
             self.alpha_dominance.update_best(population)
 
+        if "AvgTreeSize" in self.log_item:
+            self.avg_tree_size_history.append(
+                np.mean(
+                    [np.mean([get_tree_size(g) for g in p.gene]) for p in population]
+                )
+            )
+
         if self.test_fun != None:
             self.training_with_validation_set()
             self.stacking_strategy.stacking_layer_generation(self.X, self.y)
@@ -5191,11 +5198,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.tree_genotypic_diversity.append(genotype_sum_entropy)
                 if "PhenotypicDiversity" in self.log_item:
                     self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
-            self.avg_tree_size_history.append(
-                np.mean(
-                    [np.mean([get_tree_size(g) for g in p.gene]) for p in population]
-                )
-            )
             if len(self.hof) > 0:
                 if "ArchiveAverageFitness" in self.log_item:
                     # average fitness of archive
