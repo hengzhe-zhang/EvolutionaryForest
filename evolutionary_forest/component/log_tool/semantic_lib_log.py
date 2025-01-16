@@ -12,6 +12,7 @@ class SemanticLibLog:
         self.unique_trees_in_pop = []
         self.unique_fitness_in_pop = []
         self.semantic_lib_usage = []
+        self.best_tree_size_history = []
 
     def success_rate_update(self):
         sum = self.semantic_lib_success + self.semantic_lib_fail
@@ -51,3 +52,14 @@ class SemanticLibLog:
             k for k, v in lib.frequency.items() if v > 0
         ]  # Count all keys with v > 0
         self.semantic_lib_usage.append(len(used))
+
+    def update_best_tree_size(self, hof):
+        assert (
+            len(hof) == 1
+        ), "Hall of Fame (hof) should contain exactly one individual."
+
+        # Calculate and return the size of the tree
+        best_tree = hof[0]
+        size = sum([len(tree) for tree in best_tree.gene])
+
+        self.best_tree_size_history.append(size)
