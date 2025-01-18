@@ -1,6 +1,7 @@
 import copy
 from typing import TYPE_CHECKING, Callable
-
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.model_selection import cross_val_score
 import numpy as np
 from scipy.stats import pearsonr
 from sklearn.metrics import *
@@ -18,6 +19,21 @@ from evolutionary_forest.component.generalization.pac_bayesian import (
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+
+def automatic_perturbation_std_calculation(X, y):
+    # Initialize the ExtraTreesRegressor
+    model = ExtraTreesRegressor(random_state=0)
+
+    # Perform cross-validation to calculate the score
+    scores = cross_val_score(model, X, y, cv=5, scoring="r2")  # Using R^2 score
+    mean_score = np.mean(scores)
+
+    # Return standard deviation based on the score
+    if mean_score < 0.1:
+        return 0.5
+    else:
+        return 0.1
 
 
 def automatic_perturbation_std(self: "EvolutionaryForestRegressor", population):

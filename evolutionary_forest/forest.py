@@ -166,8 +166,8 @@ from evolutionary_forest.component.generalization.pac_bayesian import (
     SharpnessType,
 )
 from evolutionary_forest.component.generalization.pac_bayesian_tool import (
-    automatic_perturbation_std,
     sharpness_based_dynamic_depth_limit,
+    automatic_perturbation_std_calculation,
 )
 from evolutionary_forest.component.generalization.wknn import R2WKNN
 from evolutionary_forest.component.generation import varAndPlus
@@ -3830,11 +3830,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     print(f"{scaler_type} count: {count}")
             # print(parameters)
 
-        if self.pac_bayesian.automatic_std and (
-            self.current_gen % 20 == 0 and self.current_gen != 0
-        ):
-            automatic_perturbation_std(self, self.pop)
-
     def plot_distance(self):
         if isinstance(self.hof[0].pipe["Ridge"], OptimalKNN):
             best_ind = self.hof[0]
@@ -3944,8 +3939,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # Evaluate all individuals
         evaluated_inds = self.population_evaluation(toolbox, population)
 
-        if self.pac_bayesian.automatic_std:
-            automatic_perturbation_std(self, population)
+        if self.pac_bayesian.perturbation_std == "Auto":
+            self.pac_bayesian.perturbation_std = automatic_perturbation_std_calculation(
+                self.X, self.y
+            )
 
         self.post_processing_after_evaluation(None, population)
 
