@@ -30,8 +30,10 @@ def automatic_perturbation_std_calculation(X, y):
     mean_score = np.mean(scores)
 
     # Return standard deviation based on the score
-    if mean_score < 0.1:
+    if mean_score < 0.5:
         return 0.5
+    elif mean_score < 0.8:
+        return 0.3
     else:
         return 0.1
 
