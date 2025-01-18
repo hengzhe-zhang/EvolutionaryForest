@@ -30,7 +30,6 @@ from sklearn.base import TransformerMixin, ClassifierMixin
 from sklearn.ensemble import (
     ExtraTreesRegressor,
     GradientBoostingRegressor,
-    RandomForestClassifier,
     RandomForestRegressor,
 )
 from sklearn.exceptions import NotFittedError
@@ -306,7 +305,7 @@ from evolutionary_forest.preprocess_utils import (
     StandardScalerWithMinMaxScalerAndBounds,
 )
 from evolutionary_forest.preprocessing.SigmoidTransformer import SigmoidTransformer
-from evolutionary_forest.probability_gp import genHalfAndHalf, genFull
+from evolutionary_forest.probability_gp import genFull
 from evolutionary_forest.strategies.adaptive_operator_selection import (
     MultiArmBandit,
     MCTS,
@@ -1244,14 +1243,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         information: EvaluationResults
         y_pred: np.ndarray
         if self.n_process > 1:
-            y_pred, estimators, information = (
-                yield pipe,
+            y_pred, estimators, information = yield (
+                pipe,
                 dill.dumps(genes, protocol=-1),
                 individual.individual_configuration,
             )
         else:
-            y_pred, estimators, information = (
-                yield pipe,
+            y_pred, estimators, information = yield (
+                pipe,
                 genes,
                 individual.individual_configuration,
             )
@@ -1263,7 +1262,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ) = train_test_split(Y, test_size=0.2, random_state=0)
         if len(y_pred.shape) == 2 and y_pred.shape[1] == 1:
             y_pred = y_pred.flatten()
-        if isinstance(self.score_func, Fitness) or not "CV" in self.score_func:
+        if isinstance(self.score_func, Fitness) or "CV" not in self.score_func:
             if self.evaluation_configuration.mini_batch:
                 assert len(y_pred) == self.evaluation_configuration.batch_size, (
                     len(y_pred),
@@ -1348,9 +1347,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             elif self.validation_ratio > 0:
                 pass
             else:
-                assert len(individual.case_values) == len(
-                    Y
-                ), f"{len(individual.case_values)},{len(Y)}"
+                assert len(individual.case_values) == len(Y), (
+                    f"{len(individual.case_values)},{len(Y)}"
+                )
 
         individual.hash_result = information.hash_result
         individual.semantics = information.semantic_results
@@ -1595,8 +1594,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.validation_ratio:
                 number = len(Y) - round(len(Y) * self.validation_ratio)
                 individual.case_values = (
-                    (y_pred - Y.flatten()).flatten()[:number]
-                ) ** 2
+                    ((y_pred - Y.flatten()).flatten()[:number]) ** 2
+                )
             else:
                 individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
 
@@ -2171,9 +2170,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         # mutation operators
         if "EDA" in self.mutation_scheme:
-            assert (
-                self.mutation_scheme in eda_operators
-            ), "EDA-based mutation operator must be listed!"
+            assert self.mutation_scheme in eda_operators, (
+                "EDA-based mutation operator must be listed!"
+            )
         if "LBM" in self.mutation_scheme:
             initialize_crossover_operator(self, toolbox)
             self.mutation_scheme = BuildingBlockLearning(pset)
@@ -2727,9 +2726,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     base_pset.arguments = []
                 if self.mgp_scope is not None:
                     if self.layer_mgp:
-                        assert (
-                            self.gene_num % self.mgp_scope == 0
-                        ), "Number of genes must be a multiple of scope!"
+                        assert self.gene_num % self.mgp_scope == 0, (
+                            "Number of genes must be a multiple of scope!"
+                        )
                         # Calculate the start and end boundaries for this gene based on the MGP scope and layer setting
                         start_base = max(
                             base_count + ((x // self.mgp_scope) - 1) * self.mgp_scope,
@@ -3048,9 +3047,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # in multi-objective case
             # don't need to save hof
             self.hof = ValidationHallOfFame(self.get_validation_score)
-            assert (
-                self.environmental_selection is not None
-            ), "Need to specify Environmental Selection!"
+            assert self.environmental_selection is not None, (
+                "Need to specify Environmental Selection!"
+            )
         elif self.validation_size > 0 and self.early_stop > 0:
             self.hof = EarlyStoppingHallOfFame(self.get_validation_score)
         elif self.ensemble_selection == None or self.ensemble_selection in [
@@ -3103,9 +3102,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 for i, is_categorical in enumerate(categorical_features)
                 if is_categorical
             ]
-            assert (
-                len(categorical_features) == X.shape[1]
-            ), f"Mismatch between categorical indices and number of features, {len(categorical_features)} vs {X.shape[1]}"
+            assert len(categorical_features) == X.shape[1], (
+                f"Mismatch between categorical indices and number of features, {len(categorical_features)} vs {X.shape[1]}"
+            )
             if self.categorical_encoding == "Target":
                 self.categorical_encoder = TargetEncoder(cols=categorical_indices)
             elif self.categorical_encoding == "OneHot":
@@ -3536,8 +3535,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         else:
             if return_std:
-                final_prediction = np.mean(predictions, axis=0), np.std(
-                    predictions, axis=0
+                final_prediction = (
+                    np.mean(predictions, axis=0),
+                    np.std(predictions, axis=0),
                 )
             else:
                 final_prediction = self.make_ensemble_prediction(predictions)
@@ -3875,8 +3875,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def validation_set_generation(self):
         if self.archive_configuration.dynamic_validation:
-            X, y = np.concatenate([self.X, self.valid_x], axis=0), np.concatenate(
-                [self.y, self.valid_y], axis=0
+            X, y = (
+                np.concatenate([self.X, self.valid_x], axis=0),
+                np.concatenate([self.y, self.valid_y], axis=0),
             )
             self.X, self.valid_x, self.y, self.valid_y = train_test_split(
                 X, y, test_size=self.validation_size
@@ -4228,7 +4229,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         # checking redundant individuals
                         if (
                             self.allow_revisit
-                            or (not individual_to_tuple(o) in self.evaluated_pop)
+                            or (individual_to_tuple(o) not in self.evaluated_pop)
                             # for single-tree, may have many chances to repeat,
                             # so less restrictive
                             or (self.gene_num == 1 and count > pop_size * 10)
@@ -4765,9 +4766,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 _, selected_indices_p1, selected_indices_p2 = stagexo(
                     offspring[0].semantics, offspring[1].semantics, self.y
                 )
-                offspring[0].gene = [
-                    offspring[0].gene[idx] for idx in selected_indices_p1
-                ], [offspring[1].gene[idx] for idx in selected_indices_p2]
+                offspring[0].gene = (
+                    [offspring[0].gene[idx] for idx in selected_indices_p1],
+                    [offspring[1].gene[idx] for idx in selected_indices_p2],
+                )
                 available_parent = [offspring[0]]
             else:
                 raise Exception(
