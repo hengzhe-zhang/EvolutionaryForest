@@ -1,6 +1,5 @@
 from copy import deepcopy
 import torch
-import os
 import numpy as np
 import delu
 from tab_ddpm import GaussianMultinomialDiffusion

@@ -67,7 +67,7 @@ class TournamentLexicase(Selection):
         self,
         algorithm: "EvolutionaryForestRegressor",
         tournament_warmup_round=10,
-        **kwargs
+        **kwargs,
     ):
         self.algorithm = algorithm
         self.tournament_warmup_round = tournament_warmup_round

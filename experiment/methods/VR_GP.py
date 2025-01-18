@@ -1,10 +1,5 @@
-from sklearn import clone
-from sklearn.preprocessing import StandardScaler
-import numpy as np
-from sklearn.datasets import load_diabetes
-from sklearn.preprocessing import StandardScaler
 from sympy import preorder_traversal
-from sympy import symbols, lambdify, parse_expr
+from sympy import parse_expr
 
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 

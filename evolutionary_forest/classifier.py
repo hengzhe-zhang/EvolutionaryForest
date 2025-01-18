@@ -40,7 +40,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         score_func="ZeroOne",
         # Balanced Classification
         class_weight="Balanced",
-        **params
+        **params,
     ):
         super().__init__(score_func=score_func, **params)
         # Define a function that simply passes the input data through unchanged.

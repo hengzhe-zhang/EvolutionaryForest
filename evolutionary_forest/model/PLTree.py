@@ -122,7 +122,7 @@ class RandomWeightRidge(Ridge):
         solver="auto",
         positive=False,
         random_state=None,
-        initial_weight=None
+        initial_weight=None,
     ):
         super().__init__(
             alpha,
@@ -177,9 +177,8 @@ class RPLBaseModel(BaseEstimator):
         self.dt: List[Union[DecisionTreeRegressor, DecisionTreeClassifier]] = [
             self.base_model(max_leaf_nodes=max_leaf_nodes, min_samples_leaf=10)
             if self.regression
-            else
             # For classification cases
-            MultiOutputRegressor(
+            else MultiOutputRegressor(
                 self.base_model(max_leaf_nodes=max_leaf_nodes, min_samples_leaf=10)
             )
             for _ in range(self.decision_tree_count)
@@ -338,7 +337,7 @@ class SoftPLTreeRegressor(RegressorMixin, PLTree):
         only_original_features=True,
         partition_model="DecisionTree",
         partition_number=1,
-        **kwargs
+        **kwargs,
     ):
         """
         :param feature_num: Number of all features

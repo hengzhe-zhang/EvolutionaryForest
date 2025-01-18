@@ -233,8 +233,9 @@ def select_top_features(code_importance_dict, ratio=None):
 def plot_feature_importance(feature_importance_dict, save_fig=False):
     import textwrap
 
-    names, importance = list(feature_importance_dict.keys()), list(
-        feature_importance_dict.values()
+    names, importance = (
+        list(feature_importance_dict.keys()),
+        list(feature_importance_dict.values()),
     )
     # Create arrays from feature importance and feature names
     feature_importance = np.array(importance)

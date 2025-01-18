@@ -1,5 +1,4 @@
 import numpy as np
-import os
 import ddpm_lib
 from tab_ddpm.modules import MLPDiffusion, ResNetDiffusion
 
@@ -97,7 +96,7 @@ def make_dataset(
         {"train": y},
         y_info={},
         task_type=ddpm_lib.TaskType("regression"),
-        n_classes=0
+        n_classes=0,
         # task_type=ddpm_lib.TaskType(info["task_type"]),
         # n_classes=info.get("n_classes"),
     )

@@ -1,5 +1,3 @@
-import math
-
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 
 

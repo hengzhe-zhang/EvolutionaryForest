@@ -1,11 +1,4 @@
-from sklearn.preprocessing import OneHotEncoder
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import random
-import math
-import os
-import seaborn as sns
 
 
 def calculate_cross_entropy(target_labels: np.ndarray, y_pred: np.ndarray):

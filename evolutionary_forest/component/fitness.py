@@ -128,7 +128,7 @@ class RademacherComplexityR2(Fitness):
         self,
         algorithm: "EvolutionaryForestRegressor",
         rademacher_mode="Analytical",
-        **params
+        **params,
     ):
         super().__init__()
         self.rademacher_configuration = RademacherConfiguration(**params)
@@ -660,7 +660,7 @@ class R2PACBayesian(Fitness):
         sharpness_distribution="Normal",
         sharpness_loss_weight=0.5,
         mixup_bandwidth=1,
-        **params
+        **params,
     ):
         super().__init__()
         self.sharpness_distribution = sharpness_distribution
@@ -939,12 +939,17 @@ class R2PACBayesian(Fitness):
             data_generator = self.GAN
         else:
             raise Exception
-        feature_generator = lambda data, random_noise=0, random_seed=0, noise_configuration=None: algorithm.feature_generation(
-            data,
-            individual,
-            random_noise=random_noise,
-            random_seed=random_seed,
-            noise_configuration=noise_configuration,
+        feature_generator = (
+            lambda data,
+            random_noise=0,
+            random_seed=0,
+            noise_configuration=None: algorithm.feature_generation(
+                data,
+                individual,
+                random_noise=random_noise,
+                random_seed=random_seed,
+                noise_configuration=noise_configuration,
+            )
         )
 
         sharpness_vector = []

@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score

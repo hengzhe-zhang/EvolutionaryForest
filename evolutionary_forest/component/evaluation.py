@@ -619,9 +619,9 @@ def split_and_combine_data_decorator(
                     if isinstance(result, torch.Tensor):
                         result = result.detach().numpy()
                     results.append(result)
-                    assert isinstance(
-                        result, (np.ndarray, torch.Tensor)
-                    ), f"{result}, {type(result)}"
+                    assert isinstance(result, (np.ndarray, torch.Tensor)), (
+                        f"{result}, {type(result)}"
+                    )
 
                 # Combine the results from all slices
                 combined_results = np.concatenate(results)
@@ -860,8 +860,7 @@ def single_tree_evaluation(
                         if (
                             (
                                 # not add noise to the root node
-                                len(stack) == 0
-                                and noise_configuration.skip_root
+                                len(stack) == 0 and noise_configuration.skip_root
                             )
                             or noise_configuration.only_terminal
                             or prim.ret == FeatureLayer

@@ -4,7 +4,7 @@ from sklearn.cluster import KMeans
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from evolutionary_forest.forest import EvolutionaryForestRegressor
+    pass
 
 
 class Strategy:

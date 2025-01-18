@@ -6,7 +6,7 @@ class MultiFidelityEvaluation:
         interleaving_period,
         verbose,
         sr_tree_ratio=0,
-        **kwargs
+        **kwargs,
     ):
         self.base_learner: str = base_learner
         self.n_gen: int = n_gen

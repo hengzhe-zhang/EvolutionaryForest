@@ -1,4 +1,3 @@
-import numpy
 from scipy import stats
 from sklearn.base import RegressorMixin, BaseEstimator, ClassifierMixin
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier

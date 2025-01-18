@@ -385,7 +385,7 @@ def finish(output_dir: Path, report: dict) -> None:
 
     output_dir.joinpath("DONE").touch()
     backup_output(output_dir)
-    print(f'Done! | {report.get("time")} | {output_dir}')
+    print(f"Done! | {report.get('time')} | {output_dir}")
     _print_sep("=")
     print()
 

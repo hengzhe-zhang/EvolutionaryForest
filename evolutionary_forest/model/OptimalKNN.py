@@ -188,7 +188,7 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
         alpha=1.0,
         mode="full",
         random_seed=0,
-        **params
+        **params,
     ):
         """
         mode: str, either "full" or "split"
@@ -204,7 +204,7 @@ class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
             n_neighbors=n_neighbors,
             distance=distance,
             random_seed=random_seed,
-            **params
+            **params,
         )
         self.ridge = Ridge(alpha=self.alpha)
         self.random_state = np.random.RandomState(self.random_seed)
@@ -284,7 +284,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         base_learner=None,
         informed_optimal_knn_sampling=False,
         random_knn_subsampling=False,
-        **params
+        **params,
     ):
         self.n_neighbors = n_neighbors
         self.distance = distance

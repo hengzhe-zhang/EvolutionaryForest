@@ -33,7 +33,7 @@ class NoiseConfiguration(Configuration):
         stochastic_mode=False,
         strict_layer_mode=False,
         shuffle_scale=0.2,
-        **params
+        **params,
     ):
         """
         Args:
@@ -65,7 +65,7 @@ class MABConfiguration(Configuration):
         comparison_criterion="Case",
         aos_capping_threshold=100,
         bandit_clip_lower_bound=1e-2,
-        **kwargs
+        **kwargs,
     ) -> None:
         self.aos_mode = aos_mode
         # Decay or Threshold Mode
@@ -150,7 +150,7 @@ class CrossoverConfiguration(Configuration):
         weighted_crossover=False,
         llm_crossover=False,
         llm_pattern_extraction=False,
-        **params
+        **params,
     ):
         # max height after crossover
         self.max_height = max_height
@@ -256,7 +256,7 @@ class MutationConfiguration(Configuration):
         neural_pool_mlp_layers=3,
         selective_retrain=True,
         retrieval_augmented_generation=True,
-        **params
+        **params,
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
         self.library_clustering_mode = library_clustering_mode
@@ -334,7 +334,7 @@ class ImbalancedConfiguration(Configuration):
         balanced_fitness=False,
         weight_on_x_space=True,
         based_on_test=False,
-        **params
+        **params,
     ):
         self.balanced_evaluation = balanced_evaluation
         self.balanced_final_training = balanced_final_training
@@ -369,7 +369,7 @@ class EvaluationConfiguration(Configuration):
         sample_weight=None,
         minor_sample_weight=0.1,
         two_stage_feature_selection=None,
-        **params
+        **params,
     ):
         # prediction results of the neural network
         self.feature_smoothing = feature_smoothing
@@ -440,7 +440,7 @@ class BloatControlConfiguration(Configuration):
         hoist_before_selection=True,
         lexicase_round=2,
         size_selection="Roulette",
-        **params
+        **params,
     ):
         self.hoist_before_selection = hoist_before_selection
         self.lexicase_round = lexicase_round
@@ -464,7 +464,7 @@ class DepthLimitConfiguration(Configuration):
         self,
         max_height: Union[str, int] = 10,  # Maximum height of a GP tree
         min_height: int = 0,  # Minimum height of a GP tree
-        **params
+        **params,
     ):
         if isinstance(max_height, str):
             max_height = int(max_height.split("-")[1])

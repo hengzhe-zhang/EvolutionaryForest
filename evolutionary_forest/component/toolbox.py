@@ -1,9 +1,9 @@
-from typing import Union, Callable, List
+from typing import Union, Callable
 
 from deap.base import Toolbox
 from deap.gp import PrimitiveSet
 
-from evolutionary_forest.multigene_gp import MultiplePrimitiveSet, MultipleGeneGP
+from evolutionary_forest.multigene_gp import MultiplePrimitiveSet
 
 
 class TypedToolbox(Toolbox):

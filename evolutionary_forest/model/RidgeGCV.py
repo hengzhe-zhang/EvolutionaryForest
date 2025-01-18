@@ -12,7 +12,7 @@ class RidgeGCV(_RidgeGCV):
         reset=True,
         validate_separately=False,
         cast_to_ndarray=True,
-        **check_params
+        **check_params,
     ):
         check_params["dtype"] = [np.float32, np.float64]
         return super()._validate_data(
@@ -66,12 +66,12 @@ def compare_ridge_gcv_with_ridgecv():
     print("Mean Squared Error (sklearn RidgeCV):", mse_sklearn)
 
     # Check consistency between the two implementations
-    assert np.allclose(
-        y_pred_custom, y_pred_sklearn
-    ), "Predictions differ between custom RidgeGCV and sklearn RidgeCV."
-    assert np.allclose(
-        mse_custom, mse_sklearn
-    ), "MSE differs between custom RidgeGCV and sklearn RidgeCV."
+    assert np.allclose(y_pred_custom, y_pred_sklearn), (
+        "Predictions differ between custom RidgeGCV and sklearn RidgeCV."
+    )
+    assert np.allclose(mse_custom, mse_sklearn), (
+        "MSE differs between custom RidgeGCV and sklearn RidgeCV."
+    )
     print("Results are consistent between custom RidgeGCV and sklearn RidgeCV.")
 
 

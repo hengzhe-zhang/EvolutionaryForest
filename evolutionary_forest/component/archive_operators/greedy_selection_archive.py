@@ -60,9 +60,9 @@ class GreedyHallOfFame(HallOfFame):
     def residual_correct_check(self, individuals, target, reference_residual):
         prediction = np.mean([ind.predicted_values for ind in individuals], axis=0)
         residual = np.mean((target - prediction) ** 2)
-        assert np.allclose(
-            residual, reference_residual
-        ), f"Residuals do not match: {residual} != {reference_residual}"
+        assert np.allclose(residual, reference_residual), (
+            f"Residuals do not match: {residual} != {reference_residual}"
+        )
 
     def calculate_residual(
         self, individual, current_prediction, number_of_current_items

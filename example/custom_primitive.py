@@ -3,6 +3,7 @@ This demo is used to illustrate two cases:
 1. How to add custom defined functions to Evolutionary Forest?
 1. How to add an online-learning support to Evolutionary Forest?
 """
+
 from itertools import chain
 
 import numpy as np
@@ -16,7 +17,6 @@ from evolutionary_forest.component.primitive_functions import individual_to_tupl
 
 
 class EvolutionaryForestRegressor(forest.EvolutionaryForestRegressor):
-
     def lazy_init(self, x):
         super().lazy_init(x)
         # add "sin" and "cos" to the primitive set
@@ -24,11 +24,19 @@ class EvolutionaryForestRegressor(forest.EvolutionaryForestRegressor):
         self.pset.addPrimitive(np.cos, 1)
 
     def partial_fit(self, X, y, generation=5, distribution_drift=False):
-        assert len(self.pop) > 0, "The partial fit function must be called after invoking the fit function!"
+        assert len(self.pop) > 0, (
+            "The partial fit function must be called after invoking the fit function!"
+        )
         if distribution_drift:
             # remove syntax equivalent individual
-            unique_pop = {individual_to_tuple(p): p for p in (self.pop + list(self.hof))}.values()
-            self.pop = list(sorted(unique_pop, key=lambda x: x.fitness.wvalues, reverse=True)[:self.n_pop])
+            unique_pop = {
+                individual_to_tuple(p): p for p in (self.pop + list(self.hof))
+            }.values()
+            self.pop = list(
+                sorted(unique_pop, key=lambda x: x.fitness.wvalues, reverse=True)[
+                    : self.n_pop
+                ]
+            )
             # history fitness is invalid
             self.hof.clear()
             for p in self.pop:
@@ -52,9 +60,18 @@ class EvolutionaryForestRegressor(forest.EvolutionaryForestRegressor):
 
 X, y = make_friedman1()
 x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
-r = EvolutionaryForestRegressor(max_height=3, normalize=True, select='AutomaticLexicase',
-                                gene_num=10, boost_size=100, n_gen=3, n_pop=200, cross_pb=1,
-                                base_learner='Random-DT', verbose=True)
+r = EvolutionaryForestRegressor(
+    max_height=3,
+    normalize=True,
+    select="AutomaticLexicase",
+    gene_num=10,
+    boost_size=100,
+    n_gen=3,
+    n_pop=200,
+    cross_pb=1,
+    base_learner="Random-DT",
+    verbose=True,
+)
 r.fit(x_train, y_train)
 print(r2_score(y_test, r.predict(x_test)))
 for generation in range(10):

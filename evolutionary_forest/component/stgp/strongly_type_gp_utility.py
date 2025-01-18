@@ -1,6 +1,6 @@
 import math
 from functools import partial
-from typing import List, Callable
+from typing import List
 
 import numpy as np  # noqa
 from deap import gp
@@ -32,7 +32,6 @@ from evolutionary_forest.component.primitive_functions import (
     analytical_log_signed,
     protected_division,
     protect_sqrt,
-    protect_log,
     abs_log,
 )
 from evolutionary_forest.component.stgp.categorical_processor import *

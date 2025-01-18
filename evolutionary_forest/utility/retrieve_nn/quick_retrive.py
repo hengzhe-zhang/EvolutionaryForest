@@ -29,9 +29,9 @@ def retrieve_nearest_y_skip_self(train_tensors, query_tensors, train_targets, k=
 
     # Retrieve the corresponding `y` values from the targets and concatenate them
     max_index = np.max(nearest_indices)
-    assert max_index < len(
-        train_targets
-    ), f"Index {max_index} out of bounds {len(train_targets)}"
+    assert max_index < len(train_targets), (
+        f"Index {max_index} out of bounds {len(train_targets)}"
+    )
 
     nearest_y = [
         np.concatenate([train_targets[idx] for idx in neighbors])
@@ -69,9 +69,9 @@ def retrieve_nearest_y(
         nearest_indices = nearest_indices[:, np.newaxis]
 
     max_index = np.max(nearest_indices)
-    assert max_index < len(
-        train_targets
-    ), f"Index {max_index} out of bounds {len(train_targets)}"
+    assert max_index < len(train_targets), (
+        f"Index {max_index} out of bounds {len(train_targets)}"
+    )
 
     # Retrieve the corresponding `y` values from the targets and concatenate them
     nearest_y = [

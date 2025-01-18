@@ -1,17 +1,17 @@
 language: python
 python:
-- 3.8
-- 3.7
-- 3.6
+    - 3.8
+    - 3.7
+    - 3.6
 install: pip install -U tox-travis
 script: tox
 deploy:
-  provider: pypi
-  distributions: sdist bdist_wheel
-  user: zhenlingcn
-  password:
-    secure: fPr1SerRoXEPOCj81K2Ks8HuAORUfsY4FkJ2+Pte5kTZUqZiRQijVytgGo6n8XBOrhCHztVsjSIoLE3dnk9z5dwDcRlrpmzy7O9GWiJiPgRfWyDrBhdWWJPDxrMp91gmJXjo731GnVe2H7WXSDMi/1IIUXjc2VOX4b2VOHrLmsNLZbtW/6pqbN8eNOyuUYR3vjn4TJCUCd9RmvnS0XW8IXfEH+fnYB/DVV40NtqcDkswnZFupd21cao81+nZZJmfdeVVfK5q0z0YYUTpodN3lwPAF7PSY9KsfyWpUUAtD6t46C7DyygOL1BixJdd3V3kptYYwq0XNWVjTgr4ww4pW0gX/bJ7XbfN2yhhs5EbSj8ic4qQ2BpxDnE+0tq+as85UK2JTy7coo4yeuKMC8hZsjNQUPo/D05w+ZRNIYGtlutBXynmR8fxi4qFMWjrvl1uJAJG1ObYNo0XeDXywLkBJqHW0taZfjMCeAaCYDFmAbGcg0ysLm0HkfZ+X8FgbhQUyITju60aekNPycIKuPwjsi5VBiUZERllGDXXWY7BsSg8QBfkhhcty+UmSBx3V+te2EgtgWXmdg1k7dVukDcDOJ90Nt+AggoRzQrUCFi9SA+bzwQiE/rQR2S/dW1yTjZuookfrQ0u8dYZhyPB6crUG0Auiv1fZw0afuOor8og1vE=
-  on:
-    tags: true
-    repo: zhenlingcn/EvolutionaryForest
-    python: 3.8
+    provider: pypi
+    distributions: sdist bdist_wheel
+    user: zhenlingcn
+    password:
+        secure: fPr1SerRoXEPOCj81K2Ks8HuAORUfsY4FkJ2+Pte5kTZUqZiRQijVytgGo6n8XBOrhCHztVsjSIoLE3dnk9z5dwDcRlrpmzy7O9GWiJiPgRfWyDrBhdWWJPDxrMp91gmJXjo731GnVe2H7WXSDMi/1IIUXjc2VOX4b2VOHrLmsNLZbtW/6pqbN8eNOyuUYR3vjn4TJCUCd9RmvnS0XW8IXfEH+fnYB/DVV40NtqcDkswnZFupd21cao81+nZZJmfdeVVfK5q0z0YYUTpodN3lwPAF7PSY9KsfyWpUUAtD6t46C7DyygOL1BixJdd3V3kptYYwq0XNWVjTgr4ww4pW0gX/bJ7XbfN2yhhs5EbSj8ic4qQ2BpxDnE+0tq+as85UK2JTy7coo4yeuKMC8hZsjNQUPo/D05w+ZRNIYGtlutBXynmR8fxi4qFMWjrvl1uJAJG1ObYNo0XeDXywLkBJqHW0taZfjMCeAaCYDFmAbGcg0ysLm0HkfZ+X8FgbhQUyITju60aekNPycIKuPwjsi5VBiUZERllGDXXWY7BsSg8QBfkhhcty+UmSBx3V+te2EgtgWXmdg1k7dVukDcDOJ90Nt+AggoRzQrUCFi9SA+bzwQiE/rQR2S/dW1yTjZuookfrQ0u8dYZhyPB6crUG0Auiv1fZw0afuOor8og1vE=
+    on:
+        tags: true
+        repo: zhenlingcn/EvolutionaryForest
+        python: 3.8

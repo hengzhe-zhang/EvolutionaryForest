@@ -3,7 +3,7 @@ Code was adapted from https://github.com/Yura52/rtdl
 """
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
+from typing import Callable, List, Type, Union
 
 import torch
 import torch.nn as nn

@@ -92,7 +92,7 @@ class CubeSkewnessCorrector(SkewnessCorrector):
 
 if __name__ == "__main__":
     # Example usage
-    from sklearn.datasets import make_regression, load_diabetes
+    from sklearn.datasets import load_diabetes
 
     X, y = load_diabetes(return_X_y=True)
     y = y**3

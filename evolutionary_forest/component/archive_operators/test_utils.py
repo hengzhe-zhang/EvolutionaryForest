@@ -1,6 +1,5 @@
 import numpy as np
 from deap.base import Fitness
-from deap.tools import HallOfFame
 
 
 class Individual:

@@ -168,9 +168,9 @@ def optimal_vcd(
                     if len(x) > 0
                 ]
             )
-            assert len(number_of_points_tmp) == len(
-                mean_values
-            ), f"{len(number_of_points_tmp)} != {len(mean_values)}"
+            assert len(number_of_points_tmp) == len(mean_values), (
+                f"{len(number_of_points_tmp)} != {len(mean_values)}"
+            )
 
             # Get estimated VCD
             h_est = vcd_mse(max_vcd, number_of_points_tmp, mean_values)

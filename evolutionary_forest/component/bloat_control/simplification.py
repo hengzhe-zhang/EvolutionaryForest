@@ -48,7 +48,7 @@ class Simplification:
         algorithm: "EvolutionaryForestRegressor",
         constant_prune=True,
         equal_prune=True,
-        **kwargs
+        **kwargs,
     ):
         self.algorithm = algorithm
         self.constant_prune = constant_prune

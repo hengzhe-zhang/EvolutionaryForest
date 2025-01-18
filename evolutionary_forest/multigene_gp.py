@@ -755,9 +755,10 @@ def cxOnePoint_multiple_gene_threshold(
     threshold: float,
 ):
     # extract all useful features from individuals for crossover
-    useful_features_a, useful_features_b = extract_features(
-        ind1, threshold=threshold
-    ), extract_features(ind2, threshold=threshold)
+    useful_features_a, useful_features_b = (
+        extract_features(ind1, threshold=threshold),
+        extract_features(ind2, threshold=threshold),
+    )
     # replace useless features with useful features
     all_features = set(
         feature_to_tuple(x)
@@ -777,8 +778,9 @@ def cxOnePoint_multiple_gene_threshold(
             # check whether a feature is a useless feature
             while feature_to_tuple(ind.gene[i]) in all_features or variation:
                 variation = False
-                a, b = random.choice(useful_features_a), random.choice(
-                    useful_features_b
+                a, b = (
+                    random.choice(useful_features_a),
+                    random.choice(useful_features_b),
                 )
                 # if random.random() < (len(useful_features_a) + len(useful_features_b)) / all_features:
                 if random.random() < cross_pb:
@@ -1036,7 +1038,7 @@ def pool_based_mutation(
                         )
                         new_features = random.choice(new_features)
                     regressor.repetitive_feature_count[-1] += 1
-                    if not str(new_features) in regressor.generated_features:
+                    if str(new_features) not in regressor.generated_features:
                         # Pre-selection by Pearson correlation to ensure the synthesized feature is useful
                         # However, such a process might be misleading
                         if pearson_selection:
@@ -1052,7 +1054,7 @@ def pool_based_mutation(
                         elif feature_evaluation != None:
                             # using semantic diversity when generating new features
                             y = feature_evaluation(new_features)
-                            if not y in regressor.generated_features:
+                            if y not in regressor.generated_features:
                                 break
                         else:
                             break
@@ -1343,9 +1345,9 @@ def staticLimit_multiple_gene(
                         ind.gene[j] = gene
                         if gene is None:
                             continue
-                    assert (
-                        key(ind.gene[j]) <= height_limitation
-                    ), f"Key: {key(ind.gene[j])} > {height_limitation}, {ind.gene[j]}"
+                    assert key(ind.gene[j]) <= height_limitation, (
+                        f"Key: {key(ind.gene[j])} > {height_limitation}, {ind.gene[j]}"
+                    )
                     assert key(ind.gene[j]) >= min_value
                 ind.gene = remove_none_values(ind.gene)
             return new_inds
@@ -1469,9 +1471,9 @@ def generate_with_prob(
                             id = [t.name for t in pset.terminals[type_]].index(label)
                         term = pset.terminals[type_][id]
                     elif isinstance(terminal_probs, np.ndarray):
-                        assert not np.any(
-                            np.isnan(terminal_probs)
-                        ), "No value should be nan!"
+                        assert not np.any(np.isnan(terminal_probs)), (
+                            "No value should be nan!"
+                        )
                         probability = terminal_probs.flatten()
                         probability = probability[: len(pset.terminals[type_])]
                         if np.sum(probability) == 0:

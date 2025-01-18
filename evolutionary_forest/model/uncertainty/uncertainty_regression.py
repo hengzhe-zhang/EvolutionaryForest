@@ -150,9 +150,9 @@ def plot_uncertainty_vs_error(y_true, mu_pred, var_pred):
     errors = np.abs(y_true - mu_pred)
 
     # Check the shapes of the arrays
-    assert len(std_pred) == len(
-        errors
-    ), "Predicted std and errors must have the same length"
+    assert len(std_pred) == len(errors), (
+        "Predicted std and errors must have the same length"
+    )
 
     plt.figure(figsize=(10, 6))
     plt.scatter(std_pred, errors, alpha=0.5)

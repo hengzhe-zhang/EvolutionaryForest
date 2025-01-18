@@ -26,7 +26,7 @@ def cross_val_predict(
     verbose=0,
     fit_params=None,
     pre_dispatch="2*n_jobs",
-    method="predict"
+    method="predict",
 ):
     """Generate cross-validated estimates for each input data point
 

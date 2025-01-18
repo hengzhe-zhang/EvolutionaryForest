@@ -3,7 +3,6 @@ Have not used in TabDDPM project.
 """
 
 import datetime
-import os
 import shutil
 import typing as ty
 from pathlib import Path

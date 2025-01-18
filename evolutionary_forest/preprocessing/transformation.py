@@ -351,9 +351,9 @@ if __name__ == "__main__":
     print(X_train_transformed)
     print(X_test_transformed)
     print(categorical_indicators)
-    assert (
-        len(categorical_indicators) == X_train_transformed.shape[1]
-    ), f"{len(categorical_indicators)},{X_train_transformed.shape[1]}"
+    assert len(categorical_indicators) == X_train_transformed.shape[1], (
+        f"{len(categorical_indicators)},{X_train_transformed.shape[1]}"
+    )
     one_hot = OneHotEncoderCustom(categorical_indicator)
     one_hot.fit(X_train_transformed)
     print(one_hot.transform(X_train_transformed))

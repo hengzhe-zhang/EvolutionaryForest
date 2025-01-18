@@ -55,7 +55,7 @@ def plot_selection_data(selection_data):
     num_operators = selection_data.shape[1]
 
     # Define labels for the plot
-    operator_names = [f"Local Search", f"Global Search"] * num_operators
+    operator_names = ["Local Search", "Global Search"] * num_operators
 
     # Prepare data for Seaborn
     data = {
@@ -326,7 +326,7 @@ class MCTS(MultiArmBandit):
         candidate_survival_opearators = self.candidate_survival_operators
 
         # Select the best survival operator based on the Thompson sampling
-        candidates = mcts_dict[f"Root"]
+        candidates = mcts_dict["Root"]
         survival_operator_id = np.argmax(np.random.beta(candidates[0], candidates[1]))
         parent_archive = candidate_survival_opearators[survival_operator_id]
 

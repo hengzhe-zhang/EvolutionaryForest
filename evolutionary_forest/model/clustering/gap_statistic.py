@@ -4,7 +4,6 @@ from functools import lru_cache
 import numpy as np
 from sklearn.datasets import load_iris
 from sklearn.metrics import pairwise_distances
-from sklearn.preprocessing import MinMaxScaler
 
 from evolutionary_forest.model.cosine_kmeans import CosineKMeans
 

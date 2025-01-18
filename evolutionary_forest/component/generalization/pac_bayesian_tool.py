@@ -35,11 +35,15 @@ def automatic_perturbation_std(self: "EvolutionaryForestRegressor", population):
 
         # automatically determine parameter
         for individual in population:
-            feature_generator = lambda data, random_noise=0, noise_configuration=None: self.feature_generation(
-                data,
-                individual,
-                random_noise=random_noise,
-                noise_configuration=noise_configuration,
+            feature_generator = (
+                lambda data,
+                random_noise=0,
+                noise_configuration=None: self.feature_generation(
+                    data,
+                    individual,
+                    random_noise=random_noise,
+                    noise_configuration=noise_configuration,
+                )
             )
             kf_scores = []
             kf_val_scores = []

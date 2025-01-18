@@ -1,4 +1,3 @@
-import copy
 import itertools
 import random
 import re
@@ -25,16 +24,12 @@ from evolutionary_forest.component.evaluation import (
     noise_generation,
     weighted_sampling_cached,
 )
-from evolutionary_forest.component.generalization.cache.radius_neighbor_cache import (
-    LearningTreeCache,
-)
 from evolutionary_forest.component.generalization.cache.sharpness_memory import (
     TreeLRUCache,
 )
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
-from evolutionary_forest.utility.timing import time_it
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
@@ -96,7 +91,7 @@ class PACBayesianConfiguration(Configuration):
         adaptive_knee_point_metric=None,
         pac_bayesian_subsample=0,
         mixup_skip_self=False,
-        **params
+        **params,
     ):
         # For dropout
         self.sam_standardization = sam_standardization

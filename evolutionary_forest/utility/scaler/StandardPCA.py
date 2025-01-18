@@ -70,7 +70,6 @@ class StandardScalerPCA(TransformerMixin):
 
 if __name__ == "__main__":
     from sklearn.datasets import make_classification
-    import numpy as np
 
     # Generate a synthetic dataset
     X, y = make_classification(

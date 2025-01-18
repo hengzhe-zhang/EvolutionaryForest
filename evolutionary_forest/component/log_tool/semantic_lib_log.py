@@ -54,9 +54,9 @@ class SemanticLibLog:
         self.semantic_lib_usage.append(len(used))
 
     def update_best_tree_size(self, hof):
-        assert (
-            len(hof) == 1
-        ), "Hall of Fame (hof) should contain exactly one individual."
+        assert len(hof) == 1, (
+            "Hall of Fame (hof) should contain exactly one individual."
+        )
 
         # Calculate and return the size of the tree
         best_tree = hof[0]

@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.base import ClassifierMixin
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.model_selection import cross_val_score
 from sklearn.tree import DecisionTreeRegressor

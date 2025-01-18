@@ -42,9 +42,9 @@ def sample_indices_from_same_cluster(cluster_labels):
             possible_indices != idx
         ]  # Exclude the current index
         if len(possible_indices) == 0:  # If there are no other indices in the cluster
-            indices_b[
-                idx
-            ] = idx  # Fallback to itself, though this case should be rare with enough data
+            indices_b[idx] = (
+                idx  # Fallback to itself, though this case should be rare with enough data
+            )
         else:
             indices_b[idx] = np.random.choice(possible_indices)
 
@@ -188,9 +188,7 @@ def safe_mixup_with_minifold_intrusion_detection(
                 # print("Increase", increased_alpha_beta)
             indices_b[idx] = sample_according_to_distance(
                 distance_matrix, indices_a[idx : idx + 1], skip_self=skip_self
-            )[
-                0
-            ]  # Sample new b
+            )[0]  # Sample new b
             if alpha_beta in ["Adaptive", "InverseAdaptive"]:
                 ratio[idx] = compute_mixup_ratio(
                     distance_matrix,

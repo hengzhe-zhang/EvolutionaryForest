@@ -169,9 +169,9 @@ def calculate_four_neighbour_max_angle(i, x, sorted_points):
 
 def assert_decreasing_first_objective(pareto_points):
     for i in range(1, len(pareto_points)):
-        assert (
-            pareto_points[i - 1][0] >= pareto_points[i][0]
-        ), f"Point {i} is not in decreasing order!"
+        assert pareto_points[i - 1][0] >= pareto_points[i][0], (
+            f"Point {i} is not in decreasing order!"
+        )
 
 
 if __name__ == "__main__":

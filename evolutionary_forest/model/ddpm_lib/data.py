@@ -2,7 +2,6 @@ import hashlib
 from collections import Counter
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
-from importlib.resources import path
 from pathlib import Path
 from typing import Any, Literal, Optional, Union, cast, Tuple, Dict, List
 
@@ -18,7 +17,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import cdist
 
-from . import env, util
+from . import util
 from .metrics import calculate_metrics as calculate_metrics_
 from .util import TaskType, load_json
 
@@ -72,7 +71,9 @@ class Dataset:
 
         def load(item) -> ArrayDict:
             return {
-                x: cast(np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True))  # type: ignore[code]
+                x: cast(
+                    np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True)
+                )  # type: ignore[code]
                 for x in splits
             }
 
@@ -188,9 +189,9 @@ def num_process_nans(dataset: Dataset, policy: Optional[NumNanPolicy]) -> Datase
     assert policy is not None
     if policy == "drop-rows":
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
-        assert valid_masks[
-            "test"
-        ].all(), "Cannot drop test rows, since this will affect the final metrics."
+        assert valid_masks["test"].all(), (
+            "Cannot drop test rows, since this will affect the final metrics."
+        )
         new_data = {}
         for data_name in ["X_num", "X_cat", "y"]:
             data_dict = getattr(dataset, data_name)
@@ -319,7 +320,9 @@ def cat_encode(
 
     elif encoding == "one-hot":
         ohe = sklearn.preprocessing.OneHotEncoder(
-            handle_unknown="ignore", sparse=False, dtype=np.float32  # type: ignore[code]
+            handle_unknown="ignore",
+            sparse=False,
+            dtype=np.float32,  # type: ignore[code]
         )
         encoder = make_pipeline(ohe)
 

@@ -190,7 +190,7 @@ class NSGA2(EnvironmentalSelection):
         max_cluster_point=True,
         handle_objective_duplication=False,
         alpha_dominance_sam=False,
-        **kwargs
+        **kwargs,
     ):
         self.handle_objective_duplication = handle_objective_duplication
         self.first_objective_weight = first_objective_weight
@@ -617,7 +617,7 @@ class SPEA2(NSGA2):
         objective_normalization=False,
         knee_point=False,
         bootstrapping_selection=False,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             algorithm,
@@ -625,7 +625,7 @@ class SPEA2(NSGA2):
             objective_normalization,
             knee_point,
             bootstrapping_selection,
-            **kwargs
+            **kwargs,
         )
         self.selection_operator = selSPEA2
 
@@ -653,7 +653,7 @@ class NSGA3(NSGA2):
         knee_point=False,
         bootstrapping_selection=False,
         first_objective_weight=1,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             algorithm,
@@ -662,7 +662,7 @@ class NSGA3(NSGA2):
             knee_point,
             bootstrapping_selection,
             first_objective_weight,
-            **kwargs
+            **kwargs,
         )
         self.selection_operator = partial(
             selNSGA3, ref_points=uniform_reference_points(3)

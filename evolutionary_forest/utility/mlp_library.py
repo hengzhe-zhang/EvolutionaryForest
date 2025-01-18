@@ -1159,9 +1159,9 @@ class NeuralSemanticLibrary(nn.Module):
         dataset, dataloader = self.create_dataloader_and_kd_tree(
             train_tensors, train_targets, batch_size
         )
-        assert len(dataset) == len(
-            train_tensors
-        ), f"{len(dataset)} != {len(train_tensors)}"
+        assert len(dataset) == len(train_tensors), (
+            f"{len(dataset)} != {len(train_tensors)}"
+        )
 
         val_tensors = torch.tensor(val_tensors, dtype=torch.float32)
         val_data = self.prepare_validation_data(
@@ -1623,9 +1623,9 @@ class NeuralSemanticLibrary(nn.Module):
         #     assert self.data_used_to_train_kd_tree == len(
         #         self.whole_target
         #     ), f"Reconstructed data size (target) {self.data_used_to_train_kd_tree} != {len(self.whole_target)}"
-        assert self.kd_tree.n == len(
-            self.whole_target
-        ), f"KD-Tree size {self.kd_tree.n} != {len(self.whole_target)}"
+        assert self.kd_tree.n == len(self.whole_target), (
+            f"KD-Tree size {self.kd_tree.n} != {len(self.whole_target)}"
+        )
         nearest_x, nearest_y = retrieve_nearest_y(
             self.kd_tree,
             self.whole_tensor,

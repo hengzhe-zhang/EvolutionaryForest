@@ -3,7 +3,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import NearestNeighbors, KNeighborsRegressor
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import Ridge
 
 
 class InContextLearnerRegressor(BaseEstimator, RegressorMixin):

@@ -269,7 +269,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
         assert (
             model_mean.shape == model_log_variance.shape == pred_xstart.shape == x.shape
-        ), f"{model_mean.shape}, {model_log_variance.shape}, {pred_xstart.shape}, {x.shape}"
+        ), (
+            f"{model_mean.shape}, {model_log_variance.shape}, {pred_xstart.shape}, {x.shape}"
+        )
 
         return {
             "mean": model_mean,

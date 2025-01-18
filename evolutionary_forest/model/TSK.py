@@ -30,8 +30,9 @@ class TSKFuzzySystem(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y):
         # Convert X and y to PyTorch tensors
-        X, y = torch.tensor(X, dtype=torch.float32), torch.tensor(
-            y, dtype=torch.float32
+        X, y = (
+            torch.tensor(X, dtype=torch.float32),
+            torch.tensor(y, dtype=torch.float32),
         )
 
         # 1. Use clustering for initial centers and then convert to PyTorch Parameters
@@ -106,9 +107,9 @@ class TSKFuzzySystem(BaseEstimator, RegressorMixin):
         # Add bias term to X
 
         rule_outputs = []
-        assert (
-            len(self.regressors_) == self.n_rules
-        ), f"{len(self.regressors_)} != {self.n_rules}"
+        assert len(self.regressors_) == self.n_rules, (
+            f"{len(self.regressors_)} != {self.n_rules}"
+        )
         for r, weight in enumerate(self.regressors_):
             firing_level = self._compute_firing_levels(X, r)
 
@@ -146,7 +147,7 @@ class TSKFuzzySystem(BaseEstimator, RegressorMixin):
 
 
 if __name__ == "__main__":
-    from sklearn.datasets import make_regression, load_diabetes
+    from sklearn.datasets import load_diabetes
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import mean_squared_error, r2_score
 

@@ -81,7 +81,7 @@ def plot_graph_with_communities(G, communities):
             nodelist=community,
             node_color=[colors[idx]] * len(community),
             node_size=community_sizes,
-            label=f"Community {idx+1}",
+            label=f"Community {idx + 1}",
             alpha=0.8,
         )
 
@@ -143,9 +143,9 @@ def merge_trees_to_graph(inds: List[MultipleGeneGP]):
         # Iterate over each gene (tree) in the individual
         for tree in ind.gene:
             # Ensure the tree is treated as a PrimitiveTree
-            assert isinstance(
-                tree, PrimitiveTree
-            ), "Tree is not an instance of PrimitiveTree"
+            assert isinstance(tree, PrimitiveTree), (
+                "Tree is not an instance of PrimitiveTree"
+            )
 
             # Extract nodes, edges, labels, and types from the tree
             nodes, edges, labels, types = graph(tree)
@@ -186,9 +186,9 @@ def merge_trees_list_to_graph(inds: List[MultipleGeneGP]):
     # Iterate over each individual in the population
     for tree in inds:
         # Ensure the tree is treated as a PrimitiveTree
-        assert isinstance(
-            tree, PrimitiveTree
-        ), "Tree is not an instance of PrimitiveTree"
+        assert isinstance(tree, PrimitiveTree), (
+            "Tree is not an instance of PrimitiveTree"
+        )
 
         # Extract nodes, edges, labels, and types from the tree
         nodes, edges, labels, types = graph(tree)

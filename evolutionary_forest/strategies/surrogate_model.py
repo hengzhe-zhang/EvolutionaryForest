@@ -42,7 +42,7 @@ class SurrogateModel:
         surrogate_history=1000,
         surrogate_retrain_interval=1,
         surrogate_threshold=0.2,
-        **params
+        **params,
     ):
         self.surrogate_threshold = surrogate_threshold
         self.surrogate_model = None

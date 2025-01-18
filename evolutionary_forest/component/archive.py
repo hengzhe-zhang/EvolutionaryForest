@@ -345,9 +345,9 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                                 self.ensemble_weight[ind_tuple] += 1
 
                     if self.unique:
-                        assert (
-                            len(all_inds) < population_size
-                        ), f"{len(all_inds)} {population_size}"
+                        assert len(all_inds) < population_size, (
+                            f"{len(all_inds)} {population_size}"
+                        )
 
                     # Ensure the correct number of individuals were selected
                     assert selection_count == initial_individuals, selection_count

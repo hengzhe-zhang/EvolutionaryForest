@@ -6,27 +6,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from deap.gp import PrimitiveTree, Terminal, MetaEphemeral
+from deap.gp import PrimitiveTree, Terminal
 from deap.tools import selBest
 from sklearn.preprocessing import normalize
 from scipy.spatial import cKDTree, KDTree
 from scipy.special import softmax
-from scipy.stats import pearsonr, rankdata
+from scipy.stats import rankdata
 from sklearn.cluster import KMeans
-from sklearn.decomposition import KernelPCA
 from sklearn.metrics import pairwise_distances_argmin_min
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 from evolutionary_forest.component.configuration import (
-    MAPElitesConfiguration,
     MutationConfiguration,
 )
 from evolutionary_forest.component.evaluation import single_tree_evaluation
 from evolutionary_forest.component.generalization.smoothness import (
     function_second_order_smoothness,
 )
-from evolutionary_forest.model.cosine_kmeans import CosineKMeans
 from evolutionary_forest.utility.memory.instance_selection import (
     semantic_instance_selection,
     informed_down_sampling,
@@ -44,7 +40,7 @@ from evolutionary_forest.utility.tree_pool_util.ball_tree import ScipyBallTree
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
-from evolutionary_forest.multigene_gp import MultipleGeneGP, map_elites_selection
+from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.feature_importance_util import (
     feature_importance_process,
 )
@@ -965,17 +961,17 @@ class SemanticLibrary:
             ]
             if self.mutation_configuration.negative_data_augmentation:
                 assert len(train_data) % 2 == 0, f"Train Data: {len(train_data)}"
-                assert list(self.trees[0]) == list(
-                    self.trees[1]
-                ), f"Tree 0: {self.trees[0]}, Tree 1: {self.trees[1]}"
+                assert list(self.trees[0]) == list(self.trees[1]), (
+                    f"Tree 0: {self.trees[0]}, Tree 1: {self.trees[1]}"
+                )
                 train_data = [
                     (tree, semantics)
                     for index, (tree, semantics) in enumerate(train_data)
                     if index % 2 == 1
                 ]
-                assert (
-                    len(train_data) == len(self.trees) // 2
-                ), f"Train Data: {len(train_data)}, Trees: {len(self.trees)}"
+                assert len(train_data) == len(self.trees) // 2, (
+                    f"Train Data: {len(train_data)}, Trees: {len(self.trees)}"
+                )
             train_data = filter_train_data_by_node_count(
                 train_data, max_function_nodes=self.mlp_pool.output_primitive_length
             )
