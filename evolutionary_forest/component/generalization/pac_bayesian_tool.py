@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
-def automatic_perturbation_std_calculation(X, y):
+def automatic_perturbation_std_calculation(X, y, criterion="Normal"):
     # Initialize the ExtraTreesRegressor
     model = ExtraTreesRegressor(random_state=0)
 
@@ -29,10 +29,35 @@ def automatic_perturbation_std_calculation(X, y):
     scores = cross_val_score(model, X, y, cv=5, scoring="r2")  # Using R^2 score
     mean_score = np.mean(scores)
 
+    if criterion == "Normal":
+        return criterion_normal(mean_score)
+    elif criterion == "High":
+        return criterion_high(mean_score)
+    elif criterion == "Low":
+        return criterion_low(mean_score)
+
+
+def criterion_normal(mean_score):
     # Return standard deviation based on the score
     if mean_score < 0.5:
         return 0.5
     elif mean_score < 0.8:
+        return 0.3
+    else:
+        return 0.1
+
+
+def criterion_high(mean_score):
+    # Return standard deviation based on the score
+    if mean_score < 0.5:
+        return 0.5
+    else:
+        return 0.3
+
+
+def criterion_low(mean_score):
+    # Return standard deviation based on the score
+    if mean_score < 0.8:
         return 0.3
     else:
         return 0.1
