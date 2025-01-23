@@ -320,6 +320,9 @@ from evolutionary_forest.strategies.int_scaler import YIntScaler
 from evolutionary_forest.strategies.multifidelity_evaluation import (
     MultiFidelityEvaluation,
 )
+from evolutionary_forest.strategies.subset_transfer import (
+    train_final_model_on_full_batch,
+)
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.feature_engineering_utils import combine_features
@@ -537,6 +540,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         precision="Float64",
         data_augmentation=False,
         time_limit=None,
+        subset_transfer=None,
         **params,
     ):
         """
@@ -941,6 +945,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.data_augmentation = data_augmentation
         self.best_individual_number_of_features = []
         self.time_limit = time_limit
+        self.subset_transfer = subset_transfer
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -3163,6 +3168,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if len(y.shape) == 2 and y.shape[1] == 1:
             y = y.flatten()
 
+        if self.subset_transfer is not None:
+            assert isinstance(self.subset_transfer, int)
+            sample_index = np.random.choice(len(X), self.subset_transfer, replace=False)
+            X_full = X
+            y_full = y
+            X = X[sample_index]
+            y = y[sample_index]
+
         if self.data_augmentation:
             X, y = data_augmentation(X, y)
 
@@ -3253,6 +3266,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.final_model_lazy_training(self.hof)
             self.stacking_strategy.stacking_layer_generation(X, y)
         self.training_with_validation_set()
+        if self.subset_transfer is not None:
+            self.X = X_full
+            self.y = y_full
+            train_final_model_on_full_batch(self.hof[0], self, X_full, y_full)
         return self
 
     def pretrain(self, X, y):
