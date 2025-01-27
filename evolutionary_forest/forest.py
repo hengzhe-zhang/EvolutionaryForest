@@ -168,6 +168,7 @@ from evolutionary_forest.component.generalization.pac_bayesian import (
 from evolutionary_forest.component.generalization.pac_bayesian_tool import (
     sharpness_based_dynamic_depth_limit,
     automatic_perturbation_std_calculation,
+    automatic_perturbation_std_calculation_classification,
 )
 from evolutionary_forest.component.generalization.wknn import R2WKNN
 from evolutionary_forest.component.generation import varAndPlus
@@ -3949,9 +3950,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         evaluated_inds = self.population_evaluation(toolbox, population)
 
         if self.pac_bayesian.perturbation_std == "Auto":
-            self.pac_bayesian.perturbation_std = automatic_perturbation_std_calculation(
-                self.X, self.y
-            )
+            if isinstance(self, ClassifierMixin):
+                self.pac_bayesian.perturbation_std = (
+                    automatic_perturbation_std_calculation_classification(
+                        self.X, self.y
+                    )
+                )
+            else:
+                self.pac_bayesian.perturbation_std = (
+                    automatic_perturbation_std_calculation(self.X, self.y)
+                )
         elif self.pac_bayesian.perturbation_std == "Auto-Low":
             self.pac_bayesian.perturbation_std = automatic_perturbation_std_calculation(
                 self.X, self.y, "Low"
