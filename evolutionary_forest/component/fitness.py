@@ -499,8 +499,12 @@ class VCDimensionR2(Fitness):
 class R2Size(Fitness):
     def fitness_value(self, individual, estimators, Y, y_pred):
         if self.classification:
-            score = -1 * np.mean(calculate_cross_entropy(Y, y_pred))
+            # cross_entropy smaller better
+            cross_entropy = np.mean(calculate_cross_entropy(Y, y_pred))
+            # large better
+            score = -1 * cross_entropy
         else:
+            # large better
             score = r2_score(Y, y_pred)
         tree_size = sum([len(tree) for tree in individual.gene])
         return (-1 * score, tree_size)
