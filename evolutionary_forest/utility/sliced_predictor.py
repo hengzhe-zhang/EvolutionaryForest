@@ -3,41 +3,53 @@ import numpy as np
 
 
 class SlicedPredictor(BaseEstimator, RegressorMixin):
-    def __init__(self, regressor, step_size=50000):
+    def __init__(self, regressor, step_size=50000, verbose=False):
         """
         A wrapper for regressors to slice data during prediction.
 
         Parameters:
         - regressor: The regressor to wrap.
         - step_size: The number of samples per slice. Default is 50000.
+        - verbose: If True, print progress messages. Default is False.
         """
         self.regressor = regressor
         self.step_size = step_size
+        self.verbose = verbose
 
     def fit(self, X, y=None, **fit_params):
-        # Fit the regressor to the data
+        if self.verbose:
+            print("Fitting the regressor...")
         self.regressor.fit(X, y, **fit_params)
+        if self.verbose:
+            print("Fitting completed.")
         return self  # Return the fitted instance
 
     def predict(self, X, **predict_params):
+        if self.verbose:
+            print(f"Predicting with {len(X)} samples...")
+
         # Check if data needs to be sliced
         if len(X) > self.step_size:
-            # Split the data into slices
             slices = [
                 X[i : i + self.step_size] for i in range(0, len(X), self.step_size)
             ]
-
-            # Process each slice and collect results
             results = []
-            for slice_data in slices:
+
+            for idx, slice_data in enumerate(slices):
+                if self.verbose:
+                    print(
+                        f"Processing slice {idx + 1}/{len(slices)} with {len(slice_data)} samples..."
+                    )
                 result = self.regressor.predict(slice_data, **predict_params)
                 results.append(result)
 
-            # Combine the results from all slices
             combined_results = np.concatenate(results)
+            if self.verbose:
+                print("Prediction completed.")
             return combined_results
         else:
-            # If data is within the step size, process it directly
+            if self.verbose:
+                print("Processing without slicing...")
             return self.regressor.predict(X, **predict_params)
 
 
