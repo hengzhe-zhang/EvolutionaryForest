@@ -44,7 +44,7 @@ from evolutionary_forest.component.crossover_mutation import (
     mutUniformSizeSafe,
 )
 from evolutionary_forest.component.post_processing.value_alignment import quick_fill
-from evolutionary_forest.component.crossover.weighted_crossover import (
+from evolutionary_forest.component.crossover.feature_informed_crossover import (
     cxOnePointWeighted,
     cxOnePointWeightedRandom,
     cxOnePointWeightedEPS,
