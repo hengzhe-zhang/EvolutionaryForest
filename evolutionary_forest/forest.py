@@ -1158,8 +1158,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         Yp = result_calculation([func], self.X[:20], False)
         return tuple(Yp.flatten())
 
-    def get_model_coefficient(self, x):
-        ridge_ = x["Ridge"]
+    def get_model_coefficient(self, pipe):
+        ridge_ = pipe["Ridge"]
         if isinstance(ridge_, Pipeline):
             base_learner = ridge_[-1]
         else:
@@ -1190,7 +1190,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             (KNeighborsRegressor, MeanRegressor, MedianRegressor, BaseEstimator),
         ):
             # Temporarily set all features to have equal importance values
-            coef = np.ones(self.gene_num)
+            coef = np.ones(base_learner.n_features_in_)
         else:
             raise Exception
         return coef
