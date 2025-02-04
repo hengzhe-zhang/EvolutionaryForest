@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import ParameterGrid
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
     FunctionTransformer,
@@ -400,6 +401,9 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
                 max_depth=self.max_tree_depth,
                 min_samples_leaf=self.min_samples_leaf,
             )
+        elif isinstance(self.base_learner, str) and self.base_learner.startswith("KNN"):
+            n_neighbors = int(self.base_learner.split("-")[1])
+            ridge_model = KNeighborsClassifier(n_neighbors=n_neighbors)
         elif (
             self.base_learner == "Random-DT"
             or self.base_learner == "Random-DT-Plus"

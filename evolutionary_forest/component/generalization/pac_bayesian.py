@@ -213,6 +213,9 @@ def pac_bayesian_estimation(
             # This is error rate
             entropy = calculate_zero_one_loss(y, original_predictions)
         else:
+            # Two point:
+            # 1. KNN
+            # 2. ZeroOne Loss
             assert configuration.classification_loss == "CrossEntropy"
             entropy = calculate_cross_entropy(y, original_predictions)
         if instance_weights is not None:
