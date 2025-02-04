@@ -1,6 +1,6 @@
 import copy
 from typing import TYPE_CHECKING, Callable
-from sklearn.ensemble import ExtraTreesRegressor, ExtraTreesClassifier
+from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.model_selection import cross_val_score
 import numpy as np
 from scipy.stats import pearsonr
@@ -22,15 +22,10 @@ if TYPE_CHECKING:
 
 
 def automatic_perturbation_std_calculation_classification(X, y):
-    model = ExtraTreesClassifier(random_state=0)
-
-    # Perform cross-validation to calculate the score
-    scores = cross_val_score(
-        model, X, y, cv=5, scoring="balanced_accuracy"
-    )  # Using R^2 score
-    mean_score = np.mean(scores)
-
-    return criterion_normal(mean_score)
+    if np.unique(y).shape[0] == 2:
+        return 0.5
+    else:
+        return 0.1
 
 
 def automatic_perturbation_std_calculation(X, y, criterion="Normal"):
