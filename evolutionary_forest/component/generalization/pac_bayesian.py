@@ -28,7 +28,10 @@ from evolutionary_forest.component.generalization.cache.sharpness_memory import 
     TreeLRUCache,
 )
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
-from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
+from evolutionary_forest.utility.classification_utils import (
+    calculate_cross_entropy,
+    calculate_zero_one_loss,
+)
 from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
@@ -91,6 +94,7 @@ class PACBayesianConfiguration(Configuration):
         adaptive_knee_point_metric=None,
         pac_bayesian_subsample=0,
         mixup_skip_self=False,
+        classification_loss="CrossEntropy",
         **params,
     ):
         # For dropout
@@ -140,6 +144,8 @@ class PACBayesianConfiguration(Configuration):
         # Adaptive Knee
         self.adaptive_knee_point_metric = adaptive_knee_point_metric
         self.pac_bayesian_subsample = pac_bayesian_subsample
+
+        self.classification_loss = classification_loss
 
 
 def kl_term_function(m, w, sigma, delta=0.1):
@@ -203,12 +209,16 @@ def pac_bayesian_estimation(
     """
     if configuration.classification:
         original_predictions = individual.pipe.predict_proba(X)
-        if instance_weights is not None:
-            baseline = (
-                calculate_cross_entropy(y, original_predictions) * instance_weights
-            )
+        if configuration.classification_loss == "ZeroOne":
+            # This is error rate
+            entropy = calculate_zero_one_loss(y, original_predictions)
         else:
-            baseline = calculate_cross_entropy(y, original_predictions)
+            assert configuration.classification_loss == "CrossEntropy"
+            entropy = calculate_cross_entropy(y, original_predictions)
+        if instance_weights is not None:
+            baseline = entropy * instance_weights
+        else:
+            baseline = entropy
     else:
         original_predictions = individual.pipe.predict(X)
         baseline = (y - original_predictions) ** 2
@@ -375,10 +385,17 @@ def pac_bayesian_estimation(
             mse_scores[i] = (mix_target - y_pred_on_noise) ** 2
         else:
             if configuration.classification:
-                cross_entropy = calculate_cross_entropy(
-                    target_y,
-                    y_pred_on_noise,
-                )
+                if configuration.classification_loss == "ZeroOne":
+                    # This is error rate
+                    cross_entropy = calculate_zero_one_loss(
+                        target_y,
+                        y_pred_on_noise,
+                    )
+                else:
+                    cross_entropy = calculate_cross_entropy(
+                        target_y,
+                        y_pred_on_noise,
+                    )
                 if instance_weights is not None:
                     mse_scores[i] = cross_entropy * instance_weights
                 else:

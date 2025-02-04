@@ -1,6 +1,23 @@
 import numpy as np
 
 
+def calculate_zero_one_loss(target_labels: np.ndarray, y_pred: np.ndarray) -> float:
+    """
+    Calculate the 0-1 loss for a batch of predictions.
+
+    :param target_labels: 1D array of integers, where each integer is the correct class index for each sample.
+    :param y_pred: 2D array of shape (n_samples, n_classes) containing the predicted probabilities for each class.
+    :return: The 0-1 loss, which is the fraction of incorrect predictions.
+    """
+    predicted_labels = np.argmax(
+        y_pred, axis=1
+    )  # Get the predicted class for each sample
+    incorrect_predictions = (
+        predicted_labels != target_labels
+    )  # Compare with true labels
+    return incorrect_predictions
+
+
 def calculate_cross_entropy(target_labels: np.ndarray, y_pred: np.ndarray):
     """
     Calculate the cross entropy loss for a batch of predictions.

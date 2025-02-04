@@ -62,7 +62,10 @@ from evolutionary_forest.component.generalization.wcrv import (
     calculate_mic,
 )
 from evolutionary_forest.multigene_gp import MultipleGeneGP
-from evolutionary_forest.utility.classification_utils import calculate_cross_entropy
+from evolutionary_forest.utility.classification_utils import (
+    calculate_cross_entropy,
+    calculate_zero_one_loss,
+)
 from evolutionary_forest.utility.gradient_optimization.scaling import (
     gradient_agnostic_standardization,
 )
@@ -76,18 +79,22 @@ if TYPE_CHECKING:
 class Fitness:
     def __init__(self):
         self.classification = False
+        self.classification_loss = "CrossEntropy"
         self.instance_weights = None
 
     def fitness_value(self, individual, estimators, Y, y_pred):
         # basic fitness evaluation
         # warning: Minimization
         if self.classification:
-            if self.instance_weights is not None:
-                return (
-                    np.mean(calculate_cross_entropy(Y, y_pred) * self.instance_weights),
-                )
+            if self.classification_loss == "ZeroOne":
+                entropy = calculate_zero_one_loss(Y, y_pred)
             else:
-                return (np.mean(calculate_cross_entropy(Y, y_pred)),)
+                assert self.classification_loss == "CrossEntropy"
+                entropy = calculate_cross_entropy(Y, y_pred)
+            if self.instance_weights is not None:
+                return (np.mean(entropy * self.instance_weights),)
+            else:
+                return (np.mean(entropy),)
         else:
             return (-1 * r2_score(Y, y_pred),)
 
