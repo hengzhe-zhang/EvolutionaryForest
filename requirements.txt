@@ -13,7 +13,7 @@ gplearn
 skorch
 umap-learn
 category_encoders
-pyade 
+git+https://github.com/CircuitCM/pyade-numba 
 networkx 
 torch 
 tpot 
