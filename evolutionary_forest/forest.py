@@ -702,7 +702,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def oob_error(self, pop):
         # Create array to store predictions for each individual in the population
-        prediction = np.full((len(pop), len(self.y)), np.nan, dtype=np.float)
+        prediction = np.full((len(pop), len(self.y)), np.nan, dtype=float)
         # Iterate through individuals in the population
         for i, x in enumerate(pop):
             # Get indices of out-of-bag samples
@@ -4751,7 +4751,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         # how to calculate the prediction result?
         count = np.zeros(len(self.y))
         # prediction = np.zeros((len(self.y), len(np.unique(self.y))))
-        prediction = np.full((len(self.y), len(np.unique(self.y))), 0, dtype=np.float)
+        prediction = np.full((len(self.y), len(np.unique(self.y))), 0, dtype=float)
         for i, x in enumerate(pop):
             index = x.out_of_bag
             count[index] += 1
