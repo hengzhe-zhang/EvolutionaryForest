@@ -1,17 +1,24 @@
 import array
 import random
 
-import numpy
+import gopt.de
+import gopt.ilshade
+import gopt.jade
+import gopt.jso
+import gopt.mpede
 import numpy as np
-import pyade
-from pyade import *
-from deap import base
-from deap import creator
-from deap import tools
+from deap import base, creator, tools
 
 
-class EnsembleSelection():
-    def __init__(self, NDIM=10, generation=10, population_size=50, evaluation_function=None, verbose=False):
+class EnsembleSelection:
+    def __init__(
+        self,
+        NDIM=10,
+        generation=10,
+        population_size=50,
+        evaluation_function=None,
+        verbose=False,
+    ):
         # Problem dimension
         self.generation = generation
         self.population_size = population_size
@@ -19,11 +26,22 @@ class EnsembleSelection():
 
         if not hasattr(creator, "EnsembleFitnessMin"):
             creator.create("EnsembleFitnessMin", base.Fitness, weights=(1.0,))
-            creator.create("EnsembleIndividual", array.array, typecode='d', fitness=creator.EnsembleFitnessMin)
+            creator.create(
+                "EnsembleIndividual",
+                array.array,
+                typecode="d",
+                fitness=creator.EnsembleFitnessMin,
+            )
 
         toolbox = base.Toolbox()
         toolbox.register("attr_float", random.uniform, -1, 1)
-        toolbox.register("individual", tools.initRepeat, creator.EnsembleIndividual, toolbox.attr_float, NDIM)
+        toolbox.register(
+            "individual",
+            tools.initRepeat,
+            creator.EnsembleIndividual,
+            toolbox.attr_float,
+            NDIM,
+        )
         toolbox.register("population", tools.initRepeat, list, toolbox.individual)
         toolbox.register("select", tools.selRandom, k=3)
         toolbox.register("evaluate", evaluation_function)
@@ -45,10 +63,10 @@ class EnsembleSelection():
         pop += [creator.EnsembleIndividual(initial_vector)]
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
-        stats.register("avg", numpy.mean)
-        stats.register("std", numpy.std)
-        stats.register("min", numpy.min)
-        stats.register("max", numpy.max)
+        stats.register("avg", np.mean)
+        stats.register("std", np.std)
+        stats.register("min", np.min)
+        stats.register("max", np.max)
 
         logbook = tools.Logbook()
         logbook.header = "gen", "evals", "std", "min", "avg", "max"
@@ -84,35 +102,42 @@ class EnsembleSelection():
         return hof[0]
 
 
-class EnsembleSelectionADE():
-    def __init__(self, NDIM=10, generation=10, population_size=50, evaluation_function=None, verbose=False,
-                 de_algorithm='IL-SHADE'):
+class EnsembleSelectionADE:
+    def __init__(
+        self,
+        NDIM=10,
+        generation=10,
+        population_size=50,
+        evaluation_function=None,
+        verbose=False,
+        de_algorithm="IL-SHADE",
+    ):
         # You may want to use a variable so its easier to change it if we want
         algorithm = {
-            'IL-SHADE': pyade.ilshade,
-            'DE': pyade.de,
-            'JADE': pyade.jade,
-            'MPEDE': pyade.mpede,
-            'JSO': pyade.jso,
+            "IL-SHADE": gopt.ilshade,
+            "DE": gopt.de,
+            "JADE": gopt.jade,
+            "MPEDE": gopt.mpede,
+            "JSO": gopt.jso,
         }[de_algorithm]
 
         # We get default parameters for a problem with two variables
         params = algorithm.get_default_params(dim=NDIM)
 
         # We define the boundaries of the variables
-        params['bounds'] = np.array([[-1, 1]] * NDIM)
+        params["bounds"] = np.array([[-1, 1]] * NDIM)
 
         # We indicate the function we want to minimize
-        params['func'] = evaluation_function
-        params['population_size'] = population_size
-        params['max_evals'] = generation * population_size
+        params["func"] = evaluation_function
+        params["population_size"] = population_size
+        params["max_evals"] = generation * population_size
         self.algorithm = algorithm
         self.params = params
 
     def run(self, initial_vector=None):
         # We run the algorithm and obtain the results
         solution, fitness = self.algorithm.apply(**self.params)
-        print('OOB', fitness)
+        print("OOB", fitness)
         return solution
 
 
