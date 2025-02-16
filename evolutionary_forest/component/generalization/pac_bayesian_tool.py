@@ -28,7 +28,7 @@ def automatic_perturbation_std_calculation_classification(X, y):
         return 0.1
 
 
-def automatic_perturbation_std_calculation(X, y, criterion="Normal"):
+def automatic_perturbation_std_calculation(X, y):
     # Initialize the ExtraTreesRegressor
     model = ExtraTreesRegressor(random_state=0)
 
@@ -36,12 +36,7 @@ def automatic_perturbation_std_calculation(X, y, criterion="Normal"):
     scores = cross_val_score(model, X, y, cv=5, scoring="r2")  # Using R^2 score
     mean_score = np.mean(scores)
 
-    if criterion == "Normal":
-        return criterion_normal(mean_score)
-    elif criterion == "High":
-        return criterion_high(mean_score)
-    elif criterion == "Low":
-        return criterion_low(mean_score)
+    return criterion_normal(mean_score)
 
 
 def criterion_normal(mean_score):

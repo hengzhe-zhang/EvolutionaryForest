@@ -3960,14 +3960,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.pac_bayesian.perturbation_std = (
                     automatic_perturbation_std_calculation(self.X, self.y)
                 )
-        elif self.pac_bayesian.perturbation_std == "Auto-Low":
-            self.pac_bayesian.perturbation_std = automatic_perturbation_std_calculation(
-                self.X, self.y, "Low"
-            )
-        elif self.pac_bayesian.perturbation_std == "Auto-High":
-            self.pac_bayesian.perturbation_std = automatic_perturbation_std_calculation(
-                self.X, self.y, "High"
-            )
 
         self.post_processing_after_evaluation(None, population)
 
