@@ -37,7 +37,7 @@ from evolutionary_forest.component.decision_making.euclidian_knee_selection impo
 from evolutionary_forest.component.decision_making.harmonic_rank import (
     best_harmonic_rank,
 )
-from evolutionary_forest.component.fitness import R2PACBayesian
+from evolutionary_forest.component.fitness import R2PACBayesian, Fitness
 from evolutionary_forest.component.generalization.sharpness_utils.sharpness_utils import (
     collect_information_of_sharpness,
     weighted_sam_loss,
@@ -189,7 +189,7 @@ class NSGA2(EnvironmentalSelection):
         first_objective_weight=1,
         max_cluster_point=True,
         handle_objective_duplication=False,
-        alpha_dominance_sam=False,
+        non_dominated_normalization=False,
         **kwargs,
     ):
         self.handle_objective_duplication = handle_objective_duplication
@@ -197,7 +197,6 @@ class NSGA2(EnvironmentalSelection):
         self.bootstrapping_selection = bootstrapping_selection
         self.algorithm: "EvolutionaryForestRegressor" = algorithm
         self.objective_function = objective_function
-        self.objective_normalization = objective_normalization
         self.knee_point: Union[str, bool] = knee_point
         # if using clustering for ensemble, max point in each cluster
         self.max_cluster_point = max_cluster_point
@@ -205,8 +204,9 @@ class NSGA2(EnvironmentalSelection):
         self.validation_x = None
         self.validation_y = None
 
-        # Std/Mean
-        self.alpha_dominance_sam = alpha_dominance_sam
+        # normalization
+        self.objective_normalization = objective_normalization
+        self.non_dominated_normalization = non_dominated_normalization
 
     def select(self, population, offspring):
         """
@@ -231,13 +231,19 @@ class NSGA2(EnvironmentalSelection):
 
         if self.objective_normalization:
             classification_task = isinstance(self.algorithm, ClassifierMixin)
-            # alpha_dominance_sam = (
-            #     self.alpha_dominance_sam
-            #     if self.algorithm.current_gen > self.algorithm.n_gen // 2
-            #     else False
-            # )
-            alpha_dominance_sam = self.alpha_dominance_sam
-            fitness_normalization(individuals, classification_task, alpha_dominance_sam)
+            non_dominated_normalization = self.non_dominated_normalization
+
+            if isinstance(self.algorithm.score_func, Fitness):
+                classification_loss = self.algorithm.score_func.classification_loss
+            else:
+                classification_loss = self.algorithm.score_func
+
+            fitness_normalization(
+                individuals,
+                classification_task,
+                non_dominated_normalization,
+                classification_loss,
+            )
         n_pop = self.algorithm.n_pop
         population[:] = self.selection_operator(individuals, n_pop)
         if self.algorithm.validation_size > 0:

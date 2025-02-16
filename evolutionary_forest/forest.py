@@ -873,10 +873,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.environmental_selection: NSGA2 = NSGA2(
                 self, None, **self.param, **vars(self)
             )
-        elif environmental_selection == "AlphaNSGA2":
-            self.environmental_selection: NSGA2 = NSGA2(
-                self, None, **self.param, **vars(self), alpha_dominance_sam=True
-            )
         elif environmental_selection == "NSGA3":
             self.environmental_selection = NSGA3(self, None, **self.param)
         elif environmental_selection == "SPEA2":
