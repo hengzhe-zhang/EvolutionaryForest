@@ -63,14 +63,17 @@ def automatic_epsilon_lexicase_selection_CL(
 
     # Assign unique IDs to individuals for tracking
     individual_map = {i: ind for i, ind in enumerate(population)}
-
-    # Compute adaptive case ordering with tier-based shuffling
-    ordered_cases = estimate_difficulty_tiers(case_values, difficulty_metric)
-
     for _ in range(num_selected):
+        # Implement mode selection for difficulty_metric
+        if difficulty_metric == "random":
+            ordered_cases = list(range(case_values.shape[1]))
+            random.shuffle(ordered_cases)  # Shuffle case indices randomly
+        else:
+            ordered_cases = estimate_difficulty_tiers(case_values, difficulty_metric)
+
         candidates = list(individual_map.keys())  # Track using indices
 
-        for case_idx in ordered_cases:
+        for iteration, case_idx in enumerate(ordered_cases, start=1):
             # Compute threshold using Median Absolute Deviation (MAD)
             errors = case_values[
                 candidates, case_idx
@@ -85,8 +88,13 @@ def automatic_epsilon_lexicase_selection_CL(
                 i for i in candidates if case_values[i, case_idx] <= min_error + epsilon
             ]
 
+            # Print number of iterated cases when a single candidate remains
             if len(candidates) == 1:
-                break  # Select if only one remains
+                # print(
+                #     f"Number of iterated cases before selection: {iteration}, "
+                #     f"difficulty_metric: {difficulty_metric}"
+                # )
+                break  # Stop once one candidate is left
 
         # Select one candidate randomly from remaining and store the individual
         selected.append(individual_map[random.choice(candidates)])
