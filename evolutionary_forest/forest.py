@@ -226,6 +226,9 @@ from evolutionary_forest.component.selection import (
     hybrid_lexicase_dcd,
     selHOFRandom,
 )
+from evolutionary_forest.component.selection_operators.curriculum_learning import (
+    automatic_epsilon_lexicase_selection_CL,
+)
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
     sel_lexicase_pareto_tournament_weighted_subset,
@@ -2434,6 +2437,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", self.select.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
+        elif self.select == "CLLexicase":
+            toolbox.register("select", automatic_epsilon_lexicase_selection_CL)
+        elif self.select == "CLLexicase-Median":
+            toolbox.register(
+                "select",
+                partial(
+                    automatic_epsilon_lexicase_selection_CL,
+                    difficulty_metric="median_error",
+                ),
+            )
         elif self.select == "LexicaseTournament":
             toolbox.register("select", selLexicaseTournament)
         elif self.select == "HOFRandom":

@@ -1,10 +1,19 @@
+import numpy as np
+import pandas as pd
+import random
+
+
 def estimate_difficulty_tiers(case_values, difficulty_metric="variance", num_tiers=3):
     """
     Compute difficulty tiers using different metrics: "variance", "median_error", or "entropy".
+    case_values is now a numpy array of shape (num_individuals, num_cases).
     """
+    num_cases = case_values.shape[1]  # Number of test cases
     difficulty_scores = []
 
-    for case, errors in case_values.items():
+    for case_idx in range(num_cases):
+        errors = case_values[:, case_idx]  # Extract all errors for the test case
+
         if difficulty_metric == "variance":
             difficulty = np.std(errors)  # Variance-based difficulty measure
         elif difficulty_metric == "median_error":
@@ -18,13 +27,12 @@ def estimate_difficulty_tiers(case_values, difficulty_metric="variance", num_tie
                 "Unsupported difficulty metric. Choose 'variance', 'median_error', or 'entropy'."
             )
 
-        difficulty_scores.append((case, difficulty))
+        difficulty_scores.append((case_idx, difficulty))
 
     # Sort test cases by difficulty
     difficulty_scores.sort(key=lambda x: x[1])
 
     # Split into tiers (medium first, then easy/hard)
-    num_cases = len(difficulty_scores)
     tier_size = max(1, num_cases // num_tiers)  # Ensure tier size is at least 1
 
     medium_tier = difficulty_scores[tier_size : num_cases - tier_size]  # Medium cases
@@ -37,20 +45,21 @@ def estimate_difficulty_tiers(case_values, difficulty_metric="variance", num_tie
     random.shuffle(hard_tier)
 
     # Final ordering: Medium first, then Easy + Hard mixed
-    final_order = [case for case, _ in medium_tier] + [
-        case for case, _ in (easy_tier + hard_tier)
+    final_order = [case_idx for case_idx, _ in medium_tier] + [
+        case_idx for case_idx, _ in (easy_tier + hard_tier)
     ]
 
     return final_order
 
 
-def automatic_epsilon_lexicase_selection(
-    population, case_values, num_selected, difficulty_metric="variance"
+def automatic_epsilon_lexicase_selection_CL(
+    population, num_selected, difficulty_metric="variance"
 ):
     """
     Automatic Epsilon Lexicase Selection with Median Absolute Deviation (MAD) and proper tracking of individuals.
     """
     selected = []
+    case_values = np.array([ind.case_values for ind in population])
 
     # Assign unique IDs to individuals for tracking
     individual_map = {i: ind for i, ind in enumerate(population)}
@@ -61,19 +70,19 @@ def automatic_epsilon_lexicase_selection(
     for _ in range(num_selected):
         candidates = list(individual_map.keys())  # Track using indices
 
-        for case in ordered_cases:
+        for case_idx in ordered_cases:
             # Compute threshold using Median Absolute Deviation (MAD)
-            errors = [case_values[case][i] for i in candidates]
+            errors = case_values[
+                candidates, case_idx
+            ]  # Extract candidate errors for the test case
             median_error = np.median(errors)
-            mad = np.median(
-                [abs(e - median_error) for e in errors]
-            )  # Median absolute deviation
+            mad = np.median(np.abs(errors - median_error))  # Compute MAD
             epsilon = mad  # Automatic epsilon threshold
 
             # Select candidates within the epsilon range of the minimum error
-            min_error = min(errors)
+            min_error = np.min(errors)
             candidates = [
-                i for i in candidates if case_values[case][i] <= min_error + epsilon
+                i for i in candidates if case_values[i, case_idx] <= min_error + epsilon
             ]
 
             if len(candidates) == 1:
@@ -86,10 +95,6 @@ def automatic_epsilon_lexicase_selection(
 
 
 if __name__ == "__main__":
-    import random
-    import numpy as np
-    import pandas as pd
-
     # Define a simple individual structure
     class Individual:
         def __init__(self, id, errors):
@@ -110,7 +115,7 @@ if __name__ == "__main__":
         ind.errors = {tc: case_values[tc][i] for tc in test_cases}
 
     # Apply RCL-Lexicase Selection using precomputed case values
-    selected_individuals = automatic_epsilon_lexicase_selection(
+    selected_individuals = automatic_epsilon_lexicase_selection_CL(
         population, case_values, num_selected=3
     )
 
