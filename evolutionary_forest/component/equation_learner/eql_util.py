@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from utils import pretty_print, functions
-from utils.regularization import L12Smooth
-from utils.symbolic_network import SymbolicNet
+from .utils import pretty_print, functions
+from .utils.regularization import L12Smooth
+from .utils.symbolic_network import SymbolicNet
 
 
 def symbolic_regression(x, y,

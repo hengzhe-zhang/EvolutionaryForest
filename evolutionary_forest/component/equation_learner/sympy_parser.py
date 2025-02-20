@@ -1,4 +1,7 @@
 import ast
+import operator, math
+
+import numpy as np
 from deap import gp
 
 DEBUG = True
@@ -48,14 +51,29 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
 
     if isinstance(node, ast.BinOp):
         op_type = type(node.op)
+
+        # Special case: Transform pow(base, 2) into square(base)
+        if op_type == ast.Pow and isinstance(node.right, ast.Constant) and node.right.value == 2:
+            if "square" in primitive_dict:
+                prim = primitive_dict["square"]
+                if DEBUG:
+                    print(f"Transforming pow(base, 2) into '{prim.name}(base)'")
+                base_tokens = ast_to_gp(node.left, primitive_dict, var_map, pset)
+                return [prim] + base_tokens
+            else:
+                raise ValueError("Primitive 'square' not found in the primitive set.")
+
         if op_type not in BINARY_OPS:
-            raise ValueError("Unsupported binary operator: {}".format(op_type))
+            raise ValueError(f"Unsupported binary operator: {op_type}")
+
         op_name = BINARY_OPS[op_type]
         if op_name not in primitive_dict:
-            raise ValueError("Operator '{}' not found in the primitive set.".format(op_name))
+            raise ValueError(f"Operator '{op_name}' not found in the primitive set.")
+
         prim = primitive_dict[op_name]
         if DEBUG:
             print(f"BinaryOp: Using primitive '{prim.name}' for operator '{op_name}'")
+
         left_tokens = ast_to_gp(node.left, primitive_dict, var_map, pset)
         right_tokens = ast_to_gp(node.right, primitive_dict, var_map, pset)
         return [prim] + left_tokens + right_tokens
@@ -63,10 +81,10 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
     elif isinstance(node, ast.UnaryOp):
         op_type = type(node.op)
         if op_type not in UNARY_OPS:
-            raise ValueError("Unsupported unary operator: {}".format(op_type))
+            raise ValueError(f"Unsupported unary operator: {op_type}")
         op_name = UNARY_OPS[op_type]
         if op_name not in primitive_dict:
-            raise ValueError("Operator '{}' not found in the primitive set.".format(op_name))
+            raise ValueError(f"Operator '{op_name}' not found in the primitive set.")
         prim = primitive_dict[op_name]
         if DEBUG:
             print(f"UnaryOp: Using primitive '{prim.name}' for operator '{op_name}'")
@@ -79,7 +97,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
             raise ValueError("Only direct function calls are supported.")
         func_name = node.func.id
         if func_name not in primitive_dict:
-            raise ValueError("Function '{}' is not in the primitive set.".format(func_name))
+            raise ValueError(f"Function '{func_name}' is not in the primitive set.")
         prim = primitive_dict[func_name]
         if DEBUG:
             print(f"Call: Using primitive '{prim.name}' for function call '{func_name}'")
@@ -89,18 +107,17 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
         return tokens
 
     elif isinstance(node, ast.Name):
-        # For a variable node (e.g. "x1"), use var_map to get its corresponding pset argument name,
-        # then search pset.terminals[object] for a terminal with that name.
         var_id = node.id
         if var_id in var_map:
             arg_name = var_map[var_id]
             terminal = None
-            for term in pset.terminals[object]:
+            terminal_set = pset.terminals[float] + pset.terminals[object]
+            for term in terminal_set:
                 if hasattr(term, "name") and term.name == arg_name:
                     terminal = term
                     break
             if terminal is None:
-                raise ValueError("Could not find terminal for variable {}".format(arg_name))
+                raise ValueError(f"Could not find terminal for variable {arg_name}")
             if DEBUG:
                 print(f"Name: Mapped variable '{var_id}' to terminal {terminal}")
             return [terminal]
@@ -114,7 +131,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
                 print(f"Constant: {token}")
             return [token]
         else:
-            raise ValueError("Unsupported constant type: {}".format(type(node.value)))
+            raise ValueError(f"Unsupported constant type: {type(node.value)}")
 
     elif hasattr(ast, "Num") and isinstance(node, ast.Num):  # For Python < 3.8
         token = ConstTerminal(node.n)
@@ -123,10 +140,10 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
         return [token]
 
     else:
-        raise ValueError("Unsupported AST node type: {}".format(type(node)))
+        raise ValueError(f"Unsupported AST node type: {type(node)}")
 
 
-def convert_to_deap_gp(expr_str, pset):
+def convert_to_deap_gp(expr_str, pset, primitive_dict=None):
     """
     Converts a symbolic expression string into a DEAP GP PrimitiveTree.
 
@@ -141,7 +158,8 @@ def convert_to_deap_gp(expr_str, pset):
         print("AST of expression:", ast.dump(tree))
 
     # Build a dictionary mapping primitive names (as defined in the pset) to their objects.
-    primitive_dict = {}
+    if primitive_dict is None:
+        primitive_dict = {}
     for prim in pset.primitives[pset.ret]:
         primitive_dict[prim.name] = prim
         if DEBUG:
@@ -165,10 +183,6 @@ def convert_to_deap_gp(expr_str, pset):
 
 # Example usage:
 if __name__ == "__main__":
-    import operator, math
-    from deap import gp
-    import random
-
     # Define a primitive set with two arguments.
     pset = gp.PrimitiveSet("MAIN", 2)
     # Add primitives with names that match those used in the expression.
@@ -177,16 +191,17 @@ if __name__ == "__main__":
     pset.addPrimitive(operator.mul, 2, name="mul")
     pset.addPrimitive(operator.truediv, 2, name="div")
     pset.addPrimitive(pow, 2, name="pow")
+    pset.addPrimitive(np.square, 1, name="square")
     pset.addPrimitive(math.sin, 1, name="sin")
     pset.addPrimitive(math.cos, 1, name="cos")
     pset.addPrimitive(math.exp, 1, name="exp")
     pset.addPrimitive(math.log, 1, name="log")
     pset.addPrimitive(operator.neg, 1, name="neg")
-    # pset.arguments will typically be something like ("ARG0", "ARG1")
 
     # Define a sample expression string.
     expr_str = "sin(x1) + x2**2"  # corresponds to sin(x1) + (x2)^2
 
     # Convert the expression to a DEAP GP tree.
     gp_tree = convert_to_deap_gp(expr_str, pset)
+    print(gp_tree.height)
     print("DEAP GP tree:", gp_tree)
