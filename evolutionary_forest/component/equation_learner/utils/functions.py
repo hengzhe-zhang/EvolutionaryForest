@@ -41,9 +41,6 @@ class Constant(BaseFunction):
     def torch(self, x):
         return torch.ones_like(x)
 
-    def tf(self, x):
-        return tf.ones_like(x)
-
     def sp(self, x):
         return 1
 
@@ -55,9 +52,6 @@ class Identity(BaseFunction):
     def torch(self, x):
         return x / self.norm  # ??
 
-    def tf(self, x):
-        return tf.identity(x) / self.norm
-
     def sp(self, x):
         return x / self.norm
 
@@ -68,9 +62,6 @@ class Identity(BaseFunction):
 class Square(BaseFunction):
     def torch(self, x):
         return torch.square(x) / self.norm
-
-    def tf(self, x):
-        return tf.square(x) / self.norm
 
     def sp(self, x):
         return x ** 2 / self.norm
@@ -90,16 +81,21 @@ class Pow(BaseFunction):
     def sp(self, x):
         return x ** self.power / self.norm
 
-    def tf(self, x):
-        return tf.pow(x, self.power) / self.norm
-
 
 class Sin(BaseFunction):
     def torch(self, x):
-        return torch.sin(x * 2 * 2 * np.pi) / self.norm
+        return torch.sin(x * np.pi) / self.norm
 
     def sp(self, x):
-        return sp.sin(x * 2 * 2 * np.pi) / self.norm
+        return sp.sin(x * np.pi) / self.norm
+
+
+class Cos(BaseFunction):
+    def torch(self, x):
+        return torch.cos(x * np.pi) / self.norm
+
+    def sp(self, x):
+        return sp.cos(x * np.pi) / self.norm
 
 
 class Sigmoid(BaseFunction):

@@ -111,8 +111,7 @@ def filter_mat(mat, threshold=0.01):
 
 
 def filter_expr(expr, threshold=0.01):
-    """Remove additive terms with coefficient below threshold
-    TODO: Make more robust. This does not work in all cases."""
+    """Remove additive terms with coefficient below threshold"""
     expr_new = sym.Integer(0)
     for arg in expr.args:
         if arg.is_constant() and abs(arg) > threshold:  # hack way to check if it's a number
@@ -123,8 +122,7 @@ def filter_expr(expr, threshold=0.01):
 
 
 def filter_expr2(expr, threshold=0.01):
-    """Sets all constants under threshold to 0
-    TODO: Test"""
+    """Sets all constants under threshold to 0"""
     for a in sym.preorder_traversal(expr):
         if isinstance(a, sym.Float) and a < threshold:
             expr = expr.subs(a, 0)

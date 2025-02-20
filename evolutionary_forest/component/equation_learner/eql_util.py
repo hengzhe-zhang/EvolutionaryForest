@@ -1,13 +1,13 @@
 import time
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# Import required modules from your utils package.
 from utils import pretty_print, functions
-from utils.symbolic_network import SymbolicNet
 from utils.regularization import L12Smooth
+from utils.symbolic_network import SymbolicNet
 
 
 def symbolic_regression(x, y,
@@ -92,9 +92,8 @@ def symbolic_regression(x, y,
         [functions.Identity()] * 4 +
         [functions.Square()] * 4 +
         [functions.Sin()] * 2 +
-        [functions.Exp()] * 2 +
-        [functions.Sigmoid()] * 2 +
-        [functions.Product()] * 2
+        [functions.Cos()] * 2 +
+        [functions.Product(norm=1)] * 2
     )
     width = len(activation_funcs)
     n_double = functions.count_double(activation_funcs)
@@ -233,7 +232,7 @@ def symbolic_regression(x, y,
 
 
 if __name__ == '__main__':
-    x_data = np.random.uniform(-1, 1, size=(256, 1))
-    y_data = np.sin(x_data)  # or any function generating your target values
-    expr = symbolic_regression(x_data, y_data, summary_step=10)
+    x_data = np.random.uniform(-1, 1, size=(256, 2))
+    y_data = np.sin(x_data[:, 0])  # or any function generating your target values
+    expr = symbolic_regression(x_data, y_data, summary_step=100, patience=20)
     print("Final symbolic expression:", expr)
