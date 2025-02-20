@@ -22,7 +22,8 @@ def symbolic_regression(x, y,
                         validation_split=0.2,
                         patience=10,
                         min_delta=1e-6,
-                        device=None):
+                        device=None,
+                        verbose=True):
     """
     Trains the deep symbolic regression network on the provided dataset (x, y)
     and returns a symbolic expression for the relationship between x and y.
@@ -33,7 +34,7 @@ def symbolic_regression(x, y,
 
     Parameters:
       x: Input data (numpy array or torch tensor) of shape (N, input_dim)
-      y: Target data (numpy array or torch tensor) of shape (N, 1)
+      y: Target data (numpy array or torch tensor) of shape (N, 1) or (N,)
       var_names: Optional list of variable names. If None or insufficient, defaults
                  to ["x1", "x2", ..., "xN"] where N is the input dimensionality.
       n_layers: Number of hidden layers in the network.
@@ -49,6 +50,7 @@ def symbolic_regression(x, y,
                 before early stopping is triggered.
       min_delta: Minimum change in validation loss to qualify as an improvement.
       device: Torch device to use; if None, uses 'cuda:0' if available, else 'cpu'.
+      verbose: If True, print log messages; if False, disable all logging.
 
     Returns:
       expr: A string representing the learned symbolic expression.
@@ -63,6 +65,10 @@ def symbolic_regression(x, y,
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     x = x.to(device)
     y = y.to(device)
+
+    # Ensure target tensor has shape (N, 1) for consistency with network output.
+    if y.dim() == 1:
+        y = y.unsqueeze(1)
 
     # Determine input dimensionality.
     input_dim = x.shape[1]
@@ -144,7 +150,8 @@ def symbolic_regression(x, y,
                 with torch.no_grad():
                     val_outputs = net(val_x)
                     val_loss = criterion(val_outputs, val_y).item()
-                print("Stage 1 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f" % (epoch, loss.item(), val_loss))
+                if verbose:
+                    print("Stage 1 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f" % (epoch, loss.item(), val_loss))
 
                 # Check if the validation loss has improved.
                 if best_val_loss - val_loss > min_delta:
@@ -153,7 +160,8 @@ def symbolic_regression(x, y,
                 else:
                     patience_counter += 1
                 if patience_counter >= patience:
-                    print("Early stop in Stage 1 triggered at epoch", epoch)
+                    if verbose:
+                        print("Early stop in Stage 1 triggered at epoch", epoch)
                     break
                 if np.isnan(loss.item()) or loss.item() > 1000:
                     diverged = True
@@ -190,7 +198,8 @@ def symbolic_regression(x, y,
                 with torch.no_grad():
                     val_outputs = net(val_x)
                     val_loss = criterion(val_outputs, val_y).item()
-                print("Stage 2 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f" % (epoch, loss.item(), val_loss))
+                if verbose:
+                    print("Stage 2 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f" % (epoch, loss.item(), val_loss))
 
                 if best_val_loss_stage2 - val_loss > min_delta:
                     best_val_loss_stage2 = val_loss
@@ -198,7 +207,8 @@ def symbolic_regression(x, y,
                 else:
                     patience_counter_stage2 += 1
                 if patience_counter_stage2 >= patience:
-                    print("Early stop in Stage 2 triggered at epoch", epoch)
+                    if verbose:
+                        print("Early stop in Stage 2 triggered at epoch", epoch)
                     break
                 if np.isnan(loss.item()) or loss.item() > 1000:
                     diverged = True
@@ -220,19 +230,21 @@ def symbolic_regression(x, y,
         break
 
     t1 = time.time()
-    print("Training completed in %f seconds." % (t1 - t0))
+    if verbose:
+        print("Training completed in %f seconds." % (t1 - t0))
 
     # Retrieve learned weights and convert them into a symbolic expression.
     with torch.no_grad():
         weights = net.get_weights()
         expr = pretty_print.network(weights, activation_funcs, var_names[:input_dim])
-        print("Learned expression:", expr)
+        if verbose:
+            print("Learned expression:", expr)
 
     return expr
 
 
 if __name__ == '__main__':
-    x_data = np.random.uniform(-1, 1, size=(256, 2))
-    y_data = np.sin(x_data[:, 0])  # or any function generating your target values
-    expr = symbolic_regression(x_data, y_data, summary_step=100, patience=20)
+    x_data = np.random.uniform(-5, 5, size=(256, 2))
+    y_data = np.sin(x_data[:, 0]) + x_data[:, 1]  # or any function generating your target values
+    expr = symbolic_regression(x_data, y_data, summary_step=100, patience=20, verbose=True)
     print("Final symbolic expression:", expr)
