@@ -8,7 +8,7 @@ is already pruned.
 """
 
 import sympy as sym
-from utils import functions as functions
+from . import functions as functions
 
 
 def apply_activation(W, funcs, n_double=0):

@@ -2,7 +2,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from utils import functions as functions
+from . import functions as functions
 
 
 class SymbolicLayer(nn.Module):
