@@ -1,10 +1,13 @@
 import ast
-import operator, math
+import operator
+import math
 
 import numpy as np
 from deap import gp
 
-DEBUG = True
+from evolutionary_forest.component.stgp.shared_type import Parameter
+
+DEBUG = False
 
 # Mapping from Python AST operator types to primitive names.
 BINARY_OPS = {
@@ -21,26 +24,6 @@ UNARY_OPS = {
 }
 
 
-class ConstTerminal:
-    """
-    A wrapper for numeric constants so that they have an 'arity' attribute and a format() method,
-    as required by DEAP GP.
-    """
-
-    def __init__(self, value):
-        self.value = value
-        self.arity = 0
-
-    def format(self, *args):
-        return str(self.value)
-
-    def __str__(self):
-        return str(self.value)
-
-    def __repr__(self):
-        return f"ConstTerminal({self.value})"
-
-
 def ast_to_gp(node, primitive_dict, var_map, pset):
     """
     Recursively converts a Python AST node into a list of DEAP GP tokens (primitives and terminals)
@@ -53,13 +36,17 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
         op_type = type(node.op)
 
         # Special case: Transform pow(base, 2) into square(base)
-        if op_type == ast.Pow and isinstance(node.right, ast.Constant) and node.right.value == 2:
+        if (
+            op_type == ast.Pow
+            and isinstance(node.right, ast.Constant)
+            and math.isclose(node.right.value, 2.0)
+        ):
             if "square" in primitive_dict:
                 prim = primitive_dict["square"]
                 if DEBUG:
                     print(f"Transforming pow(base, 2) into '{prim.name}(base)'")
                 base_tokens = ast_to_gp(node.left, primitive_dict, var_map, pset)
-                return [prim] + base_tokens
+                return [prim] + base_tokens + [pset.terminals[Parameter][0]()]
             else:
                 raise ValueError("Primitive 'square' not found in the primitive set.")
 
@@ -76,7 +63,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
 
         left_tokens = ast_to_gp(node.left, primitive_dict, var_map, pset)
         right_tokens = ast_to_gp(node.right, primitive_dict, var_map, pset)
-        return [prim] + left_tokens + right_tokens
+        return [prim] + left_tokens + right_tokens + [pset.terminals[Parameter][0]()]
 
     elif isinstance(node, ast.UnaryOp):
         op_type = type(node.op)
@@ -89,7 +76,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
         if DEBUG:
             print(f"UnaryOp: Using primitive '{prim.name}' for operator '{op_name}'")
         operand_tokens = ast_to_gp(node.operand, primitive_dict, var_map, pset)
-        return [prim] + operand_tokens
+        return [prim] + operand_tokens + [pset.terminals[Parameter][0]()]
 
     elif isinstance(node, ast.Call):
         # Handle function calls such as sin(x1) or exp(x2).
@@ -100,11 +87,13 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
             raise ValueError(f"Function '{func_name}' is not in the primitive set.")
         prim = primitive_dict[func_name]
         if DEBUG:
-            print(f"Call: Using primitive '{prim.name}' for function call '{func_name}'")
+            print(
+                f"Call: Using primitive '{prim.name}' for function call '{func_name}'"
+            )
         tokens = [prim]
         for arg in node.args:
             tokens.extend(ast_to_gp(arg, primitive_dict, var_map, pset))
-        return tokens
+        return tokens + [pset.terminals[Parameter][0]()]
 
     elif isinstance(node, ast.Name):
         var_id = node.id
@@ -126,7 +115,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
 
     elif isinstance(node, ast.Constant):  # For Python 3.8+
         if isinstance(node.value, (int, float)):
-            token = ConstTerminal(node.value)
+            token = gp.Terminal(node.value, False, float)
             if DEBUG:
                 print(f"Constant: {token}")
             return [token]
@@ -134,7 +123,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
             raise ValueError(f"Unsupported constant type: {type(node.value)}")
 
     elif hasattr(ast, "Num") and isinstance(node, ast.Num):  # For Python < 3.8
-        token = ConstTerminal(node.n)
+        token = gp.Terminal(node.n, False, float)
         if DEBUG:
             print(f"Num: {token}")
         return [token]
@@ -175,6 +164,11 @@ def convert_to_deap_gp(expr_str, pset, primitive_dict=None):
         print("Prefix tokens:", tokens)
 
     gp_tree = gp.PrimitiveTree(tokens)
+    assert len(gp_tree) == len(tokens), (
+        "Length mismatch between tokens and GP tree {} != {}".format(
+            len(gp_tree), len(tokens)
+        )
+    )
     if DEBUG:
         print("Constructed DEAP GP tree:", gp_tree)
 
@@ -184,7 +178,7 @@ def convert_to_deap_gp(expr_str, pset, primitive_dict=None):
 # Example usage:
 if __name__ == "__main__":
     # Define a primitive set with two arguments.
-    pset = gp.PrimitiveSet("MAIN", 2)
+    pset = gp.PrimitiveSet("MAIN", 10)
     # Add primitives with names that match those used in the expression.
     pset.addPrimitive(operator.add, 2, name="add")
     pset.addPrimitive(operator.sub, 2, name="sub")
@@ -199,7 +193,7 @@ if __name__ == "__main__":
     pset.addPrimitive(operator.neg, 1, name="neg")
 
     # Define a sample expression string.
-    expr_str = "sin(x1) + x2**2"  # corresponds to sin(x1) + (x2)^2
+    expr_str = ""  # corresponds to sin(x1) + (x2)^2
 
     # Convert the expression to a DEAP GP tree.
     gp_tree = convert_to_deap_gp(expr_str, pset)

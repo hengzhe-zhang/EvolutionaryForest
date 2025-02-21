@@ -143,6 +143,7 @@ from evolutionary_forest.component.environmental_selection import (
     Best,
     NSGA3,
 )
+from evolutionary_forest.component.equation_learner.gp_util import eql_mutation
 from evolutionary_forest.component.evaluation import (
     calculate_score,
     single_tree_evaluation,
@@ -545,6 +546,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         data_augmentation=False,
         time_limit=None,
         subset_transfer=None,
+        eql_hybrid=0,
         **params,
     ):
         """
@@ -579,6 +581,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
+        self.eql_hybrid = eql_hybrid
         self.precision = precision
         self.seed_with_linear_model = seed_with_linear_model
         self.init_some_logs()
@@ -4052,10 +4055,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.dynamic_reduction > 0
                 and (gen > 1)
                 and (
-                (number_of_evaluations - self.n_pop)
-                % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
-                == 0
-            )
+                    (number_of_evaluations - self.n_pop)
+                    % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
+                    == 0
+                )
             ):
                 pop_size //= 2
                 assert self.pre_selection == None
@@ -4083,7 +4086,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ensemble_value = np.mean([x.predicted_values for x in self.hof], axis=0)
                 for x in self.hof:
                     ambiguity = (x.predicted_values - ensemble_value) ** 2
-                    x.case_values[len(x.predicted_values):] = -1 * ambiguity
+                    x.case_values[len(x.predicted_values) :] = -1 * ambiguity
 
             cxpb, mutpb = self.linear_adaptive_rate(gen, cxpb, mutpb)
             cxpb, mutpb = self.get_adaptive_mutation_rate(cxpb, mutpb)
@@ -4130,9 +4133,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if (
                 self.current_gen == (self.n_gen // 2) + 1
                 and (
-                self.evaluation_configuration.two_stage_feature_selection
-                is not None
-            )
+                    self.evaluation_configuration.two_stage_feature_selection
+                    is not None
+                )
                 and all([not hasattr(ind, "case_values") for ind in population])
             ):
                 # Re-initialization
@@ -4285,6 +4288,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert len(new_offspring) == pop_size, f"{len(new_offspring), pop_size}"
             new_offspring = self.semantic_approximation(new_offspring)
             new_offspring = self.tarpeian(new_offspring)
+
+            self.eql_hybrid_mutation(new_offspring)
 
             self.time_statistics["GP Generation"].append(time.time() - start_time)
             # delete some inherited information
@@ -4516,6 +4521,34 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             assert not self.base_learner.startswith("Fast-")
         self.post_prune(self.hof)
         return population, logbook
+
+    def eql_hybrid_mutation(self, offspring):
+        if self.eql_hybrid > 0 and (self.current_gen - 1) % self.eql_hybrid == 0:
+            offspring_generation = True
+            if offspring_generation:
+                temp_offspring = offspring[:-1]
+                eql_ind, random_idx = eql_mutation(
+                    self.hof[0], self.pset, self.X, self.y
+                )
+                if (
+                    eql_ind.gene[random_idx].height
+                    > self.depth_limit_configuration.max_height
+                ):
+                    return
+                del eql_ind.fitness.values
+                temp_offspring += [eql_ind]
+                # in place
+                offspring[:] = temp_offspring
+            else:
+                eql_ind, random_idx = eql_mutation(
+                    self.hof[0], self.pset, self.X, self.y
+                )
+                if (
+                    eql_ind.gene[random_idx].height
+                    > self.depth_limit_configuration.max_height
+                ):
+                    return
+                self.hof[0] = eql_ind
 
     def adaptive_operator_selection_update(self, offspring, population):
         # if self.select in ["Auto", "Auto-MCTS"]:
@@ -4834,7 +4867,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.cross_pb == "Linear":
             cxpb = np.interp(np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.9, 0.5])[
                 gen - 1
-                ]
+            ]
         if self.mutation_pb == "Linear":
             mutpb = np.interp(
                 np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.1, 0.5]
@@ -5889,7 +5922,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if len(ind.case_values) == len(self.y):
                 ind.case_values = np.concatenate([ind.case_values, distance], axis=0)
             else:
-                ind.case_values[len(self.y):] = distance
+                ind.case_values[len(self.y) :] = distance
 
     def complexity(self):
         count = 0

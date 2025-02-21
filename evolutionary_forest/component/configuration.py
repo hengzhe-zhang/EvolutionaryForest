@@ -3,7 +3,6 @@ from typing import Union
 
 from deap.gp import PrimitiveSet
 
-
 semantic_based_bloat_control = ["hoist_mutation"]
 
 
@@ -369,7 +368,7 @@ class EvaluationConfiguration(Configuration):
         sample_weight=None,
         minor_sample_weight=0.1,
         two_stage_feature_selection=None,
-        **params,
+        save_semantics=False, **params,
     ):
         # prediction results of the neural network
         self.feature_smoothing = feature_smoothing
@@ -396,10 +395,9 @@ class EvaluationConfiguration(Configuration):
         self.current_generation = 0
         # save semantic information of each tree
         self.semantic_crossover_probability = semantic_crossover_probability
+        self.save_semantics = save_semantics
         if self.semantic_crossover_probability > 0:
             self.save_semantics = True
-        else:
-            self.save_semantics = False
         self.gradient_descent = gradient_descent
         self.transductive_learning = transductive_learning
 

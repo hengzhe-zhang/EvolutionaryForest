@@ -584,7 +584,14 @@ def quick_evaluate(
                 if prefix in prim.name:
                     result = data[:, int(prim.name.replace(prefix, ""))]
                 else:
-                    result = prim.value
+                    if isinstance(prim.value, (Parameter, NearestValueTransformer)):
+                        result = prim.value
+                    else:
+                        assert isinstance(
+                            prim.value,
+                            (float, int, np.float32, np.float64, np.int32, np.int64),
+                        )
+                        result = np.full(data.shape[0], prim.value)
             else:
                 raise Exception("Invalid node in the expression tree.")
             if len(stack) == 0:

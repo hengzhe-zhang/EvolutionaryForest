@@ -5,25 +5,32 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .utils import pretty_print, functions
-from .utils.regularization import L12Smooth
-from .utils.symbolic_network import SymbolicNet
+from evolutionary_forest.component.equation_learner.utils import pretty_print, functions
+from evolutionary_forest.component.equation_learner.utils.regularization import (
+    L12Smooth,
+)
+from evolutionary_forest.component.equation_learner.utils.symbolic_network import (
+    SymbolicNet,
+)
 
 
-def symbolic_regression(x, y,
-                        var_names=None,
-                        n_layers=2,
-                        reg_weight=5e-3,
-                        learning_rate=1e-2,
-                        n_epochs1=10001,
-                        n_epochs2=10001,
-                        summary_step=1000,
-                        initial_weights_sd=(0.1, 0.5, 1.0),
-                        validation_split=0.2,
-                        patience=10,
-                        min_delta=1e-6,
-                        device=None,
-                        verbose=True):
+def symbolic_regression(
+    x,
+    y,
+    var_names=None,
+    n_layers=2,
+    reg_weight=5e-3,
+    learning_rate=1e-2,
+    n_epochs1=10001,
+    n_epochs2=10001,
+    summary_step=1000,
+    initial_weights_sd=(0.1, 0.5, 1.0),
+    validation_split=0.2,
+    patience=10,
+    min_delta=1e-6,
+    device=None,
+    verbose=True,
+):
     """
     Trains the deep symbolic regression network on the provided dataset (x, y)
     and returns a symbolic expression for the relationship between x and y.
@@ -80,7 +87,9 @@ def symbolic_regression(x, y,
     # Split the data into training and validation sets.
     N = x.shape[0]
     n_val = int(N * validation_split)
-    n_val = max(n_val, 1) if validation_split > 0 else 0  # ensure at least one sample if split is used
+    n_val = (
+        max(n_val, 1) if validation_split > 0 else 0
+    )  # ensure at least one sample if split is used
     n_train = N - n_val
     indices = torch.randperm(N)
     train_idx = indices[:n_train]
@@ -94,35 +103,40 @@ def symbolic_regression(x, y,
 
     # Define the set of activation functions used by the network.
     activation_funcs = (
-        [functions.Constant()] * 2 +
-        [functions.Identity()] * 4 +
-        [functions.Square()] * 4 +
-        [functions.Sin()] * 2 +
-        [functions.Cos()] * 2 +
-        [functions.Product(norm=1)] * 2
+        [functions.Constant()] * 2
+        + [functions.Identity()] * 4
+        + [functions.Square()] * 4
+        + [functions.Sin()] * 2
+        + [functions.Cos()] * 2
+        + [functions.Product(norm=1)] * 2
     )
     width = len(activation_funcs)
     n_double = functions.count_double(activation_funcs)
 
     # Unpack standard deviations and initialize weights.
     init_sd_first, init_sd_middle, init_sd_last = initial_weights_sd
-    W1 = torch.fmod(torch.normal(0, init_sd_first, size=(input_dim, width + n_double)), 2)
+    W1 = torch.fmod(
+        torch.normal(0, init_sd_first, size=(input_dim, width + n_double)), 2
+    )
     W2 = torch.fmod(torch.normal(0, init_sd_middle, size=(width, width + n_double)), 2)
     W3 = torch.fmod(torch.normal(0, init_sd_middle, size=(width, width + n_double)), 2)
     W4 = torch.fmod(torch.normal(0, init_sd_last, size=(width, 1)), 2)
     initial_weights = [W1, W2, W3, W4]
 
     # Instantiate the symbolic network.
-    net = SymbolicNet(n_layers, funcs=activation_funcs, initial_weights=initial_weights).to(device)
+    net = SymbolicNet(
+        n_layers, funcs=activation_funcs, initial_weights=initial_weights
+    ).to(device)
 
     # Set up loss function, optimizer, and learning rate scheduler.
     criterion = nn.MSELoss()
-    optimizer = optim.RMSprop(net.parameters(),
-                              lr=learning_rate * 10,
-                              alpha=0.9,
-                              eps=1e-10,
-                              momentum=0.0,
-                              centered=False)
+    optimizer = optim.AdamW(
+        net.parameters(),
+        lr=learning_rate,
+        betas=(0.9, 0.999),
+        eps=1e-8,
+        weight_decay=0.01,
+    )
     lr_lambda = lambda epoch: 0.1
     scheduler = optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lr_lambda)
 
@@ -134,7 +148,7 @@ def symbolic_regression(x, y,
         diverged = False
 
         # ----- Stage 1 Training -----
-        best_val_loss = float('inf')
+        best_val_loss = float("inf")
         patience_counter = 0
         for epoch in range(n_epochs1 + 2000):
             optimizer.zero_grad()
@@ -151,7 +165,10 @@ def symbolic_regression(x, y,
                     val_outputs = net(val_x)
                     val_loss = criterion(val_outputs, val_y).item()
                 if verbose:
-                    print("Stage 1 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f" % (epoch, loss.item(), val_loss))
+                    print(
+                        "Stage 1 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f"
+                        % (epoch, loss.item(), val_loss)
+                    )
 
                 # Check if the validation loss has improved.
                 if best_val_loss - val_loss > min_delta:
@@ -170,19 +187,24 @@ def symbolic_regression(x, y,
                 scheduler.step()  # Reduce learning rate after warmup.
         if diverged:
             # Reinitialize if divergence occurred.
-            net = SymbolicNet(n_layers, funcs=activation_funcs, initial_weights=initial_weights).to(device)
-            optimizer = optim.RMSprop(net.parameters(),
-                                      lr=learning_rate * 10,
-                                      alpha=0.9,
-                                      eps=1e-10,
-                                      momentum=0.0,
-                                      centered=False)
-            scheduler = optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lr_lambda)
+            net = SymbolicNet(
+                n_layers, funcs=activation_funcs, initial_weights=initial_weights
+            ).to(device)
+            optimizer = optim.AdamW(
+                net.parameters(),
+                lr=learning_rate,
+                betas=(0.9, 0.999),
+                eps=1e-8,
+                weight_decay=0.01,
+            )
+            scheduler = optim.lr_scheduler.MultiplicativeLR(
+                optimizer, lr_lambda=lr_lambda
+            )
             loss_val = np.nan
             continue
 
         # ----- Stage 2 Training -----
-        best_val_loss_stage2 = float('inf')
+        best_val_loss_stage2 = float("inf")
         patience_counter_stage2 = 0
         for epoch in range(n_epochs2):
             optimizer.zero_grad()
@@ -199,7 +221,10 @@ def symbolic_regression(x, y,
                     val_outputs = net(val_x)
                     val_loss = criterion(val_outputs, val_y).item()
                 if verbose:
-                    print("Stage 2 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f" % (epoch, loss.item(), val_loss))
+                    print(
+                        "Stage 2 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f"
+                        % (epoch, loss.item(), val_loss)
+                    )
 
                 if best_val_loss_stage2 - val_loss > min_delta:
                     best_val_loss_stage2 = val_loss
@@ -215,14 +240,19 @@ def symbolic_regression(x, y,
                     break
         if diverged:
             # Reinitialize if divergence occurred.
-            net = SymbolicNet(n_layers, funcs=activation_funcs, initial_weights=initial_weights).to(device)
-            optimizer = optim.RMSprop(net.parameters(),
-                                      lr=learning_rate * 10,
-                                      alpha=0.9,
-                                      eps=1e-10,
-                                      momentum=0.0,
-                                      centered=False)
-            scheduler = optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lr_lambda)
+            net = SymbolicNet(
+                n_layers, funcs=activation_funcs, initial_weights=initial_weights
+            ).to(device)
+            optimizer = optim.AdamW(
+                net.parameters(),
+                lr=learning_rate,
+                betas=(0.9, 0.999),
+                eps=1e-8,
+                weight_decay=0.01,
+            )
+            scheduler = optim.lr_scheduler.MultiplicativeLR(
+                optimizer, lr_lambda=lr_lambda
+            )
             loss_val = np.nan
             continue
 
@@ -243,8 +273,10 @@ def symbolic_regression(x, y,
     return expr
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     x_data = np.random.uniform(-5, 5, size=(256, 2))
-    y_data = np.sin(x_data[:, 0]) + x_data[:, 1]  # or any function generating your target values
-    expr = symbolic_regression(x_data, y_data, summary_step=100, patience=20, verbose=True)
+    y_data = (
+        np.sin(x_data[:, 0]) + x_data[:, 1]
+    )  # or any function generating your target values
+    expr = symbolic_regression(x_data, y_data, n_layers=1, verbose=True)
     print("Final symbolic expression:", expr)

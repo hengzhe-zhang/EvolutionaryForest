@@ -1,7 +1,9 @@
 import numpy as np
 
 from evolutionary_forest.component.equation_learner.eql_util import symbolic_regression
-from evolutionary_forest.component.equation_learner.sympy_parser import convert_to_deap_gp
+from evolutionary_forest.component.equation_learner.sympy_parser import (
+    convert_to_deap_gp,
+)
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import efficient_deepcopy
 
@@ -29,7 +31,9 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y):
 
     # Compute the contribution of the selected gene.
     # (ridge.coef_ is assumed to be an array with one coefficient per gene)
-    gene_contrib = ridge.coef_[random_idx] * scaled_semantics[:, random_idx]  # shape: (n_samples,)
+    gene_contrib = (
+        ridge.coef_[random_idx] * scaled_semantics[:, random_idx]
+    )  # shape: (n_samples,)
 
     # Remove the selected gene's contribution from the overall prediction.
     new_prediction = result - gene_contrib  # shape: (n_samples,)
@@ -42,13 +46,17 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y):
 
     # Use symbolic regression on (X, residual) to evolve a new expression.
     # Reshape residual to (n_samples, 1) if needed.
-    expr_str = symbolic_regression(X, residual.reshape(-1, 1), verbose=False)
+    expr_str = symbolic_regression(
+        X,
+        residual.reshape(-1, 1),
+        verbose=False,
+        summary_step=100,
+        patience=10,
+        n_layers=1,
+    )
 
     # Convert the resulting expression string to a DEAP GP tree.
-    pset_dict = {
-        v.name.lower(): v
-        for v in pset.primitives[float]
-    }
+    pset_dict = {v.name.lower(): v for v in pset.primitives[float]}
     pset_dict = {
         **pset_dict,
         "sin": pset_dict["rsin"],
