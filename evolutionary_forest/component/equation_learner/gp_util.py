@@ -48,7 +48,8 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y):
     # Reshape residual to (n_samples, 1) if needed.
     expr_str = symbolic_regression(
         X,
-        residual.reshape(-1, 1),
+        residual,
+        reg_weight=1e-2,
         verbose=False,
         summary_step=10,
         patience=20,
