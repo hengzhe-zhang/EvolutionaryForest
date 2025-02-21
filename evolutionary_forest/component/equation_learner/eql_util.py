@@ -34,7 +34,6 @@ def symbolic_regression(
     n_epochs=20000,  # total number of epochs for one-stage training
     batch_size=32,  # new parameter for batch training
     summary_step=1000,
-    initial_weights_sd=(0.1, 0.5, 1.0),
     validation_split=0.2,
     patience=10,
     min_delta=1e-6,
@@ -59,8 +58,6 @@ def symbolic_regression(
       n_epochs: Maximum number of epochs for training.
       batch_size: Batch size for mini-batch training.
       summary_step: Frequency (in epochs) at which to evaluate and print training progress.
-      initial_weights_sd: Tuple of standard deviations (init_sd_first, init_sd_middle, init_sd_last)
-                          for weight initialization.
       validation_split: Fraction of data to use as validation (0 <= validation_split < 1).
       patience: Number of summary evaluations with no improvement on the validation loss
                 before early stopping is triggered.
@@ -127,13 +124,17 @@ def symbolic_regression(
     n_double = functions.count_double(activation_funcs)
 
     # Unpack standard deviations and initialize weights.
-    init_sd_first, init_sd_middle, init_sd_last = initial_weights_sd
-    W1 = torch.fmod(
-        torch.normal(0, init_sd_first, size=(input_dim, width + n_double)), 2
-    )
-    W2 = torch.fmod(torch.normal(0, init_sd_middle, size=(width, width + n_double)), 2)
-    W3 = torch.fmod(torch.normal(0, init_sd_middle, size=(width, width + n_double)), 2)
-    W4 = torch.fmod(torch.normal(0, init_sd_last, size=(width, 1)), 2)
+    W1 = torch.empty(size=(input_dim, width + n_double))
+    nn.init.xavier_normal_(W1)
+
+    W2 = torch.empty(size=(width, width + n_double))
+    nn.init.xavier_normal_(W2)
+
+    W3 = torch.empty(size=(width, width + n_double))
+    nn.init.xavier_normal_(W3)
+
+    W4 = torch.empty(size=(width, 1))
+    nn.init.xavier_normal_(W4)
     initial_weights = [W1, W2, W3, W4]
 
     # Instantiate the symbolic network.
@@ -228,32 +229,62 @@ if __name__ == "__main__":
         np.sin(x_data[:, 0]) + x_data[:, 1]
     )  # or any function generating your target values
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
+        x_data,
+        y_data,
+        n_layers=1,
+        summary_step=10,
+        patience=20,
+        verbose=True,
     )
     print("Final symbolic expression:", expr)
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
+        x_data,
+        y_data,
+        n_layers=1,
+        summary_step=10,
+        patience=20,
+        verbose=True,
     )
     print("Final symbolic expression:", expr)
     y_data = (
         np.sin(x_data[:, 0]) + x_data[:, 0] ** 2
     )  # or any function generating your target values
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
+        x_data,
+        y_data,
+        n_layers=1,
+        summary_step=10,
+        patience=20,
+        verbose=True,
     )
     print("Final symbolic expression:", expr)
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
+        x_data,
+        y_data,
+        n_layers=1,
+        summary_step=10,
+        patience=20,
+        verbose=True,
     )
     print("Final symbolic expression:", expr)
     y_data = (
         np.sin(x_data[:, 1]) + x_data[:, 1] ** 2
     )  # or any function generating your target values
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
+        x_data,
+        y_data,
+        n_layers=1,
+        summary_step=10,
+        patience=20,
+        verbose=True,
     )
     print("Final symbolic expression:", expr)
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
+        x_data,
+        y_data,
+        n_layers=1,
+        summary_step=10,
+        patience=20,
+        verbose=True,
     )
     print("Final symbolic expression:", expr)
