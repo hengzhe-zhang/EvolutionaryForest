@@ -56,7 +56,9 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y):
     )
 
     # Convert the resulting expression string to a DEAP GP tree.
-    pset_dict = {v.name.lower(): v for v in pset.primitives[float]}
+    pset_dict = {
+        v.name.lower(): v for v in pset.primitives[float] or pset.primitives[object]
+    }
     pset_dict = {
         **pset_dict,
         "sin": pset_dict["rsin"],
