@@ -14,6 +14,15 @@ from evolutionary_forest.component.equation_learner.utils.symbolic_network impor
 )
 
 
+class SymbolicNetSingleton:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = SymbolicNet(*args, **kwargs)
+        return cls._instance
+
+
 def symbolic_regression(
     x,
     y,
@@ -21,8 +30,7 @@ def symbolic_regression(
     n_layers=2,
     reg_weight=5e-3,
     learning_rate=1e-2,
-    n_epochs1=10001,
-    n_epochs2=10001,
+    n_epochs=20000,  # total number of epochs for one-stage training
     summary_step=1000,
     initial_weights_sd=(0.1, 0.5, 1.0),
     validation_split=0.2,
@@ -35,9 +43,8 @@ def symbolic_regression(
     Trains the deep symbolic regression network on the provided dataset (x, y)
     and returns a symbolic expression for the relationship between x and y.
 
-    Internally, the data is split into training and validation sets (by validation_split).
-    Early stopping is triggered if no improvement on the validation loss is seen
-    over 'patience' summary evaluations (measured every 'summary_step' epochs).
+    This version uses a one-stage training process with a cosine annealing learning
+    rate scheduler for smooth decay of the learning rate.
 
     Parameters:
       x: Input data (numpy array or torch tensor) of shape (N, input_dim)
@@ -47,8 +54,7 @@ def symbolic_regression(
       n_layers: Number of hidden layers in the network.
       reg_weight: Regularization weight for L₁⁄₂ regularization.
       learning_rate: Base learning rate for training.
-      n_epochs1: Maximum number of epochs for the first training stage.
-      n_epochs2: Maximum number of epochs for the second training stage.
+      n_epochs: Maximum number of epochs for training.
       summary_step: Frequency (in epochs) at which to evaluate and print training progress.
       initial_weights_sd: Tuple of standard deviations (init_sd_first, init_sd_middle, init_sd_last)
                           for weight initialization.
@@ -124,7 +130,7 @@ def symbolic_regression(
     initial_weights = [W1, W2, W3, W4]
 
     # Instantiate the symbolic network.
-    net = SymbolicNet(
+    net = SymbolicNetSingleton(
         n_layers, funcs=activation_funcs, initial_weights=initial_weights
     ).to(device)
 
@@ -137,127 +143,48 @@ def symbolic_regression(
         eps=1e-8,
         weight_decay=0.01,
     )
-    lr_lambda = lambda epoch: 0.1
-    scheduler = optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lr_lambda)
+
+    # Cosine annealing scheduler
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=n_epochs, eta_min=1e-5
+    )
 
     t0 = time.time()
-    loss_val = np.nan
 
-    # Outer loop to restart training in case of divergence.
-    while True:
-        diverged = False
+    # Training loop
+    best_val_loss = float("inf")
+    patience_counter = 0
 
-        # ----- Stage 1 Training -----
-        best_val_loss = float("inf")
-        patience_counter = 0
-        for epoch in range(n_epochs1 + 2000):
-            optimizer.zero_grad()
-            outputs = net(train_x)
-            regularization = L12Smooth()
-            mse_loss = criterion(outputs, train_y)
-            reg_loss = regularization(net.get_weights_tensor())
-            loss = mse_loss + reg_weight * reg_loss
-            loss.backward()
-            optimizer.step()
+    # Single-stage training loop with cosine annealing.
+    for epoch in range(n_epochs):
+        optimizer.zero_grad()
+        outputs = net(train_x)
+        regularization = L12Smooth()
+        mse_loss = criterion(outputs, train_y)
+        reg_loss = regularization(net.get_weights_tensor())
+        loss = mse_loss + reg_weight * reg_loss
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
 
-            if epoch % summary_step == 0:
-                with torch.no_grad():
-                    val_outputs = net(val_x)
-                    val_loss = criterion(val_outputs, val_y).item()
-                if verbose:
-                    print(
-                        "Stage 1 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f"
-                        % (epoch, loss.item(), val_loss)
-                    )
-
-                # Check if the validation loss has improved.
-                if best_val_loss - val_loss > min_delta:
-                    best_val_loss = val_loss
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                if patience_counter >= patience:
-                    if verbose:
-                        print("Early stop in Stage 1 triggered at epoch", epoch)
-                    break
-                if np.isnan(loss.item()) or loss.item() > 1000:
-                    diverged = True
-                    break
-            if epoch == 2000:
-                scheduler.step()  # Reduce learning rate after warmup.
-        if diverged:
-            # Reinitialize if divergence occurred.
-            net = SymbolicNet(
-                n_layers, funcs=activation_funcs, initial_weights=initial_weights
-            ).to(device)
-            optimizer = optim.AdamW(
-                net.parameters(),
-                lr=learning_rate,
-                betas=(0.9, 0.999),
-                eps=1e-8,
-                weight_decay=0.01,
-            )
-            scheduler = optim.lr_scheduler.MultiplicativeLR(
-                optimizer, lr_lambda=lr_lambda
-            )
-            loss_val = np.nan
-            continue
-
-        # ----- Stage 2 Training -----
-        best_val_loss_stage2 = float("inf")
-        patience_counter_stage2 = 0
-        for epoch in range(n_epochs2):
-            optimizer.zero_grad()
-            outputs = net(train_x)
-            regularization = L12Smooth()
-            mse_loss = criterion(outputs, train_y)
-            reg_loss = regularization(net.get_weights_tensor())
-            loss = mse_loss + reg_weight * reg_loss
-            loss.backward()
-            optimizer.step()
-
-            if epoch % summary_step == 0:
-                with torch.no_grad():
-                    val_outputs = net(val_x)
-                    val_loss = criterion(val_outputs, val_y).item()
-                if verbose:
-                    print(
-                        "Stage 2 Epoch: %d\tTrain Loss: %f\tValidation Loss: %f"
-                        % (epoch, loss.item(), val_loss)
-                    )
-
-                if best_val_loss_stage2 - val_loss > min_delta:
-                    best_val_loss_stage2 = val_loss
-                    patience_counter_stage2 = 0
-                else:
-                    patience_counter_stage2 += 1
-                if patience_counter_stage2 >= patience:
-                    if verbose:
-                        print("Early stop in Stage 2 triggered at epoch", epoch)
-                    break
-                if np.isnan(loss.item()) or loss.item() > 1000:
-                    diverged = True
-                    break
-        if diverged:
-            # Reinitialize if divergence occurred.
-            net = SymbolicNet(
-                n_layers, funcs=activation_funcs, initial_weights=initial_weights
-            ).to(device)
-            optimizer = optim.AdamW(
-                net.parameters(),
-                lr=learning_rate,
-                betas=(0.9, 0.999),
-                eps=1e-8,
-                weight_decay=0.01,
-            )
-            scheduler = optim.lr_scheduler.MultiplicativeLR(
-                optimizer, lr_lambda=lr_lambda
-            )
-            loss_val = np.nan
-            continue
-
-        # If both stages finish without divergence, exit the outer loop.
-        break
+        if epoch % summary_step == 0:
+            with torch.no_grad():
+                val_outputs = net(val_x)
+                val_loss = criterion(val_outputs, val_y).item()
+            if verbose:
+                print(
+                    "Epoch: %d\tTrain Loss: %f\tValidation Loss: %f"
+                    % (epoch, loss.item(), val_loss)
+                )
+        if best_val_loss - val_loss > min_delta:
+            best_val_loss = val_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
+        if patience_counter >= patience:
+            if verbose:
+                print("Early stopping triggered at epoch", epoch)
+            break
 
     t1 = time.time()
     if verbose:
@@ -278,5 +205,37 @@ if __name__ == "__main__":
     y_data = (
         np.sin(x_data[:, 0]) + x_data[:, 1]
     )  # or any function generating your target values
-    expr = symbolic_regression(x_data, y_data, n_layers=1, verbose=True)
+    expr = symbolic_regression(
+        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+    )
+    print("Final symbolic expression:", expr)
+    expr = symbolic_regression(
+        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+    )
+    print("Final symbolic expression:", expr)
+    expr = symbolic_regression(
+        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+    )
+    print("Final symbolic expression:", expr)
+    y_data = (
+        np.sin(x_data[:, 0]) + x_data[:, 0] ** 2
+    )  # or any function generating your target values
+    expr = symbolic_regression(
+        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+    )
+    print("Final symbolic expression:", expr)
+    expr = symbolic_regression(
+        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+    )
+    print("Final symbolic expression:", expr)
+    y_data = (
+        np.sin(x_data[:, 1]) + x_data[:, 1] ** 2
+    )  # or any function generating your target values
+    expr = symbolic_regression(
+        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+    )
+    print("Final symbolic expression:", expr)
+    expr = symbolic_regression(
+        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+    )
     print("Final symbolic expression:", expr)
