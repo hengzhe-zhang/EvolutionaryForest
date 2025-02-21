@@ -50,8 +50,8 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y):
         X,
         residual.reshape(-1, 1),
         verbose=False,
-        summary_step=100,
-        patience=10,
+        summary_step=10,
+        patience=20,
         n_layers=1,
     )
 

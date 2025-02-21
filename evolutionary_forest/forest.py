@@ -4548,6 +4548,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     > self.depth_limit_configuration.max_height
                 ):
                     return
+                # need to refit
+                features = self.feature_generation(self.X, eql_ind)
+                # learn based on constructed features
+                self.hof.pipe.fit(features, self.y)
                 self.hof[0] = eql_ind
 
     def adaptive_operator_selection_update(self, offspring, population):
