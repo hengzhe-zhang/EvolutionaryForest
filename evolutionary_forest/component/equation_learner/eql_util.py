@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import TensorDataset, DataLoader
 
 from evolutionary_forest.component.equation_learner.utils import pretty_print, functions
 from evolutionary_forest.component.equation_learner.utils.regularization import (
@@ -31,6 +32,7 @@ def symbolic_regression(
     reg_weight=5e-3,
     learning_rate=1e-2,
     n_epochs=20000,  # total number of epochs for one-stage training
+    batch_size=32,  # new parameter for batch training
     summary_step=1000,
     initial_weights_sd=(0.1, 0.5, 1.0),
     validation_split=0.2,
@@ -43,8 +45,8 @@ def symbolic_regression(
     Trains the deep symbolic regression network on the provided dataset (x, y)
     and returns a symbolic expression for the relationship between x and y.
 
-    This version uses a one-stage training process with a cosine annealing learning
-    rate scheduler for smooth decay of the learning rate.
+    This version uses mini-batch training with a cosine annealing warm-restart
+    learning rate scheduler.
 
     Parameters:
       x: Input data (numpy array or torch tensor) of shape (N, input_dim)
@@ -55,6 +57,7 @@ def symbolic_regression(
       reg_weight: Regularization weight for L₁⁄₂ regularization.
       learning_rate: Base learning rate for training.
       n_epochs: Maximum number of epochs for training.
+      batch_size: Batch size for mini-batch training.
       summary_step: Frequency (in epochs) at which to evaluate and print training progress.
       initial_weights_sd: Tuple of standard deviations (init_sd_first, init_sd_middle, init_sd_last)
                           for weight initialization.
@@ -107,6 +110,10 @@ def symbolic_regression(
         # if no validation, use training data as fallback (not recommended)
         val_x, val_y = train_x, train_y
 
+    # Create DataLoader for mini-batch training.
+    train_dataset = TensorDataset(train_x, train_y)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
     # Define the set of activation functions used by the network.
     activation_funcs = (
         [functions.Constant()] * 2
@@ -134,7 +141,7 @@ def symbolic_regression(
         n_layers, funcs=activation_funcs, initial_weights=initial_weights
     ).to(device)
 
-    # Set up loss function, optimizer, and learning rate scheduler.
+    # Set up loss function and optimizer.
     criterion = nn.MSELoss()
     optimizer = optim.AdamW(
         net.parameters(),
@@ -145,8 +152,8 @@ def symbolic_regression(
     )
 
     # Cosine annealing scheduler
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=n_epochs, eta_min=1e-5
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, T_0=1000, T_mult=1, eta_min=1e-5
     )
 
     t0 = time.time()
@@ -157,30 +164,44 @@ def symbolic_regression(
 
     # Single-stage training loop with cosine annealing.
     for epoch in range(n_epochs):
-        optimizer.zero_grad()
-        outputs = net(train_x)
-        regularization = L12Smooth()
-        mse_loss = criterion(outputs, train_y)
-        reg_loss = regularization(net.get_weights_tensor())
-        loss = mse_loss + reg_weight * reg_loss
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
+        net.train()
+        epoch_loss = 0.0
+        n_batches = len(train_loader)
+        for batch_idx, (batch_x, batch_y) in enumerate(train_loader):
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.to(device)
+            optimizer.zero_grad()
+            outputs = net(batch_x)
+            regularization = L12Smooth()
+            mse_loss = criterion(outputs, batch_y)
+            reg_loss = regularization(net.get_weights_tensor())
+            loss = mse_loss + reg_weight * reg_loss
+            loss.backward()
+            optimizer.step()
 
+            # Update scheduler with fractional epoch index.
+            scheduler.step(epoch + batch_idx / n_batches)
+
+            epoch_loss += loss.item()
+
+        avg_epoch_loss = epoch_loss / n_batches
         if epoch % summary_step == 0:
+            # Evaluate on validation set at summary intervals.
+            net.eval()
             with torch.no_grad():
                 val_outputs = net(val_x)
                 val_loss = criterion(val_outputs, val_y).item()
             if verbose:
                 print(
-                    "Epoch: %d\tTrain Loss: %f\tValidation Loss: %f"
-                    % (epoch, loss.item(), val_loss)
+                    "Epoch: %d\tAvg Train Loss: %f\tValidation Loss: %f"
+                    % (epoch, avg_epoch_loss, val_loss)
                 )
-        if best_val_loss - val_loss > min_delta:
-            best_val_loss = val_loss
-            patience_counter = 0
-        else:
-            patience_counter += 1
+
+            if best_val_loss - val_loss > min_delta:
+                best_val_loss = val_loss
+                patience_counter = 0
+            else:
+                patience_counter += 1
         if patience_counter >= patience:
             if verbose:
                 print("Early stopping triggered at epoch", epoch)
@@ -191,6 +212,7 @@ def symbolic_regression(
         print("Training completed in %f seconds." % (t1 - t0))
 
     # Retrieve learned weights and convert them into a symbolic expression.
+    net.eval()
     with torch.no_grad():
         weights = net.get_weights()
         expr = pretty_print.network(weights, activation_funcs, var_names[:input_dim])
@@ -206,36 +228,32 @@ if __name__ == "__main__":
         np.sin(x_data[:, 0]) + x_data[:, 1]
     )  # or any function generating your target values
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
     )
     print("Final symbolic expression:", expr)
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
-    )
-    print("Final symbolic expression:", expr)
-    expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
     )
     print("Final symbolic expression:", expr)
     y_data = (
         np.sin(x_data[:, 0]) + x_data[:, 0] ** 2
     )  # or any function generating your target values
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
     )
     print("Final symbolic expression:", expr)
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
     )
     print("Final symbolic expression:", expr)
     y_data = (
         np.sin(x_data[:, 1]) + x_data[:, 1] ** 2
     )  # or any function generating your target values
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
     )
     print("Final symbolic expression:", expr)
     expr = symbolic_regression(
-        x_data, y_data, n_layers=1, summary_step=10, patience=10, verbose=True
+        x_data, y_data, n_layers=1, summary_step=10, patience=20, verbose=True
     )
     print("Final symbolic expression:", expr)
