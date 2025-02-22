@@ -42,7 +42,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
             and isinstance(node.right.value, (int, float))
         ):
             exponent = node.right.value
-            if exponent % 2 == 0:  # Only handle even exponents
+            if int(exponent) % 2 == 0:  # Only handle even exponents
                 num_squares = int(exponent / 2)
                 if "square" not in primitive_dict:
                     raise ValueError(
