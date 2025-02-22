@@ -1,3 +1,4 @@
+import copy
 import gc
 import inspect
 import time
@@ -103,6 +104,7 @@ from evolutionary_forest.component.configuration import (
     BaseLearnerConfiguration,
     ExperimentalConfiguration,
     DepthLimitConfiguration,
+    EQLHybridConfiguration,
 )
 from evolutionary_forest.component.constant_optimization.random_constant import (
     constant_controller,
@@ -143,7 +145,6 @@ from evolutionary_forest.component.environmental_selection import (
     Best,
     NSGA3,
 )
-from evolutionary_forest.component.equation_learner.gp_util import eql_mutation
 from evolutionary_forest.component.evaluation import (
     calculate_score,
     single_tree_evaluation,
@@ -329,6 +330,10 @@ from evolutionary_forest.strategies.subset_transfer import (
     train_final_model_on_full_batch,
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
+from evolutionary_forest.utility.eql_hybrid.eql_hybrid_utils import (
+    eql_hybrid_on_pareto_front,
+    eql_hybrid_on_best,
+)
 from evolutionary_forest.utility.evomal_loss import *
 from evolutionary_forest.utility.feature_engineering_utils import combine_features
 from evolutionary_forest.utility.feature_importance.aggregation import (
@@ -546,7 +551,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         data_augmentation=False,
         time_limit=None,
         subset_transfer=None,
-        eql_hybrid=0,
         **params,
     ):
         """
@@ -581,7 +585,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         mgp_mode: A modular GP system
         """
-        self.eql_hybrid = eql_hybrid
         self.precision = precision
         self.seed_with_linear_model = seed_with_linear_model
         self.init_some_logs()
@@ -900,6 +903,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **vars(self),
         )
         self.mutation_configuration = MutationConfiguration(
+            **params,
+            **vars(self),
+        )
+        self.eql_hybrid_configuration = EQLHybridConfiguration(
             **params,
             **vars(self),
         )
@@ -4289,7 +4296,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             new_offspring = self.semantic_approximation(new_offspring)
             new_offspring = self.tarpeian(new_offspring)
 
-            self.eql_hybrid_mutation(new_offspring)
+            self.eql_hybrid_mutation(population, new_offspring)
 
             self.time_statistics["GP Generation"].append(time.time() - start_time)
             # delete some inherited information
@@ -4522,37 +4529,26 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.post_prune(self.hof)
         return population, logbook
 
-    def eql_hybrid_mutation(self, offspring):
-        if self.eql_hybrid > 0 and (self.current_gen - 1) % self.eql_hybrid == 0:
-            offspring_generation = True
-            if offspring_generation:
-                temp_offspring = offspring[:-1]
-                eql_ind, random_idx = eql_mutation(
-                    self.hof[0], self.pset, self.X, self.y
-                )
-                if (
-                    eql_ind.gene[random_idx].height
-                    > self.depth_limit_configuration.max_height
-                ):
-                    return
-                del eql_ind.fitness.values
-                temp_offspring += [eql_ind]
-                # in place
-                offspring[:] = temp_offspring
-            else:
-                eql_ind, random_idx = eql_mutation(
-                    self.hof[0], self.pset, self.X, self.y
-                )
-                if (
-                    eql_ind.gene[random_idx].height
-                    > self.depth_limit_configuration.max_height
-                ):
-                    return
-                # need to refit
-                features = self.feature_generation(self.X, eql_ind)
-                # learn based on constructed features
-                self.hof.pipe.fit(features, self.y)
-                self.hof[0] = eql_ind
+    def eql_hybrid_mutation(self, population, offspring):
+        config = self.eql_hybrid_configuration
+        hybrid = config.eql_hybrid
+        if hybrid > 0 and (self.current_gen - 1) % hybrid == 0:
+            primitive_set = self.pset
+            X = self.X
+            y = self.y
+            depth_limit = self.depth_limit_configuration.max_height
+            best_individual = self.hof[0]
+
+            new_list = eql_hybrid_on_pareto_front(
+                population, X, y, primitive_set, depth_limit, config
+            )
+            new_list += eql_hybrid_on_best(
+                best_individual, X, y, primitive_set, depth_limit, config
+            )
+
+            # in place
+            if len(new_list) > 0:
+                offspring[-len(new_list) :] = new_list
 
     def adaptive_operator_selection_update(self, offspring, population):
         # if self.select in ["Auto", "Auto-MCTS"]:

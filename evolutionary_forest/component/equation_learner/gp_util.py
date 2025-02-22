@@ -1,5 +1,6 @@
 import numpy as np
 
+from evolutionary_forest.component.configuration import EQLHybridConfiguration
 from evolutionary_forest.component.equation_learner.eql_util import symbolic_regression
 from evolutionary_forest.component.equation_learner.sympy_parser import (
     convert_to_deap_gp,
@@ -8,7 +9,7 @@ from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import efficient_deepcopy
 
 
-def eql_mutation(gp: MultipleGeneGP, pset, X, y):
+def eql_mutation(gp: MultipleGeneGP, pset, X, y, eql_config: EQLHybridConfiguration):
     # Create a deep copy of the GP individual.
     offspring = efficient_deepcopy(gp)
 
@@ -46,13 +47,15 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y):
 
     # Use symbolic regression on (X, residual) to evolve a new expression.
     # Reshape residual to (n_samples, 1) if needed.
+    summary_step = eql_config.summary_step
+    patience = eql_config.patience
     expr_str = symbolic_regression(
         X,
         residual,
-        reg_weight=1e-2,
+        reg_weight=eql_config.reg_weight,
         verbose=False,
-        summary_step=10,
-        patience=20,
+        summary_step=summary_step,
+        patience=patience,
         n_layers=1,
     )
 
