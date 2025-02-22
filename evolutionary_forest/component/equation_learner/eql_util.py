@@ -1,9 +1,11 @@
+import math
 import time
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sympy import preorder_traversal
 from torch.utils.data import TensorDataset, DataLoader
 
 from evolutionary_forest.component.equation_learner.utils import pretty_print, functions
@@ -13,6 +15,8 @@ from evolutionary_forest.component.equation_learner.utils.regularization import 
 from evolutionary_forest.component.equation_learner.utils.symbolic_network import (
     SymbolicNet,
 )
+
+DEBUG = True
 
 
 class SymbolicNetSingleton:
@@ -204,7 +208,7 @@ def symbolic_regression(
             else:
                 patience_counter += 1
         if patience_counter >= patience:
-            if verbose:
+            if verbose or DEBUG:
                 print("Early stopping triggered at epoch", epoch)
             break
 
@@ -224,72 +228,28 @@ def symbolic_regression(
 
 
 if __name__ == "__main__":
-    x_data = np.random.uniform(-5, 5, size=(256, 2))
-    y_data = (
-        np.sin(x_data[:, 0]) + x_data[:, 1]
-    )  # or any function generating your target values
-    expr = symbolic_regression(
-        x_data,
-        y_data,
-        n_layers=1,
-        reg_weight=1e-2,
-        summary_step=10,
-        patience=20,
-        verbose=True,
-    )
-    print("Final symbolic expression:", expr)
-    expr = symbolic_regression(
-        x_data,
-        y_data,
-        n_layers=1,
-        reg_weight=1e-2,
-        summary_step=10,
-        patience=20,
-        verbose=True,
-    )
-    print("Final symbolic expression:", expr)
-    y_data = (
-        np.sin(x_data[:, 0]) + x_data[:, 0] ** 2
-    )  # or any function generating your target values
-    expr = symbolic_regression(
-        x_data,
-        y_data,
-        n_layers=1,
-        reg_weight=1e-2,
-        summary_step=10,
-        patience=20,
-        verbose=True,
-    )
-    print("Final symbolic expression:", expr)
-    expr = symbolic_regression(
-        x_data,
-        y_data,
-        n_layers=1,
-        summary_step=10,
-        patience=20,
-        verbose=True,
-    )
-    print("Final symbolic expression:", expr)
-    y_data = (
-        np.sin(x_data[:, 1]) + x_data[:, 1] ** 2
-    )  # or any function generating your target values
-    expr = symbolic_regression(
-        x_data,
-        y_data,
-        n_layers=1,
-        reg_weight=1e-2,
-        summary_step=10,
-        patience=20,
-        verbose=True,
-    )
-    print("Final symbolic expression:", expr)
-    expr = symbolic_regression(
-        x_data,
-        y_data,
-        n_layers=1,
-        reg_weight=1e-2,
-        summary_step=10,
-        patience=20,
-        verbose=True,
-    )
-    print("Final symbolic expression:", expr)
+    x_data = np.random.uniform(-5, 5, size=(100, 2))
+    y_data = np.sin(x_data[:, 0]) + 2 * x_data[:, 1]
+
+    reg_weight = 5e-3
+    summary_step = 1
+    patience = 20
+    learning_rate = 1e-2
+    n_layers = 2
+
+    num_nodes = math.inf
+    while num_nodes > 30:
+        print("Current reg_weight:", reg_weight)
+        expr = symbolic_regression(
+            x_data,
+            y_data,
+            n_layers=n_layers,
+            learning_rate=learning_rate,
+            reg_weight=reg_weight,
+            summary_step=summary_step,
+            patience=patience,
+            verbose=False,
+        )
+        num_nodes = sum(1 for _ in preorder_traversal(expr))
+        reg_weight *= 2
+        print("Final symbolic expression:", expr)

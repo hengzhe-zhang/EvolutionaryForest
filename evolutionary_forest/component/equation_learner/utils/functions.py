@@ -4,6 +4,7 @@ These functions encapsulate multiple implementations (sympy, Tensorflow, numpy) 
 functions can be used in multiple contexts."""
 
 import torch
+
 # import tensorflow as tf
 import numpy as np
 import sympy as sp
@@ -25,13 +26,13 @@ class BaseFunction:
 
     def tf(self, x):
         """Automatically convert sympy to TensorFlow"""
-        z = sp.symbols('z')
-        return sp.utilities.lambdify(z, self.sp(z), 'tensorflow')(x)
+        z = sp.symbols("z")
+        return sp.utilities.lambdify(z, self.sp(z), "tensorflow")(x)
 
     def np(self, x):
         """Automatically convert sympy to numpy"""
-        z = sp.symbols('z')
-        return sp.utilities.lambdify(z, self.sp(z), 'numpy')(x)
+        z = sp.symbols("z")
+        return sp.utilities.lambdify(z, self.sp(z), "numpy")(x)
 
     def name(self, x):
         return str(self.sp)
@@ -64,7 +65,7 @@ class Square(BaseFunction):
         return torch.square(x) / self.norm
 
     def sp(self, x):
-        return x ** 2 / self.norm
+        return x**2 / self.norm
 
     def np(self, x):
         return np.square(x) / self.norm
@@ -79,7 +80,7 @@ class Pow(BaseFunction):
         return torch.pow(x, self.power) / self.norm
 
     def sp(self, x):
-        return x ** self.power / self.norm
+        return x**self.power / self.norm
 
 
 class Sin(BaseFunction):
@@ -138,7 +139,7 @@ class Log(BaseFunction):
 class BaseFunction2:
     """Abstract class for primitive functions with 2 inputs"""
 
-    def __init__(self, norm=1.):
+    def __init__(self, norm=1.0):
         self.norm = norm
 
     def sp(self, x, y):
@@ -150,16 +151,36 @@ class BaseFunction2:
 
     def tf(self, x, y):
         """Automatically convert sympy to TensorFlow"""
-        a, b = sp.symbols('a b')
-        return sp.utilities.lambdify([a, b], self.sp(a, b), 'tensorflow')(x, y)
+        a, b = sp.symbols("a b")
+        return sp.utilities.lambdify([a, b], self.sp(a, b), "tensorflow")(x, y)
 
     def np(self, x, y):
         """Automatically convert sympy to numpy"""
-        a, b = sp.symbols('a b')
-        return sp.utilities.lambdify([a, b], self.sp(a, b), 'numpy')(x, y)
+        a, b = sp.symbols("a b")
+        return sp.utilities.lambdify([a, b], self.sp(a, b), "numpy")(x, y)
 
     def name(self, x, y):
         return str(self.sp)
+
+
+class Max(BaseFunction2):
+    def torch(self, x, y):
+        # Element-wise max using PyTorch
+        return torch.maximum(x, y) / self.norm
+
+    def sp(self, x, y):
+        # Element-wise max using SymPy
+        return sp.Max(x, y) / self.norm
+
+
+class Min(BaseFunction2):
+    def torch(self, x, y):
+        # Element-wise min using PyTorch
+        return torch.minimum(x, y) / self.norm
+
+    def sp(self, x, y):
+        # Element-wise min using SymPy
+        return sp.Min(x, y) / self.norm
 
 
 class Product(BaseFunction2):
