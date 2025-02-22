@@ -6,7 +6,10 @@ from evolutionary_forest.component.equation_learner.sympy_parser import (
     convert_to_deap_gp,
 )
 from evolutionary_forest.multigene_gp import MultipleGeneGP
+from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import efficient_deepcopy
+
+DEBUG = False
 
 
 def eql_mutation(gp: MultipleGeneGP, pset, X, y, eql_config: EQLHybridConfiguration):
@@ -45,20 +48,15 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y, eql_config: EQLHybridConfigurat
     # Compute the residual that the selected gene should explain.
     residual = y_flat - new_prediction  # shape: (n_samples,)
 
-    # Use symbolic regression on (X, residual) to evolve a new expression.
-    # Reshape residual to (n_samples, 1) if needed.
-    summary_step = eql_config.summary_step
-    patience = eql_config.patience
-    expr_str = symbolic_regression(
-        X,
-        residual,
-        reg_weight=eql_config.reg_weight,
-        verbose=False,
-        summary_step=summary_step,
-        patience=patience,
-        n_layers=1,
-    )
+    gp_tree = generate_tree_by_eql(X, residual, pset, eql_config)
 
+    # Replace the gene at the selected index with the new GP tree.
+    offspring.gene[random_idx] = gp_tree
+
+    return offspring, random_idx
+
+
+def generate_tree_by_eql(X, target, pset, eql_config):
     # Convert the resulting expression string to a DEAP GP tree.
     pset_dict = {
         v.name.lower(): v for v in pset.primitives[float] or pset.primitives[object]
@@ -68,9 +66,27 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y, eql_config: EQLHybridConfigurat
         "sin": pset_dict["rsin"],
         "cos": pset_dict["rcos"],
     }
-    gp_tree = convert_to_deap_gp(str(expr_str), pset, pset_dict)
+    # Use symbolic regression on (X, residual) to evolve a new expression.
+    # Reshape residual to (n_samples, 1) if needed.
+    reg_weight = 5e-3
+    while True:
+        expr_str = symbolic_regression(
+            X,
+            target,
+            reg_weight=reg_weight,
+            verbose=False,
+            n_layers=2,
+        )
 
-    # Replace the gene at the selected index with the new GP tree.
-    offspring.gene[random_idx] = gp_tree
+        gp_tree = convert_to_deap_gp(str(expr_str), pset, pset_dict)
 
-    return offspring, random_idx
+        tree_size = get_tree_size(gp_tree)
+        if tree_size <= 30:
+            if DEBUG:
+                print(f"Average size: {tree_size},{reg_weight}")
+            break
+        else:
+            if DEBUG:
+                print(f"Average size: {tree_size},{reg_weight}")
+            reg_weight *= 2
+    return gp_tree

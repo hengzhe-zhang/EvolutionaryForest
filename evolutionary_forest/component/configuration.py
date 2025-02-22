@@ -206,18 +206,12 @@ class EQLHybridConfiguration(Configuration):
     def __init__(
         self,
         eql_hybrid=0,
-        reg_weight=1e-2,
         eql_hybrid_on_pareto_front=0,
-        summary_step=1,
-        patience=20,
         **params,
     ):
         super().__init__()
-        self.reg_weight = reg_weight
         self.eql_hybrid = eql_hybrid
         self.eql_hybrid_on_pareto_front = eql_hybrid_on_pareto_front
-        self.summary_step = summary_step
-        self.patience = patience
 
 
 class MutationConfiguration(Configuration):

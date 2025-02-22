@@ -34,7 +34,13 @@ def eql_hybrid_on_pareto_front(
     return new_list
 
 
+previous_best = None
+
+
 def eql_hybrid_on_best(best_individual, X, y, primitive_set, depth_limit, config):
+    if previous_best == best_individual:
+        return []
+
     eql_ind, random_idx = eql_mutation(best_individual, primitive_set, X, y, config)
     if eql_ind.gene[random_idx].height <= depth_limit:
         del eql_ind.fitness.values  # Reset fitness

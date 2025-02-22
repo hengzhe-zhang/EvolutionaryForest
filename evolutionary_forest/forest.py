@@ -145,6 +145,7 @@ from evolutionary_forest.component.environmental_selection import (
     Best,
     NSGA3,
 )
+from evolutionary_forest.component.equation_learner.gp_util import generate_tree_by_eql
 from evolutionary_forest.component.evaluation import (
     calculate_score,
     single_tree_evaluation,
@@ -3974,6 +3975,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.population_reduction(population)
 
         # Evaluate all individuals
+        self.eql_hybrid_initialization(population)
         evaluated_inds = self.population_evaluation(toolbox, population)
 
         if self.pac_bayesian.perturbation_std == "Auto":
@@ -4549,6 +4551,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # in place
             if len(new_list) > 0:
                 offspring[-len(new_list) :] = new_list
+
+    def eql_hybrid_initialization(self, population):
+        config = self.eql_hybrid_configuration
+        hybrid = config.eql_hybrid
+        if hybrid > 0:
+            last_ind = population[-1]
+            tree = generate_tree_by_eql(self.X, self.y, self.pset, config)
+            last_ind.gene = [tree]
+            del last_ind.fitness.values
 
     def adaptive_operator_selection_update(self, offspring, population):
         # if self.select in ["Auto", "Auto-MCTS"]:

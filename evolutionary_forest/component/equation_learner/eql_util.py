@@ -37,9 +37,9 @@ def symbolic_regression(
     learning_rate=1e-2,
     n_epochs=20000,  # total number of epochs for one-stage training
     batch_size=32,  # new parameter for batch training
-    summary_step=1000,
+    summary_step=1,
     validation_split=0.2,
-    patience=10,
+    patience=20,
     min_delta=1e-6,
     device=None,
     verbose=True,

@@ -39,16 +39,24 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
         if (
             op_type == ast.Pow
             and isinstance(node.right, ast.Constant)
-            and math.isclose(node.right.value, 2.0)
+            and isinstance(node.right.value, (int, float))
         ):
-            if "square" in primitive_dict:
+            exponent = node.right.value
+            if exponent % 2 == 0:  # Only handle even exponents
+                num_squares = int(exponent / 2)
+                if "square" not in primitive_dict:
+                    raise ValueError(
+                        "Primitive 'square' not found in the primitive set."
+                    )
                 prim = primitive_dict["square"]
                 if DEBUG:
-                    print(f"Transforming pow(base, 2) into '{prim.name}(base)'")
+                    print(f"Transforming pow(base, {exponent}) into nested squares")
                 base_tokens = ast_to_gp(node.left, primitive_dict, var_map, pset)
-                return [prim] + base_tokens + [pset.terminals[Parameter][0]()]
-            else:
-                raise ValueError("Primitive 'square' not found in the primitive set.")
+                for _ in range(num_squares):
+                    base_tokens = (
+                        [prim] + base_tokens + [pset.terminals[Parameter][0]()]
+                    )  # Wrap in square each time
+                return base_tokens
 
         if op_type not in BINARY_OPS:
             raise ValueError(f"Unsupported binary operator: {op_type}")
