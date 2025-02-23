@@ -207,11 +207,13 @@ class EQLHybridConfiguration(Configuration):
         self,
         eql_hybrid=0,
         eql_hybrid_on_pareto_front=0,
+        eql_size_limit=30,
         **params,
     ):
         super().__init__()
         self.eql_hybrid = eql_hybrid
         self.eql_hybrid_on_pareto_front = eql_hybrid_on_pareto_front
+        self.eql_size_limit = eql_size_limit
 
 
 class MutationConfiguration(Configuration):

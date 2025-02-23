@@ -56,7 +56,7 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y, eql_config: EQLHybridConfigurat
     return offspring, random_idx
 
 
-def generate_tree_by_eql(X, target, pset, eql_config):
+def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
     # Convert the resulting expression string to a DEAP GP tree.
     pset_dict = {
         v.name.lower(): v for v in pset.primitives[float] or pset.primitives[object]
@@ -81,7 +81,7 @@ def generate_tree_by_eql(X, target, pset, eql_config):
         gp_tree = convert_to_deap_gp(str(expr_str), pset, pset_dict)
 
         tree_size = get_tree_size(gp_tree)
-        if tree_size <= 30:
+        if tree_size <= eql_config.eql_size_limit:
             if DEBUG:
                 print(f"Average size: {tree_size},{reg_weight}")
             break
