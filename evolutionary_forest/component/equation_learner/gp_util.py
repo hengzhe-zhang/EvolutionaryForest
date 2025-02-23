@@ -83,10 +83,14 @@ def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
         tree_size = get_tree_size(gp_tree)
         if tree_size <= eql_config.eql_size_limit:
             if DEBUG:
-                print(f"Average size: {tree_size},{reg_weight}")
+                print(
+                    f"Average size: {tree_size},{reg_weight},{eql_config.eql_size_limit}"
+                )
             break
         else:
             if DEBUG:
-                print(f"Average size: {tree_size},{reg_weight}")
+                print(
+                    f"Average size: {tree_size},{reg_weight},{eql_config.eql_size_limit}"
+                )
             reg_weight *= 2
     return gp_tree

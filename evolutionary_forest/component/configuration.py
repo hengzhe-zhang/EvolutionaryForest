@@ -208,10 +208,12 @@ class EQLHybridConfiguration(Configuration):
         eql_hybrid=0,
         eql_hybrid_on_pareto_front=0,
         eql_size_limit=30,
+        eql_only_initialization=False,
         **params,
     ):
         super().__init__()
         self.eql_hybrid = eql_hybrid
+        self.eql_only_initialization = eql_only_initialization
         self.eql_hybrid_on_pareto_front = eql_hybrid_on_pareto_front
         self.eql_size_limit = eql_size_limit
 

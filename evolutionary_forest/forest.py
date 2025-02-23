@@ -4534,7 +4534,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def eql_hybrid_mutation(self, population, offspring):
         config = self.eql_hybrid_configuration
         hybrid = config.eql_hybrid
-        if hybrid > 0 and (self.current_gen - 1) % hybrid == 0:
+        if (
+            hybrid > 0
+            and (self.current_gen - 1) % hybrid == 0
+            and (not self.eql_hybrid_configuration.eql_only_initialization)
+        ):
             primitive_set = self.pset
             X = self.X
             y = self.y
