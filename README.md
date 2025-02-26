@@ -31,16 +31,25 @@ decision-tree-based algorithms.
 
 ## Installation
 
+### From PyPI
+
 ```bash
 pip install -U evolutionary_forest
 ```
 
-<!--
+### From GitHub (Latest Code)
+
+```bash
+pip install git+https://github.com/hengzhe-zhang/EvolutionaryForest.git
+```
+
 ## Supported Algorithms
 
-- [Evolutionary Forest (TEVC 2021)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/EF.py)
-- [SR-Forest (TEVC 2023)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/SRForest.py)
--->
+- [Evolutionary Forest: Ensemble GP for Decision Trees (TEVC 2021)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/EF.py)
+- [SR-Forest: Ensemble GP for Decision Trees + Linear Models (TEVC 2023)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/SRForest.py)
+- [SHM-GP: Semantic Host Mutation (TEVC 2024)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/GP_SHM.py)
+- [MMTGP: Modular Multi-Tree GP (TEVC 2024)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/MMTGP.py)
+- [RAG-SR: Retrieve-Augmented Deep Symbolic Regression (ICLR 2025)](https://github.com/hengzhe-zhang/EvolutionaryForest/blob/master/experiment/methods/RAG_SR.py)
 
 ## Example
 
@@ -75,7 +84,6 @@ Tutorial: [English Version](https://github.com/zhenlingcn/EvolutionaryForest/blo
 This package was created with [Cookiecutter](https://github.com/audreyr/cookiecutter) and
 the [audreyr/cookiecutter-pypackage](https://github.com/audreyr/cookiecutter-pypackage) project template.
 
-<!--
 ## Citation
 
 Please cite our paper if you find it helpful:
@@ -99,5 +107,21 @@ Please cite our paper if you find it helpful:
     year = {2023},
     publisher = {IEEE}
 }
+
+@article{zhang2023semantic,
+    title = {A Semantic-Based Hoist Mutation Operator for Evolutionary Feature Construction in Regression},
+    author = {Zhang, Hengzhe and Chen, Qi and Xue, Bing and Banzhaf, Wolfgang and Zhang, Mengjie},
+    journal = {IEEE Transactions on Evolutionary Computation},
+    year = {2023},
+    publisher = {IEEE}
+}
+
+@article{zhang2023modular,
+    title = {Modular Multi-Tree Genetic Programming for Evolutionary Feature Construction for Regression},
+    author = {Zhang, Hengzhe and Chen, Qi and Xue, Bing and Banzhaf, Wolfgang and Zhang, Mengjie},
+    journal = {IEEE Transactions on Evolutionary Computation},
+    year = {2023},
+    publisher = {IEEE}
+}
+
 ```
--->
