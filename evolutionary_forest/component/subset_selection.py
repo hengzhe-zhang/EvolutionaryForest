@@ -1,12 +1,13 @@
 import array
 import random
 
-import numpy
+import gopt.de
+import gopt.ilshade
+import gopt.jade
+import gopt.jso
+import gopt.mpede
 import numpy as np
-import pyade
-from deap import base
-from deap import creator
-from deap import tools
+from deap import base, creator, tools
 
 
 class EnsembleSelection:
@@ -62,10 +63,10 @@ class EnsembleSelection:
         pop += [creator.EnsembleIndividual(initial_vector)]
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
-        stats.register("avg", numpy.mean)
-        stats.register("std", numpy.std)
-        stats.register("min", numpy.min)
-        stats.register("max", numpy.max)
+        stats.register("avg", np.mean)
+        stats.register("std", np.std)
+        stats.register("min", np.min)
+        stats.register("max", np.max)
 
         logbook = tools.Logbook()
         logbook.header = "gen", "evals", "std", "min", "avg", "max"
@@ -113,11 +114,11 @@ class EnsembleSelectionADE:
     ):
         # You may want to use a variable so its easier to change it if we want
         algorithm = {
-            "IL-SHADE": pyade.ilshade,
-            "DE": pyade.de,
-            "JADE": pyade.jade,
-            "MPEDE": pyade.mpede,
-            "JSO": pyade.jso,
+            "IL-SHADE": gopt.ilshade,
+            "DE": gopt.de,
+            "JADE": gopt.jade,
+            "MPEDE": gopt.mpede,
+            "JSO": gopt.jso,
         }[de_algorithm]
 
         # We get default parameters for a problem with two variables

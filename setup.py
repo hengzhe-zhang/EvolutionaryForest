@@ -4,35 +4,35 @@
 
 from setuptools import setup, find_packages
 
-with open("README.md") as readme_file:
+with open('README.rst', encoding='utf-8') as readme_file:
     readme = readme_file.read()
 
-with open("HISTORY.rst") as history_file:
+with open('HISTORY.rst', encoding='utf-8') as history_file:
     history = history_file.read()
 
 requirements = [
-    "scipy",
-    "hdfe",
-    "numpy",
-    "seaborn",
-    "matplotlib",
-    "deap",
-    "sympy",
-    "pandas",
-    "scikit_learn",
-    "dill",
-    "lightgbm",
-    "smt",
-    "pytest",
-    "joblib",
-    "linear-tree",
-    "mlxtend",
-    "sklearn2pmml",
-    "tpot",
-    "gplearn",
-    "scorch",
-    "umap-learn",
-    "category_encoders",
+    'scipy',
+    'hdfe',
+    'numpy',
+    'seaborn',
+    'matplotlib',
+    'deap',
+    'sympy',
+    'pandas',
+    'scikit_learn',
+    'dill',
+    'lightgbm',
+    'smt',
+    'pytest',
+    'joblib',
+    'linear-tree',
+    'mlxtend',
+    'sklearn2pmml',
+    'tpot',
+    'gplearn',
+    'scorch',
+    'umap-learn',
+    'category_encoders',
 ]
 
 setup_requirements = [
@@ -68,7 +68,7 @@ setup(
     setup_requires=setup_requirements,
     test_suite="tests",
     tests_require=test_requirements,
-    url="https://github.com/zhenlingcn/evolutionary_forest",
-    version="0.2.2",
+    url='https://github.com/zhenlingcn/evolutionary_forest',
+    version='0.2.4',
     zip_safe=False,
 )

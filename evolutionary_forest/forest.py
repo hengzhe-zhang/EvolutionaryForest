@@ -1161,6 +1161,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             print("mean_diversity", np.mean(mean_diversity))
         return mean_diversity
 
+    def oob_error(self, pop):
+        # Create array to store predictions for each individual in the population
+        prediction = np.full((len(pop), len(self.y)), np.nan, dtype=float)
+        # Iterate through individuals in the population
+        for i, x in enumerate(pop):
+            # Get indices of out-of-bag samples
+            index = x.out_of_bag
+            # Store individual's out-of-bag predictions in prediction array
+            prediction[i][index] = x.oob_prediction
+        # Calculate mean label value across all predictions (ignoring NaN values)
+        label = np.nanmean(prediction, axis=0)
+        label = np.nan_to_num(label)
+        # Calculate R^2 score using mean label values and actual labels
+        accuracy = r2_score(self.y, label)
+        # Print OOB score if verbose mode is enabled
+        if self.verbose:
+            print('oob score', accuracy)
+        return accuracy
+
     def feature_quick_evaluation(self, gene):
         # quickly evaluate semantic information of an individual based on first 20 data items
         # usage: surrogate model
