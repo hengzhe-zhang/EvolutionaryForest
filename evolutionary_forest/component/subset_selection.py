@@ -1,11 +1,6 @@
 import array
 import random
 
-import gopt.de
-import gopt.ilshade
-import gopt.jade
-import gopt.jso
-import gopt.mpede
 import numpy as np
 from deap import base, creator, tools
 
@@ -112,6 +107,8 @@ class EnsembleSelectionADE:
         verbose=False,
         de_algorithm="IL-SHADE",
     ):
+        import gopt
+
         # You may want to use a variable so its easier to change it if we want
         algorithm = {
             "IL-SHADE": gopt.ilshade,

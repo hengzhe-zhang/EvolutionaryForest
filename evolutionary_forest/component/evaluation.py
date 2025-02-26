@@ -936,7 +936,7 @@ def single_tree_evaluation(
                     if isinstance(prim.value, str):
                         result = float(prim.value)
                     else:
-                        result = float(prim.value)
+                        result = prim.value
             else:
                 raise Exception
             if target is not None:
