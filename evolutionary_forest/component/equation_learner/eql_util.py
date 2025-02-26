@@ -16,7 +16,7 @@ from evolutionary_forest.component.equation_learner.utils.symbolic_network impor
     SymbolicNet,
 )
 
-DEBUG = True
+DEBUG = False
 
 
 class SymbolicNetSingleton:
@@ -213,7 +213,7 @@ def symbolic_regression(
             break
 
     t1 = time.time()
-    if verbose:
+    if verbose or DEBUG:
         print("Training completed in %f seconds." % (t1 - t0))
 
     # Retrieve learned weights and convert them into a symbolic expression.
@@ -238,6 +238,7 @@ if __name__ == "__main__":
     n_layers = 2
 
     num_nodes = math.inf
+    start = time.time()
     while num_nodes > 30:
         print("Current reg_weight:", reg_weight)
         expr = symbolic_regression(
@@ -253,3 +254,5 @@ if __name__ == "__main__":
         num_nodes = sum(1 for _ in preorder_traversal(expr))
         reg_weight *= 2
         print("Final symbolic expression:", expr)
+    end = time.time()
+    print("Time taken:", end - start)

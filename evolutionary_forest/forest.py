@@ -4538,6 +4538,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             hybrid > 0
             and (self.current_gen - 1) % hybrid == 0
             and (not self.eql_hybrid_configuration.eql_only_initialization)
+            and not isinstance(self, ClassifierMixin)
         ):
             primitive_set = self.pset
             X = self.X
@@ -4559,7 +4560,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def eql_hybrid_initialization(self, population):
         config = self.eql_hybrid_configuration
         hybrid = config.eql_hybrid
-        if hybrid > 0:
+        if hybrid > 0 and not isinstance(self, ClassifierMixin):
+            # not support for classification
             last_ind = population[-1]
             tree = generate_tree_by_eql(self.X, self.y, self.pset, config)
             last_ind.gene = [tree]
