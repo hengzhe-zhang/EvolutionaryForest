@@ -235,6 +235,7 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     dynamic_difficulty_lexicase_selection,
     phase_based_curriculum_lexicase,
     adaptive_epsilon_curriculum_lexicase,
+    adaptive_tier_lexicase_selection,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2473,6 +2474,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", self.select.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
+        elif self.select == "AdaptiveTierLexicase":
+            toolbox.register(
+                "select",
+                adaptive_tier_lexicase_selection,
+                generation_info=self.generation_info,
+            )
         elif self.select == "TierLexicase":
             toolbox.register(
                 "select",
