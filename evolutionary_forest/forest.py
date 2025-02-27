@@ -230,7 +230,11 @@ from evolutionary_forest.component.selection import (
     selHOFRandom,
 )
 from evolutionary_forest.component.selection_operators.curriculum_learning import (
-    automatic_epsilon_lexicase_selection_CL,
+    progressive_tier_lexicase_selection,
+    GenerationInfo,
+    dynamic_difficulty_lexicase_selection,
+    phase_based_curriculum_lexicase,
+    adaptive_epsilon_curriculum_lexicase,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -1177,7 +1181,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         accuracy = r2_score(self.y, label)
         # Print OOB score if verbose mode is enabled
         if self.verbose:
-            print('oob score', accuracy)
+            print("oob score", accuracy)
         return accuracy
 
     def feature_quick_evaluation(self, gene):
@@ -2453,6 +2457,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         return self.crossover_configuration
 
     def selection_operator_initialization(self, toolbox):
+        self.generation_info = GenerationInfo(0, self.n_gen)
+
         if self.bloat_control is not None:
             if self.bloat_control.get("double_lexicase", False):
                 self.select = "DoubleLexicase"
@@ -2467,23 +2473,29 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", self.select.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
-        elif self.select == "CLLexicase":
-            toolbox.register("select", automatic_epsilon_lexicase_selection_CL)
-        elif self.select == "CLLexicase-Median":
+        elif self.select == "TierLexicase":
             toolbox.register(
                 "select",
-                partial(
-                    automatic_epsilon_lexicase_selection_CL,
-                    difficulty_metric="median_error",
-                ),
+                progressive_tier_lexicase_selection,
+                generation_info=self.generation_info,
             )
-        elif self.select == "CLLexicase-Random":
+        elif self.select == "DynamicDifficultyLexicase":
             toolbox.register(
                 "select",
-                partial(
-                    automatic_epsilon_lexicase_selection_CL,
-                    difficulty_metric="random",
-                ),
+                dynamic_difficulty_lexicase_selection,
+                generation_info=self.generation_info,
+            )
+        elif self.select == "PhaseBased":
+            toolbox.register(
+                "select",
+                phase_based_curriculum_lexicase,
+                generation_info=self.generation_info,
+            )
+        elif self.select == "AdaptiveEpsilon":
+            toolbox.register(
+                "select",
+                adaptive_epsilon_curriculum_lexicase,
+                generation_info=self.generation_info,
             )
         elif self.select == "LexicaseTournament":
             toolbox.register("select", selLexicaseTournament)
@@ -3735,6 +3747,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def callback(self):
         # self.plot_distance()
         log_check(self)
+        self.generation_info.current_gen += 1
 
         if (
             self.current_gen == self.n_gen // 2
