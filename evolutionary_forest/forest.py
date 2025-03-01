@@ -237,6 +237,9 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     adaptive_epsilon_curriculum_lexicase,
     adaptive_tier_lexicase_selection,
 )
+from evolutionary_forest.component.selection_operators.informed_lexicase import (
+    random_ds_tournament_selection,
+)
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
     sel_lexicase_pareto_tournament_weighted_subset,
@@ -2479,6 +2482,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
+            )
+        elif self.select == "IDSTournament":
+            toolbox.register(
+                "select",
+                partial(random_ds_tournament_selection, tournsize=7),
             )
         elif self.select == "TierLexicase":
             toolbox.register(
