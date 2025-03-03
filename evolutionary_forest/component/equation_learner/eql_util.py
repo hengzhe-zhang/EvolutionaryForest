@@ -17,15 +17,9 @@ from evolutionary_forest.component.equation_learner.utils.symbolic_network impor
 DEBUG = False
 
 
-class SymbolicRegression:
+class EQLSymbolicRegression:
     def __init__(
-        self,
-        n_layers=2,
-        var_names=None,
-        reg_weight=5e-3,
-        learning_rate=1e-2,
-        device=None,
-        verbose=True,
+        self, n_layers=2, var_names=None, learning_rate=1e-2, device=None, verbose=True
     ):
         """
         Initialize the Symbolic Regression model.
@@ -33,14 +27,12 @@ class SymbolicRegression:
         Parameters:
           n_layers: Number of hidden layers in the network.
           var_names: Optional list of variable names. If None, inferred during fit.
-          reg_weight: Regularization weight for L₁⁄₂ regularization.
           learning_rate: Base learning rate for training.
           device: Torch device to use; if None, uses 'cuda:0' if available, else 'cpu'.
           verbose: If True, print log messages; if False, disable all logging.
         """
         self.n_layers = n_layers
         self.var_names = var_names
-        self.reg_weight = reg_weight
         self.learning_rate = learning_rate
         self.verbose = verbose
 
@@ -115,6 +107,7 @@ class SymbolicRegression:
         y,
         n_epochs=20000,
         batch_size=32,
+        reg_weight=5e-3,
         summary_step=1,
         validation_split=0.2,
         patience=20,
@@ -129,6 +122,7 @@ class SymbolicRegression:
           y: Target data (numpy array or torch tensor) of shape (N, 1) or (N,)
           n_epochs: Maximum number of epochs for training.
           batch_size: Batch size for mini-batch training.
+          reg_weight: Regularization weight for L₁⁄₂ regularization.
           summary_step: Frequency (in epochs) at which to evaluate and print training progress.
           validation_split: Fraction of data to use as validation (0 <= validation_split < 1).
           patience: Number of summary evaluations with no improvement on the validation loss
@@ -210,7 +204,7 @@ class SymbolicRegression:
                 regularization = L12Smooth()
                 mse_loss = self.criterion(outputs, batch_y)
                 reg_loss = regularization(self.net.get_weights_tensor())
-                loss = mse_loss + self.reg_weight * reg_loss
+                loss = mse_loss + reg_weight * reg_loss
                 loss.backward()
                 self.optimizer.step()
 
@@ -305,7 +299,6 @@ class SymbolicRegression:
         state = {
             "n_layers": self.n_layers,
             "var_names": self.var_names,
-            "reg_weight": self.reg_weight,
             "learning_rate": self.learning_rate,
             "input_dim": self.input_dim,
             "best_val_loss": self.best_val_loss,
@@ -331,7 +324,6 @@ class SymbolicRegression:
 
         self.n_layers = state["n_layers"]
         self.var_names = state["var_names"]
-        self.reg_weight = state["reg_weight"]
         self.learning_rate = state["learning_rate"]
         self.input_dim = state["input_dim"]
         self.best_val_loss = state["best_val_loss"]
@@ -357,15 +349,19 @@ if __name__ == "__main__":
     )  # Target function with noise
 
     # Initialize the model
-    model = SymbolicRegression(n_layers=2, var_names=["x", "y"], verbose=True)
+    model = EQLSymbolicRegression(n_layers=1, var_names=["x", "y"], verbose=True)
 
     # First training round
     print("First training round:")
-    model.fit(x, y, n_epochs=5000, batch_size=32, patience=10)
+    model.fit(
+        x, y, n_epochs=5000, batch_size=32, reg_weight=5e-3, continue_training=True
+    )
 
-    # Second training round (continue from previous weights)
+    # Second training round
     print("\nSecond training round (continuing):")
-    model.fit(x, y, n_epochs=5000, batch_size=32, patience=10, continue_training=True)
+    model.fit(
+        x, y, n_epochs=5000, batch_size=32, reg_weight=1e-2, continue_training=True
+    )
 
     # Get the final expression
     expr = model.get_expression()
