@@ -4,7 +4,6 @@ import os
 from deap import gp
 from deap.gp import PrimitiveSet
 
-from evolutionary_forest.component.llm.chatgpt import initialize_openai, load_api_key
 from evolutionary_forest.utils import efficient_deepcopy
 
 
@@ -83,8 +82,14 @@ class ChatGP:
         self.client = None
 
     def lazy_load(self):
+        from evolutionary_forest.component.llm.chatgpt import (
+            initialize_openai,
+            load_api_key,
+        )
+
         if self.client is not None:
             return
+
         config_file = "config.yaml"
         api_key = load_api_key(config_file)
         os.environ["OPENAI_API_KEY"] = api_key

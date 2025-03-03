@@ -1,7 +1,15 @@
+import json
 import re
 from functools import lru_cache
 
-from evolutionary_forest.component.llm.gp_tree_converter import *
+from evolutionary_forest.component.llm.gp_tree_converter import (
+    population_to_json,
+    generate_pattern,
+    parent_to_json,
+    generate_trees,
+    json_to_individual,
+    ChatGP,
+)
 
 
 @lru_cache(maxsize=None)
