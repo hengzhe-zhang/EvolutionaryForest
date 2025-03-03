@@ -239,6 +239,10 @@ class SemanticLibrary:
                     normalized_semantics
                 )  # Store the normalized semantics
                 if self.mutation_configuration.negative_data_augmentation:
+                    """
+                    If using negative data augmentation, don't need negative local search,
+                    because training data already has negative data.
+                    """
                     self.trees.append(tree)
                     self.normalized_semantics_list.append(-1 * normalized_semantics)
                     self.seen_semantics[tuple(-1 * normalized_semantics)] = len(tree)

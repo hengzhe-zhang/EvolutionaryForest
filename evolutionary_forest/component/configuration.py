@@ -3,6 +3,10 @@ from typing import Union
 
 from deap.gp import PrimitiveSet
 
+from evolutionary_forest.component.equation_learner.eql_util import (
+    EQLSymbolicRegression,
+)
+
 semantic_based_bloat_control = ["hoist_mutation"]
 
 
@@ -216,6 +220,7 @@ class EQLHybridConfiguration(Configuration):
         self.eql_only_initialization = eql_only_initialization
         self.eql_hybrid_on_pareto_front = eql_hybrid_on_pareto_front
         self.eql_size_limit = eql_size_limit
+        self.eql_learner = EQLSymbolicRegression()
 
 
 class MutationConfiguration(Configuration):

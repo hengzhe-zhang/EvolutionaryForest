@@ -1,7 +1,6 @@
 import numpy as np
 
 from evolutionary_forest.component.configuration import EQLHybridConfiguration
-from evolutionary_forest.component.equation_learner.eql_util import symbolic_regression
 from evolutionary_forest.component.equation_learner.sympy_parser import (
     convert_to_deap_gp,
 )
@@ -9,7 +8,7 @@ from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import efficient_deepcopy
 
-DEBUG = False
+DEBUG = True
 
 
 def eql_mutation(gp: MultipleGeneGP, pset, X, y, eql_config: EQLHybridConfiguration):
@@ -70,15 +69,15 @@ def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
     # Reshape residual to (n_samples, 1) if needed.
     reg_weight = 5e-3
     while True:
-        expr_str = symbolic_regression(
+        eql_config.eql_learner.fit(
             X,
             target,
             reg_weight=reg_weight,
-            verbose=False,
-            n_layers=2,
         )
 
-        gp_tree = convert_to_deap_gp(str(expr_str), pset, pset_dict)
+        gp_tree = convert_to_deap_gp(
+            str(eql_config.eql_learner.learned_expr), pset, pset_dict
+        )
 
         tree_size = get_tree_size(gp_tree)
         if tree_size <= eql_config.eql_size_limit:

@@ -32,7 +32,6 @@ from evolutionary_forest.utility.classification_utils import (
     calculate_cross_entropy,
     calculate_zero_one_loss,
 )
-from evolutionary_forest.utility.sampling_utils import sample_indices_gaussian_kernel
 from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
@@ -75,7 +74,6 @@ class PACBayesianConfiguration(Configuration):
         sharpness_iterations=5,
         automatic_std=False,
         automatic_std_model="KNN",
-        only_hard_instance=0,
         sharpness_decay=0,
         structural_sharpness=0,
         adaptive_depth=False,
@@ -116,7 +114,6 @@ class PACBayesianConfiguration(Configuration):
         self.sharpness_iterations = sharpness_iterations
         self.automatic_std_model = automatic_std_model
         self.structural_sharpness = structural_sharpness
-        self.only_hard_instance = only_hard_instance
         self.sharpness_decay = sharpness_decay
         self.noise_configuration = NoiseConfiguration(**params)
         self.reference_model = reference_model
@@ -240,18 +237,8 @@ def pac_bayesian_estimation(
     sc = estimator["Scaler"]
 
     # Create an array to store the R2 scores
-    index = None
-    if configuration.only_hard_instance != 0:
-        mse_scores = np.zeros(
-            (num_iterations, int(configuration.only_hard_instance * len(y)))
-        )
-        index = sample_indices_gaussian_kernel(
-            y.flatten(), int(configuration.only_hard_instance * len(y)), replace=False
-        )
-        baseline = baseline[index]
-    else:
-        mse_scores = np.zeros((num_iterations, len(X)))
-        kl_scores = np.zeros((num_iterations, len(X)))
+    mse_scores = np.zeros((num_iterations, len(X)))
+    kl_scores = np.zeros((num_iterations, len(X)))
     mse_scores = mse_scores.astype(np.float32)
     kl_scores = kl_scores.astype(np.float32)
 
@@ -312,12 +299,7 @@ def pac_bayesian_estimation(
             X_noise = sc.transform(feature_generator(data, random_seed=i))
         elif sharpness_type in [SharpnessType.Parameter, SharpnessType.ParameterPlus]:
             # Sharpness-aware minimization
-            if configuration.only_hard_instance != 0:
-                # worst x%
-                input_x = original_X[index]
-                target_y = y[index]
-            else:
-                input_x = original_X
+            input_x = original_X
             X_noise = sc.transform(
                 feature_generator(
                     input_x,
