@@ -1,9 +1,6 @@
 import numpy as np
 
-from evolutionary_forest.utility.lru_cache import custom_lru_cache
 
-
-@custom_lru_cache(key_func=lambda _, *args: str(args))
 def uniform_sampling_indices(labels, n_samples, n_bins=10, random_state=None):
     """
     Perform uniform sampling for regression problems by stratifying the labels into bins.

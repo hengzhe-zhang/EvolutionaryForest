@@ -5,16 +5,11 @@ from sklearn.metrics import (
     calinski_harabasz_score,
 )
 
-from evolutionary_forest.model.clustering.gap_statistic import gap_statistic
 from evolutionary_forest.model.cosine_kmeans import CosineKMeans
 
 
 def determine_optimal_k(X, k_values, method="silhouette"):
     scores = []
-    if method == "gap":
-        # Use the gap_statistic function to determine optimal_k for this dataset
-        optimal_k = gap_statistic(X, k_values)
-        return optimal_k
 
     for k in k_values:
         if k >= len(X):

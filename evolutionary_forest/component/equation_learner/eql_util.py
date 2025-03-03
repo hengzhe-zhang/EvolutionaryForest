@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
 
 from evolutionary_forest.component.equation_learner.utils import pretty_print, functions
@@ -347,9 +348,11 @@ if __name__ == "__main__":
     y = (
         x[:, 0] ** 2 + np.sin(x[:, 1]) + 0.1 * np.random.randn(1000)
     )  # Target function with noise
+    x = StandardScaler().fit_transform(x)
+    y = StandardScaler().fit_transform(y.reshape(-1, 1)).flatten()
 
     # Initialize the model
-    model = EQLSymbolicRegression(n_layers=1, var_names=["x", "y"], verbose=True)
+    model = EQLSymbolicRegression(n_layers=2, var_names=["x", "y"], verbose=True)
 
     # First training round
     print("First training round:")
