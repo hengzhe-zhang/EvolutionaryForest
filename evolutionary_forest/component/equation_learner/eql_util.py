@@ -57,12 +57,12 @@ class EQLSymbolicRegression:
 
         # Define the set of activation functions used by the network.
         self.activation_funcs = (
-            [functions.Constant()] * 2
-            + [functions.Identity()] * 4
-            + [functions.Square()] * 4
-            + [functions.Sin()] * 2
-            + [functions.Cos()] * 2
-            + [functions.Product(norm=1)] * 2
+            [functions.Constant()] * 1
+            + [functions.Identity()] * 1
+            + [functions.Square()] * 1
+            + [functions.Sin()] * 1
+            + [functions.Cos()] * 1
+            + [functions.Product(norm=1)] * 1
         )
         width = len(self.activation_funcs)
         n_double = functions.count_double(self.activation_funcs)
@@ -107,7 +107,7 @@ class EQLSymbolicRegression:
         x,
         y,
         n_epochs=20000,
-        batch_size=32,
+        batch_size=16,
         reg_weight=5e-3,
         summary_step=1,
         validation_split=0.2,
@@ -344,7 +344,7 @@ class EQLSymbolicRegression:
 if __name__ == "__main__":
     # Create a synthetic dataset
     np.random.seed(0)
-    x = np.random.rand(1000, 2) * 10  # 1000 samples, 2 features
+    x = np.random.randn(1000, 2) * 10  # 1000 samples, 2 features
     y = (
         x[:, 0] ** 2 + np.sin(x[:, 1]) + 0.1 * np.random.randn(1000)
     )  # Target function with noise
@@ -352,19 +352,11 @@ if __name__ == "__main__":
     y = StandardScaler().fit_transform(y.reshape(-1, 1)).flatten()
 
     # Initialize the model
-    model = EQLSymbolicRegression(n_layers=2, var_names=["x", "y"], verbose=True)
+    model = EQLSymbolicRegression(n_layers=1, var_names=["x", "y"], verbose=True)
 
     # First training round
     print("First training round:")
-    model.fit(
-        x, y, n_epochs=5000, batch_size=32, reg_weight=5e-3, continue_training=True
-    )
-
-    # Second training round
-    print("\nSecond training round (continuing):")
-    model.fit(
-        x, y, n_epochs=5000, batch_size=32, reg_weight=1e-2, continue_training=True
-    )
+    model.fit(x, y, n_epochs=5000, reg_weight=5e-3, continue_training=True)
 
     # Get the final expression
     expr = model.get_expression()

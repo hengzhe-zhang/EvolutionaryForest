@@ -74,7 +74,6 @@ def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
         eql_config.eql_learner.fit(
             X,
             target,
-            batch_size=16,
             reg_weight=reg_weight,
             continue_training=not first,  # False for the first run, then True.
         )
