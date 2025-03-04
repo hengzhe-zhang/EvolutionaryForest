@@ -220,7 +220,7 @@ class EQLHybridConfiguration(Configuration):
         self.eql_only_initialization = eql_only_initialization
         self.eql_hybrid_on_pareto_front = eql_hybrid_on_pareto_front
         self.eql_size_limit = eql_size_limit
-        self.eql_learner = EQLSymbolicRegression(verbose=False)
+        self.eql_learner = EQLSymbolicRegression(verbose=True)
 
 
 class MutationConfiguration(Configuration):

@@ -65,31 +65,31 @@ def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
         "sin": pset_dict["rsin"],
         "cos": pset_dict["rcos"],
     }
-    # Use symbolic regression on (X, residual) to evolve a new expression.
-    # Reshape residual to (n_samples, 1) if needed.
+    # Use symbolic regression on (X, target) to evolve a new expression.
+    # Reshape target to (n_samples, 1) if needed.
     reg_weight = 5e-3
+    first = True  # Flag to indicate the first iteration.
+
     while True:
         eql_config.eql_learner.fit(
             X,
             target,
+            batch_size=16,
             reg_weight=reg_weight,
+            continue_training=not first,  # False for the first run, then True.
         )
+        # After the first run, we continue training in subsequent iterations.
+        first = False
 
         gp_tree = convert_to_deap_gp(
             str(eql_config.eql_learner.learned_expr), pset, pset_dict
         )
 
         tree_size = get_tree_size(gp_tree)
+        if DEBUG:
+            print(f"Average size: {tree_size},{reg_weight},{eql_config.eql_size_limit}")
         if tree_size <= eql_config.eql_size_limit:
-            if DEBUG:
-                print(
-                    f"Average size: {tree_size},{reg_weight},{eql_config.eql_size_limit}"
-                )
             break
         else:
-            if DEBUG:
-                print(
-                    f"Average size: {tree_size},{reg_weight},{eql_config.eql_size_limit}"
-                )
             reg_weight *= 2
     return gp_tree
