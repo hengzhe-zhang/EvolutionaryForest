@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.datasets import make_friedman1
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
 
@@ -18,9 +19,96 @@ from evolutionary_forest.component.equation_learner.utils.symbolic_network impor
 DEBUG = False
 
 
+class SAM(torch.optim.Optimizer):
+    def __init__(self, params, base_optimizer, rho=0.05, **kwargs):
+        """
+        SAM optimizer implementation based on the paper
+        "Sharpness-Aware Minimization for Efficiently Improving Generalization"
+
+        Args:
+            params: model parameters
+            base_optimizer: the optimizer to wrap (e.g., Adam)
+            rho: neighborhood size for computing the sharpness (default: 0.05)
+            **kwargs: keyword arguments passed to the base_optimizer
+        """
+        defaults = dict(rho=rho, **kwargs)
+        super(SAM, self).__init__(params, defaults)
+
+        self.base_optimizer = base_optimizer(self.param_groups, **kwargs)
+        self.param_groups = self.base_optimizer.param_groups
+
+    @torch.no_grad()
+    def first_step(self, zero_grad=False):
+        """
+        Compute and apply the perturbation to the parameters
+        """
+        grad_norm = self._grad_norm()
+        for group in self.param_groups:
+            scale = group["rho"] / (grad_norm + 1e-12)
+
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+                e_w = p.grad * scale.to(p)
+                p.add_(e_w)  # perturb the parameter
+                self.state[p]["e_w"] = e_w
+
+        if zero_grad:
+            self.zero_grad()
+
+    @torch.no_grad()
+    def second_step(self, zero_grad=False):
+        """
+        Perform the actual parameter update using the gradients from the perturbed parameters
+        """
+        for group in self.param_groups:
+            for p in group["params"]:
+                if p.grad is None or "e_w" not in self.state[p]:
+                    continue
+                p.sub_(self.state[p]["e_w"])  # revert to the original parameter
+
+        self.base_optimizer.step()  # do the actual update
+
+        if zero_grad:
+            self.zero_grad()
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        """
+        Obsolete method, only for compatibility
+        """
+        raise NotImplementedError(
+            "SAM doesn't work like standard optimizers. Please use the first_step and second_step methods."
+        )
+
+    def _grad_norm(self):
+        """
+        Compute the gradient norm for all parameters
+        """
+        shared_device = self.param_groups[0]["params"][0].device
+        norm = torch.norm(
+            torch.stack(
+                [
+                    p.grad.norm(p=2).to(shared_device)
+                    for group in self.param_groups
+                    for p in group["params"]
+                    if p.grad is not None
+                ]
+            ),
+            p=2,
+        )
+        return norm
+
+
 class EQLSymbolicRegression:
     def __init__(
-        self, n_layers=2, var_names=None, learning_rate=1e-2, device=None, verbose=True
+        self,
+        n_layers=2,
+        var_names=None,
+        learning_rate=1e-2,
+        device=None,
+        verbose=True,
+        simple_function_set=True,
     ):
         """
         Initialize the Symbolic Regression model.
@@ -50,20 +138,31 @@ class EQLSymbolicRegression:
         self.input_dim = None
         self.best_val_loss = float("inf")
         self.learned_expr = None
+        self.simple_function_set = simple_function_set
 
     def _initialize_network(self, input_dim):
         """Initialize the symbolic network with the appropriate dimensions."""
         self.input_dim = input_dim
 
         # Define the set of activation functions used by the network.
-        self.activation_funcs = (
-            [functions.Constant()] * 1
-            + [functions.Identity()] * 1
-            + [functions.Square()] * 1
-            + [functions.Sin()] * 1
-            + [functions.Cos()] * 1
-            + [functions.Product(norm=1)] * 1
-        )
+        if self.simple_function_set:
+            self.activation_funcs = (
+                [functions.Constant()] * 1
+                + [functions.Identity()] * 1
+                + [functions.Square()] * 1
+                + [functions.Sin()] * 1
+                + [functions.Cos()] * 1
+                + [functions.Product(norm=1)] * 1
+            )
+        else:
+            self.activation_funcs = (
+                [functions.Constant()] * 2
+                + [functions.Identity()] * 4
+                + [functions.Square()] * 4
+                + [functions.Sin()] * 2
+                + [functions.Cos()] * 2
+                + [functions.Product(norm=1)] * 2
+            )
         width = len(self.activation_funcs)
         n_double = functions.count_double(self.activation_funcs)
 
@@ -344,20 +443,23 @@ class EQLSymbolicRegression:
 if __name__ == "__main__":
     # Create a synthetic dataset
     np.random.seed(0)
-    x = np.random.randn(1000, 2) * 10  # 1000 samples, 2 features
-    y = (
-        x[:, 0] ** 2 + np.sin(x[:, 1]) + 0.1 * np.random.randn(1000)
-    )  # Target function with noise
+    x, y = make_friedman1(n_samples=100, n_features=5, noise=0)
     x = StandardScaler().fit_transform(x)
     y = StandardScaler().fit_transform(y.reshape(-1, 1)).flatten()
 
     # Initialize the model
-    model = EQLSymbolicRegression(n_layers=1, var_names=["x", "y"], verbose=True)
+    model = EQLSymbolicRegression(n_layers=1, verbose=True)
 
     # First training round
     print("First training round:")
-    model.fit(x, y, n_epochs=5000, reg_weight=5e-3, continue_training=True)
-
+    model.fit(
+        x,
+        y,
+        n_epochs=5000,
+        reg_weight=5e-2,
+        patience=20,
+        continue_training=True,
+    )
     # Get the final expression
     expr = model.get_expression()
     print(f"\nFinal learned expression: {expr}")

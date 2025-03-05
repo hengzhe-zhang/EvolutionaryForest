@@ -23,9 +23,39 @@ def l12_smooth(input_tensor, a=0.05):
     if type(input_tensor) == list:
         return sum([l12_smooth(tensor) for tensor in input_tensor])
 
-    smooth_abs = torch.where(torch.abs(input_tensor) < a,
-                             torch.pow(input_tensor, 4) / (-8 * a ** 3) + torch.square(
-                                 input_tensor) * 3 / 4 / a + 3 * a / 8,
-                             torch.abs(input_tensor))
+    smooth_abs = torch.where(
+        torch.abs(input_tensor) < a,
+        torch.pow(input_tensor, 4) / (-8 * a**3)
+        + torch.square(input_tensor) * 3 / 4 / a
+        + 3 * a / 8,
+        torch.abs(input_tensor),
+    )
 
     return torch.sum(torch.sqrt(smooth_abs))
+
+
+class L10Smooth(nn.Module):
+    def __init__(self):
+        super(L10Smooth, self).__init__()
+
+    def forward(self, input_tensor, a=0.05):
+        """input: predictions"""
+        return l10_smooth(input_tensor, a)
+
+
+def l10_smooth(input_tensor, a=0.05):
+    """Smoothed L0.1 norm"""
+    if type(input_tensor) == list:
+        return sum([l10_smooth(tensor, a) for tensor in input_tensor])
+
+    # Smoothing for small values to avoid singularities
+    smooth_abs = torch.where(
+        torch.abs(input_tensor) < a,
+        torch.pow(input_tensor, 4) / (-8 * a**3)
+        + torch.square(input_tensor) * 3 / 4 / a
+        + 3 * a / 8,
+        torch.abs(input_tensor),
+    )
+
+    # Change the exponent to 0.1 for L0.1 norm
+    return torch.sum(smooth_abs**0.1)
