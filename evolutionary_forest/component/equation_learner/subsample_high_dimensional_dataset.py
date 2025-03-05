@@ -16,7 +16,7 @@ def map_features_in_tree(gp_tree, mapping):
     return gp_tree
 
 
-def generate_trees_by_eql_ensemble(X, target, pset, eql_config):
+def generate_forest_by_eql(X, target, pset, eql_config):
     """
     Wrapper function for generate_tree_by_eql.
 

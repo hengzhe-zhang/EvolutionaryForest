@@ -145,7 +145,9 @@ from evolutionary_forest.component.environmental_selection import (
     Best,
     NSGA3,
 )
-from evolutionary_forest.component.equation_learner.gp_util import generate_tree_by_eql
+from evolutionary_forest.component.equation_learner.subsample_high_dimensional_dataset import (
+    generate_forest_by_eql,
+)
 from evolutionary_forest.component.evaluation import (
     calculate_score,
     single_tree_evaluation,
@@ -4609,19 +4611,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         hybrid = config.eql_hybrid
         if hybrid > 0 and not isinstance(self, ClassifierMixin):
             # not support for classification
-            last_inds = population[-5:]
-            for last_ind in last_inds:
-                tree = generate_tree_by_eql(self.X, self.y, self.pset, config)
+            trees = generate_forest_by_eql(self.X, self.y, self.pset, config)
+            set_of_inds = population[: len(trees)]
+            for ind, tree in zip(set_of_inds, trees):
                 if len(tree) == 1 and isinstance(
                     tree[0].value, (int, float, np.float32, np.int32)
                 ):
                     continue
-                last_ind.gene = [tree]
-            # trees = generate_trees_by_eql_ensemble(self.X, self.y, self.pset, config)
-            # last_inds = population[-len(trees) :]
-            # for last_ind, tree in zip(last_inds, trees):
-            #     last_ind.gene = [tree]
-            #     del last_ind.fitness.values
+                ind.gene = [tree]
+                del ind.fitness.values
 
     def adaptive_operator_selection_update(self, offspring, population):
         # if self.select in ["Auto", "Auto-MCTS"]:

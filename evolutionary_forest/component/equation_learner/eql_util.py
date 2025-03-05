@@ -191,12 +191,12 @@ class EQLSymbolicRegression:
             lr=self.learning_rate,
             betas=(0.9, 0.999),
             eps=1e-8,
-            weight_decay=0.01,
+            weight_decay=1e-3,
         )
 
         # Cosine annealing scheduler
         self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            self.optimizer, T_0=1000, T_mult=1, eta_min=1e-5
+            self.optimizer, T_0=20, T_mult=1, eta_min=1e-5
         )
 
         self.initialized = True
@@ -441,25 +441,46 @@ class EQLSymbolicRegression:
 
 
 if __name__ == "__main__":
-    # Create a synthetic dataset
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # 设置随机种子
     np.random.seed(0)
-    x, y = make_friedman1(n_samples=100, n_features=5, noise=0)
+
+    # 生成数据
+    x, y = make_friedman1(n_samples=100, n_features=10, noise=0)
     x = StandardScaler().fit_transform(x)
     y = StandardScaler().fit_transform(y.reshape(-1, 1)).flatten()
 
-    # Initialize the model
-    model = EQLSymbolicRegression(n_layers=1, verbose=True)
+    # 定义不同的正则化权重
+    reg_weights = [0, 0.001, 0.01, 0.1, 1, 10]
+    val_errors = []
+    expressions = []
 
-    # First training round
-    print("First training round:")
-    model.fit(
-        x,
-        y,
-        n_epochs=5000,
-        reg_weight=5e-2,
-        patience=20,
-        continue_training=True,
-    )
-    # Get the final expression
-    expr = model.get_expression()
-    print(f"\nFinal learned expression: {expr}")
+    # 训练模型并记录验证误差
+    for reg_weight in reg_weights:
+        print(f"Training with reg_weight={reg_weight}")
+        model = EQLSymbolicRegression(n_layers=1, verbose=False)
+        history = model.fit(x, y, reg_weight=reg_weight)
+
+        # 记录验证误差
+        val_errors.append(model.best_val_loss)
+
+        # 获取最终表达式
+        expr = model.get_expression()
+        expressions.append(expr)
+        print(f"Final learned expression: {expr}\n")
+
+    # 绘制不同正则化权重的验证误差
+    plt.figure(figsize=(10, 6))
+    plt.plot(reg_weights, val_errors, marker="o", linestyle="-")
+    plt.xlabel("Regularization Weight")
+    plt.ylabel("Validation Error")
+    plt.title("Effect of Regularization Weight on Validation Error")
+    plt.xscale("log")  # 使用对数尺度便于观察趋势
+    plt.grid(True)
+    plt.show()
+
+    # 打印最终的表达式
+    for i, expr in enumerate(expressions):
+        print(f"reg_weight={reg_weights[i]}: {expr}")
