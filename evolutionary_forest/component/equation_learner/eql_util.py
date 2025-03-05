@@ -191,7 +191,7 @@ class EQLSymbolicRegression:
             lr=self.learning_rate,
             betas=(0.9, 0.999),
             eps=1e-8,
-            weight_decay=1e-3,
+            weight_decay=0,
         )
 
         # Cosine annealing scheduler
