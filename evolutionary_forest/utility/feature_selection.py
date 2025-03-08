@@ -4,6 +4,9 @@ import numpy as np
 
 def remove_constant_variables(pset, x):
     """Remove constant variables from a primitive set based on dataset x."""
+    # Redundant variables cannot be deleted here,
+    # because this will cause the number of variables to be inconsistent with the original dataset.
+    # Here can only delete variables by manipulating the primitive set.
     constant_indices = []
     seleceted_indices = []
 

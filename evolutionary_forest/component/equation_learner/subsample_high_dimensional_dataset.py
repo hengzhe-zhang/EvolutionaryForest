@@ -1,5 +1,8 @@
 import random
 
+import numpy as np
+from deap.gp import Terminal
+
 from evolutionary_forest.component.equation_learner.gp_util import generate_tree_by_eql
 
 
@@ -39,12 +42,25 @@ def generate_forest_by_eql(X, target, pset, eql_config):
     # For this implementation, we assume that the dataset's features are identified as "ARG0", "ARG1", etc.
     orig_names = [f"ARG{i}" for i in range(n_features)]
 
+    # Identify constant features (features with zero variance)
+    variances = np.var(X, axis=0)
+    constant_features = np.where(variances == 0)[0]
+
+    # Remove constant features from the dataset
+    non_constant_indices = [i for i in range(n_features) if i not in constant_features]
+
     # Build a feature map from DEAP's pset terminals (for object and float types).
     # This creates a dictionary mapping from terminal name (e.g., "ARG0") to the actual terminal object.
     feature_map = {v.name: v for v in (pset.terminals[object] + pset.terminals[float])}
 
     if n_features <= 5:
         # Low-dimensional: run on the full dataset.
+        terminals_list = pset.terminals[object] + pset.terminals[float]
+        number_of_variables = [isinstance(t, Terminal) for t in terminals_list]
+        assert X.shape[1] == number_of_variables, (
+            "There are meaningless constant variables in the dataset. "
+            "Please delete the variables before trying the algorithm."
+        )
         gp_tree = generate_tree_by_eql(X, target, pset, eql_config)
         trees.append(gp_tree)
     else:
@@ -53,7 +69,7 @@ def generate_forest_by_eql(X, target, pset, eql_config):
         sample_size = 5
         for _ in range(rounds):
             # Randomly select sample_size feature indices without replacement.
-            sampled_indices = random.sample(range(n_features), sample_size)
+            sampled_indices = random.sample(non_constant_indices, sample_size)
 
             # Subset X based on type (DataFrame or numpy array).
             X_sub = X[:, sampled_indices]
