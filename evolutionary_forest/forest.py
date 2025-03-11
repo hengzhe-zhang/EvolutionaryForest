@@ -197,6 +197,8 @@ from evolutionary_forest.component.primitive_functions import *
 from evolutionary_forest.component.racing_selection import (
     RacingFunctionSelector,
     mark_weights,
+)
+from evolutionary_forest.component.crossover.marking_weights import (
     mark_weights_only_terminal,
 )
 from evolutionary_forest.component.random_constant import *
