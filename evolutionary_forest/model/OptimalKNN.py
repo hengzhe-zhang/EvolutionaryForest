@@ -326,6 +326,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
 
     def fit(self, GP_X, y):
+        self.n_features_in_ = GP_X.shape[1]
         # Determine if we need to subsample
         knn_subsampling = self.knn_subsampling
         if len(y) > knn_subsampling:
