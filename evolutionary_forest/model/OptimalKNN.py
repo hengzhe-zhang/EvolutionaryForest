@@ -12,7 +12,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 
 from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
 from evolutionary_forest.model.optimal_knn.smart_sampling import (
-    uniform_sampling_indices,
+    stratified_sampling_indices,
 )
 from evolutionary_forest.model.weight_solver import (
     solve_transformation_matrix,
@@ -345,7 +345,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
             y_subsample = y
 
         if self.informed_optimal_knn_sampling:
-            subsample_indices = uniform_sampling_indices(y, knn_subsampling)
+            subsample_indices = stratified_sampling_indices(y, knn_subsampling)
             GP_X_subsample = GP_X[subsample_indices]
             y_subsample = y[subsample_indices]
 

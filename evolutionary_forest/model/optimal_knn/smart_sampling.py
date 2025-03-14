@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def uniform_sampling_indices(labels, n_samples, n_bins=10, random_state=None):
+def stratified_sampling_indices(labels, n_samples, n_bins=10, random_state=None):
     """
     Perform uniform sampling for regression problems by stratifying the labels into bins.
     Ensures exactly n_samples are returned and distributes sampling more evenly.
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     n_bins = 5  # Number of bins for stratification
 
     # Call the function
-    sampled_indices = uniform_sampling_indices(labels, n_samples, n_bins)
+    sampled_indices = stratified_sampling_indices(labels, n_samples, n_bins)
 
     # Use the indices to extract features and labels if needed
     sampled_features = features[sampled_indices]
