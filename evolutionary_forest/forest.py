@@ -184,6 +184,10 @@ from evolutionary_forest.component.initialization import (
 from evolutionary_forest.component.llm.llm_crossover import (
     llm_pattern_extraction,
 )
+from evolutionary_forest.component.llm.llm_tools import (
+    add_generated_function_to_pset,
+    add_function_to_pset,
+)
 from evolutionary_forest.component.log_tool.semantic_lib_log import SemanticLibLog
 from evolutionary_forest.component.mutation.common import MutationOperator
 from evolutionary_forest.component.mutation.learning_based_mutation import (
@@ -564,6 +568,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         data_augmentation=False,
         time_limit=None,
         subset_transfer=None,
+        llm_functions=None,
         **params,
     ):
         """
@@ -969,6 +974,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.best_individual_number_of_features = []
         self.time_limit = time_limit
         self.subset_transfer = subset_transfer
+        self.llm_functions = llm_functions
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -2743,6 +2749,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ]
             )
             self.add_primitives_to_pset(pset)
+
+        if self.llm_functions is not None:
+            llm_functions = add_function_to_pset(self.llm_functions)
+            add_generated_function_to_pset(llm_functions[0], llm_functions[1], pset)
 
         if self.remove_constant_features:
             self.columns_without_constants = remove_constant_variables(pset, x)
