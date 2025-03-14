@@ -1835,6 +1835,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 **self.param, base_learner=DecisionTreeRegressor(min_samples_leaf=leaf)
             )
         elif self.base_learner == "NCA":
+            # closer neighbors have more influence on predictions.
             ridge_model = OptimalKNN(**self.param, distance="Softmax")
         elif self.base_learner == "SNCA-Uniform":
             ridge_model = OptimalKNN(**self.param, distance="SkipUniform")

@@ -150,6 +150,7 @@ class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
     def predict(self, X):
         """
         Predict using softmax-weighted KNN.
+        Softmax weighting provides better numerical stability and smoother influence distribution compared to inverse distance weighting.
 
         Parameters:
         X : array-like, shape (n_samples, n_features)

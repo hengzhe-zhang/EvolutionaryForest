@@ -7,6 +7,9 @@ from sklearn.preprocessing import StandardScaler
 class SkipKNeighborsRegressor(KNeighborsRegressor):
     def predict(self, X):
         """
+        If all the nearest neighbors have a distance of zero, it might indicate duplicate points or overfitting issues.
+        To address this, this model dynamically skips the nearest neighbor and uses the next closest ones.
+
         Override the predict method to skip the nearest neighbor dynamically
         if all distances to the first neighbor are zero.
 
@@ -38,6 +41,8 @@ class SkipKNeighborsRegressor(KNeighborsRegressor):
 
         # Calculate predictions using weights if applicable
         if self.weights == "distance":
+            # Inverse Distance Weighting
+            # Closer neighbors get higher weights, while distant neighbors get lower influence.
             with np.errstate(divide="ignore"):  # Handle divide by zero if distance is 0
                 weights = 1 / distances
                 weights[distances == 0] = 0
@@ -45,6 +50,7 @@ class SkipKNeighborsRegressor(KNeighborsRegressor):
                 weights, axis=1
             )
         elif callable(self.weights):
+            # Custom Weighting
             weights = self.weights(distances)
             y_pred = np.sum(neighbor_targets * weights, axis=1) / np.sum(
                 weights, axis=1
