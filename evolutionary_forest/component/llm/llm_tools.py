@@ -1,5 +1,4 @@
-import json
-import re
+import inspect
 
 import numpy as np
 from deap.gp import PrimitiveSet
@@ -16,29 +15,20 @@ def add_generated_function_to_pset(
         )  # Register with correct argument count
 
 
-def add_function_to_pset(json_str):
-    # Parse JSON
-    parsed_data = json.loads(json_str)
-
+def add_function_to_pset(parsed_data):
     # Convert string functions into actual Python functions
     generated_functions = {}
     function_arity = {}  # Store arity of each function
 
-    for name, func_str in parsed_data["generated_functions"].items():
-        # Extract parameter count from lambda expression
-        match = re.match(
-            r"lambda\s*\((.*?)\):", func_str
-        )  # Extracts "x, y" from "lambda x, y: ..."
-        if match:
-            param_list = match.group(1).replace(" ", "").split(",")  # Split parameters
-            arity = len(param_list)  # Number of parameters
-        else:
-            raise ValueError(f"Could not determine arity for function: {name}")
+    for name, func_str in parsed_data.items():
+        # 生成实际的函数对象
+        generated_func = eval(func_str, {"np": np})
 
-        # Store arity
+        # 获取参数个数
+        arity = len(inspect.signature(generated_func).parameters)
+
+        # 存储函数及其参数个数
+        generated_functions[name] = generated_func
         function_arity[name] = arity
 
-        # Convert string to function
-        generated_functions[name] = eval(func_str, {"np": np})  # Safe sandboxing
-
-    return function_arity, generated_functions
+    return generated_functions, function_arity
