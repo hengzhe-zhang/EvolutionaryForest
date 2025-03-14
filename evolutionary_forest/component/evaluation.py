@@ -272,7 +272,7 @@ def calculate_score(args):
 
     # ML evaluation
     start_time = time.time()
-    regression_task = isinstance(base_model, RegressorMixin)
+    regression_task = not isinstance(base_model, ClassifierMixin)
 
     if not configuration.cross_validation:
         pipe.fit(Yp, Y)
