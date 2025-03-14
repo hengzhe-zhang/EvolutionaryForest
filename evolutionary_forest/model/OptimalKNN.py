@@ -295,6 +295,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.reduced_dimension = reduced_dimension
 
         # Initialize KNN regressor based on distance type
+        self.base_learner = base_learner
         if base_learner is not None:
             self.knn = base_learner
         elif distance == "Softmax":
