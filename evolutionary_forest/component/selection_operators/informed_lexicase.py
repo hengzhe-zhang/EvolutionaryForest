@@ -16,63 +16,101 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def decay_rank_selection(population, k=1):
-    # Calculate mean error for each individual
-    mean_errors = np.array([np.mean(ind.case_values) for ind in population])
+def half_lexicase_selection_mad(population, k=1):
+    if not population:
+        return []  # Handle edge case for empty population
 
-    # Rank individuals by mean error (lower is better)
-    ranked_indices = np.argsort(mean_errors)
-    ranked_population = [population[i] for i in ranked_indices]
+    n_cases = len(population[0].case_values)
+    selected_individuals = []
 
-    # Use exponential decay on rank to assign probabilities
-    rank_weights = np.exp(-np.arange(len(population)))
-    total_weight = np.sum(rank_weights)
-    probabilities = rank_weights / total_weight
+    while len(selected_individuals) < k:
+        # Shuffle case indices for diverse selection
+        case_indices = list(range(n_cases))
+        random.shuffle(case_indices)
 
-    # Perform selection using these probabilities
-    selected_indices = np.random.choice(
-        len(population), size=k, replace=False, p=probabilities
-    )
-    selected_individuals = [ranked_population[i] for i in selected_indices]
+        # Initialize candidates for lexicase-like filtering
+        candidates_indices = list(range(len(population)))
 
-    return selected_individuals
+        for case in case_indices:
+            if len(candidates_indices) <= 1:
+                break
+
+            current_case_values = [
+                population[i].case_values[case] for i in candidates_indices
+            ]
+            min_case_value = min(current_case_values)
+
+            # Dynamic thresholding using median and MAD
+            median = np.median(current_case_values)
+            mad = (
+                np.median([abs(v - median) for v in current_case_values]) or 1
+            )  # Avoid zero MAD
+            threshold = min_case_value + mad * 0.5
+
+            candidates_indices = [
+                i
+                for i in candidates_indices
+                if population[i].case_values[case] <= threshold
+            ]
+
+        # Select a candidate either from filtered or via fallback tournament
+        if candidates_indices:
+            selected_idx = random.choice(candidates_indices)
+        else:
+            tournament = random.sample(population, min(3, len(population)))
+            selected_idx = min(tournament, key=lambda ind: sum(ind.case_values)).idx
+
+        selected_individuals.append(population[selected_idx])
+
+        # Remove duplicates by using unique identifiers
+        selected_indices = {id(ind): ind for ind in selected_individuals}
+        selected_individuals = list(selected_indices.values())
+
+    return selected_individuals[:k]
 
 
-def weighted_decay_rank_selection(population, k=1):
-    # Calculate mean error for each individual
-    mean_errors = np.array([np.mean(ind.case_values) for ind in population])
+def half_lexicase_selection_std(population, k=1):
+    if not population:
+        return []
 
-    # Rank individuals by mean error (lower is better)
-    ranked_indices = np.argsort(mean_errors)
-    ranked_population = [population[i] for i in ranked_indices]
-    ranked_mean_errors = mean_errors[ranked_indices]
+    case_values = np.array([ind.case_values for ind in population])
+    n_cases = case_values.shape[1]
+    selected_individuals = []
+    unique_selected = set()
 
-    # Calculate fitness scores as inverse of errors, scaled by max ranked error
-    max_ranked_error = ranked_mean_errors[-1]
-    fitness_scores = [
-        (max_ranked_error - error + 1) for error in ranked_mean_errors
-    ]  # Avoid zero fitness
+    while len(selected_individuals) < k:
+        # Shuffle case indices for diversity
+        cases = list(range(n_cases))
+        random.shuffle(cases)
 
-    # Calculate rank-based weights
-    rank_weights = np.exp(-np.arange(len(ranked_population)))
+        candidates_indices = list(range(len(population)))
 
-    # Combine rank weights and fitness scores
-    combined_weights = np.array(fitness_scores) * rank_weights
+        for case in cases:
+            if len(candidates_indices) <= 1:
+                break
 
-    # Normalize combined weights to form a probability distribution
-    total_weight = np.sum(combined_weights)
+            current_case_values = case_values[candidates_indices, case]
+            min_case_value = np.min(current_case_values)
 
-    # Handle the edge case of all zero weights
-    if total_weight == 0:
-        return random.sample(population, k)
+            # Dynamic threshold using the mean and standard deviation
+            threshold = min_case_value + np.std(current_case_values) * 0.5
 
-    probabilities = combined_weights / total_weight
+            # Filter candidates based on the computed threshold
+            candidates_indices = [
+                i for i in candidates_indices if case_values[i, case] <= threshold
+            ]
 
-    # Select individuals based on these combined probabilities
-    selected_indices = np.random.choice(
-        len(ranked_population), size=k, replace=False, p=probabilities
-    )
-    selected_individuals = [ranked_population[i] for i in selected_indices]
+            # Reset if no candidates remain to ensure robustness
+            if not candidates_indices:
+                candidates_indices = list(range(len(population)))
+                break
+
+        # Select a candidate and ensure uniqueness
+        for idx in candidates_indices:
+            if id(population[idx]) not in unique_selected:
+                selected_individuals.append(population[idx])
+                unique_selected.add(id(population[idx]))
+                break
 
     return selected_individuals
 

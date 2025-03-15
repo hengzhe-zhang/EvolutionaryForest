@@ -246,8 +246,8 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     adaptive_tier_lexicase_selection,
 )
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
-    decay_rank_selection,
-    weighted_decay_rank_selection,
+    half_lexicase_selection_mad,
+    half_lexicase_selection_std,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2497,15 +2497,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
-        elif self.select == "DecayRank":
+        elif self.select == "HalfLexicaseMAD":
             toolbox.register(
                 "select",
-                decay_rank_selection,
+                half_lexicase_selection_mad,
             )
-        elif self.select == "WeightedDecayRank":
+        elif self.select == "HalfLexicaseSTD":
             toolbox.register(
                 "select",
-                weighted_decay_rank_selection,
+                half_lexicase_selection_std,
             )
         elif self.select == "TierLexicase":
             toolbox.register(
