@@ -246,7 +246,8 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     adaptive_tier_lexicase_selection,
 )
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
-    random_ds_tournament_selection,
+    decay_rank_selection,
+    weighted_decay_rank_selection,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2486,6 +2487,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # selection operators
         if isinstance(self.select, Selection):
             toolbox.register("select", self.select.select)
+        elif callable(self.select):
+            toolbox.register("select", self.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
         elif self.select == "AdaptiveTierLexicase":
@@ -2494,10 +2497,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
-        elif self.select == "IDSTournament":
+        elif self.select == "DecayRank":
             toolbox.register(
                 "select",
-                partial(random_ds_tournament_selection, tournsize=7),
+                decay_rank_selection,
+            )
+        elif self.select == "WeightedDecayRank":
+            toolbox.register(
+                "select",
+                weighted_decay_rank_selection,
             )
         elif self.select == "TierLexicase":
             toolbox.register(
@@ -5534,7 +5542,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     isinstance(self.external_archive, int)
                     and self.external_archive >= 1
                 ):
-                    if self.select.startswith("ParetoTournament"):
+                    if isinstance(self.select, str) and self.select.startswith(
+                        "ParetoTournament"
+                    ):
                         offspring = toolbox.select(
                             parent + external_archive, self.n_pop
                         )
