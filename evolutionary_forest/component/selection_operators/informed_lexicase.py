@@ -17,14 +17,6 @@ def get_random_downsampled_cases(population, downsample_rate):
 
 
 def adaptive_diverse_selection(population, k=1):
-    num_cases = len(population[0].case_values)
-    case_errors = np.array([ind.case_values for ind in population])
-
-    # Normalize errors for effective cross-individual comparison
-    norm_errors = (case_errors - np.min(case_errors, axis=0)) / np.ptp(
-        case_errors, axis=0
-    )
-
     # Adaptive threshold-based clustering for population diversity
     diversity_threshold = 0.25
 
@@ -65,39 +57,59 @@ def adaptive_diverse_selection(population, k=1):
 
 
 def diverse_performance_selection(population, k=1):
-    selected_individuals = []
+    def calculate_diversity(individual):
+        """Calculate diversity based on the variance of performance."""
+        return 1.0 / (1.0 + np.var(individual.case_values))
+
+    def calculate_similarity(ind1, ind2):
+        """Calculate structural and performance similarity."""
+        structural_similarity = 1.0 / (
+            1.0 + abs(len(ind1.case_values) - len(ind2.case_values))
+        )
+        performance_similarity = np.mean(
+            np.abs(np.array(ind1.case_values) - np.array(ind2.case_values))
+        )
+        return structural_similarity * (1.0 / (1.0 + performance_similarity))
+
     num_cases = len(population[0].case_values)
-    population_array = np.array([ind.case_values for ind in population])
+    selected_individuals = []
 
-    # Normalize performance for each test case
-    norm_performance = population_array - np.min(population_array, axis=0)
+    while len(selected_individuals) < k:
+        candidates = population[:]
+        cases = np.random.permutation(num_cases)
 
-    # Case-specific selection probability based on inverse normalized performance
-    selection_probabilities = 1 / (1 + norm_performance)
-    selection_probabilities /= np.sum(selection_probabilities, axis=0)
+        for case_index in cases:
+            errors = np.array([ind.case_values[case_index] for ind in candidates])
+            min_error = np.min(errors)
+            candidates = [
+                ind for ind, error in zip(candidates, errors) if error == min_error
+            ]
+            if len(candidates) == 1:
+                break
 
-    for _ in range(k // 2):
-        # Step 1: Select an individual based on performance distribution
-        selected_idx = []
-        for case in range(num_cases):
-            selected_idx.append(
-                np.random.choice(len(population), p=selection_probabilities[:, case])
+        if len(candidates) > 1:
+            diversity_scores = [calculate_diversity(ind) for ind in candidates]
+            best_diversity_idx = np.argmax(diversity_scores)
+            baseline = candidates[best_diversity_idx]
+
+            sorted_candidates = sorted(
+                candidates,
+                key=lambda ind: calculate_similarity(baseline, ind),
+                reverse=True,
             )
 
-        # Find unique indices (diverse selection) with best case variance
-        unique_selected = list(set(selected_idx))
-        selected_variances = [np.var(population_array[i]) for i in unique_selected]
+            selected_pair = [
+                baseline,
+                sorted_candidates[0],
+            ]  # Choose the most similar to the baseline
+            if len(selected_pair) < 2:
+                selected_pair.append(random.choice(candidates))
 
-        # Step 2: Best diversity-aware and case-specific choices
-        chosen_idx = np.argpartition(selected_variances, len(unique_selected) // 2)[:2]
+            selected_individuals.extend(selected_pair[:2])
+        else:
+            selected_individuals.append(candidates[0])
 
-        # Ensure selected indices form pairs for crossover compatibility
-        selected_pair = [population[unique_selected[idx]] for idx in chosen_idx]
-
-        # Add selected pair to results
-        selected_individuals.extend(selected_pair)
-
-    return selected_individuals
+    return selected_individuals[:k]
 
 
 def half_lexicase_selection_std(population, k=1):
