@@ -16,6 +16,54 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
+def adaptive_diverse_selection(population, k=1):
+    num_cases = len(population[0].case_values)
+    case_errors = np.array([ind.case_values for ind in population])
+
+    # Normalize errors for effective cross-individual comparison
+    norm_errors = (case_errors - np.min(case_errors, axis=0)) / np.ptp(
+        case_errors, axis=0
+    )
+
+    # Adaptive threshold-based clustering for population diversity
+    diversity_threshold = 0.25
+
+    def compute_score(ind):
+        """Compute combined score based on normalized error and diversity aspect."""
+        errors = ind.case_values
+        diversity_score = np.std(
+            errors
+        )  # Diversity via the standard deviation across cases
+        return np.mean(errors) + diversity_threshold * diversity_score
+
+    # Compute scores for all individuals
+    scores = [(compute_score(ind), idx) for idx, ind in enumerate(population)]
+    scores.sort()  # Sort by combined scores (lower is better)
+
+    selected_indices = set()
+    selected_individuals = []
+
+    while len(selected_individuals) < k:
+        # Pick the best-ranked individual for high exploitation value
+        best_score, best_idx = scores.pop(0)
+
+        if best_idx in selected_indices:
+            continue  # Avoid duplicates
+
+        selected_individuals.append(population[best_idx])
+        selected_indices.add(best_idx)
+
+        # Adjust scores dynamically to foster diversity in the next selection
+        for i, (score, idx) in enumerate(scores):
+            if idx not in selected_indices:
+                # Increase the effective score of similar individuals to improve diversity
+                scores[i] = (score + diversity_threshold * np.random.random(), idx)
+
+        scores.sort()  # Re-sort based on updated scores
+
+    return selected_individuals[:k]
+
+
 def diverse_performance_selection(population, k=1):
     selected_individuals = []
     num_cases = len(population[0].case_values)
