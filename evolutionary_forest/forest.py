@@ -246,7 +246,7 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     adaptive_tier_lexicase_selection,
 )
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
-    half_lexicase_selection_mad,
+    diverse_performance_selection,
     half_lexicase_selection_std,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
@@ -2497,10 +2497,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
-        elif self.select == "HalfLexicaseMAD":
+        elif self.select == "DiverseSelection":
             toolbox.register(
                 "select",
-                half_lexicase_selection_mad,
+                diverse_performance_selection,
             )
         elif self.select == "HalfLexicaseSTD":
             toolbox.register(

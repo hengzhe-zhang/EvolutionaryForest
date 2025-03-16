@@ -16,57 +16,40 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def half_lexicase_selection_mad(population, k=1):
-    if not population:
-        return []  # Handle edge case for empty population
-
-    n_cases = len(population[0].case_values)
+def diverse_performance_selection(population, k=1):
     selected_individuals = []
+    num_cases = len(population[0].case_values)
+    population_array = np.array([ind.case_values for ind in population])
 
-    while len(selected_individuals) < k:
-        # Shuffle case indices for diverse selection
-        case_indices = list(range(n_cases))
-        random.shuffle(case_indices)
+    # Normalize performance for each test case
+    norm_performance = population_array - np.min(population_array, axis=0)
 
-        # Initialize candidates for lexicase-like filtering
-        candidates_indices = list(range(len(population)))
+    # Case-specific selection probability based on inverse normalized performance
+    selection_probabilities = 1 / (1 + norm_performance)
+    selection_probabilities /= np.sum(selection_probabilities, axis=0)
 
-        for case in case_indices:
-            if len(candidates_indices) <= 1:
-                break
+    for _ in range(k // 2):
+        # Step 1: Select an individual based on performance distribution
+        selected_idx = []
+        for case in range(num_cases):
+            selected_idx.append(
+                np.random.choice(len(population), p=selection_probabilities[:, case])
+            )
 
-            current_case_values = [
-                population[i].case_values[case] for i in candidates_indices
-            ]
-            min_case_value = min(current_case_values)
+        # Find unique indices (diverse selection) with best case variance
+        unique_selected = list(set(selected_idx))
+        selected_variances = [np.var(population_array[i]) for i in unique_selected]
 
-            # Dynamic thresholding using median and MAD
-            median = np.median(current_case_values)
-            mad = (
-                np.median([abs(v - median) for v in current_case_values]) or 1
-            )  # Avoid zero MAD
-            threshold = min_case_value + mad * 0.5
+        # Step 2: Best diversity-aware and case-specific choices
+        chosen_idx = np.argpartition(selected_variances, len(unique_selected) // 2)[:2]
 
-            candidates_indices = [
-                i
-                for i in candidates_indices
-                if population[i].case_values[case] <= threshold
-            ]
+        # Ensure selected indices form pairs for crossover compatibility
+        selected_pair = [population[unique_selected[idx]] for idx in chosen_idx]
 
-        # Select a candidate either from filtered or via fallback tournament
-        if candidates_indices:
-            selected_idx = random.choice(candidates_indices)
-        else:
-            tournament = random.sample(population, min(3, len(population)))
-            selected_idx = min(tournament, key=lambda ind: sum(ind.case_values)).idx
+        # Add selected pair to results
+        selected_individuals.extend(selected_pair)
 
-        selected_individuals.append(population[selected_idx])
-
-        # Remove duplicates by using unique identifiers
-        selected_indices = {id(ind): ind for ind in selected_individuals}
-        selected_individuals = list(selected_indices.values())
-
-    return selected_individuals[:k]
+    return selected_individuals
 
 
 def half_lexicase_selection_std(population, k=1):
