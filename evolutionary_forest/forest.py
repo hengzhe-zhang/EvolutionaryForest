@@ -5555,7 +5555,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             parent + external_archive, self.n_pop
                         )
                     else:
-                        offspring = toolbox.select(parent + external_archive, 2)
+                        if callable(self.select):
+                            # a bit special, select all to reduce overhead
+                            offspring = toolbox.select(
+                                parent + external_archive, self.n_pop
+                            )
+                        else:
+                            offspring = toolbox.select(parent + external_archive, 2)
                 else:
                     offspring = toolbox.select(parent, 2)
         return offspring

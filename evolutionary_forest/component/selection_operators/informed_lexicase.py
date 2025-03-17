@@ -17,57 +17,44 @@ def get_random_downsampled_cases(population, downsample_rate):
 
 
 def adaptive_diverse_selection(population, k=1):
-    def lexicase_filter(individuals, num_cases):
-        """Adaptive filtering based on lexicase principles."""
-        case_indices = np.random.permutation(num_cases)
-        candidates = individuals[:]
-        for idx in case_indices:
-            min_error = min(ind.case_values[idx] for ind in candidates)
-            candidates = [
-                ind for ind in candidates if ind.case_values[idx] == min_error
-            ]
-            if len(candidates) <= 1:
-                break
-        return candidates
+    # Threshold for performance specialization
+    SPECIALIZATION_THRESHOLD = 0.1
 
-    def synergy_score(reference, target):
-        """Evaluates synergy considering complementarity."""
-        return np.mean(1.0 / (1.0 + np.abs(reference - target)))
+    # Calculate the error ranks for each case across the population
+    case_errors = np.array([ind.case_values for ind in population])
+    case_ranks = np.argsort(case_errors, axis=0)
 
-    def entropy_score(ind):
-        """Calculates entropy for assessing diversity."""
-        values = np.array(ind.case_values)
-        return -np.sum(values * np.log(values + 1e-9))
+    # Container for selected individuals
+    selected_individuals = []
 
-    num_cases = len(population[0].case_values)
-    selected = []
+    while len(selected_individuals) < k:
+        # Randomly pick a case to focus on
+        case_index = random.randint(0, len(population[0].case_values) - 1)
 
-    while len(selected) < k:
-        # Step 1: Adaptive filtering
-        candidates = lexicase_filter(population, num_cases)
-
-        if len(candidates) == 1:
-            selected.append(candidates[0])
-            continue
-
-        # Step 2: Calculate diversity and synergy
-        reference = candidates[0]
-        entropy_scores = [entropy_score(ind) for ind in candidates]
-        synergy_scores = [
-            synergy_score(reference.case_values, ind.case_values) for ind in candidates
+        # Select top individuals specializing in this case
+        specialized_indices = case_ranks[:, case_index][
+            : int(SPECIALIZATION_THRESHOLD * len(population))
         ]
 
-        # Combine diversity with synergy to determine selection
-        combined_scores = [
-            (e + s, ind)
-            for ind, e, s in zip(candidates, entropy_scores, synergy_scores)
-        ]
-        combined_scores.sort(key=lambda x: x[0], reverse=True)
+        # Randomly select a specialized individual
+        ind1 = population[np.random.choice(specialized_indices)]
 
-        # Step 3: Dynamic Modulation of Selection Pressure
-        selected.extend(ind for _, ind in combined_scores[:2] if len(selected) < k)
+        # Find a compatible partner for crossover
+        compatibility_scores = np.dot(case_errors, ind1.case_values)
+        best_partner_index = np.argmin(compatibility_scores)
 
-    return selected[:k]
+        # Ensure we don't pair an individual with itself
+        while best_partner_index == population.index(ind1):
+            compatibility_scores[best_partner_index] = np.inf
+            best_partner_index = np.argmin(compatibility_scores)
+
+        ind2 = population[best_partner_index]
+
+        # Append selected pair to the list
+        selected_individuals.extend([ind1, ind2])
+
+    # Trim the list if it exceeds 'k' individuals
+    return selected_individuals[:k]
 
 
 def diverse_performance_selection(population, k=1):
