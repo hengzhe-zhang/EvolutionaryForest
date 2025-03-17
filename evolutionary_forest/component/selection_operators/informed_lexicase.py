@@ -1,5 +1,6 @@
 import random
 import numpy as np
+from sklearn.cluster import KMeans
 
 
 def get_random_downsampled_cases(population, downsample_rate):
@@ -16,45 +17,57 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def adaptive_diverse_selection(population, k=1):
-    # Threshold for performance specialization
-    SPECIALIZATION_THRESHOLD = 0.1
+def adaptive_diverse_selection(population, k=100, num_clusters=5):
+    def cluster_cases(individuals, num_clusters):
+        case_values_matrix = np.array([ind.case_values for ind in individuals])
+        # Transpose to obtain case-wise performance
+        case_values_matrix_transposed = case_values_matrix.T
 
-    # Calculate the error ranks for each case across the population
-    case_errors = np.array([ind.case_values for ind in population])
-    case_ranks = np.argsort(case_errors, axis=0)
+        # Use KMeans to cluster similar test cases
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+        case_clusters = kmeans.fit_predict(case_values_matrix_transposed)
 
-    # Container for selected individuals
+        # Group case indices by their cluster labels
+        cluster_to_case_indices = {i: [] for i in range(num_clusters)}
+        for case_idx, cluster_label in enumerate(case_clusters):
+            cluster_to_case_indices[cluster_label].append(case_idx)
+
+        return cluster_to_case_indices
+
+    # Cluster the cases based on individuals' performances
+    cluster_to_case_indices = cluster_cases(population, num_clusters)
+
     selected_individuals = []
 
-    while len(selected_individuals) < k:
-        # Randomly pick a case to focus on
-        case_index = random.randint(0, len(population[0].case_values) - 1)
+    for _ in range(k):
+        candidates = population[:]
 
-        # Select top individuals specializing in this case
-        specialized_indices = case_ranks[:, case_index][
-            : int(SPECIALIZATION_THRESHOLD * len(population))
-        ]
+        # Shuffle the clusters to promote diversity
+        cluster_indices = list(cluster_to_case_indices.keys())
+        random.shuffle(cluster_indices)
 
-        # Randomly select a specialized individual
-        ind1 = population[np.random.choice(specialized_indices)]
+        for cluster_idx in cluster_indices:
+            case_indices = cluster_to_case_indices[cluster_idx]
+            # Find the median errors in this cluster
+            errors = np.array([ind.case_values for ind in candidates])[:, case_indices]
+            median_errors = np.median(errors, axis=1)
 
-        # Find a compatible partner for crossover
-        compatibility_scores = np.dot(case_errors, ind1.case_values)
-        best_partner_index = np.argmin(compatibility_scores)
+            # Filter candidates that have below-median error in the current cluster
+            min_median_error = np.min(median_errors)
+            candidates = [
+                ind
+                for ind, median_error in zip(candidates, median_errors)
+                if median_error <= min_median_error
+            ]
 
-        # Ensure we don't pair an individual with itself
-        while best_partner_index == population.index(ind1):
-            compatibility_scores[best_partner_index] = np.inf
-            best_partner_index = np.argmin(compatibility_scores)
+            # If there is only one candidate left, select it
+            if len(candidates) == 1:
+                break
 
-        ind2 = population[best_partner_index]
+        # Select one individual from the remaining candidates
+        selected_individuals.append(random.choice(candidates))
 
-        # Append selected pair to the list
-        selected_individuals.extend([ind1, ind2])
-
-    # Trim the list if it exceeds 'k' individuals
-    return selected_individuals[:k]
+    return selected_individuals
 
 
 def diverse_performance_selection(population, k=1):
