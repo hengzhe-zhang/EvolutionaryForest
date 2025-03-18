@@ -1,7 +1,6 @@
 import random
 
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 def get_random_downsampled_cases(population, downsample_rate):
@@ -128,191 +127,157 @@ def llm_selection(population, k=100):
 
 def llm_selection_plus(population, k=1):
     """
-    Fitness-Diversity Weighted Tournament Selection Operator for Genetic Programming.
+    Adaptive Fitness-Diversity Balanced Selection (AFDBS)
 
-    This operator selects individuals based on a combination of their fitness and diversity,
-    ensuring that selected individuals are both strong and diverse to promote effective crossover.
+    Selects a balanced set of high-fitness and diverse individuals to promote
+    effective crossover operations. Ensures selected parents are both strong
+    performers and genetically diverse.
 
     Args:
-        population (list): List of individuals, each having a `case_values` attribute (numpy array).
+        population (list): List of individuals, each having a 'case_values' attribute (numpy array).
         k (int): Number of individuals to select.
 
     Returns:
-        list: Selected individuals.
+        selected_individuals (list): List of selected individuals.
+    """
+    if not population or k <= 0:
+        return []
+
+    num_individuals = len(population)
+    case_matrix = np.array([ind.case_values for ind in population])  # Shape: (n, cases)
+
+    # Compute Fitness: Inverse of mean error
+    epsilon = 1e-10
+    mean_errors = case_matrix.mean(axis=1)
+    fitness = 1.0 / (mean_errors + epsilon)
+
+    # Normalize Fitness to [0, 1]
+    fitness_norm = (fitness - fitness.min()) / (fitness.max() - fitness.min() + epsilon)
+
+    # Compute Diversity: Distance from population centroid
+    centroid = case_matrix.mean(axis=0)
+    diversity = np.linalg.norm(case_matrix - centroid, axis=1)
+
+    # Normalize Diversity to [0, 1]
+    diversity_norm = (diversity - diversity.min()) / (
+        diversity.max() - diversity.min() + epsilon
+    )
+
+    # Adaptive Weighting based on diversity variance
+    diversity_variance = np.var(diversity_norm)
+    if diversity_variance < 0.01:
+        alpha = 0.5  # Increase diversity weight
+    else:
+        alpha = 0.7  # More emphasis on fitness
+    beta = 1.0 - alpha
+
+    # Composite Score
+    composite_scores = alpha * fitness_norm + beta * diversity_norm
+
+    # Normalize Composite Scores to form initial selection probabilities
+    total_score = composite_scores.sum()
+    if total_score == 0:
+        selection_prob = np.ones(num_individuals) / num_individuals
+    else:
+        selection_prob = composite_scores / total_score
+
+    selected_indices = []
+    selected_vectors = []
+
+    # Precompute normalized case_values for similarity computation
+    norms = np.linalg.norm(case_matrix, axis=1, keepdims=True) + epsilon
+    normalized_cases = case_matrix / norms  # Shape: (n, cases)
+
+    for _ in range(k):
+        if selection_prob.sum() == 0:
+            # If all probabilities are zero, select uniformly at random
+            chosen_idx = np.random.choice(num_individuals)
+        else:
+            chosen_idx = np.random.choice(num_individuals, p=selection_prob)
+
+        selected_indices.append(chosen_idx)
+        selected_vectors.append(normalized_cases[chosen_idx])
+
+        # Update selection probabilities to penalize similar individuals
+        if len(selected_vectors) == 1:
+            # First selection, no penalty yet
+            last_selected = normalized_cases[chosen_idx]
+        else:
+            # Calculate similarity with the last selected individual
+            similarity = np.dot(normalized_cases, selected_vectors[-1])
+            diversity_strength = 0.3  # Controls the impact of diversity (0 to 1)
+            selection_prob *= 1 - diversity_strength * similarity
+            selection_prob = np.clip(selection_prob, a_min=0, a_max=None)
+            # Re-normalize probabilities
+            if selection_prob.sum() > 0:
+                selection_prob /= selection_prob.sum()
+            else:
+                # Reset to uniform if all probabilities are zero
+                selection_prob = np.ones(num_individuals) / num_individuals
+
+    # Retrieve the selected individuals
+    selected_individuals = [population[idx] for idx in selected_indices]
+    return selected_individuals
+
+
+def llm_selection_plus_plus(population, k=1):
+    """
+    Fitness-Informed Diverse Selection (FIDS)
+
+    Selects a diverse set of high-fitness individuals ensuring that selected parents are
+    both strong performers and genetically diverse to promote effective crossover operations.
+
+    Args:
+        population (list): List of individuals, each having a 'case_values' attribute (numpy array).
+        k (int): Number of individuals to select.
+
+    Returns:
+        selected_individuals (list): List of selected individuals.
     """
     if not population or k <= 0:
         return []
 
     population_size = len(population)
-    k = min(k, population_size)
-    num_cases = len(population[0].case_values)
+    num_cases = population[0].case_values.shape[0]
 
-    # --- Fitness Calculation ---
-    # Assume lower total errors are better
-    epsilon = 1e-10  # Prevent division by zero
-    total_errors = np.array(
-        [np.sum(ind.case_values) for ind in population]
-    )  # Shape: (population_size,)
-    fitness = 1.0 / (total_errors + epsilon)  # Higher is better
+    # Compute fitness: lower mean of case_values is better
+    fitness = np.array([np.mean(ind.case_values) for ind in population])
+    inverted_fitness = 1.0 / (fitness + 1e-8)  # Avoid division by zero
+    selection_prob = inverted_fitness / inverted_fitness.sum()
 
-    # Normalize fitness to [0, 1]
-    fitness_min, fitness_max = fitness.min(), fitness.max()
-    if fitness_max - fitness_min > epsilon:
-        fitness_norm = (fitness - fitness_min) / (fitness_max - fitness_min)
-    else:
-        fitness_norm = np.ones_like(fitness)
+    # Precompute normalized case_values for cosine similarity
+    case_matrix = np.array([ind.case_values for ind in population])  # Shape: (n, cases)
+    norms = (
+        np.linalg.norm(case_matrix, axis=1, keepdims=True) + 1e-8
+    )  # Avoid division by zero
+    normalized_cases = case_matrix / norms  # Shape: (n, cases)
 
-    # --- Diversity Calculation ---
-    # Select a subset of individuals as landmarks to approximate diversity
-    num_landmarks = max(
-        10, int(0.1 * population_size)
-    )  # At least 10 landmarks or 10% of population
-    landmark_indices = np.random.choice(
-        population_size, size=num_landmarks, replace=False
-    )
-    landmarks = np.array(
-        [population[idx].case_values for idx in landmark_indices]
-    )  # Shape: (num_landmarks, num_cases)
-
-    # Compute Euclidean distance of each individual to all landmarks and take the minimum distance
-    # This approximates the uniqueness of each individual
-    # Using broadcasting for efficient computation
-    case_matrix = np.array(
-        [ind.case_values for ind in population]
-    )  # Shape: (population_size, num_cases)
-    # Expand dimensions for broadcasting
-    case_expanded = case_matrix[
-        :, np.newaxis, :
-    ]  # Shape: (population_size, 1, num_cases)
-    landmarks_expanded = landmarks[
-        np.newaxis, :, :
-    ]  # Shape: (1, num_landmarks, num_cases)
-    # Compute squared differences
-    diff_squared = (
-        case_expanded - landmarks_expanded
-    ) ** 2  # Shape: (population_size, num_landmarks, num_cases)
-    distances = np.sqrt(
-        np.sum(diff_squared, axis=2)
-    )  # Shape: (population_size, num_landmarks)
-    min_distances = distances.min(axis=1)  # Shape: (population_size,)
-
-    # Normalize diversity to [0, 1]
-    diversity_min, diversity_max = min_distances.min(), min_distances.max()
-    if diversity_max - diversity_min > epsilon:
-        diversity_norm = (min_distances - diversity_min) / (
-            diversity_max - diversity_min
-        )
-    else:
-        diversity_norm = np.ones_like(min_distances)
-
-    # --- Composite Scoring ---
-    fitness_weight = 0.7
-    diversity_weight = 0.3
-    composite_score = fitness_weight * fitness_norm + diversity_weight * diversity_norm
-
-    # Normalize composite scores to sum to 1 for probabilistic selection
-    score_sum = composite_score.sum()
-    if score_sum > epsilon:
-        selection_probs = composite_score / score_sum
-    else:
-        selection_probs = np.full(population_size, 1.0 / population_size)
-
-    # --- Tournament Selection with Diversity-Adaptive Probability ---
-    tournament_size = 5  # Size of each tournament
-
-    # Precompute cumulative probabilities for efficient sampling
-    cumulative_probs = np.cumsum(selection_probs)
-
-    selected = []
+    selected_indices = []
     for _ in range(k):
-        # Randomly select tournament_size individuals based on selection_probs
-        rand_values = np.random.rand(tournament_size)
-        selected_indices = np.searchsorted(cumulative_probs, rand_values)
-        selected_indices = np.clip(selected_indices, 0, population_size - 1)
+        if selection_prob.sum() == 0:
+            # If all probabilities are zero, select randomly
+            chosen_idx = np.random.choice(population_size)
+        else:
+            chosen_idx = np.random.choice(population_size, p=selection_prob)
+        selected_indices.append(chosen_idx)
 
-        # Select the individual with the highest composite score in the tournament
-        tournament_scores = composite_score[selected_indices]
-        winner_idx = selected_indices[np.argmax(tournament_scores)]
-        selected.append(population[winner_idx])
+        # Update selection probabilities to reduce similarity with the selected individual
+        selected_vector = normalized_cases[chosen_idx]
+        similarity = np.dot(normalized_cases, selected_vector)
+        # Dampen probabilities of similar individuals
+        diversity_strength = 0.5  # Controls the impact of diversity (0 to 1)
+        selection_prob *= 1 - diversity_strength * similarity
+        # Ensure no negative probabilities
+        selection_prob = np.clip(selection_prob, a_min=0, a_max=None)
+        # Re-normalize probabilities
+        if selection_prob.sum() > 0:
+            selection_prob /= selection_prob.sum()
+        else:
+            # If all probabilities are zero, reset to uniform
+            selection_prob = np.ones(population_size) / population_size
 
-    return selected
-
-
-def llm_selection_plus_plus(population, k=1):
-    """
-    Adaptive Diversity-Driven Selection (ADDS) Operator for Genetic Programming.
-
-    This operator selects a diverse and high-performing set of individuals while ensuring
-    that selected parents are compatible for effective crossover. It dynamically balances
-    selection pressure based on population diversity to promote both exploration and exploitation.
-
-    Parameters:
-    - population: List of individuals, each having a `case_values` attribute
-                  which is a NumPy array of error values across test cases.
-    - k: Number of individuals to select.
-
-    Returns:
-    - selected_individuals: List of selected individuals.
-    """
-    if not population or k <= 0:
-        return []
-
-    # Extract case_values into a 2D NumPy array
-    case_matrix = np.array(
-        [ind.case_values for ind in population]
-    )  # Shape: (n_individuals, n_cases)
-
-    # Compute fitness as inverse of mean error
-    mean_errors = case_matrix.mean(axis=1)
-    epsilon = 1e-10  # Prevent division by zero
-    fitness_scores = 1.0 / (mean_errors + epsilon)
-
-    # Normalize fitness scores to [0, 1]
-    fitness_min, fitness_max = fitness_scores.min(), fitness_scores.max()
-    if fitness_max > fitness_min:
-        norm_fitness = (fitness_scores - fitness_min) / (fitness_max - fitness_min)
-    else:
-        norm_fitness = np.ones_like(fitness_scores)
-
-    # Compute diversity based on cosine similarity of case performance
-    similarity_matrix = cosine_similarity(case_matrix)
-    # Diversity score inversely related to average similarity with others
-    diversity_scores = 1 - similarity_matrix.mean(axis=1)  # Shape: (n_individuals,)
-
-    # Normalize diversity scores to [0, 1]
-    diversity_min, diversity_max = diversity_scores.min(), diversity_scores.max()
-    if diversity_max > diversity_min:
-        norm_diversity = (diversity_scores - diversity_min) / (
-            diversity_max - diversity_min
-        )
-    else:
-        norm_diversity = np.ones_like(diversity_scores)
-
-    # Adaptive weighting based on population diversity
-    population_diversity = diversity_scores.mean()
-    if population_diversity > 0.5:
-        # Prefer diversity more
-        alpha = 0.4
-    else:
-        # Favor fitness more
-        alpha = 0.7
-
-    combined_scores = alpha * norm_fitness + (1 - alpha) * norm_diversity
-    combined_scores = np.clip(combined_scores, a_min=0, a_max=None)
-
-    # If all scores are zero, fallback to uniform probabilities
-    total = combined_scores.sum()
-    if total == 0:
-        selection_probs = np.ones(len(population)) / len(population)
-    else:
-        selection_probs = combined_scores / total
-
-    # Select individuals based on selection probabilities
-    selected_indices = np.random.choice(
-        len(population), size=k, replace=True, p=selection_probs
-    )
+    # Retrieve the selected individuals
     selected_individuals = [population[idx] for idx in selected_indices]
-
     return selected_individuals
 
 
