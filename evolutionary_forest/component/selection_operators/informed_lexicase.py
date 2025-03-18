@@ -1,5 +1,4 @@
 import random
-from collections import defaultdict
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -21,68 +20,107 @@ def get_random_downsampled_cases(population, downsample_rate):
 
 def llm_selection(population, k=100):
     """
-    Adaptive Multi-Dimensional Tournament Selection Operator.
+    Adaptive Performance-Diversity Selection (APDS) Operator for Genetic Programming.
 
-    Args:
-        population (list): List of individuals, each having a `case_values` attribute (numpy array).
-        k (int): Number of individuals to select.
+    This operator adaptively balances individual performance with diversity to select
+    a set of high-quality and varied solutions. It ensures that selected parents are
+    both strong performers and diverse to promote effective crossover and prevent
+    premature convergence.
+
+    Parameters:
+    - population: List of individuals. Each individual must have a 'case_values' attribute,
+                 which is a numpy array of error values per test case.
+    - k: Number of individuals to select.
 
     Returns:
-        list: Selected individuals.
+    - selected_individuals: List of selected individuals.
     """
     if not population:
         return []
 
     population_size = len(population)
     num_cases = len(population[0].case_values)
+
+    # Extract case_values into a 2D NumPy array
     case_matrix = np.array(
         [ind.case_values for ind in population]
     )  # Shape: (population_size, num_cases)
 
-    # Parameters
-    tournament_size = 7
-    num_subsets = 10  # Number of case subsets for multi-dimensional evaluation
-    subset_size = max(1, num_cases // num_subsets)
+    # Step 1: Compute Performance Scores
+    # Assuming minimization: lower total error is better
+    total_errors = np.sum(case_matrix, axis=1)  # Shape: (population_size,)
+    # Avoid division by zero
+    total_errors = np.where(total_errors == 0, 1e-6, total_errors)
+    performance_scores = 1.0 / total_errors  # Higher is better
 
-    # Randomly shuffle case indices and partition into subsets
-    shuffled_cases = np.random.permutation(num_cases)
-    subsets = [
-        shuffled_cases[i * subset_size : (i + 1) * subset_size]
-        for i in range(num_subsets)
-    ]
+    # Step 2: Compute Diversity Scores
+    # Diversity based on the number of unique cases where the individual is a top performer
+    top_p = 0.05  # Top 5% are considered top performers
+    top_n = max(1, int(np.ceil(top_p * population_size)))
 
-    # Compute aggregated fitness for each individual across all subsets
-    # Here, we use the mean performance over all cases
-    aggregated_fitness = np.mean(case_matrix, axis=1)  # Assuming lower is better
+    # Argsort ascending (lower error is better)
+    sorted_indices = np.argsort(
+        case_matrix, axis=0
+    )  # Shape: (population_size, num_cases)
+    top_indices = sorted_indices[:top_n, :]  # Shape: (top_n, num_cases)
 
-    # Initialize selection pool
-    selected_indices = []
-    niche_counts = defaultdict(int)
+    # Create a binary matrix where 1 indicates the individual is a top performer for the case
+    top_performance = np.zeros_like(case_matrix, dtype=float)
+    row_indices = np.repeat(np.arange(top_n), num_cases)
+    col_indices = np.tile(np.arange(num_cases), top_n)
+    # Ensure indices are within bounds
+    top_indices_flat = top_indices.flatten()
+    col_indices_flat = np.tile(np.arange(num_cases), top_n)
+    top_performance[top_indices_flat, col_indices_flat] = 1.0
 
-    for _ in range(k):
-        # Perform a tournament
-        competitors_idx = np.random.choice(
-            population_size, size=tournament_size, replace=False
-        )
-        # Select the competitor with the best (lowest) aggregated fitness
-        best_idx = competitors_idx[np.argmin(aggregated_fitness[competitors_idx])]
+    # Diversity score: number of cases where individual is a top performer
+    diversity_scores = np.sum(top_performance, axis=1)  # Shape: (population_size,)
 
-        # Determine the niche based on which subset this individual performs best
-        individual_performance = case_matrix[best_idx]
-        best_subset_idx = np.argmax(
-            [np.mean(individual_performance[subset]) for subset in subsets]
-        )
-        niche_counts[best_subset_idx] += 1
+    # Step 3: Normalize Performance and Diversity Scores
+    # Normalize performance
+    perf_min = performance_scores.min()
+    perf_max = performance_scores.max()
+    if perf_max > perf_min:
+        normalized_performance = (performance_scores - perf_min) / (perf_max - perf_min)
+    else:
+        normalized_performance = np.ones_like(performance_scores)
 
-        # Penalize selection probability for overrepresented niches
-        niche_penalty = 1.0 / (1.0 + niche_counts[best_subset_idx])
-        adjusted_fitness = aggregated_fitness[competitors_idx] * niche_penalty
+    # Normalize diversity
+    div_min = diversity_scores.min()
+    div_max = diversity_scores.max()
+    if div_max > div_min:
+        normalized_diversity = (diversity_scores - div_min) / (div_max - div_min)
+    else:
+        normalized_diversity = np.ones_like(diversity_scores)
 
-        # Re-select the best after penalty
-        best_idx = competitors_idx[np.argmin(adjusted_fitness)]
-        selected_indices.append(best_idx)
+    # Step 4: Adaptive Weighting Based on Population Diversity
+    # Compute overall population diversity
+    population_diversity = np.mean(diversity_scores)
+    # Define a threshold to decide when to prioritize diversity
+    diversity_threshold = (div_max - div_min) * 0.5 + div_min
+    if population_diversity < diversity_threshold:
+        weight_diversity = 0.6
+        weight_performance = 0.4
+    else:
+        weight_diversity = 0.3
+        weight_performance = 0.7
 
-    # Retrieve selected individuals
+    # Step 5: Combine Normalized Scores
+    combined_scores = (weight_performance * normalized_performance) + (
+        weight_diversity * normalized_diversity
+    )
+
+    # Step 6: Compute Selection Probabilities
+    total_combined = np.sum(combined_scores)
+    if total_combined == 0 or not np.isfinite(combined_scores).all():
+        selection_probs = np.ones(population_size) / population_size
+    else:
+        selection_probs = combined_scores / total_combined
+
+    # Step 7: Select k Individuals Based on Probabilities
+    selected_indices = np.random.choice(
+        population_size, size=k, replace=True, p=selection_probs
+    )
     selected_individuals = [population[idx] for idx in selected_indices]
 
     return selected_individuals
