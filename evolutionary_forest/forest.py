@@ -248,7 +248,7 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
     diverse_performance_selection,
     half_lexicase_selection_std,
-    adaptive_diverse_selection,
+    llm_selection,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2498,10 +2498,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
-        elif self.select == "AdaptiveDiverseSelection":
+        elif self.select == "LLMSelection":
             toolbox.register(
                 "select",
-                adaptive_diverse_selection,
+                llm_selection,
             )
         elif self.select == "DiverseSelection":
             toolbox.register(
@@ -5555,7 +5555,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             parent + external_archive, self.n_pop
                         )
                     else:
-                        if callable(self.select):
+                        if callable(self.select) or self.select == "LLMSelection":
                             # a bit special, select all to reduce overhead
                             offspring = toolbox.select(
                                 parent + external_archive, self.n_pop

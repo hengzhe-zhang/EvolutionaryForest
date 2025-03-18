@@ -17,57 +17,65 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def adaptive_diverse_selection(population, k=100, num_clusters=5):
-    def cluster_cases(individuals, num_clusters):
-        case_values_matrix = np.array([ind.case_values for ind in individuals])
-        # Transpose to obtain case-wise performance
-        case_values_matrix_transposed = case_values_matrix.T
+def llm_selection(population, k=100, num_clusters=5):
+    """
+    Innovative selection operator for genetic programming focusing on diversity,
+    crossover compatibility, and efficiency.
+    """
 
-        # Use KMeans to cluster similar test cases
-        kmeans = KMeans(n_clusters=num_clusters, random_state=42)
-        case_clusters = kmeans.fit_predict(case_values_matrix_transposed)
+    def normalize_case_values(ind):
+        """Normalize an individual's case values for fair comparison across individuals."""
+        case_min = np.min(ind.case_values)
+        case_max = np.max(ind.case_values)
+        return (ind.case_values - case_min) / (case_max - case_min)
 
-        # Group case indices by their cluster labels
-        cluster_to_case_indices = {i: [] for i in range(num_clusters)}
-        for case_idx, cluster_label in enumerate(case_clusters):
-            cluster_to_case_indices[cluster_label].append(case_idx)
+    # Step 1: Normalize the case values
+    normalized_population = np.array([normalize_case_values(ind) for ind in population])
 
-        return cluster_to_case_indices
+    # Step 2: Apply clustering to categorize individuals into groups
+    kmeans = KMeans(n_clusters=min(num_clusters, len(population)), random_state=42)
+    cluster_labels = kmeans.fit_predict(normalized_population)
 
-    # Cluster the cases based on individuals' performances
-    cluster_to_case_indices = cluster_cases(population, num_clusters)
+    # Step 3: Select representative individuals from each cluster for diversity
+    cluster_representatives = []
+    for cluster_id in range(num_clusters):
+        cluster_members = [
+            ind for ind, label in zip(population, cluster_labels) if label == cluster_id
+        ]
+        if cluster_members:
+            # Choose the individual with lowest mean error in the cluster to represent it
+            best_member = min(cluster_members, key=lambda ind: np.mean(ind.case_values))
+            cluster_representatives.append(best_member)
+
+    # Ensure there's enough candidates to select pairs
+    if len(cluster_representatives) < 2:
+        cluster_representatives = population[:]
 
     selected_individuals = []
+    while len(selected_individuals) < k:
+        parent1 = random.choice(cluster_representatives)
 
-    for _ in range(k):
-        candidates = population[:]
+        # Calculate compatibility scores with other representatives
+        compatibility_scores = [
+            (
+                np.linalg.norm(
+                    normalize_case_values(parent1) - normalize_case_values(ind)
+                ),
+                ind,
+            )
+            for ind in cluster_representatives
+            if ind != parent1
+        ]
 
-        # Shuffle the clusters to promote diversity
-        cluster_indices = list(cluster_to_case_indices.keys())
-        random.shuffle(cluster_indices)
+        # Select the most compatible partner
+        compatible_partner = min(compatibility_scores, key=lambda x: x[0])[1]
 
-        for cluster_idx in cluster_indices:
-            case_indices = cluster_to_case_indices[cluster_idx]
-            # Find the median errors in this cluster
-            errors = np.array([ind.case_values for ind in candidates])[:, case_indices]
-            median_errors = np.median(errors, axis=1)
+        # Add to the selection if space is available
+        selected_individuals.append(parent1)
+        if len(selected_individuals) < k:
+            selected_individuals.append(compatible_partner)
 
-            # Filter candidates that have below-median error in the current cluster
-            min_median_error = np.min(median_errors)
-            candidates = [
-                ind
-                for ind, median_error in zip(candidates, median_errors)
-                if median_error <= min_median_error
-            ]
-
-            # If there is only one candidate left, select it
-            if len(candidates) == 1:
-                break
-
-        # Select one individual from the remaining candidates
-        selected_individuals.append(random.choice(candidates))
-
-    return selected_individuals
+    return selected_individuals[:k]
 
 
 def diverse_performance_selection(population, k=1):
