@@ -33,7 +33,7 @@ def llm_selection(population, k=100, num_clusters=5):
     normalized_population = np.array([normalize_case_values(ind) for ind in population])
 
     # Step 2: Apply clustering to categorize individuals into groups
-    kmeans = KMeans(n_clusters=min(num_clusters, len(population)), random_state=42)
+    kmeans = KMeans(n_clusters=min(num_clusters, len(population)), random_state=0)
     cluster_labels = kmeans.fit_predict(normalized_population)
 
     # Step 3: Select representative individuals from each cluster for diversity
