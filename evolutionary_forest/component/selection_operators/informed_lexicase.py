@@ -2,6 +2,7 @@ import random
 from collections import defaultdict
 
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 def get_random_downsampled_cases(population, downsample_rate):
@@ -199,48 +200,80 @@ def llm_selection_plus(population, k=1):
     return selected
 
 
-def half_lexicase_selection_std(population, k=1):
-    if not population:
+def llm_selection_plus_plus(population, k=1):
+    """
+    Adaptive Diversity-Driven Selection (ADDS) Operator for Genetic Programming.
+
+    This operator selects a diverse and high-performing set of individuals while ensuring
+    that selected parents are compatible for effective crossover. It dynamically balances
+    selection pressure based on population diversity to promote both exploration and exploitation.
+
+    Parameters:
+    - population: List of individuals, each having a `case_values` attribute
+                  which is a NumPy array of error values across test cases.
+    - k: Number of individuals to select.
+
+    Returns:
+    - selected_individuals: List of selected individuals.
+    """
+    if not population or k <= 0:
         return []
 
-    case_values = np.array([ind.case_values for ind in population])
-    n_cases = case_values.shape[1]
-    selected_individuals = []
-    unique_selected = set()
+    # Extract case_values into a 2D NumPy array
+    case_matrix = np.array(
+        [ind.case_values for ind in population]
+    )  # Shape: (n_individuals, n_cases)
 
-    while len(selected_individuals) < k:
-        # Shuffle case indices for diversity
-        cases = list(range(n_cases))
-        random.shuffle(cases)
+    # Compute fitness as inverse of mean error
+    mean_errors = case_matrix.mean(axis=1)
+    epsilon = 1e-10  # Prevent division by zero
+    fitness_scores = 1.0 / (mean_errors + epsilon)
 
-        candidates_indices = list(range(len(population)))
+    # Normalize fitness scores to [0, 1]
+    fitness_min, fitness_max = fitness_scores.min(), fitness_scores.max()
+    if fitness_max > fitness_min:
+        norm_fitness = (fitness_scores - fitness_min) / (fitness_max - fitness_min)
+    else:
+        norm_fitness = np.ones_like(fitness_scores)
 
-        for case in cases:
-            if len(candidates_indices) <= 1:
-                break
+    # Compute diversity based on cosine similarity of case performance
+    similarity_matrix = cosine_similarity(case_matrix)
+    # Diversity score inversely related to average similarity with others
+    diversity_scores = 1 - similarity_matrix.mean(axis=1)  # Shape: (n_individuals,)
 
-            current_case_values = case_values[candidates_indices, case]
-            min_case_value = np.min(current_case_values)
+    # Normalize diversity scores to [0, 1]
+    diversity_min, diversity_max = diversity_scores.min(), diversity_scores.max()
+    if diversity_max > diversity_min:
+        norm_diversity = (diversity_scores - diversity_min) / (
+            diversity_max - diversity_min
+        )
+    else:
+        norm_diversity = np.ones_like(diversity_scores)
 
-            # Dynamic threshold using the mean and standard deviation
-            threshold = min_case_value + np.std(current_case_values) * 0.5
+    # Adaptive weighting based on population diversity
+    population_diversity = diversity_scores.mean()
+    if population_diversity > 0.5:
+        # Prefer diversity more
+        alpha = 0.4
+    else:
+        # Favor fitness more
+        alpha = 0.7
 
-            # Filter candidates based on the computed threshold
-            candidates_indices = [
-                i for i in candidates_indices if case_values[i, case] <= threshold
-            ]
+    combined_scores = alpha * norm_fitness + (1 - alpha) * norm_diversity
+    combined_scores = np.clip(combined_scores, a_min=0, a_max=None)
 
-            # Reset if no candidates remain to ensure robustness
-            if not candidates_indices:
-                candidates_indices = list(range(len(population)))
-                break
+    # If all scores are zero, fallback to uniform probabilities
+    total = combined_scores.sum()
+    if total == 0:
+        selection_probs = np.ones(len(population)) / len(population)
+    else:
+        selection_probs = combined_scores / total
 
-        # Select a candidate and ensure uniqueness
-        for idx in candidates_indices:
-            if id(population[idx]) not in unique_selected:
-                selected_individuals.append(population[idx])
-                unique_selected.add(id(population[idx]))
-                break
+    # Select individuals based on selection probabilities
+    selected_indices = np.random.choice(
+        len(population), size=k, replace=True, p=selection_probs
+    )
+    selected_individuals = [population[idx] for idx in selected_indices]
 
     return selected_individuals
 

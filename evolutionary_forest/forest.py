@@ -247,7 +247,7 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
 )
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
     llm_selection_plus,
-    half_lexicase_selection_std,
+    llm_selection_plus_plus,
     llm_selection,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
@@ -2508,10 +2508,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 llm_selection_plus,
             )
-        elif self.select == "HalfLexicaseSTD":
+        elif self.select == "LLMSelection++":
             toolbox.register(
                 "select",
-                half_lexicase_selection_std,
+                llm_selection_plus_plus,
             )
         elif self.select == "TierLexicase":
             toolbox.register(
