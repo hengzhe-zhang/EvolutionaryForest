@@ -1,4 +1,6 @@
 import random
+from collections import defaultdict
+
 import numpy as np
 
 
@@ -17,149 +19,184 @@ def get_random_downsampled_cases(population, downsample_rate):
 
 
 def llm_selection(population, k=100):
-    if not population or k <= 0:
+    """
+    Adaptive Multi-Dimensional Tournament Selection Operator.
+
+    Args:
+        population (list): List of individuals, each having a `case_values` attribute (numpy array).
+        k (int): Number of individuals to select.
+
+    Returns:
+        list: Selected individuals.
+    """
+    if not population:
         return []
 
-    # Extract case_values into a 2D numpy array
-    case_matrix = np.array([ind.case_values for ind in population])  # Shape: (n, m)
-    n_individuals, n_cases = case_matrix.shape
+    population_size = len(population)
+    num_cases = len(population[0].case_values)
+    case_matrix = np.array(
+        [ind.case_values for ind in population]
+    )  # Shape: (population_size, num_cases)
 
-    # Compute fitness as inverse of mean error across cases
-    epsilon = 1e-8
-    mean_errors = case_matrix.mean(axis=1)  # Shape: (n,)
-    fitness = 1.0 / (mean_errors + epsilon)  # Higher fitness is better
+    # Parameters
+    tournament_size = 7
+    num_subsets = 10  # Number of case subsets for multi-dimensional evaluation
+    subset_size = max(1, num_cases // num_subsets)
 
-    # Normalize fitness
-    fitness_normalized = fitness / fitness.sum()
+    # Randomly shuffle case indices and partition into subsets
+    shuffled_cases = np.random.permutation(num_cases)
+    subsets = [
+        shuffled_cases[i * subset_size : (i + 1) * subset_size]
+        for i in range(num_subsets)
+    ]
 
-    # Adaptive Fitness Sharing to maintain diversity
-    # Compute similarity matrix using cosine similarity
-    norms = np.linalg.norm(case_matrix, axis=1, keepdims=True) + epsilon
-    normalized_cases = case_matrix / norms
-    similarity_matrix = np.dot(normalized_cases, normalized_cases.T)  # Shape: (n, n)
+    # Compute aggregated fitness for each individual across all subsets
+    # Here, we use the mean performance over all cases
+    aggregated_fitness = np.mean(case_matrix, axis=1)  # Assuming lower is better
 
-    # Define similarity threshold for sharing
-    similarity_threshold = 0.7  # Adjust as needed
+    # Initialize selection pool
+    selected_indices = []
+    niche_counts = defaultdict(int)
 
-    # Fitness Sharing: Reduce fitness based on similarity
-    sharing_factors = (similarity_matrix > similarity_threshold).sum(axis=1)
-    sharing_factors = np.maximum(sharing_factors, 1)  # Avoid division by zero
-    fitness_shared = fitness / sharing_factors
+    for _ in range(k):
+        # Perform a tournament
+        competitors_idx = np.random.choice(
+            population_size, size=tournament_size, replace=False
+        )
+        # Select the competitor with the best (lowest) aggregated fitness
+        best_idx = competitors_idx[np.argmin(aggregated_fitness[competitors_idx])]
 
-    # Normalize shared fitness for selection probabilities
-    fitness_shared_normalized = fitness_shared / fitness_shared.sum()
+        # Determine the niche based on which subset this individual performs best
+        individual_performance = case_matrix[best_idx]
+        best_subset_idx = np.argmax(
+            [np.mean(individual_performance[subset]) for subset in subsets]
+        )
+        niche_counts[best_subset_idx] += 1
 
-    # Selection Probability proportional to shared fitness
-    selection_probs = fitness_shared_normalized
+        # Penalize selection probability for overrepresented niches
+        niche_penalty = 1.0 / (1.0 + niche_counts[best_subset_idx])
+        adjusted_fitness = aggregated_fitness[competitors_idx] * niche_penalty
 
-    # Select k individuals based on selection_probs
-    selected_indices = np.random.choice(
-        n_individuals, size=k, replace=True, p=selection_probs
-    )
+        # Re-select the best after penalty
+        best_idx = competitors_idx[np.argmin(adjusted_fitness)]
+        selected_indices.append(best_idx)
+
+    # Retrieve selected individuals
     selected_individuals = [population[idx] for idx in selected_indices]
-
-    # Crossover Compatibility: Pair selected individuals intelligently
-    # Compute pairwise similarity among selected individuals
-    selected_matrix = case_matrix[selected_indices]  # Shape: (k, m)
-    selected_norms = np.linalg.norm(selected_matrix, axis=1, keepdims=True) + epsilon
-    selected_normalized = selected_matrix / selected_norms
-    pair_similarity = np.dot(
-        selected_normalized, selected_normalized.T
-    )  # Shape: (k, k)
-
-    # Avoid self-pairing by setting diagonal to -inf
-    np.fill_diagonal(pair_similarity, -np.inf)
-
-    # Assign compatibility scores (higher similarity implies higher compatibility)
-    # Here, we prefer moderate similarity to encourage diversity among parents
-    # You can adjust this logic based on specific requirements
-    compatibility_scores = (
-        1 - pair_similarity
-    )  # Lower similarity => higher compatibility
-
-    # Create a list to track paired individuals
-    paired = set()
-    final_selected = []
-
-    for i in range(k):
-        if i in paired:
-            continue
-        # Find the most compatible individual to pair with
-        compatibilities = compatibility_scores[i]
-        # Exclude already paired individuals
-        compatibilities[list(paired)] = np.inf
-        partner = np.argmin(compatibilities)
-        if compatibilities[partner] == np.inf:
-            # No available partner, add as is
-            final_selected.append(selected_individuals[i])
-            paired.add(i)
-        else:
-            # Add both individuals as a compatible pair
-            final_selected.extend(
-                [selected_individuals[i], selected_individuals[partner]]
-            )
-            paired.update([i, partner])
-        if len(final_selected) >= k:
-            break
-
-    # In case of odd k, trim the list
-    selected_individuals = final_selected[:k]
 
     return selected_individuals
 
 
-def diverse_performance_selection(population, k=1):
-    def adaptive_lexicase_filter(individuals, num_cases):
-        """Performs adaptive lexicase filtering."""
-        candidates = individuals[:]
-        case_indices = np.random.permutation(num_cases)
-        for idx in case_indices:
-            min_error = min(ind.case_values[idx] for ind in candidates)
-            candidates = [
-                ind for ind in candidates if ind.case_values[idx] <= min_error
-            ]
-            if len(candidates) <= k:
-                break
-        return candidates
+def llm_selection_plus(population, k=1):
+    """
+    Fitness-Diversity Weighted Tournament Selection Operator for Genetic Programming.
 
-    def entropy_diversity(ind):
-        """Calculate entropy-based diversity score."""
-        values = np.array(ind.case_values)
-        probabilities = values / np.sum(values)
-        return -np.sum(probabilities * np.log(probabilities + 1e-9))
+    This operator selects individuals based on a combination of their fitness and diversity,
+    ensuring that selected individuals are both strong and diverse to promote effective crossover.
 
-    def synergy_metric(candidates):
-        """Calculate synergy based on pairwise performance agreement."""
-        error_matrix = np.array([ind.case_values for ind in candidates])
-        inverse_error_agreement = 1 - np.abs(np.corrcoef(error_matrix))
-        synergy_scores = np.sum(inverse_error_agreement, axis=0)
-        return synergy_scores
+    Args:
+        population (list): List of individuals, each having a `case_values` attribute (numpy array).
+        k (int): Number of individuals to select.
 
+    Returns:
+        list: Selected individuals.
+    """
+    if not population or k <= 0:
+        return []
+
+    population_size = len(population)
+    k = min(k, population_size)
     num_cases = len(population[0].case_values)
-    selected_individuals = []
 
-    while len(selected_individuals) < k:
-        # Adaptive lexicase filtering
-        candidates = adaptive_lexicase_filter(population, num_cases)
+    # --- Fitness Calculation ---
+    # Assume lower total errors are better
+    epsilon = 1e-10  # Prevent division by zero
+    total_errors = np.array(
+        [np.sum(ind.case_values) for ind in population]
+    )  # Shape: (population_size,)
+    fitness = 1.0 / (total_errors + epsilon)  # Higher is better
 
-        if len(candidates) == 1:
-            selected_individuals.append(candidates[0])
-            continue
+    # Normalize fitness to [0, 1]
+    fitness_min, fitness_max = fitness.min(), fitness.max()
+    if fitness_max - fitness_min > epsilon:
+        fitness_norm = (fitness - fitness_min) / (fitness_max - fitness_min)
+    else:
+        fitness_norm = np.ones_like(fitness)
 
-        # Diversity selection using entropy
-        diversity_scores = [entropy_diversity(ind) for ind in candidates]
-        best_diverse_candidate = candidates[np.argmax(diversity_scores)]
+    # --- Diversity Calculation ---
+    # Select a subset of individuals as landmarks to approximate diversity
+    num_landmarks = max(
+        10, int(0.1 * population_size)
+    )  # At least 10 landmarks or 10% of population
+    landmark_indices = np.random.choice(
+        population_size, size=num_landmarks, replace=False
+    )
+    landmarks = np.array(
+        [population[idx].case_values for idx in landmark_indices]
+    )  # Shape: (num_landmarks, num_cases)
 
-        # Synergy-based candidate selection
-        synergy_scores = synergy_metric(candidates)
-        best_synergy_idx = np.argmax(synergy_scores)
-        selected_pair = [best_diverse_candidate, candidates[best_synergy_idx]]
+    # Compute Euclidean distance of each individual to all landmarks and take the minimum distance
+    # This approximates the uniqueness of each individual
+    # Using broadcasting for efficient computation
+    case_matrix = np.array(
+        [ind.case_values for ind in population]
+    )  # Shape: (population_size, num_cases)
+    # Expand dimensions for broadcasting
+    case_expanded = case_matrix[
+        :, np.newaxis, :
+    ]  # Shape: (population_size, 1, num_cases)
+    landmarks_expanded = landmarks[
+        np.newaxis, :, :
+    ]  # Shape: (1, num_landmarks, num_cases)
+    # Compute squared differences
+    diff_squared = (
+        case_expanded - landmarks_expanded
+    ) ** 2  # Shape: (population_size, num_landmarks, num_cases)
+    distances = np.sqrt(
+        np.sum(diff_squared, axis=2)
+    )  # Shape: (population_size, num_landmarks)
+    min_distances = distances.min(axis=1)  # Shape: (population_size,)
 
-        for ind in selected_pair:
-            if len(selected_individuals) < k:
-                selected_individuals.append(ind)
+    # Normalize diversity to [0, 1]
+    diversity_min, diversity_max = min_distances.min(), min_distances.max()
+    if diversity_max - diversity_min > epsilon:
+        diversity_norm = (min_distances - diversity_min) / (
+            diversity_max - diversity_min
+        )
+    else:
+        diversity_norm = np.ones_like(min_distances)
 
-    return selected_individuals[:k]
+    # --- Composite Scoring ---
+    fitness_weight = 0.7
+    diversity_weight = 0.3
+    composite_score = fitness_weight * fitness_norm + diversity_weight * diversity_norm
+
+    # Normalize composite scores to sum to 1 for probabilistic selection
+    score_sum = composite_score.sum()
+    if score_sum > epsilon:
+        selection_probs = composite_score / score_sum
+    else:
+        selection_probs = np.full(population_size, 1.0 / population_size)
+
+    # --- Tournament Selection with Diversity-Adaptive Probability ---
+    tournament_size = 5  # Size of each tournament
+
+    # Precompute cumulative probabilities for efficient sampling
+    cumulative_probs = np.cumsum(selection_probs)
+
+    selected = []
+    for _ in range(k):
+        # Randomly select tournament_size individuals based on selection_probs
+        rand_values = np.random.rand(tournament_size)
+        selected_indices = np.searchsorted(cumulative_probs, rand_values)
+        selected_indices = np.clip(selected_indices, 0, population_size - 1)
+
+        # Select the individual with the highest composite score in the tournament
+        tournament_scores = composite_score[selected_indices]
+        winner_idx = selected_indices[np.argmax(tournament_scores)]
+        selected.append(population[winner_idx])
+
+    return selected
 
 
 def half_lexicase_selection_std(population, k=1):
