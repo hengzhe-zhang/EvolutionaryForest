@@ -1,6 +1,5 @@
 import random
 import numpy as np
-from sklearn.cluster import KMeans
 
 
 def get_random_downsampled_cases(population, downsample_rate):
@@ -17,65 +16,96 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def llm_selection(population, k=100, num_clusters=5):
-    """
-    Innovative selection operator for genetic programming focusing on diversity,
-    crossover compatibility, and efficiency.
-    """
+def llm_selection(population, k=100):
+    if not population or k <= 0:
+        return []
 
-    def normalize_case_values(ind):
-        """Normalize an individual's case values for fair comparison across individuals."""
-        case_min = np.min(ind.case_values)
-        case_max = np.max(ind.case_values)
-        return (ind.case_values - case_min) / (case_max - case_min)
+    # Extract case_values into a 2D numpy array
+    case_matrix = np.array([ind.case_values for ind in population])  # Shape: (n, m)
+    n_individuals, n_cases = case_matrix.shape
 
-    # Step 1: Normalize the case values
-    normalized_population = np.array([normalize_case_values(ind) for ind in population])
+    # Compute fitness as inverse of mean error across cases
+    epsilon = 1e-8
+    mean_errors = case_matrix.mean(axis=1)  # Shape: (n,)
+    fitness = 1.0 / (mean_errors + epsilon)  # Higher fitness is better
 
-    # Step 2: Apply clustering to categorize individuals into groups
-    kmeans = KMeans(n_clusters=min(num_clusters, len(population)), random_state=0)
-    cluster_labels = kmeans.fit_predict(normalized_population)
+    # Normalize fitness
+    fitness_normalized = fitness / fitness.sum()
 
-    # Step 3: Select representative individuals from each cluster for diversity
-    cluster_representatives = []
-    for cluster_id in range(num_clusters):
-        cluster_members = [
-            ind for ind, label in zip(population, cluster_labels) if label == cluster_id
-        ]
-        if cluster_members:
-            # Choose the individual with lowest mean error in the cluster to represent it
-            best_member = min(cluster_members, key=lambda ind: np.mean(ind.case_values))
-            cluster_representatives.append(best_member)
+    # Adaptive Fitness Sharing to maintain diversity
+    # Compute similarity matrix using cosine similarity
+    norms = np.linalg.norm(case_matrix, axis=1, keepdims=True) + epsilon
+    normalized_cases = case_matrix / norms
+    similarity_matrix = np.dot(normalized_cases, normalized_cases.T)  # Shape: (n, n)
 
-    # Ensure there's enough candidates to select pairs
-    if len(cluster_representatives) < 2:
-        cluster_representatives = population[:]
+    # Define similarity threshold for sharing
+    similarity_threshold = 0.7  # Adjust as needed
 
-    selected_individuals = []
-    while len(selected_individuals) < k:
-        parent1 = random.choice(cluster_representatives)
+    # Fitness Sharing: Reduce fitness based on similarity
+    sharing_factors = (similarity_matrix > similarity_threshold).sum(axis=1)
+    sharing_factors = np.maximum(sharing_factors, 1)  # Avoid division by zero
+    fitness_shared = fitness / sharing_factors
 
-        # Calculate compatibility scores with other representatives
-        compatibility_scores = [
-            (
-                np.linalg.norm(
-                    normalize_case_values(parent1) - normalize_case_values(ind)
-                ),
-                ind,
+    # Normalize shared fitness for selection probabilities
+    fitness_shared_normalized = fitness_shared / fitness_shared.sum()
+
+    # Selection Probability proportional to shared fitness
+    selection_probs = fitness_shared_normalized
+
+    # Select k individuals based on selection_probs
+    selected_indices = np.random.choice(
+        n_individuals, size=k, replace=True, p=selection_probs
+    )
+    selected_individuals = [population[idx] for idx in selected_indices]
+
+    # Crossover Compatibility: Pair selected individuals intelligently
+    # Compute pairwise similarity among selected individuals
+    selected_matrix = case_matrix[selected_indices]  # Shape: (k, m)
+    selected_norms = np.linalg.norm(selected_matrix, axis=1, keepdims=True) + epsilon
+    selected_normalized = selected_matrix / selected_norms
+    pair_similarity = np.dot(
+        selected_normalized, selected_normalized.T
+    )  # Shape: (k, k)
+
+    # Avoid self-pairing by setting diagonal to -inf
+    np.fill_diagonal(pair_similarity, -np.inf)
+
+    # Assign compatibility scores (higher similarity implies higher compatibility)
+    # Here, we prefer moderate similarity to encourage diversity among parents
+    # You can adjust this logic based on specific requirements
+    compatibility_scores = (
+        1 - pair_similarity
+    )  # Lower similarity => higher compatibility
+
+    # Create a list to track paired individuals
+    paired = set()
+    final_selected = []
+
+    for i in range(k):
+        if i in paired:
+            continue
+        # Find the most compatible individual to pair with
+        compatibilities = compatibility_scores[i]
+        # Exclude already paired individuals
+        compatibilities[list(paired)] = np.inf
+        partner = np.argmin(compatibilities)
+        if compatibilities[partner] == np.inf:
+            # No available partner, add as is
+            final_selected.append(selected_individuals[i])
+            paired.add(i)
+        else:
+            # Add both individuals as a compatible pair
+            final_selected.extend(
+                [selected_individuals[i], selected_individuals[partner]]
             )
-            for ind in cluster_representatives
-            if ind != parent1
-        ]
+            paired.update([i, partner])
+        if len(final_selected) >= k:
+            break
 
-        # Select the most compatible partner
-        compatible_partner = min(compatibility_scores, key=lambda x: x[0])[1]
+    # In case of odd k, trim the list
+    selected_individuals = final_selected[:k]
 
-        # Add to the selection if space is available
-        selected_individuals.append(parent1)
-        if len(selected_individuals) < k:
-            selected_individuals.append(compatible_partner)
-
-    return selected_individuals[:k]
+    return selected_individuals
 
 
 def diverse_performance_selection(population, k=1):
