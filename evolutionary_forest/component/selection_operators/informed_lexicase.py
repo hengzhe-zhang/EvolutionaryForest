@@ -17,110 +17,41 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def llm_selection(population, k=100):
-    """
-    Adaptive Performance-Diversity Selection (APDS) Operator for Genetic Programming.
+def llm_selection(population, k=100, tour_size=7):
+    import numpy as np
+    import random
 
-    This operator adaptively balances individual performance with diversity to select
-    a set of high-quality and varied solutions. It ensures that selected parents are
-    both strong performers and diverse to promote effective crossover and prevent
-    premature convergence.
+    def get_information(individual):
+        mse_vector = np.array(individual.case_values)
+        predicted_values = np.array(individual.predicted_values)
+        residual = individual.y - predicted_values
+        number_of_nodes = len(predicted_values)
+        return mse_vector, predicted_values, residual, number_of_nodes
 
-    Parameters:
-    - population: List of individuals. Each individual must have a 'case_values' attribute,
-                 which is a numpy array of error values per test case.
-    - k: Number of individuals to select.
+    # Calculate compatibility score between two individuals
+    def compatibility_score(ind1, ind2):
+        mse1, _, residual1, _ = get_information(ind1)
+        mse2, _, residual2, _ = get_information(ind2)
+        return np.abs(mse1.mean() - mse2.mean()) + np.dot(residual1, residual2)
 
-    Returns:
-    - selected_individuals: List of selected individuals.
-    """
-    if not population:
-        return []
+    selected_individuals = []
 
-    population_size = len(population)
-    num_cases = len(population[0].case_values)
+    for _ in range(k // 2):
+        # Select a subset of individuals for parent A
+        tournament_a = random.sample(population, tour_size)
+        # Select parent A based on lowest mean squared error (favoring specialization)
+        parent_a = min(tournament_a, key=lambda ind: np.mean(get_information(ind)[0]))
+        selected_individuals.append(parent_a)
 
-    # Extract case_values into a 2D NumPy array
-    case_matrix = np.array(
-        [ind.case_values for ind in population]
-    )  # Shape: (population_size, num_cases)
-
-    # Step 1: Compute Performance Scores
-    # Assuming minimization: lower total error is better
-    total_errors = np.sum(case_matrix, axis=1)  # Shape: (population_size,)
-    # Avoid division by zero
-    total_errors = np.where(total_errors == 0, 1e-6, total_errors)
-    performance_scores = 1.0 / total_errors  # Higher is better
-
-    # Step 2: Compute Diversity Scores
-    # Diversity based on the number of unique cases where the individual is a top performer
-    top_p = 0.05  # Top 5% are considered top performers
-    top_n = max(1, int(np.ceil(top_p * population_size)))
-
-    # Argsort ascending (lower error is better)
-    sorted_indices = np.argsort(
-        case_matrix, axis=0
-    )  # Shape: (population_size, num_cases)
-    top_indices = sorted_indices[:top_n, :]  # Shape: (top_n, num_cases)
-
-    # Create a binary matrix where 1 indicates the individual is a top performer for the case
-    top_performance = np.zeros_like(case_matrix, dtype=float)
-    row_indices = np.repeat(np.arange(top_n), num_cases)
-    col_indices = np.tile(np.arange(num_cases), top_n)
-    # Ensure indices are within bounds
-    top_indices_flat = top_indices.flatten()
-    col_indices_flat = np.tile(np.arange(num_cases), top_n)
-    top_performance[top_indices_flat, col_indices_flat] = 1.0
-
-    # Diversity score: number of cases where individual is a top performer
-    diversity_scores = np.sum(top_performance, axis=1)  # Shape: (population_size,)
-
-    # Step 3: Normalize Performance and Diversity Scores
-    # Normalize performance
-    perf_min = performance_scores.min()
-    perf_max = performance_scores.max()
-    if perf_max > perf_min:
-        normalized_performance = (performance_scores - perf_min) / (perf_max - perf_min)
-    else:
-        normalized_performance = np.ones_like(performance_scores)
-
-    # Normalize diversity
-    div_min = diversity_scores.min()
-    div_max = diversity_scores.max()
-    if div_max > div_min:
-        normalized_diversity = (diversity_scores - div_min) / (div_max - div_min)
-    else:
-        normalized_diversity = np.ones_like(diversity_scores)
-
-    # Step 4: Adaptive Weighting Based on Population Diversity
-    # Compute overall population diversity
-    population_diversity = np.mean(diversity_scores)
-    # Define a threshold to decide when to prioritize diversity
-    diversity_threshold = (div_max - div_min) * 0.5 + div_min
-    if population_diversity < diversity_threshold:
-        weight_diversity = 0.6
-        weight_performance = 0.4
-    else:
-        weight_diversity = 0.3
-        weight_performance = 0.7
-
-    # Step 5: Combine Normalized Scores
-    combined_scores = (weight_performance * normalized_performance) + (
-        weight_diversity * normalized_diversity
-    )
-
-    # Step 6: Compute Selection Probabilities
-    total_combined = np.sum(combined_scores)
-    if total_combined == 0 or not np.isfinite(combined_scores).all():
-        selection_probs = np.ones(population_size) / population_size
-    else:
-        selection_probs = combined_scores / total_combined
-
-    # Step 7: Select k Individuals Based on Probabilities
-    selected_indices = np.random.choice(
-        population_size, size=k, replace=True, p=selection_probs
-    )
-    selected_individuals = [population[idx] for idx in selected_indices]
+        # For parent B, consider compatibility with parent A
+        tournament_b = random.sample(population, tour_size)
+        # Calculate compatibility for each tournament B candidate with selected parent A
+        compatibility_scores = [
+            compatibility_score(parent_a, ind) for ind in tournament_b
+        ]
+        # Select parent B as the most compatible with parent A
+        parent_b = min(tournament_b, key=lambda ind: compatibility_score(parent_a, ind))
+        selected_individuals.append(parent_b)
 
     return selected_individuals
 

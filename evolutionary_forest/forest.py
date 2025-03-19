@@ -5557,9 +5557,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     else:
                         if callable(self.select) or self.select == "LLMSelection":
                             # a bit special, select all to reduce overhead
+                            for ind in parent + external_archive:
+                                ind.y = self.y
                             offspring = toolbox.select(
                                 parent + external_archive, self.n_pop
                             )
+                            for ind in parent + external_archive:
+                                if hasattr(ind, "y"):
+                                    del ind.y
                         else:
                             offspring = toolbox.select(parent + external_archive, 2)
                 else:
