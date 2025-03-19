@@ -5555,7 +5555,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             parent + external_archive, self.n_pop
                         )
                     else:
-                        if callable(self.select) or self.select == "LLMSelection":
+                        if callable(self.select) or (
+                            isinstance(self.select, str)
+                            and self.select.startswith("LLMSelection")
+                        ):
                             # a bit special, select all to reduce overhead
                             for ind in parent + external_archive:
                                 ind.y = self.y
