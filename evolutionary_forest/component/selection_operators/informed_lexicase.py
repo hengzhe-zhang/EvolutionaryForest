@@ -45,10 +45,6 @@ def llm_selection(population, k=100, tour_size=7):
 
         # For parent B, consider compatibility with parent A
         tournament_b = random.sample(population, tour_size)
-        # Calculate compatibility for each tournament B candidate with selected parent A
-        compatibility_scores = [
-            compatibility_score(parent_a, ind) for ind in tournament_b
-        ]
         # Select parent B as the most compatible with parent A
         parent_b = min(tournament_b, key=lambda ind: compatibility_score(parent_a, ind))
         selected_individuals.append(parent_b)
@@ -56,159 +52,118 @@ def llm_selection(population, k=100, tour_size=7):
     return selected_individuals
 
 
-def llm_selection_plus(population, k=1):
-    """
-    Adaptive Fitness-Diversity Balanced Selection (AFDBS)
+def llm_selection_plus(population, k=1, tour_size=7):
+    def get_information(individual):
+        mse_vector = np.array(individual.case_values)
+        predicted_values = np.array(individual.predicted_values)
+        residual = individual.y - predicted_values
+        number_of_nodes = len(individual.predicted_values)
+        return mse_vector, predicted_values, residual, number_of_nodes
 
-    Selects a balanced set of high-fitness and diverse individuals to promote
-    effective crossover operations. Ensures selected parents are both strong
-    performers and genetically diverse.
+    # Specialized score that encourages diverse and strong individuals
+    def specialized_score(ind, diversity_weight=0.3):
+        mse, _, _, nodes = get_information(ind)
+        diversity_bonus = diversity_weight / (1 + nodes)
+        return mse.mean() + diversity_bonus
 
-    Args:
-        population (list): List of individuals, each having a 'case_values' attribute (numpy array).
-        k (int): Number of individuals to select.
+    # Score for selecting highly compatible parents for crossover
+    def compatibility_score(ind1, ind2):
+        mse1, _, residual1, _ = get_information(ind1)
+        mse2, _, residual2, _ = get_information(ind2)
+        mse_similarity = np.abs(mse1.mean() - mse2.mean())
+        residual_alignment = np.dot(residual1, residual2)
+        return mse_similarity + residual_alignment
 
-    Returns:
-        selected_individuals (list): List of selected individuals.
-    """
-    if not population or k <= 0:
-        return []
+    selected_individuals = []
 
-    num_individuals = len(population)
-    case_matrix = np.array([ind.case_values for ind in population])  # Shape: (n, cases)
+    # Precompute diversity factor for performance benefit
+    diversity_values = [specialized_score(ind) for ind in population]
+    diversity_threshold = np.median(diversity_values)
 
-    # Compute Fitness: Inverse of mean error
-    epsilon = 1e-10
-    mean_errors = case_matrix.mean(axis=1)
-    fitness = 1.0 / (mean_errors + epsilon)
-
-    # Normalize Fitness to [0, 1]
-    fitness_norm = (fitness - fitness.min()) / (fitness.max() - fitness.min() + epsilon)
-
-    # Compute Diversity: Distance from population centroid
-    centroid = case_matrix.mean(axis=0)
-    diversity = np.linalg.norm(case_matrix - centroid, axis=1)
-
-    # Normalize Diversity to [0, 1]
-    diversity_norm = (diversity - diversity.min()) / (
-        diversity.max() - diversity.min() + epsilon
-    )
-
-    # Adaptive Weighting based on diversity variance
-    diversity_variance = np.var(diversity_norm)
-    if diversity_variance < 0.01:
-        alpha = 0.5  # Increase diversity weight
-    else:
-        alpha = 0.7  # More emphasis on fitness
-    beta = 1.0 - alpha
-
-    # Composite Score
-    composite_scores = alpha * fitness_norm + beta * diversity_norm
-
-    # Normalize Composite Scores to form initial selection probabilities
-    total_score = composite_scores.sum()
-    if total_score == 0:
-        selection_prob = np.ones(num_individuals) / num_individuals
-    else:
-        selection_prob = composite_scores / total_score
-
-    selected_indices = []
-    selected_vectors = []
-
-    # Precompute normalized case_values for similarity computation
-    norms = np.linalg.norm(case_matrix, axis=1, keepdims=True) + epsilon
-    normalized_cases = case_matrix / norms  # Shape: (n, cases)
-
-    for _ in range(k):
-        if selection_prob.sum() == 0:
-            # If all probabilities are zero, select uniformly at random
-            chosen_idx = np.random.choice(num_individuals)
+    for _ in range(k // 2):
+        # Pick parent A ensuring diversity and specialization
+        tournament_a = random.sample(population, tour_size)
+        # Rank parents with specialty ensuring it's above a diversity threshold
+        parent_a_candidates = [
+            ind for ind in tournament_a if specialized_score(ind) < diversity_threshold
+        ]
+        if parent_a_candidates:
+            parent_a = min(parent_a_candidates, key=specialized_score)
         else:
-            chosen_idx = np.random.choice(num_individuals, p=selection_prob)
+            parent_a = min(tournament_a, key=specialized_score)
+        selected_individuals.append(parent_a)
 
-        selected_indices.append(chosen_idx)
-        selected_vectors.append(normalized_cases[chosen_idx])
+        # Select parent B with enhanced compatibility to parent A
+        tournament_b = random.sample(population, tour_size)
+        compatibility_scores = [
+            compatibility_score(parent_a, ind) for ind in tournament_b
+        ]
+        diversity_scores = [specialized_score(ind) for ind in tournament_b]
 
-        # Update selection probabilities to penalize similar individuals
-        if len(selected_vectors) == 1:
-            # First selection, no penalty yet
-            last_selected = normalized_cases[chosen_idx]
-        else:
-            # Calculate similarity with the last selected individual
-            similarity = np.dot(normalized_cases, selected_vectors[-1])
-            diversity_strength = 0.3  # Controls the impact of diversity (0 to 1)
-            selection_prob *= 1 - diversity_strength * similarity
-            selection_prob = np.clip(selection_prob, a_min=0, a_max=None)
-            # Re-normalize probabilities
-            if selection_prob.sum() > 0:
-                selection_prob /= selection_prob.sum()
-            else:
-                # Reset to uniform if all probabilities are zero
-                selection_prob = np.ones(num_individuals) / num_individuals
+        # Rank candidates based on a combination of compatibility and diversity
+        combined_scores = [
+            (0.7 * comp + 0.3 * div)
+            for comp, div in zip(compatibility_scores, diversity_scores)
+        ]
+        min_index = combined_scores.index(min(combined_scores))
+        parent_b = tournament_b[min_index]
+        selected_individuals.append(parent_b)
 
-    # Retrieve the selected individuals
-    selected_individuals = [population[idx] for idx in selected_indices]
     return selected_individuals
 
 
-def llm_selection_plus_plus(population, k=1):
-    """
-    Fitness-Informed Diverse Selection (FIDS)
+def llm_selection_plus_plus(population, k=1, tour_size=7):
+    def get_information(individual):
+        mse_vector = individual.case_values
+        predicted_values = individual.predicted_values
+        residual = individual.y - individual.predicted_values
+        number_of_nodes = len(individual)
+        return mse_vector, predicted_values, residual, number_of_nodes
 
-    Selects a diverse set of high-fitness individuals ensuring that selected parents are
-    both strong performers and genetically diverse to promote effective crossover operations.
+    def composite_score(ind):
+        mse, _, _, nodes = get_information(ind)
+        return mse.mean() + 0.1 * nodes  # Penalize larger trees slightly
 
-    Args:
-        population (list): List of individuals, each having a 'case_values' attribute (numpy array).
-        k (int): Number of individuals to select.
+    def diversity_score(predicted_values):
+        return len(set(predicted_values))
 
-    Returns:
-        selected_individuals (list): List of selected individuals.
-    """
-    if not population or k <= 0:
-        return []
+    def compatibility_score(ind1, ind2):
+        _, _, residual1, _ = get_information(ind1)
+        _, _, residual2, _ = get_information(ind2)
+        return np.dot(residual1, residual2)
 
-    population_size = len(population)
-    num_cases = population[0].case_values.shape[0]
+    selected_individuals = []
 
-    # Compute fitness: lower mean of case_values is better
-    fitness = np.array([np.mean(ind.case_values) for ind in population])
-    inverted_fitness = 1.0 / (fitness + 1e-8)  # Avoid division by zero
-    selection_prob = inverted_fitness / inverted_fitness.sum()
+    while len(selected_individuals) < k:
+        potential_parents = []
 
-    # Precompute normalized case_values for cosine similarity
-    case_matrix = np.array([ind.case_values for ind in population])  # Shape: (n, cases)
-    norms = (
-        np.linalg.norm(case_matrix, axis=1, keepdims=True) + 1e-8
-    )  # Avoid division by zero
-    normalized_cases = case_matrix / norms  # Shape: (n, cases)
+        # Select tour_size individuals
+        for _ in range(tour_size):
+            candidate = random.choice(population)
+            mse_vector, predicted_values, residual, num_nodes = get_information(
+                candidate
+            )
+            fitness = 1.0 / np.mean(mse_vector)  # Fitness as inverse of MSE
+            diversity = diversity_score(predicted_values)
+            potential_parents.append((candidate, fitness, diversity))
 
-    selected_indices = []
-    for _ in range(k):
-        if selection_prob.sum() == 0:
-            # If all probabilities are zero, select randomly
-            chosen_idx = np.random.choice(population_size)
-        else:
-            chosen_idx = np.random.choice(population_size, p=selection_prob)
-        selected_indices.append(chosen_idx)
+        # Sort candidates based on fitness and diversity
+        potential_parents.sort(key=lambda x: (x[1], x[2]), reverse=True)
 
-        # Update selection probabilities to reduce similarity with the selected individual
-        selected_vector = normalized_cases[chosen_idx]
-        similarity = np.dot(normalized_cases, selected_vector)
-        # Dampen probabilities of similar individuals
-        diversity_strength = 0.5  # Controls the impact of diversity (0 to 1)
-        selection_prob *= 1 - diversity_strength * similarity
-        # Ensure no negative probabilities
-        selection_prob = np.clip(selection_prob, a_min=0, a_max=None)
-        # Re-normalize probabilities
-        if selection_prob.sum() > 0:
-            selection_prob /= selection_prob.sum()
-        else:
-            # If all probabilities are zero, reset to uniform
-            selection_prob = np.ones(population_size) / population_size
+        # Select top ranked based on combined fitness and diversity
+        parent_a = potential_parents[0][0]
+        selected_individuals.append(parent_a)
 
-    # Retrieve the selected individuals
-    selected_individuals = [population[idx] for idx in selected_indices]
+        # Select a compatible partner for parent_a
+        best_compatibility = float("inf")
+        for candidate, _, _ in potential_parents[1:]:
+            comp_score = compatibility_score(parent_a, candidate)
+            if comp_score < best_compatibility:
+                best_compatibility = comp_score
+                parent_b = candidate
+
+        selected_individuals.append(parent_b)
+
     return selected_individuals
 
 
