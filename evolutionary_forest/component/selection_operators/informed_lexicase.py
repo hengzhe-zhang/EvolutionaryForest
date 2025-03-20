@@ -85,58 +85,67 @@ def llm_selection(population, k=100, tour_size=7):
 
 def llm_selection_plus(population, k=1, tour_size=7):
     def get_information(individual):
-        # Extract metrics from the individual
         mse_vector = individual.case_values
         predicted_values = individual.predicted_values
         residual = individual.y - predicted_values
-        number_of_nodes = (
-            individual.number_of_nodes if hasattr(individual, "number_of_nodes") else 1
-        )
-        height = individual.height if hasattr(individual, "height") else 1
+        number_of_nodes = len(individual)
+        height = individual.height
         return mse_vector, predicted_values, residual, number_of_nodes, height
 
-    def calculate_fitness(individual):
-        mse_vector, _, _, number_of_nodes, height = get_information(individual)
-        # Using mean squared error as fitness (lower is better)
-        fitness = np.mean(mse_vector)
-        return fitness, number_of_nodes, height
-
-    def tournament_selection(population, tour_size):
-        tournament_individuals = random.sample(population, tour_size)
-        ranked_individuals = sorted(
-            tournament_individuals, key=lambda ind: calculate_fitness(ind)
+    def calculate_fitness_and_diversity(selection):
+        fitness_scores = [
+            np.mean(ind.case_values) for ind in selection
+        ]  # Mean error (lower is better)
+        diversity_matrix = np.array(
+            [
+                [
+                    np.linalg.norm(ind_a.case_values - ind_b.case_values)
+                    for ind_b in selection
+                ]
+                for ind_a in selection
+            ]
         )
-        return ranked_individuals
+        return fitness_scores, diversity_matrix
 
-    def select_compatible_parent(rank_a, rank_b):
-        # Select the best individual while ensuring they are compatible
-        parent_a = rank_a[0]  # Best individual from the first tournament
-        compatible_candidates = [ind for ind in rank_b if ind != parent_a]
+    def rank_selection(selection):
+        fitness_scores, _ = calculate_fitness_and_diversity(selection)
+        ranked_indices = np.argsort(
+            fitness_scores
+        )  # Sort indices of the population by fitness (lower is better)
+        return selection[ranked_indices[0]]  # Return the best individual
 
-        if compatible_candidates:
-            parent_b = min(
-                compatible_candidates, key=lambda ind: calculate_fitness(ind)[0]
-            )
-        else:
-            parent_b = random.choice(rank_b)  # fallback if no compatible candidates
+    def select_with_compatibility(tournament, other_parent):
+        fitness_scores, diversity_scores = calculate_fitness_and_diversity(tournament)
+        best_idx = np.argmin(fitness_scores)
+        best_candidate = tournament[best_idx]
 
-        return parent_a, parent_b
+        # Check compatibility with the other parent (retaining diversity)
+        compatibility_indices = np.where(
+            diversity_scores[best_idx] > np.percentile(diversity_scores, 50)
+        )[0]
+
+        if len(compatibility_indices) > 0:
+            compatible_candidates = [tournament[i] for i in compatibility_indices]
+            compatible_fitness = [fitness_scores[i] for i in compatibility_indices]
+            best_compatible_idx = np.argmin(compatible_fitness)
+            return compatible_candidates[best_compatible_idx]
+
+        return best_candidate  # Fallback to the best if no compatibility is found
 
     selected_individuals = []
 
-    # Main selection process
-    while len(selected_individuals) < k:
-        # Perform tournament selections to get two ranked sets
-        rank_a = tournament_selection(population, tour_size)
-        rank_b = tournament_selection(population, tour_size)
-
-        # Select a pair of parents with compatibility in mind
-        parent_a, parent_b = select_compatible_parent(rank_a, rank_b)
-
+    for _ in range(k // 2):
+        # Select Parent A
+        tournament_a = random.sample(population, tour_size)
+        parent_a = rank_selection(tournament_a)
         selected_individuals.append(parent_a)
+
+        # Select Parent B considering compatibility with Parent A
+        tournament_b = random.sample(population, tour_size)
+        parent_b = select_with_compatibility(tournament_b, parent_a)
         selected_individuals.append(parent_b)
 
-    return selected_individuals[:k]  # Ensure we only return k individuals
+    return selected_individuals[:k]
 
 
 def llm_selection_plus_plus(population, k=1, tour_size=7):
