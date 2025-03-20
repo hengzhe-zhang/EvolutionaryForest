@@ -137,6 +137,10 @@ class MultipleGeneGP:
     def gene_num(self):
         return len(self.gene)
 
+    @property
+    def height(self):
+        return np.mean([tree.height for tree in self.gene])
+
     def gene_deletion(self, weighted=False):
         if len(self.gene) > 1:
             if weighted:

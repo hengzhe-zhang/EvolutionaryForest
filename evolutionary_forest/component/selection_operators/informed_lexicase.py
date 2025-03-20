@@ -18,35 +18,59 @@ def get_random_downsampled_cases(population, downsample_rate):
 
 
 def llm_selection(population, k=100, tour_size=7):
-    import numpy as np
-    import random
-
     def get_information(individual):
-        mse_vector = np.array(individual.case_values)
-        predicted_values = np.array(individual.predicted_values)
+        mse_vector = individual.case_values
+        predicted_values = individual.predicted_values
         residual = individual.y - predicted_values
-        number_of_nodes = len(predicted_values)
+        number_of_nodes = len(individual)
         return mse_vector, predicted_values, residual, number_of_nodes
 
-    # Calculate compatibility score between two individuals
-    def compatibility_score(ind1, ind2):
-        mse1, _, residual1, _ = get_information(ind1)
-        mse2, _, residual2, _ = get_information(ind2)
-        return np.abs(mse1.mean() - mse2.mean()) + np.dot(residual1, residual2)
+    def evaluate(individual):
+        mse_vector, predicted_values, residual, number_of_nodes = get_information(
+            individual
+        )
+        mse = np.mean(mse_vector)  # Lower MSE is better
+        return mse, predicted_values, residual, number_of_nodes
+
+    def compute_compatibility(parent_a, candidate):
+        mse_a = np.mean(parent_a.case_values)
+        mse_b = np.mean(candidate.case_values)
+        return (
+            abs(mse_a - mse_b) < 0.1 and abs(len(parent_a) - len(candidate)) <= 2
+        )  # MSE and structure proximity
+
+    def tournament_selection(tournament):
+        fitness_scores = [(ind, evaluate(ind)) for ind in tournament]
+        fitness_scores.sort(
+            key=lambda item: item[1][0]
+        )  # Sort by MSE (lower is better)
+        selected = fitness_scores[0][0]  # Select the best individual
+        # Adaptively adjust selection based on the top few candidates to maintain diversity
+        if len(fitness_scores) > 1:
+            diversity_factor = random.uniform(0, 1)
+            if diversity_factor < 0.5:  # Encouraging variability randomly
+                selected = random.choice([ind for ind, _ in fitness_scores[:3]])
+        return selected
 
     selected_individuals = []
 
     for _ in range(k // 2):
-        # Select a subset of individuals for parent A
+        # Step 1: Select parent_a from a larger tournament
         tournament_a = random.sample(population, tour_size)
-        # Select parent A based on lowest mean squared error (favoring specialization)
-        parent_a = min(tournament_a, key=lambda ind: np.mean(get_information(ind)[0]))
+        parent_a = tournament_selection(tournament_a)
         selected_individuals.append(parent_a)
 
-        # For parent B, consider compatibility with parent A
+        # Step 2: Select a compatible parent_b
         tournament_b = random.sample(population, tour_size)
-        # Select parent B as the most compatible with parent A
-        parent_b = min(tournament_b, key=lambda ind: compatibility_score(parent_a, ind))
+        compatible_individuals = [
+            ind for ind in tournament_b if compute_compatibility(parent_a, ind)
+        ]
+
+        if compatible_individuals:  # Favor compatible individuals
+            parent_b = random.choice(compatible_individuals)
+        else:  # If none found, select the best one from tournament_b
+            parent_b = tournament_selection(tournament_b)
+
         selected_individuals.append(parent_b)
 
     return selected_individuals
