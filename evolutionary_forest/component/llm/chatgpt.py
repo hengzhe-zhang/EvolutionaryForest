@@ -2,13 +2,18 @@ import os
 from openai import OpenAI
 import yaml
 
+use_gemini = True
+
 
 # Function to load API key from config.yaml
 def load_api_key(config_file="config.yaml"):
     try:
         with open(config_file, "r") as file:
             config = yaml.safe_load(file)
-            return config.get("api_key")
+            if use_gemini:
+                return config.get("gemini_key")
+            else:
+                return config.get("api_key")
     except FileNotFoundError:
         raise FileNotFoundError(f"Configuration file '{config_file}' not found.")
     except KeyError:
@@ -20,7 +25,13 @@ def initialize_openai():
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("API key is required to use the OpenAI API.")
-    return OpenAI(api_key=api_key)
+    if use_gemini:
+        return OpenAI(
+            api_key=api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+    else:
+        return OpenAI(api_key=api_key)
 
 
 # Function to generate a response from ChatGPT using the new API
