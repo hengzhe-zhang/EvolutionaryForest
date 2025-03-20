@@ -147,69 +147,154 @@ def llm_selection(population, k=100, tour_size=7):
     return selected_individuals
 
 
-def llm_selection_plus(population, k=1, tour_size=7):
-    def get_information(individual):
-        mse_vector = individual.case_values
-        predicted_values = individual.predicted_values
-        residual = individual.y - predicted_values
-        number_of_nodes = len(individual)
-        height = individual.height
-        return mse_vector, predicted_values, residual, number_of_nodes, height
+def llm_selection_plus(
+    population,
+    k=1,
+    tour_size=7,
+    complexity_penalty_lambda=0.01,
+    complementarity_weight=1.0,
+    diversity_penalty_lambda=0.1,
+):
+    if not population:
+        return []
 
-    def calculate_fitness_and_diversity(selection):
-        fitness_scores = [
-            np.mean(ind.case_values) for ind in selection
-        ]  # Mean error (lower is better)
-        diversity_matrix = np.array(
-            [
-                [
-                    np.linalg.norm(ind_a.case_values - ind_b.case_values)
-                    for ind_b in selection
-                ]
-                for ind_a in selection
-            ]
-        )
-        return fitness_scores, diversity_matrix
-
-    def rank_selection(selection):
-        fitness_scores, _ = calculate_fitness_and_diversity(selection)
-        ranked_indices = np.argsort(
-            fitness_scores
-        )  # Sort indices of the population by fitness (lower is better)
-        return selection[ranked_indices[0]]  # Return the best individual
-
-    def select_with_compatibility(tournament, other_parent):
-        fitness_scores, diversity_scores = calculate_fitness_and_diversity(tournament)
-        best_idx = np.argmin(fitness_scores)
-        best_candidate = tournament[best_idx]
-
-        # Check compatibility with the other parent (retaining diversity)
-        compatibility_indices = np.where(
-            diversity_scores[best_idx] > np.percentile(diversity_scores, 50)
-        )[0]
-
-        if len(compatibility_indices) > 0:
-            compatible_candidates = [tournament[i] for i in compatibility_indices]
-            compatible_fitness = [fitness_scores[i] for i in compatibility_indices]
-            best_compatible_idx = np.argmin(compatible_fitness)
-            return compatible_candidates[best_compatible_idx]
-
-        return best_candidate  # Fallback to the best if no compatibility is found
-
+    num_cases = population[0].case_values.size
+    pop_size = len(population)
     selected_individuals = []
 
-    for _ in range(k // 2):
-        # Select Parent A
-        tournament_a = random.sample(population, tour_size)
-        parent_a = rank_selection(tournament_a)
+    # 1. Calculate Case Ranks and Average Ranks (vectorized) - as in Operator B and C
+    case_ranks = np.zeros((pop_size, num_cases))
+    for case_idx in range(num_cases):
+        case_errors = np.array([ind.case_values[case_idx] for ind in population])
+        ranked_indices = np.argsort(case_errors)
+        ranks = np.argsort(ranked_indices) + 1
+        case_ranks[:, case_idx] = ranks
+
+    avg_ranks = np.mean(case_ranks, axis=1)
+
+    # 2. Define Fitness Function incorporating complexity penalty - as in Operator C
+    def calculate_fitness(individual, avg_ranks_vector):
+        ind_index = population.index(individual)
+        avg_rank = avg_ranks_vector[ind_index]
+        complexity_score = (
+            len(individual) + individual.height
+        )  # Example complexity: nodes + height
+        fitness_value = (
+            avg_rank + complexity_penalty_lambda * complexity_score
+        )  # Penalize complexity
+        return fitness_value
+
+    def tournament_selection(
+        fitness_values, individuals, tournament_k, minimize=True, score_array=None
+    ):
+        """Helper function for standard tournament selection using pre-calculated fitness, can use score_array for custom scores."""
+        selected_tournament = []
+        indices = list(range(len(individuals)))
+        for _ in range(tournament_k):
+            competitor_indices = random.sample(indices, tour_size)
+            competitors = [individuals[i] for i in competitor_indices]
+            if score_array is None:
+                competitor_fitnesses = [fitness_values[i] for i in competitor_indices]
+            else:
+                competitor_fitnesses = [
+                    score_array[i] for i in competitor_indices
+                ]  # Use custom scores if provided
+
+            if minimize:
+                best_idx = min(range(tour_size), key=lambda i: competitor_fitnesses[i])
+            else:  # maximize (if needed in future)
+                best_idx = max(range(tour_size), key=lambda i: competitor_fitnesses[i])
+
+            winner = competitors[best_idx]
+            selected_tournament.append(winner)
+
+        if score_array is None:
+            best_individual = min(
+                selected_tournament,
+                key=lambda ind: fitness_values[individuals.index(ind)],
+            )  # Select best from tournament based on fitness
+        else:
+            best_individual = min(
+                selected_tournament, key=lambda ind: score_array[individuals.index(ind)]
+            )  # Select best from tournament based on custom scores
+
+        return best_individual
+
+    fitness_values = [
+        calculate_fitness(ind, avg_ranks) for ind in population
+    ]  # Calculate fitness for all individuals once
+
+    for _ in range(k // 2):  # Select pairs of parents
+        # 3. Parent A Selection: Fitness-based tournament (incorporating complexity) - as in Operator C
+        parent_a = tournament_selection(
+            fitness_values, population, tournament_k=tour_size, minimize=True
+        )
         selected_individuals.append(parent_a)
 
-        # Select Parent B considering compatibility with Parent A
-        tournament_b = random.sample(population, tour_size)
-        parent_b = select_with_compatibility(tournament_b, parent_a)
+        # 4. Parent B Selection: Novel Complementarity and Diversity Focused Tournament
+        parent_a_index = population.index(parent_a)
+        parent_a_errors = parent_a.case_values
+
+        complementarity_diversity_scores = np.zeros(pop_size)
+        for ind_idx in range(pop_size):
+            if ind_idx == parent_a_index:  # Exclude Parent A from Parent B selection
+                complementarity_diversity_scores[ind_idx] = float(
+                    "inf"
+                )  # Effectively exclude by making score very high (for minimization tournament)
+                continue
+
+            ind_b = population[ind_idx]
+            ind_b_errors = ind_b.case_values
+
+            # Complementarity Score: Negative correlation of errors
+            error_correlation = np.corrcoef(parent_a_errors, ind_b_errors)[0, 1]
+            complementarity_score = (
+                -error_correlation if not np.isnan(error_correlation) else 0.0
+            )  # Maximize negative correlation
+
+            # Diversity Penalty: Similarity of error profiles (Euclidean distance - higher distance is better for diversity)
+            error_distance = np.linalg.norm(parent_a_errors - ind_b_errors)
+            diversity_penalty = (
+                -error_distance * diversity_penalty_lambda
+            )  # Penalize similarity (minimize negative distance)
+
+            # Combine Complementarity and Diversity (weighted sum)
+            complementarity_diversity_scores[ind_idx] = (
+                -complementarity_weight * complementarity_score + diversity_penalty
+            )  # Minimize this score
+
+        # Tournament selection for Parent B using the combined complementarity and diversity score
+        valid_indices_for_b = [
+            i for i in range(pop_size) if i != parent_a_index
+        ]  # Already handled in score calculation, but for clarity
+        if not valid_indices_for_b:
+            parent_b = tournament_selection(
+                fitness_values, population, tournament_k=tour_size, minimize=True
+            )  # Fallback: fitness-based if no other options
+        else:
+            valid_population_for_b = [population[i] for i in valid_indices_for_b]
+            valid_complementarity_diversity_scores = complementarity_diversity_scores[
+                valid_indices_for_b
+            ]
+            parent_b = tournament_selection(
+                list(valid_complementarity_diversity_scores),
+                valid_population_for_b,
+                tournament_k=tour_size,
+                minimize=True,
+                score_array=valid_complementarity_diversity_scores,
+            )
+
         selected_individuals.append(parent_b)
 
-    return selected_individuals[:k]
+    # If k is odd, add one more (e.g., best overall fitness) - as in Operator C
+    while len(selected_individuals) < k:
+        selected_individuals.append(
+            tournament_selection(
+                fitness_values, population, tournament_k=tour_size, minimize=True
+            )
+        )
+
+    return selected_individuals
 
 
 def llm_selection_plus_plus(population, k=1, tour_size=7):
