@@ -150,7 +150,7 @@ def llm_selection(population, k=100, tour_size=3):
 def llm_selection_plus(
     population,
     k=1,
-    tour_size=7,
+    tour_size=3,
     complexity_penalty_lambda=0.01,
     complementarity_weight=1.0,
     diversity_penalty_lambda=0.1,
