@@ -23,57 +23,64 @@ def llm_selection(population, k=100, tour_size=7):
         predicted_values = individual.predicted_values
         residual = individual.y - predicted_values
         number_of_nodes = len(individual)
-        return mse_vector, predicted_values, residual, number_of_nodes
+        height = individual.height
+        return mse_vector, predicted_values, residual, number_of_nodes, height
 
-    def evaluate(individual):
-        mse_vector, predicted_values, residual, number_of_nodes = get_information(
-            individual
+    def calculate_fitness_and_diversity(selection):
+        # Mean Squared Error for fitness (lower is better)
+        fitness_scores = [np.mean(ind.case_values) for ind in selection]
+        # Calculate diversity using pairwise distances
+        diversity_matrix = np.array(
+            [
+                [
+                    np.linalg.norm(ind_a.case_values - ind_b.case_values)
+                    for ind_b in selection
+                ]
+                for ind_a in selection
+            ]
         )
-        mse = np.mean(mse_vector)  # Lower MSE is better
-        return mse, predicted_values, residual, number_of_nodes
+        return fitness_scores, diversity_matrix
 
-    def compute_compatibility(parent_a, candidate):
-        mse_a = np.mean(parent_a.case_values)
-        mse_b = np.mean(candidate.case_values)
-        return (
-            abs(mse_a - mse_b) < 0.1 and abs(len(parent_a) - len(candidate)) <= 2
-        )  # MSE and structure proximity
+    def select_parent(selection, fitness_scores, diversity_scores, other_parent=None):
+        # Sort candidates based on fitness (ascending)
+        sorted_indices = np.argsort(fitness_scores)
+        best_candidate_idx = sorted_indices[0]
 
-    def tournament_selection(tournament):
-        fitness_scores = [(ind, evaluate(ind)) for ind in tournament]
-        fitness_scores.sort(
-            key=lambda item: item[1][0]
-        )  # Sort by MSE (lower is better)
-        selected = fitness_scores[0][0]  # Select the best individual
-        # Adaptively adjust selection based on the top few candidates to maintain diversity
-        if len(fitness_scores) > 1:
-            diversity_factor = random.uniform(0, 1)
-            if diversity_factor < 0.5:  # Encouraging variability randomly
-                selected = random.choice([ind for ind, _ in fitness_scores[:3]])
-        return selected
+        # Optimize on compatibility with the existing parent
+        if other_parent is not None:
+            for idx in sorted_indices:
+                candidate = selection[idx]
+                compatibility_score = np.linalg.norm(
+                    candidate.case_values - other_parent.case_values
+                )
+                if compatibility_score >= np.median(
+                    diversity_scores[best_candidate_idx]
+                ):
+                    return candidate
+            return selection[best_candidate_idx]  # Fallback to best candidate
+
+        return selection[best_candidate_idx]
 
     selected_individuals = []
 
-    for _ in range(k // 2):
-        # Step 1: Select parent_a from a larger tournament
+    while len(selected_individuals) < k:
+        # Select for Parent A
         tournament_a = random.sample(population, tour_size)
-        parent_a = tournament_selection(tournament_a)
+        fitness_a, diversity_a = calculate_fitness_and_diversity(tournament_a)
+        parent_a = select_parent(tournament_a, fitness_a, diversity_a)
         selected_individuals.append(parent_a)
 
-        # Step 2: Select a compatible parent_b
+        # Select for Parent B
         tournament_b = random.sample(population, tour_size)
-        compatible_individuals = [
-            ind for ind in tournament_b if compute_compatibility(parent_a, ind)
-        ]
-
-        if compatible_individuals:  # Favor compatible individuals
-            parent_b = random.choice(compatible_individuals)
-        else:  # If none found, select the best one from tournament_b
-            parent_b = tournament_selection(tournament_b)
+        fitness_b, diversity_b = calculate_fitness_and_diversity(tournament_b)
+        parent_b = select_parent(
+            tournament_b, fitness_b, diversity_b, other_parent=parent_a
+        )
 
         selected_individuals.append(parent_b)
 
-    return selected_individuals
+    # Trim the list of selected individuals to the requested size
+    return selected_individuals[:k]
 
 
 def llm_selection_plus(population, k=1, tour_size=7):
