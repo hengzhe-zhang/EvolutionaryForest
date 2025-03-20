@@ -17,7 +17,7 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def llm_selection(population, k=100, tour_size=7):
+def llm_selection(population, k=100, tour_size=3):
     if not population:
         return []
 
@@ -297,8 +297,8 @@ def llm_selection_plus(
     return selected_individuals
 
 
-def llm_selection_plus_plus(population, k=1, tour_size=7):
-    pass
+def llm_selection_plus_plus(population, k=1):
+    return llm_selection(population, k, 3)
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
