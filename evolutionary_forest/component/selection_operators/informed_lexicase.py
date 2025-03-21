@@ -17,7 +17,7 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def llm_selection(population, k=100, tour_size=3):
+def llm_selection(population, k=100, status=None, tour_size=3):
     if not population:
         return []
 

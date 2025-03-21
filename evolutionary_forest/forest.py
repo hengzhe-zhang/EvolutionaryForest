@@ -373,6 +373,7 @@ from evolutionary_forest.utility.population_analysis import (
 )
 from evolutionary_forest.utility.scaler.OneHotStandardScaler import OneHotStandardScaler
 from evolutionary_forest.utility.scaler.StandardPCA import StandardScalerPCA
+from evolutionary_forest.utility.selection_util import has_status_arg
 from evolutionary_forest.utility.skew_transformer import (
     SkewnessCorrector,
     CubeSkewnessCorrector,
@@ -5562,9 +5563,24 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             # a bit special, select all to reduce overhead
                             for ind in parent + external_archive:
                                 ind.y = self.y
-                            offspring = toolbox.select(
-                                parent + external_archive, self.n_pop
-                            )
+
+                            self.evolution_status = {
+                                "current_generation": self.current_gen,
+                                "total_generation": self.n_gen,
+                            }
+                            if has_status_arg(toolbox.select):
+                                offspring, status = toolbox.select(
+                                    parent + external_archive,
+                                    self.n_pop,
+                                    status=self.evolution_status,
+                                )
+                                self.evolution_status = status
+                            else:
+                                offspring = toolbox.select(
+                                    parent + external_archive,
+                                    self.n_pop,
+                                )
+
                             for ind in parent + external_archive:
                                 if hasattr(ind, "y"):
                                     del ind.y
