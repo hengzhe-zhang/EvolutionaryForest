@@ -246,9 +246,10 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     adaptive_tier_lexicase_selection,
 )
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
-    llm_selection_plus,
-    llm_selection_plus_plus,
-    llm_selection,
+    novel_selection_plus,
+    novel_selection_plus_plus,
+    novel_selection,
+    complementary_tournament,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2499,20 +2500,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
+        elif self.select == "ComplementaryTournament":
+            toolbox.register(
+                "select",
+                complementary_tournament,
+            )
         elif self.select == "LLMSelection":
             toolbox.register(
                 "select",
-                llm_selection,
+                novel_selection,
             )
         elif self.select == "LLMSelection+":
             toolbox.register(
                 "select",
-                llm_selection_plus,
+                novel_selection_plus,
             )
         elif self.select == "LLMSelection++":
             toolbox.register(
                 "select",
-                llm_selection_plus_plus,
+                novel_selection_plus_plus,
             )
         elif self.select == "TierLexicase":
             toolbox.register(
@@ -6009,12 +6015,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # distance calculation
         if individuals is None:
             individuals = self.hof
-        if self.second_layer in [
-            "None",
-            None,
-            "CAWPE",
-            "Ridge-Prediction",
-        ]:
+        if self.second_layer in ["None", None]:
             all_ind = individuals
         elif self.second_layer in ["DiversityPrune", "TreeBaseline"]:
             # with some prune

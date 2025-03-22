@@ -1,8 +1,7 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
-from sklearn.base import ClassifierMixin
-from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.linear_model import Ridge
 from sklearn.model_selection import cross_val_score
 from sklearn.tree import DecisionTreeRegressor
 
@@ -45,12 +44,6 @@ class StackingStrategy:
             x /= np.sum(x)
             x = x.flatten()
             algorithm.tree_weight = x
-        elif algorithm.second_layer == "Ridge-Prediction":
-            predictions = algorithm.individual_prediction(X)
-            # fitting predicted values
-            algorithm.ridge = RidgeCV(fit_intercept=False)
-            algorithm.ridge.fit(predictions.T, y_data)
-            algorithm.tree_weight = algorithm.ridge.coef_.flatten()
         elif algorithm.second_layer == "TreeBaseline":
             base_line_score = np.mean(cross_val_score(DecisionTreeRegressor(), X, y))
             score = np.array(
@@ -103,18 +96,3 @@ class StackingStrategy:
                 remain_ind.remove(index)
             ensemble_list /= np.sum(ensemble_list)
             algorithm.tree_weight = ensemble_list
-        elif algorithm.second_layer == "CAWPE":
-            pop = algorithm.hof
-            weight = np.ones(len(pop))
-            for i, ind in enumerate(pop):
-                fitness = ind.fitness.wvalues[0]
-                if isinstance(algorithm, ClassifierMixin):
-                    # using MSE as the default fitness criterion
-                    weight[i] = (1 / fitness) ** 4
-                else:
-                    # using R^2 as the default fitness criterion
-                    if fitness > 0:
-                        weight[i] = (fitness) ** 4
-                    else:
-                        weight[i] = 0
-            algorithm.tree_weight = weight / np.sum(weight)
