@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+from deap import tools
 
 
 def get_random_downsampled_cases(population, downsample_rate):
@@ -15,6 +16,44 @@ def get_random_downsampled_cases(population, downsample_rate):
     selected_cases = random.sample(range(num_cases), num_selected)
 
     return selected_cases  # Return indices of selected cases
+
+
+def select_cps_regression(population, k):
+    """
+    CPS selection for symbolic regression with vectorized NumPy operations.
+
+    Assumes:
+    - individual.case_values is a NumPy array of squared errors per case
+    """
+    selected = []
+
+    for _ in range(k):
+        # 1. Tournament selection for mother (tournsize=3)
+        mother = tools.selTournament(population, 1, tournsize=3)[0]
+        M = mother.case_values  # NumPy array
+
+        best_father = None
+        best_fitness = -float("inf")
+
+        for father in population:
+            if father is mother:
+                continue
+            F = father.case_values  # NumPy array
+
+            # 2. Vectorized best-case offspring errors
+            BF_M = np.minimum(F, M)  # Element-wise min
+            fit = -np.mean(BF_M)  # Fitness = negative mean error
+
+            if fit > best_fitness:
+                best_father = father
+                best_fitness = fit
+            elif fit == best_fitness:
+                if np.sum(F) < np.sum(best_father.case_values):
+                    best_father = father
+
+        selected.extend([mother, best_father])
+
+    return selected
 
 
 def complementary_tournament(population, k=100, tour_size=3):

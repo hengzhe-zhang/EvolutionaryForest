@@ -250,6 +250,7 @@ from evolutionary_forest.component.selection_operators.informed_lexicase import 
     novel_selection_plus_plus,
     novel_selection,
     complementary_tournament,
+    select_cps_regression,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2499,6 +2500,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
+            )
+        elif self.select == "CPS":
+            toolbox.register(
+                "select",
+                select_cps_regression,
             )
         elif self.select == "ComplementaryTournament":
             toolbox.register(
