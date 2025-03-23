@@ -3,6 +3,8 @@ import random
 import numpy as np
 from deap import tools
 
+from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
+
 
 def get_random_downsampled_cases(population, downsample_rate):
     """
@@ -18,7 +20,7 @@ def get_random_downsampled_cases(population, downsample_rate):
     return selected_cases  # Return indices of selected cases
 
 
-def select_cps_regression(population, k):
+def select_cps_regression(population, k, operator="Tournament"):
     """
     CPS selection for symbolic regression with vectorized NumPy operations.
 
@@ -29,7 +31,10 @@ def select_cps_regression(population, k):
 
     for _ in range(k):
         # 1. Tournament selection for mother (tournsize=3)
-        mother = tools.selTournament(population, 1, tournsize=3)[0]
+        if operator == "Tournament":
+            mother = tools.selTournament(population, 1, tournsize=3)[0]
+        else:
+            mother = selAutomaticEpsilonLexicaseFast(population, 1)[0]
         M = mother.case_values  # NumPy array
 
         best_father = None
@@ -92,14 +97,16 @@ def complementary_tournament(population, k=100, tour_size=3):
 
         if weak_case_indices.size > 0:
             comp_scores = np.array(
-                [np.mean(ind.case_values[weak_case_indices]) for ind in population]
+                [np.mean(ind.case_values[weak_case_indices])
+                 for ind in population]
             )
-            valid_indices = [i for i in range(pop_size) if i != parent_a_index]
-            if valid_indices:
-                parent_b = tournament_selection(
-                    comp_scores[valid_indices], [population[i] for i in valid_indices]
-                )
-                selected_individuals.append(parent_b)
+            valid_indices = [i for i in range(pop_size)
+                             if i != parent_a_index]
+            parent_b = tournament_selection(
+                comp_scores[valid_indices],
+                [population[i] for i in valid_indices]
+            )
+            selected_individuals.append(parent_b)
 
     return selected_individuals
 
