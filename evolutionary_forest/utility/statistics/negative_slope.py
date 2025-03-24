@@ -6,7 +6,8 @@ def nsc_log(offspring, nsc_log_list):
     for ind in offspring:
         if not hasattr(ind, 'parent_fitness') or ind.parent_fitness is None:
             return
-        pair.append((ind.parent_fitness[0], ind.fitness.wvalues[0]))
+        # NSC is for minimization problems
+        pair.append((-1 * ind.parent_fitness[0], -1 * ind.fitness.wvalues[0]))
     nsc_log_list.append(calculate_nsc(pair))
 
 
