@@ -7,6 +7,12 @@ from scipy.stats import pearsonr
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
 
+def fast_pearson(x, y):
+    x = x - np.mean(x)
+    y = y - np.mean(y)
+    return np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
+
+
 def get_random_downsampled_cases(population, downsample_rate):
     """
     Random Down-Sampling: Selects a random subset of training cases.
@@ -52,7 +58,7 @@ def select_cpsr_regression(population, k, target, metric="MSE"):
                 if np.std(avg_pred) == 0 or np.std(target) == 0:
                     fit = -1  # Avoid division by zero, treat as worst correlation
                 else:
-                    fit, _ = pearsonr(avg_pred, target)
+                    fit = fast_pearson(avg_pred, target)
             else:
                 raise ValueError(f"Unsupported metric: {metric}")
 
