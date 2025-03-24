@@ -2,6 +2,7 @@ import random
 
 import numpy as np
 from deap import tools
+from scipy.stats import pearsonr
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
@@ -18,6 +19,54 @@ def get_random_downsampled_cases(population, downsample_rate):
     selected_cases = random.sample(range(num_cases), num_selected)
 
     return selected_cases  # Return indices of selected cases
+
+
+def select_cpsr_regression(population, k, target, metric="MSE"):
+    """
+    CPS selection (residual version) for symbolic regression with vectorized NumPy operations.
+
+    Assumes:
+    - individual.case_values is a NumPy array of squared errors per case
+    """
+    selected = []
+
+    for _ in range(k):
+        # Select the first parent using epsilon-lexicase selection
+        mother = selAutomaticEpsilonLexicaseFast(population, 1)[0]
+        M_pred = mother.predicted_values
+
+        best_father = None
+        best_fitness = -float("inf")
+
+        for father in population:
+            if father is mother:
+                continue
+
+            F_pred = father.predicted_values
+            avg_pred = (M_pred + F_pred) / 2
+
+            # Calculate fitness based on selected metric
+            if metric == "MSE":
+                fit = -np.mean((avg_pred - target) ** 2)
+            elif metric == "Pearson":
+                if np.std(avg_pred) == 0 or np.std(target) == 0:
+                    fit = -1  # Avoid division by zero, treat as worst correlation
+                else:
+                    fit, _ = pearsonr(avg_pred, target)
+            else:
+                raise ValueError(f"Unsupported metric: {metric}")
+
+            # Select best father
+            if fit > best_fitness:
+                best_father = father
+                best_fitness = fit
+            elif fit == best_fitness:
+                if np.sum(father.case_values) < np.sum(best_father.case_values):
+                    best_father = father
+
+        selected.extend([mother, best_father])
+
+    return selected
 
 
 def select_cps_regression(population, k, operator="Tournament"):

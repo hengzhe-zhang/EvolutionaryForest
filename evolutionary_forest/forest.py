@@ -250,7 +250,7 @@ from evolutionary_forest.component.selection_operators.informed_lexicase import 
     novel_selection_plus_plus,
     novel_selection,
     complementary_tournament,
-    select_cps_regression,
+    select_cps_regression, select_cpsr_regression,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2505,6 +2505,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register(
                 "select",
                 select_cps_regression,
+            )
+        elif self.select in ["CPSR-MSE", "CPSR-Correlation"]:
+            if self.select == "CPSR-MSE":
+                score_function = "MSE"
+            elif self.select == "CPSR-Correlation":
+                score_function = "Pearson"
+            toolbox.register(
+                "select",
+                partial(
+                    select_cpsr_regression, target=self.y, metric=score_function
+                ),
             )
         elif self.select == "CPS-Lexicase":
             toolbox.register(
