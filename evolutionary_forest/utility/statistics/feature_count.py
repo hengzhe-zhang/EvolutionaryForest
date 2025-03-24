@@ -1,8 +1,18 @@
+from collections import defaultdict
 from typing import List
 
 from deap.gp import PrimitiveSet, Terminal
 
 from evolutionary_forest.multigene_gp import MultipleGeneGP
+
+
+def count_primitive_usage(regressor):
+    # Primitive usage statistics
+    primitive_usage = defaultdict(int)
+    for p in regressor.hof:
+        for x in p.gene:
+            for s in x:
+                primitive_usage[s.name] += 1
 
 
 def number_of_used_features(

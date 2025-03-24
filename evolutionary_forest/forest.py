@@ -381,6 +381,7 @@ from evolutionary_forest.utility.skew_transformer import (
     CubeSkewnessCorrector,
 )
 from evolutionary_forest.utility.statistics.feature_count import number_of_used_features
+from evolutionary_forest.utility.statistics.negative_slope import nsc_log
 from evolutionary_forest.utility.tree_pool import SemanticLibrary
 from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import *
@@ -1029,6 +1030,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.tree_genotypic_diversity = []
         self.tree_phenotypic_diversity = []
         self.avg_tree_size_history = []
+        # Negative Slope Coefficient
+        self.nsc_history = []
         # best fitness of the ensemble model
         self.best_fitness_history = []
         # average fitness of individuals in grid
@@ -5395,6 +5398,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     self.tree_genotypic_diversity.append(genotype_sum_entropy)
                 if "PhenotypicDiversity" in self.log_item:
                     self.tree_phenotypic_diversity.append(phenotype_sum_entropy)
+
+            if "NSC" in self.log_item:
+                nsc_log(population, self.nsc_history)
             if len(self.hof) > 0:
                 if "ArchiveAverageFitness" in self.log_item:
                     # average fitness of archive
