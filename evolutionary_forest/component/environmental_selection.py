@@ -16,6 +16,7 @@ from scipy.stats import wilcoxon
 from sklearn.base import ClassifierMixin
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold, cross_val_score
@@ -178,6 +179,16 @@ def get_unique_individuals(individuals):
     return result
 
 
+def adaptive_knee_point(knee_point, X, y):
+    scores = cross_val_score(RandomForestRegressor(), X, y, cv=5)
+    avg_score = scores.mean()
+
+    if avg_score >= 0.8:
+        return "BestHarmonicRank"
+    else:
+        return knee_point.replace("Adaptive", "")
+
+
 class NSGA2(EnvironmentalSelection):
     def __init__(
         self,
@@ -208,10 +219,18 @@ class NSGA2(EnvironmentalSelection):
         self.objective_normalization = objective_normalization
         self.non_dominated_normalization = non_dominated_normalization
 
+    def knee_point_check(self):
+        if isinstance(self.knee_point, str) and self.knee_point.startswith("Adaptive"):
+            self.knee_point = adaptive_knee_point(
+                self.knee_point, self.algorithm.X, self.algorithm.y
+            )
+
     def select(self, population, offspring):
         """
         Old version: The size of the population is limited by the number of unique individuals in the first generation
         """
+        self.knee_point_check()
+
         individuals = population + offspring
         if self.algorithm.pac_bayesian.weighted_sam != False:
             weights = calculate_instance_weights(
