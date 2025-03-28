@@ -29,6 +29,7 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
     Recursively converts a Python AST node into a list of DEAP GP tokens (primitives and terminals)
     in prefix order. For variable names (e.g. "x1") it retrieves the corresponding terminal from pset.terminals[object].
     """
+    sharpness_layer = getattr(pset, "sharpness_layer", False)
     if DEBUG:
         print("Processing node:", ast.dump(node))
 
@@ -53,9 +54,12 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
                     print(f"Transforming pow(base, {exponent}) into nested squares")
                 base_tokens = ast_to_gp(node.left, primitive_dict, var_map, pset)
                 for _ in range(num_squares):
-                    base_tokens = (
-                        [prim] + base_tokens + [pset.terminals[Parameter][0]()]
-                    )  # Wrap in square each time
+                    if sharpness_layer:
+                        base_tokens = (
+                            [prim] + base_tokens + [pset.terminals[Parameter][0]()]
+                        )  # Wrap in square each time
+                    else:
+                        base_tokens = [prim] + base_tokens  # Wrap in square each time
                 return base_tokens
 
         if op_type not in BINARY_OPS:
@@ -71,7 +75,12 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
 
         left_tokens = ast_to_gp(node.left, primitive_dict, var_map, pset)
         right_tokens = ast_to_gp(node.right, primitive_dict, var_map, pset)
-        return [prim] + left_tokens + right_tokens + [pset.terminals[Parameter][0]()]
+        if sharpness_layer:
+            return (
+                [prim] + left_tokens + right_tokens + [pset.terminals[Parameter][0]()]
+            )
+        else:
+            return [prim] + left_tokens + right_tokens
 
     elif isinstance(node, ast.UnaryOp):
         op_type = type(node.op)
@@ -84,7 +93,10 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
         if DEBUG:
             print(f"UnaryOp: Using primitive '{prim.name}' for operator '{op_name}'")
         operand_tokens = ast_to_gp(node.operand, primitive_dict, var_map, pset)
-        return [prim] + operand_tokens + [pset.terminals[Parameter][0]()]
+        if sharpness_layer:
+            return [prim] + operand_tokens + [pset.terminals[Parameter][0]()]
+        else:
+            return [prim] + operand_tokens
 
     elif isinstance(node, ast.Call):
         # Handle function calls such as sin(x1) or exp(x2).
@@ -101,7 +113,10 @@ def ast_to_gp(node, primitive_dict, var_map, pset):
         tokens = [prim]
         for arg in node.args:
             tokens.extend(ast_to_gp(arg, primitive_dict, var_map, pset))
-        return tokens + [pset.terminals[Parameter][0]()]
+        if sharpness_layer:
+            return tokens + [pset.terminals[Parameter][0]()]
+        else:
+            return tokens
 
     elif isinstance(node, ast.Name):
         var_id = node.id
@@ -180,6 +195,11 @@ def convert_to_deap_gp(expr_str, pset, primitive_dict=None):
     if DEBUG:
         print("Constructed DEAP GP tree:", gp_tree)
 
+    # delete empty set
+    for set in [pset.primitives, pset.terminals]:
+        for key in [object, float]:
+            if len(set[key]) == 0:
+                del set[key]
     return gp_tree
 
 

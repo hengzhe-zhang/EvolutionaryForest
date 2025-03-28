@@ -236,6 +236,7 @@ def get_typed_pset(
             flag = ""
         add_smooth_math_operators(pset, flag)
         pset.addEphemeralConstant("Parameter", lambda: Parameter(), Parameter)
+        pset.sharpness_layer = True
         return pset
     flag = primitive_type.split("-")[1]
     if primitive_type.endswith("-Categorical"):

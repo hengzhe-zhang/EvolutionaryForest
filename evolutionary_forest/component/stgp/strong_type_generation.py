@@ -82,6 +82,11 @@ def mutUniformSTGP(individual, expr, pset):
         for i in range(len(individual))
         if individual[i].ret in pset.primitives or individual[i].ret in pset.terminals
     ]
+    if len(feasible_indexes) == 0:
+        print("No feasible indexes found for mutation.")
+        # without modification
+        return (individual,)
+    assert len(feasible_indexes) > 0, f"{len(pset.terminals), len(pset.terminals)}"
     index = random.choice(feasible_indexes)
     slice_ = individual.searchSubtree(index)
     type_ = individual[index].ret

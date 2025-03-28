@@ -216,11 +216,18 @@ class EQLHybridConfiguration(Configuration):
         **params,
     ):
         super().__init__()
+        # initialization: whether to use EQL hybrid initialization
+        # 0: no EQL hybrid initialization
+        # 1: EQL hybrid initialization
+        # mutation: whether to use EQL hybrid mutation
+        # 0: no EQL hybrid mutation
+        # 1: EQL hybrid mutation
         self.eql_hybrid = eql_hybrid
         self.eql_only_initialization = eql_only_initialization
         self.eql_hybrid_on_pareto_front = eql_hybrid_on_pareto_front
         self.eql_size_limit = eql_size_limit
-        self.eql_learner = EQLSymbolicRegression(n_layers=1, verbose=True)
+
+        self.eql_learner = EQLSymbolicRegression(n_layers=1, verbose=False)
 
 
 class MutationConfiguration(Configuration):
