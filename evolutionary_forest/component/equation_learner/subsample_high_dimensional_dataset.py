@@ -1,7 +1,7 @@
 import random
 
 import numpy as np
-from deap.gp import Terminal
+from deap.gp import Terminal, PrimitiveSet
 
 from evolutionary_forest.component.equation_learner.gp_util import generate_tree_by_eql
 
@@ -53,15 +53,18 @@ def generate_forest_by_eql(X, target, pset, eql_config):
     # This creates a dictionary mapping from terminal name (e.g., "ARG0") to the actual terminal object.
     feature_map = {v.name: v for v in (pset.terminals[object] + pset.terminals[float])}
 
+    if len(non_constant_indices) == 0:
+        return []
+
     if n_features <= 5:
         # Low-dimensional: run on the full dataset.
         terminals_list = pset.terminals[object] + pset.terminals[float]
-        number_of_variables = [isinstance(t, Terminal) for t in terminals_list]
-        assert X.shape[1] == number_of_variables, (
-            "There are meaningless constant variables in the dataset. "
-            "Please delete the variables before trying the algorithm."
+        number_of_variables = len([isinstance(t, Terminal) for t in terminals_list])
+        X_sub = X[:, non_constant_indices]
+        assert X_sub.shape[1] == number_of_variables, (
+            "Inconsistent number of variables in the dataset and DEAP pset terminals."
         )
-        gp_tree = generate_tree_by_eql(X, target, pset, eql_config)
+        gp_tree = generate_tree_by_eql(X_sub, target, pset, eql_config)
         trees.append(gp_tree)
     else:
         # High-dimensional: perform five rounds, each with 5 randomly sampled features.
@@ -80,7 +83,7 @@ def generate_forest_by_eql(X, target, pset, eql_config):
             # Build a mapping from the GP tree's terminal names ("ARG0", "ARG1", ...)
             # to the corresponding DEAP pset terminal objects.
             mapping = {
-                f"ARG{i}": feature_map[orig_names[sampled_idx]]
+                pset.arguments[i]: feature_map[orig_names[sampled_idx]]
                 for i, sampled_idx in enumerate(sampled_indices)
             }
 
@@ -89,3 +92,23 @@ def generate_forest_by_eql(X, target, pset, eql_config):
             trees.append(gp_tree_mapped)
 
     return trees
+
+
+if __name__ == "__main__":
+    from sklearn.datasets import make_regression
+    from evolutionary_forest.component.configuration import EQLHybridConfiguration
+    from evolutionary_forest.utility.feature_selection import remove_constant_variables
+
+    X, y = make_regression(n_features=5)
+    X[:, 2] = np.ones(X.shape[0])  # Add a constant feature
+    pset = PrimitiveSet("MAIN", X.shape[1])
+    pset.addPrimitive(np.sin, 1, "rsin")
+    pset.addPrimitive(np.cos, 1, "rcos")
+    pset.addPrimitive(np.add, 2, "add")
+    pset.addPrimitive(np.subtract, 2, "sub")
+    pset.addPrimitive(np.multiply, 2, "mul")
+    pset.addPrimitive(np.divide, 2, "div")
+    pset.addPrimitive(np.square, 2, "square")
+    pset.addPrimitive(np.negative, 2, "neg")
+    remove_constant_variables(pset, X)
+    print(generate_forest_by_eql(X, y, pset, EQLHybridConfiguration()))

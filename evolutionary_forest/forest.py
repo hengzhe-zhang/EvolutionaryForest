@@ -250,7 +250,8 @@ from evolutionary_forest.component.selection_operators.informed_lexicase import 
     novel_selection_plus_plus,
     novel_selection,
     complementary_tournament,
-    select_cps_regression, select_cpsr_regression,
+    select_cps_regression,
+    select_cpsr_regression,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2516,16 +2517,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 score_function = "Pearson"
             toolbox.register(
                 "select",
-                partial(
-                    select_cpsr_regression, target=self.y, metric=score_function
-                ),
+                partial(select_cpsr_regression, target=self.y, metric=score_function),
             )
         elif self.select == "CPS-Lexicase":
             toolbox.register(
                 "select",
-                partial(
-                    select_cps_regression, operator="Lexicase"
-                ),
+                partial(select_cps_regression, operator="Lexicase"),
             )
         elif self.select == "ComplementaryTournament":
             toolbox.register(
@@ -4174,10 +4171,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.dynamic_reduction > 0
                 and (gen > 1)
                 and (
-                (number_of_evaluations - self.n_pop)
-                % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
-                == 0
-            )
+                    (number_of_evaluations - self.n_pop)
+                    % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
+                    == 0
+                )
             ):
                 pop_size //= 2
                 assert self.pre_selection == None
@@ -4205,7 +4202,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ensemble_value = np.mean([x.predicted_values for x in self.hof], axis=0)
                 for x in self.hof:
                     ambiguity = (x.predicted_values - ensemble_value) ** 2
-                    x.case_values[len(x.predicted_values):] = -1 * ambiguity
+                    x.case_values[len(x.predicted_values) :] = -1 * ambiguity
 
             cxpb, mutpb = self.linear_adaptive_rate(gen, cxpb, mutpb)
             cxpb, mutpb = self.get_adaptive_mutation_rate(cxpb, mutpb)
@@ -4252,9 +4249,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if (
                 self.current_gen == (self.n_gen // 2) + 1
                 and (
-                self.evaluation_configuration.two_stage_feature_selection
-                is not None
-            )
+                    self.evaluation_configuration.two_stage_feature_selection
+                    is not None
+                )
                 and all([not hasattr(ind, "case_values") for ind in population])
             ):
                 # Re-initialization
@@ -4665,7 +4662,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # in place
             if len(new_list) > 0:
-                offspring[-len(new_list):] = new_list
+                offspring[-len(new_list) :] = new_list
 
     def eql_hybrid_initialization(self, population):
         config = self.eql_hybrid_configuration
@@ -4673,6 +4670,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if hybrid > 0 and not isinstance(self, ClassifierMixin):
             # not support for classification
             trees = generate_forest_by_eql(self.X, self.y, self.pset, config)
+            if len(trees) == 0:
+                return
             set_of_inds = population[: len(trees)]
             for ind, tree in zip(set_of_inds, trees):
                 if len(tree) == 1 and isinstance(
@@ -4999,7 +4998,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.cross_pb == "Linear":
             cxpb = np.interp(np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.9, 0.5])[
                 gen - 1
-                ]
+            ]
         if self.mutation_pb == "Linear":
             mutpb = np.interp(
                 np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.1, 0.5]
@@ -6083,7 +6082,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if len(ind.case_values) == len(self.y):
                 ind.case_values = np.concatenate([ind.case_values, distance], axis=0)
             else:
-                ind.case_values[len(self.y):] = distance
+                ind.case_values[len(self.y) :] = distance
 
     def complexity(self):
         count = 0
