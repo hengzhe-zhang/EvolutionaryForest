@@ -16,7 +16,7 @@ from scipy.stats import wilcoxon
 from sklearn.base import ClassifierMixin
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from sklearn.decomposition import KernelPCA
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold, cross_val_score
@@ -180,13 +180,25 @@ def get_unique_individuals(individuals):
 
 
 def adaptive_knee_point(knee_point, X, y):
-    scores = cross_val_score(RandomForestRegressor(), X, y, cv=5)
+    scores = cross_val_score(ExtraTreesRegressor(), X, y, cv=5)
     avg_score = scores.mean()
 
     if avg_score >= 0.8:
         return "BestHarmonicRank"
     else:
         return knee_point.replace("Adaptive", "")
+
+
+def adaptive_knee_point_cluster_number(X, y):
+    scores = cross_val_score(ExtraTreesRegressor(), X, y, cv=5)
+    avg_score = scores.mean()
+
+    if avg_score <= 0.5:
+        # toward much simpler model
+        return 2
+    else:
+        # more clusters->toward slightly complex model
+        return 3
 
 
 class NSGA2(EnvironmentalSelection):
@@ -224,6 +236,11 @@ class NSGA2(EnvironmentalSelection):
             self.knee_point = adaptive_knee_point(
                 self.knee_point, self.algorithm.X, self.algorithm.y
             )
+        if isinstance(self.knee_point, str) and self.knee_point == "AngleMKS~Adaptive":
+            cluster = adaptive_knee_point_cluster_number(
+                self.algorithm.X, self.algorithm.y
+            )
+            self.knee_point = f"AngleMKS~{cluster}"
 
     def select(self, population, offspring):
         """
