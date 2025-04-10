@@ -2,61 +2,49 @@ import numpy as np
 from scipy.special import softmax
 
 
-def n_plexicase_selection(fitness_matrix, temperature=1.0, num_parents=1):
+def n_plexicase_selection(population, k, temperature=1.0):
     """
-    n-Plexicase selection using MAD-based relaxation (for minimization tasks).
+    n-Plexicase selection for DEAP-style individuals.
+
+    Each individual must have a .case_values attribute (list/array of fitness or error values per case).
 
     Args:
-        fitness_matrix: numpy array of shape (num_individuals, num_cases)
-                        where lower is better (minimization).
-        temperature: float, controls sharpness of selection distribution.
-        num_parents: int, number of individuals to select.
+        population: list of individuals with .case_values attribute (shape: num_cases).
+        temperature: float, softmax temperature to control selection pressure.
+        k: int, number of individuals to select.
 
     Returns:
-        List of selected individual indices.
+        List of selected individuals.
     """
-    num_individuals, num_cases = fitness_matrix.shape
+    num_individuals = len(population)
+    if num_individuals == 0:
+        return []
 
-    # Step 1: Compute per-case MAD thresholds
+    # Step 1: Build fitness matrix from .case_values
+    fitness_matrix = np.array([ind.case_values for ind in population])  # shape: (N, C)
+    num_cases = fitness_matrix.shape[1]
+
+    # Step 2: Compute MAD-based relaxed threshold (for minimization)
     medians = np.median(fitness_matrix, axis=0)
     mad = np.median(np.abs(fitness_matrix - medians), axis=0)
-
-    # Step 2: Determine elites using MAD-based relaxed threshold
     best_per_case = np.min(fitness_matrix, axis=0)
     relaxed_threshold = best_per_case + mad
-    elite_mask = fitness_matrix <= relaxed_threshold  # shape: (indivs, cases)
 
-    # Step 3: Count how often each individual is elite
-    elitism_counts = elite_mask.sum(axis=1)  # shape: (num_individuals,)
+    # Step 3: Determine elite mask
+    elite_mask = fitness_matrix <= relaxed_threshold  # (N, C)
+
+    # Step 4: Count elite occurrences per individual
+    elitism_counts = elite_mask.sum(axis=1)
     eligible = elitism_counts > 0
 
     if not np.any(eligible):
         raise ValueError("No eligible individuals found under MAD threshold.")
 
-    # Step 4: Compute selection probabilities using temperature scaling
+    # Step 5: Apply temperature scaling and softmax
     raw_scores = np.where(eligible, elitism_counts, -np.inf)
     probs = softmax(raw_scores * temperature)
 
-    # Step 5: Sample parents based on probabilities
-    selected = np.random.choice(
-        num_individuals, size=num_parents, p=probs, replace=False
-    )
-    return selected.tolist()
-
-
-if __name__ == "__main__":
-    # Example fitness values for 5 individuals over 4 cases
-    fitness = np.array(
-        [
-            [0.8, 0.9, 0.85, 0.7],
-            [0.82, 0.85, 0.88, 0.69],
-            [0.75, 0.9, 0.84, 0.68],
-            [0.8, 0.8, 0.87, 0.72],
-            [0.7, 0.85, 0.83, 0.7],
-        ]
-    )
-
-    selected = n_plexicase_selection(
-        fitness_matrix=fitness, temperature=1.0, num_parents=2
-    )
-    print("Selected individuals:", selected)
+    # Step 6: Sample parents based on the probability distribution
+    selected_indices = np.random.choice(num_individuals, size=k, p=probs, replace=False)
+    selected_individuals = [population[i] for i in selected_indices]
+    return selected_individuals
