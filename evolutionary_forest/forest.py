@@ -238,7 +238,6 @@ from evolutionary_forest.component.selection import (
     selHOFRandom,
 )
 from evolutionary_forest.component.selection_operators.curriculum_learning import (
-    progressive_tier_lexicase_selection,
     GenerationInfo,
     dynamic_difficulty_lexicase_selection,
     phase_based_curriculum_lexicase,
@@ -247,7 +246,6 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
 )
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
     novel_selection_plus,
-    novel_selection_plus_plus,
     novel_selection,
     complementary_tournament,
     select_cps_regression,
@@ -259,6 +257,9 @@ from evolutionary_forest.component.selection_operators.lexicase_pareto_tournamen
 )
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
+)
+from evolutionary_forest.component.selection_operators.p_lexicase import (
+    n_plexicase_selection,
 )
 from evolutionary_forest.component.selection_operators.pareto_tournament import (
     sel_pareto_tournament,
@@ -2539,16 +2540,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 novel_selection_plus,
             )
-        elif self.select == "LLMSelection++":
+        elif self.select == "P-Lexicase":
             toolbox.register(
                 "select",
-                novel_selection_plus_plus,
-            )
-        elif self.select == "TierLexicase":
-            toolbox.register(
-                "select",
-                progressive_tier_lexicase_selection,
-                generation_info=self.generation_info,
+                n_plexicase_selection,
             )
         elif self.select == "DynamicDifficultyLexicase":
             toolbox.register(
@@ -2725,12 +2720,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selAngleDrivenSelection, target=self.y)
         elif self.select == "Knockout":
             toolbox.register("select", selKnockout)
-        elif self.select == "Knockout-A":
-            toolbox.register("select", selKnockout, auto_case=True)
-        elif self.select == "Knockout-S":
-            toolbox.register("select", selKnockout, version="S")
-        elif self.select == "Knockout-SA":
-            toolbox.register("select", selKnockout, version="S", auto_case=True)
         elif self.select in ["Random"]:
             toolbox.register("select", selRandom)
         elif self.select == "Hybrid":
@@ -5766,12 +5755,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             offspring = selMaxAngleSelection(parent, 2, self.y)
         elif selection_operator == "AngleDrivenSelection":
             offspring = selAngleDrivenSelection(parent, 2, self.y)
-        elif self.select == "MAP-Elite-Knockout-A":
-            offspring = selKnockout(parent, 2, auto_case=True)
-        elif self.select == "MAP-Elite-Knockout-S":
-            offspring = selKnockout(parent, 2, version="S")
-        elif self.select == "MAP-Elite-Knockout-SA":
-            offspring = selKnockout(parent, 2, version="S", auto_case=True)
         elif selection_operator == "MAP-Elite-Tournament-3":
             offspring = selTournament(parent, 2, tournsize=3)
         elif selection_operator == "MAP-Elite-Tournament-7":
