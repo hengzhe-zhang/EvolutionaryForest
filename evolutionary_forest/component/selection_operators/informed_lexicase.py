@@ -2,7 +2,6 @@ import random
 
 import numpy as np
 from deap import tools
-from scipy.stats import pearsonr
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
@@ -152,147 +151,161 @@ def complementary_tournament(population, k=100, tour_size=3):
 
         if weak_case_indices.size > 0:
             comp_scores = np.array(
-                [np.mean(ind.case_values[weak_case_indices])
-                 for ind in population]
+                [np.mean(ind.case_values[weak_case_indices]) for ind in population]
             )
-            valid_indices = [i for i in range(pop_size)
-                             if i != parent_a_index]
+            valid_indices = [i for i in range(pop_size) if i != parent_a_index]
             parent_b = tournament_selection(
-                comp_scores[valid_indices],
-                [population[i] for i in valid_indices]
+                comp_scores[valid_indices], [population[i] for i in valid_indices]
             )
             selected_individuals.append(parent_b)
 
     return selected_individuals
 
 
-def novel_selection(population, k=100, status=None, tour_size=3):
-    if not population:
-        return []
+def novel_selection(population, k=100, status={}):
+    """
+    Novel selection operator for genetic programming, improved from Operator A and B,
+    incorporating diverse and specialized selection, crossover-aware pairing,
+    stage-specific pressure, interpretability preference, and efficiency.
 
-    num_cases = population[0].case_values.size
+    This operator selects parent A using a stage-aware tournament selection that considers
+    fitness, interpretability, and specialization. Parent B is then selected to be
+    complementary to Parent A based on residual anti-correlation.
+
+    Args:
+        population (list): List of individual objects.
+        k (int): Number of individuals to select.
+        status (dict): Dictionary containing evolutionary status, e.g.,
+                       {"evolutionary_stage": [0, 1]}.
+
+    Returns:
+        list: List of selected individuals.
+    """
+    selected = []
     pop_size = len(population)
-    selected_individuals = []
+    if pop_size == 0:
+        return selected
 
-    # 1. Calculate Case Ranks and Average Ranks (vectorized)
-    case_ranks = np.zeros((pop_size, num_cases))
-    for case_idx in range(num_cases):
-        case_errors = np.array([ind.case_values[case_idx] for ind in population])
-        ranked_indices = np.argsort(
-            case_errors
-        )  # Indices of individuals sorted by error for this case
-        ranks = np.argsort(ranked_indices) + 1  # Convert indices to ranks (1-based)
-        case_ranks[:, case_idx] = ranks
+    evolutionary_stage = status.get("evolutionary_stage", 0)  # Default to early stage
 
-    avg_ranks = np.mean(case_ranks, axis=1)
+    # --- 1. Stage-Specific Weighting ---
+    # Adjust weights to emphasize different objectives across evolutionary stages.
+    fitness_weight = (
+        0.6 + evolutionary_stage * 0.4
+    )  # Fitness becomes more important later
+    interpretability_weight = 0.3 * (
+        1.0 - evolutionary_stage
+    )  # Interpretability is crucial early
+    specialization_weight = 0.1 * (
+        1.0 - evolutionary_stage
+    )  # Specialization is valuable early
 
-    def tournament_selection(
-        fitness_values,
-        individuals,
-        tournament_k,
-        minimize=True,
-        tie_breaker_complexity=True,
-    ):
-        """Helper function for tournament selection."""
-        selected_tournament = []
-        indices = list(range(len(individuals)))
-        for _ in range(tournament_k):
-            competitor_indices = random.sample(indices, tour_size)
-            competitors = [individuals[i] for i in competitor_indices]
-            competitor_fitnesses = [fitness_values[i] for i in competitor_indices]
+    parent_a_list = []
+    num_parent_a = k // 2
 
-            if minimize:
-                best_idx = min(range(tour_size), key=lambda i: competitor_fitnesses[i])
-            else:  # maximize
-                best_idx = max(range(tour_size), key=lambda i: competitor_fitnesses[i])
+    # --- 2. Parent A Selection: Stage-Aware Tournament with Multi-Objective Score ---
+    for _ in range(num_parent_a):
+        tournament_pool = np.random.choice(
+            population, size=min(5, pop_size), replace=False
+        )
+        best_parent_a = None
+        best_tournament_score = -float("inf")
 
-            winner = competitors[best_idx]
-            selected_tournament.append(winner)
+        for individual_a in tournament_pool:
+            # --- Define Objectives ---
+            fitness = -np.mean(
+                individual_a.case_values
+            )  # Lower case_values (error) is better
+            interpretability = (
+                len(individual_a) + individual_a.height
+            )  # Smaller trees are preferred
+            specialization = (
+                -np.var(individual_a.case_values)
+                if len(individual_a.case_values) > 1
+                else 0
+            )  # Lower variance means more specialized
 
-        # Tie-breaker using complexity (nodes then height) if requested
-        if tie_breaker_complexity:
-
-            def complexity_score(ind):
-                return (len(ind), ind.height)  # Nodes first, then height
-
-            best_individual = min(
-                selected_tournament,
-                key=lambda ind: (
-                    fitness_values[individuals.index(ind)],
-                    complexity_score(ind),
-                ),
+            # --- Calculate Stage-Aware Tournament Score ---
+            tournament_score = (
+                (fitness_weight * fitness)
+                + (interpretability_weight * (-interpretability))
+                + (specialization_weight * specialization)
             )
+
+            # --- Tournament Winner Selection ---
+            if tournament_score > best_tournament_score:
+                best_tournament_score = tournament_score
+                best_parent_a = individual_a
+
+        # --- Handle Cases where Tournament Might Fail (Edge Cases) ---
+        if best_parent_a is not None:
+            parent_a_list.append(best_parent_a)
+        elif tournament_pool.size > 0:
+            parent_a_list.append(
+                tournament_pool[0]
+            )  # Fallback: if no best found, take first from pool
+        elif population:
+            parent_a_list.append(
+                np.random.choice(population)
+            )  # Fallback: if pool empty, random from population
+
+    # --- 3. Parent B Selection: Residual-Based Complementary Pairing ---
+    parent_b_list = []
+    for mother in parent_a_list:
+        best_father = None
+        best_complementarity_score = -float("inf")
+        mother_residual = mother.y - mother.predicted_values  # Error vector of parent A
+
+        for father_candidate in population:
+            if father_candidate is mother:  # Avoid self-pairing
+                continue
+
+            father_residual = (
+                father_candidate.y - father_candidate.predicted_values
+            )  # Error vector of candidate parent B
+
+            # --- Complementarity Metric: Anti-correlation of Residuals (Cosine Similarity) ---
+            mother_residual_norm = mother_residual / (
+                np.linalg.norm(mother_residual) + 1e-8
+            )  # Normalize residuals to unit vectors
+            father_residual_norm = father_residual / (
+                np.linalg.norm(father_residual) + 1e-8
+            )
+            complementarity_score = -np.dot(
+                mother_residual_norm, father_residual_norm
+            )  # Maximize negative cosine similarity (anti-correlation)
+
+            # --- Select Best Complementary Father ---
+            if complementarity_score > best_complementarity_score:
+                best_complementarity_score = complementarity_score
+                best_father = father_candidate
+            elif (
+                complementarity_score == best_complementarity_score
+                and best_father is not None
+            ):
+                # Tie-breaker: Favor simpler fathers for interpretability
+                if (len(father_candidate) + father_candidate.height) < (
+                    len(best_father) + best_father.height
+                ):
+                    best_father = father_candidate
+            elif best_father is None:
+                best_father = (
+                    father_candidate  # If no best father yet, assign current as best.
+                )
+
+        # --- Handle Cases where Complementary Father Might Not Be Found ---
+        if best_father is not None:
+            parent_b_list.append(best_father)
         else:
-            if minimize:
-                best_individual = min(
-                    selected_tournament,
-                    key=lambda ind: fitness_values[individuals.index(ind)],
-                )
-            else:
-                best_individual = max(
-                    selected_tournament,
-                    key=lambda ind: fitness_values[individuals.index(ind)],
-                )
+            parent_b_list.append(
+                mother
+            )  # Fallback: Duplicate mother if no father found (rare, but robust)
 
-        return best_individual
-
-    for _ in range(k // 2):  # Select pairs of parents
-        # 2. Parent A Selection: Rank-based tournament
-        parent_a = tournament_selection(
-            avg_ranks, population, tournament_k=tour_size, minimize=True
-        )
-        selected_individuals.append(parent_a)
-
-        # 3. Parent B Selection: Complementarity-focused tournament
-        parent_a_index = population.index(parent_a)
-        parent_a_errors = population[parent_a_index].case_values
-
-        # Identify cases where Parent A performs relatively poorly (top quartile of errors)
-        error_threshold_a = np.percentile(
-            parent_a_errors, 75
-        )  # Cases with errors in top 25%
-        poor_cases_a_indices = np.where(parent_a_errors >= error_threshold_a)[0]
-
-        if poor_cases_a_indices.size > 0:  # If there are cases where parent A is weak
-            complementarity_scores = np.zeros(pop_size)
-            for ind_idx in range(pop_size):
-                complementarity_scores[ind_idx] = np.mean(
-                    population[ind_idx].case_values[poor_cases_a_indices]
-                )
-
-            # Exclude parent_a from selection pool for parent_b to encourage diversity in pairing
-            valid_indices_for_b = [i for i in range(pop_size) if i != parent_a_index]
-            if not valid_indices_for_b:  # Handle case where population size is very small or only one unique individual left
-                parent_b = tournament_selection(
-                    avg_ranks, population, tournament_k=tour_size, minimize=True
-                )  # Fallback: rank based selection
-            else:
-                valid_population_for_b = [population[i] for i in valid_indices_for_b]
-                valid_complementarity_scores = complementarity_scores[
-                    valid_indices_for_b
-                ]
-                parent_b = tournament_selection(
-                    valid_complementarity_scores,
-                    valid_population_for_b,
-                    tournament_k=tour_size,
-                    minimize=True,
-                )
-
-        else:  # If parent_a is strong across all cases, fallback to rank-based selection for parent_b for diversity
-            parent_b = tournament_selection(
-                avg_ranks, population, tournament_k=tour_size, minimize=True
-            )
-
-        selected_individuals.append(parent_b)
-
-    # If k is odd, we might have selected k-1, add one more (e.g., best overall rank)
-    while len(selected_individuals) < k:
-        selected_individuals.append(
-            tournament_selection(
-                avg_ranks, population, tournament_k=tour_size, minimize=True
-            )
-        )
-
+    # --- 4. Combine Parent A and Parent B Lists to Create Selected Individuals ---
+    # Interleave parent A and parent B to form pairs and then flatten the list.
+    selected_individuals = [
+        val for pair in zip(parent_a_list, parent_b_list) for val in pair
+    ][:k]
     return selected_individuals
 
 
@@ -444,10 +457,6 @@ def novel_selection_plus(
         )
 
     return selected_individuals
-
-
-def novel_selection_plus_plus(population, k=1):
-    return novel_selection(population, k, 3)
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):

@@ -2530,12 +2530,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 complementary_tournament,
             )
-        elif self.select == "LLMSelection":
+        elif self.select == "NovelSelection":
             toolbox.register(
                 "select",
                 novel_selection,
             )
-        elif self.select == "LLMSelection+":
+        elif self.select == "NovelSelection+":
             toolbox.register(
                 "select",
                 novel_selection_plus,
@@ -5582,23 +5582,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     else:
                         if callable(self.select) or (
                             isinstance(self.select, str)
-                            and self.select.startswith("LLMSelection")
+                            and self.select.startswith("NovelSelection")
                         ):
                             # a bit special, select all to reduce overhead
                             for ind in parent + external_archive:
                                 ind.y = self.y
+                                ind.residual = ind.y - ind.predicted_values
+                                ind.number_of_nodes = len(ind)
 
                             self.evolution_status = {
                                 "current_generation": self.current_gen,
                                 "total_generation": self.n_gen,
+                                "evolutionary_stage": self.current_gen / self.n_gen,
                             }
                             if has_status_arg(toolbox.select):
-                                offspring, status = toolbox.select(
+                                offspring = toolbox.select(
                                     parent + external_archive,
                                     self.n_pop,
                                     status=self.evolution_status,
                                 )
-                                self.evolution_status = status
                             else:
                                 offspring = toolbox.select(
                                     parent + external_archive,
@@ -5606,8 +5608,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                                 )
 
                             for ind in parent + external_archive:
+                                # To save memory
                                 if hasattr(ind, "y"):
                                     del ind.y
+                                if hasattr(ind, "residual"):
+                                    del ind.residual
                         else:
                             offspring = toolbox.select(parent + external_archive, 2)
                 else:
