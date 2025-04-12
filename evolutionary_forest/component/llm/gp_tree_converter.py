@@ -1,5 +1,4 @@
 import json
-import os
 
 from deap import gp
 from deap.gp import PrimitiveSet
@@ -92,10 +91,9 @@ class ChatGP:
 
         config_file = "config.yaml"
         api_key = load_api_key(config_file)
-        os.environ["OPENAI_API_KEY"] = api_key
 
         # Initialize OpenAI client
-        self.client = initialize_openai()
+        self.client = initialize_openai(api_key)
 
 
 def generate_trees(chatgp: ChatGP, pattern, parent_json, tree_num=10):
