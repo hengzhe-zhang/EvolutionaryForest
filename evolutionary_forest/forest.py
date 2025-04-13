@@ -3246,6 +3246,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if isinstance(X, pd.DataFrame):
             self.columns = X.columns.tolist()  # store column names
             X = X.to_numpy()
+        if isinstance(y, pd.DataFrame):
             y = y.to_numpy()
 
         # Normalize X and y if specified

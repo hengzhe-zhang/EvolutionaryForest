@@ -1,6 +1,7 @@
 from openai import OpenAI
 import yaml
 
+open_router = False
 use_gemini = True
 
 
@@ -9,7 +10,9 @@ def load_api_key(config_file="config.yaml"):
     try:
         with open(config_file, "r") as file:
             config = yaml.safe_load(file)
-            if use_gemini:
+            if open_router:
+                return config.get("open_router_key")
+            elif use_gemini:
                 return config.get("gemini_key")
             else:
                 return config.get("api_key")
@@ -21,7 +24,12 @@ def load_api_key(config_file="config.yaml"):
 
 # Initialize OpenAI client using the new API structure
 def initialize_openai(api_key):
-    if use_gemini:
+    if open_router:
+        return OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+    elif use_gemini:
         return OpenAI(
             api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",

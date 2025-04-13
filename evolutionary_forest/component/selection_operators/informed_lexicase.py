@@ -2,7 +2,6 @@ import random
 
 import numpy as np
 from deap import tools
-from deap.tools import selTournament
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
@@ -165,95 +164,136 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 def novel_selection(population, k=100, status={}):
     """
-    Novel selection operator for genetic programming emphasizing diversity,
-    complementarity, stage-specific pressure, and interpretability.
+    A novel selection operator for genetic programming that combines:
+    - Tournament selection with dynamic diversity pressure & adaptive tournament size.
+    - Crossover-aware pairing based on error gradient and novelty.
+    - Stage-specific pressure for interpretability and diversity.
+    - Vectorized fitness calculations for efficiency.
 
     Args:
-        population: List of individual objects.
-        k: Number of individuals to select. Must be even.
-        status: Dictionary containing evolutionary status information.
+        population (list): The list of individuals in the population.
+        k (int): The number of individuals to select.
+        status (dict): A dictionary containing information about the evolutionary stage.
+                       It should contain the key "evolutionary_stage" with a value between 0 and 1.
 
     Returns:
-        List of selected individuals (length k).
+        list: A list of selected individuals.
     """
+
     pop_size = len(population)
     if pop_size == 0:
         return []
-    assert k % 2 == 0, "k must be even"
-    assert pop_size > 1, "Population must contain at least 2 individuals"
+    if k > pop_size:
+        k = pop_size
 
-    L = len(population[0].case_values)
-    case_matrix = np.stack([ind.case_values for ind in population])  # shape: (N, L)
-    fitness_values = np.mean(case_matrix, axis=1)  # lower is better
-
-    num_parents_a = k // 2
-    num_parents_b = k // 2
-
-    # --- Niche Identification (Simple: First vs Second half of cases) ---
-    mid_point = L // 2
-    niche1_cases_indices = np.arange(mid_point)
-    niche2_cases_indices = np.arange(mid_point, L)
-
-    niche1_fitness = np.mean(case_matrix[:, niche1_cases_indices], axis=1)
-    niche2_fitness = np.mean(case_matrix[:, niche2_cases_indices], axis=1)
-
-    # --- Stage-Specific Tournament Size ---
     evolutionary_stage = status.get(
-        "evolutionary_stage", 0.0
+        "evolutionary_stage", 0
     )  # Default to early stage if not provided
-    min_tournsize = 2
-    max_tournsize = 7  # Adjust max tournament size as needed
-    tournsize_a = max(
-        min_tournsize, int(max_tournsize * (1 - evolutionary_stage))
-    )  # Early stage: larger tournsize
-    tournsize_b = max(
-        min_tournsize, int(max_tournsize * evolutionary_stage)
-    )  # Late stage: smaller tournsize (more focused)
+    num_parents = k // 2
 
-    # --- Selection for Parent A (Focus on Niche 1) ---
-    def niche1_tournament(n, tournsize):
-        tournament_indices = np.random.randint(0, pop_size, size=(n, tournsize))
-        tournament_fitnesses = niche1_fitness[tournament_indices]
-        winners_local = np.argmin(tournament_fitnesses, axis=1)
-        parent_indices = tournament_indices[np.arange(n), winners_local]
-        return [population[i] for i in parent_indices]
+    # 1. Adaptive Tournament Selection with Dynamic Diversity Pressure
+    def adaptive_tournament(individuals, stage):
+        """Tournament selection with dynamic diversity and adaptive tournament size."""
+        # Adaptive Tournament Size: Larger tournaments later in evolution to focus on exploitation
+        tournsize = max(
+            2, int(pop_size * (0.02 + 0.08 * stage))
+        )  # Tournament size increases with stage
+        chosen_indices = np.random.choice(
+            len(individuals), size=tournsize, replace=False
+        )
+        chosen = [individuals[i] for i in chosen_indices]
 
-    parent_a_niche1 = niche1_tournament(num_parents_a // 2, tournsize_a)
-    parent_a_overall = selTournament(
-        population,
-        num_parents_a - len(parent_a_niche1),
-        tournsize=tournsize_a,
-        fit_attr="fitness",
-    )  # Fallback for diversity
-    parent_a = parent_a_niche1 + parent_a_overall
+        # Vectorized fitness calculation (MSE)
+        fitnesses = np.array([np.mean(ind.case_values) for ind in chosen])
 
-    # --- Selection for Parent B (Focus on Niche 2 & Complementarity - using overall fitness as proxy for now) ---
-    def niche2_tournament(n, tournsize):
-        tournament_indices = np.random.randint(0, pop_size, size=(n, tournsize))
-        tournament_fitnesses = niche2_fitness[tournament_indices]
-        winners_local = np.argmin(tournament_fitnesses, axis=1)
-        parent_indices = tournament_indices[np.arange(n), winners_local]
-        return [population[i] for i in parent_indices]
+        # Novelty metric: Distance to the population average in predicted value space
+        predicted_values = np.array([ind.predicted_values for ind in chosen])
+        pop_avg_predictions = np.mean(
+            np.array([ind.predicted_values for ind in population]), axis=0
+        )
+        novelty = np.mean(
+            (predicted_values - pop_avg_predictions) ** 2, axis=1
+        )  # higher novelty is better
 
-    parent_b_niche2 = niche2_tournament(num_parents_b // 2, tournsize_b)
-    parent_b_overall = selTournament(
-        population,
-        num_parents_b - len(parent_b_niche2),
-        tournsize=tournsize_b,
-        fit_attr="fitness",
-    )  # Fallback for diversity
-    parent_b = parent_b_niche2 + parent_b_overall
+        # Normalize the metrics
+        fitnesses_norm = (fitnesses - np.min(fitnesses)) / (
+            np.max(fitnesses) - np.min(fitnesses) + 1e-9
+        )
+        novelty_norm = (novelty - np.min(novelty)) / (
+            np.max(novelty) - np.min(novelty) + 1e-9
+        )
 
-    # --- Interpretability Tie-breaking (Favor smaller trees if fitness is equal within tournament) ---
-    # (Integrated into tournament selection implicitly by fitness comparison, assuming lower fitness is better)
-    # If you want explicit tie-breaking, you would need to modify the tournament selection logic.
-    # For now, interpretability is implicitly favored by general GP practices (parsimony pressure in fitness).
+        # Stage-dependent novelty weight (decrease novelty pressure as evolution progresses)
+        novelty_weight = (
+            1 - stage
+        ) * 0.2  # Higher novelty pressure early in evolution, reducing to 0 later.
 
-    # --- Combine Parent A and Parent B ---
+        # Combined score: Lower fitness, higher novelty
+        combined_score = fitnesses_norm - novelty_weight * novelty_norm
+        return chosen[np.argmin(combined_score)]  # Minimize combined score
+
+    parent_a = [
+        adaptive_tournament(population, evolutionary_stage) for _ in range(num_parents)
+    ]
+
+    # 2. Crossover-Aware Pairing (Parent B) - Error Gradient & Novelty
+    parent_b = []
+    all_predictions = np.array([ind.predicted_values for ind in population])
+    for ind_a in parent_a:
+        # Calculate residuals for individual A
+        residual_a = ind_a.y - ind_a.predicted_values
+
+        # Error Gradient: How much does adding this individual reduce the MSE *overall*
+        error_reductions = np.array(
+            [
+                np.mean(
+                    (ind_a.y - (ind_a.predicted_values + ind.predicted_values) / 2) ** 2
+                )
+                for ind in population
+            ]
+        )
+
+        # Novelty component in pairing: Prefer individuals that are different from A
+        prediction_diffs = np.mean(
+            (all_predictions - ind_a.predicted_values) ** 2, axis=1
+        )
+
+        # Combine error reduction and novelty
+        combined_metric = (
+            error_reductions - 0.1 * evolutionary_stage * prediction_diffs
+        )  # Balance error reduction and novelty, less novelty later
+
+        # Avoid self-selection
+        combined_metric[population.index(ind_a)] = float("inf")
+
+        best_complement_index = np.argmin(combined_metric)
+        parent_b.append(population[best_complement_index])
+
+    # 3. Stage-Specific Pressure & 4. Interpretability
+    if evolutionary_stage > 0.7:  # Strong pressure later in evolution
+        # Prioritize smaller individuals with lower height
+        parent_a = sorted(parent_a, key=lambda ind: (len(ind) + ind.height * 0.2))
+        parent_b = sorted(parent_b, key=lambda ind: (len(ind) + ind.height * 0.2))
+    elif evolutionary_stage < 0.3:  # Early stage: Favor diversity and exploration
+        # Slight encouragement of small trees, but primarily driven by fitness and novelty.
+        parent_a = sorted(
+            parent_a,
+            key=lambda ind: (
+                np.mean(ind.case_values) + (len(ind) + ind.height * 0.1) * 0.001
+            ),
+        )
+        parent_b = sorted(
+            parent_b,
+            key=lambda ind: (
+                np.mean(ind.case_values) + (len(ind) + ind.height * 0.1) * 0.001
+            ),
+        )
+
+    # 5. Combine and Return
     selected_individuals = [val for pair in zip(parent_a, parent_b) for val in pair]
 
-    # --- Efficiency & Scalability: NumPy vectorization already used ---
-    # --- Code Simplicity: Aimed for clear logic ---
+    # Enforce k constraint
+    selected_individuals = selected_individuals[:k]
 
     return selected_individuals
 
