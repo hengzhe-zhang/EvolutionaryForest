@@ -163,138 +163,151 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 
 def novel_selection(population, k=100, status={}):
+    from scipy.special import softmax
+
     """
-    A novel selection operator for genetic programming that combines:
-    - Tournament selection with dynamic diversity pressure & adaptive tournament size.
-    - Crossover-aware pairing based on error gradient and novelty.
-    - Stage-specific pressure for interpretability and diversity.
-    - Vectorized fitness calculations for efficiency.
-
-    Args:
-        population (list): The list of individuals in the population.
-        k (int): The number of individuals to select.
-        status (dict): A dictionary containing information about the evolutionary stage.
-                       It should contain the key "evolutionary_stage" with a value between 0 and 1.
-
-    Returns:
-        list: A list of selected individuals.
+    A custom selection operator that balances performance, diversity,
+    interpretability, and complementarity, with stage-specific pressure.
+    It employs a hybrid approach: Pareto-based selection for parent A,
+    complemented by a specialized pairing strategy for parent B that focuses
+    on minimizing combined error and encouraging specialization.
     """
-
     pop_size = len(population)
     if pop_size == 0:
         return []
     if k > pop_size:
         k = pop_size
 
-    evolutionary_stage = status.get(
-        "evolutionary_stage", 0
-    )  # Default to early stage if not provided
-    num_parents = k // 2
+    evolutionary_stage = status.get("evolutionary_stage", 0.0)
 
-    # 1. Adaptive Tournament Selection with Dynamic Diversity Pressure
-    def adaptive_tournament(individuals, stage):
-        """Tournament selection with dynamic diversity and adaptive tournament size."""
-        # Adaptive Tournament Size: Larger tournaments later in evolution to focus on exploitation
-        tournsize = max(
-            2, int(pop_size * (0.02 + 0.08 * stage))
-        )  # Tournament size increases with stage
-        chosen_indices = np.random.choice(
-            len(individuals), size=tournsize, replace=False
-        )
-        chosen = [individuals[i] for i in chosen_indices]
+    # --- Stage-Specific Parameters ---
+    if evolutionary_stage < 0.3:
+        tournament_size = 2
+        complexity_penalty = 0.05  # Even gentler early on
+        diversity_pressure = 0.5  # High diversity pressure in early stages
+        temperature = 0.5  # For softmax
+        specialization_pressure = 0.1  # Encourage specialization early on
+    elif evolutionary_stage > 0.7:
+        tournament_size = 5
+        complexity_penalty = 0.7  # Stronger penalty later
+        diversity_pressure = 0.1  # Lower diversity pressure as population converges
+        temperature = 2.0  # For softmax
+        specialization_pressure = 0.5  # Increase specialization pressure later
+    else:
+        tournament_size = 3
+        complexity_penalty = 0.3
+        diversity_pressure = 0.3
+        temperature = 1.0
+        specialization_pressure = 0.3
 
-        # Vectorized fitness calculation (MSE)
-        fitnesses = np.array([np.mean(ind.case_values) for ind in chosen])
+    # --- Calculate Fitness and Complexity Metrics (Vectorized) ---
+    mse_values = np.array([np.mean(ind.case_values) for ind in population])
+    num_nodes = np.array([len(ind) for ind in population])
+    heights = np.array([ind.height for ind in population])
+    residuals = np.array(
+        [np.sum(np.abs(ind.y - ind.predicted_values)) for ind in population]
+    )
 
-        # Novelty metric: Distance to the population average in predicted value space
-        predicted_values = np.array([ind.predicted_values for ind in chosen])
-        pop_avg_predictions = np.mean(
-            np.array([ind.predicted_values for ind in population]), axis=0
-        )
-        novelty = np.mean(
-            (predicted_values - pop_avg_predictions) ** 2, axis=1
-        )  # higher novelty is better
+    # --- Pareto-Based Parent A Selection with Specialization ---
+    # Encourage individuals that are good at specific subsets of cases.
 
-        # Normalize the metrics
-        fitnesses_norm = (fitnesses - np.min(fitnesses)) / (
-            np.max(fitnesses) - np.min(fitnesses) + 1e-9
-        )
-        novelty_norm = (novelty - np.min(novelty)) / (
-            np.max(novelty) - np.min(novelty) + 1e-9
-        )
+    # 1. Complexity Score
+    complexity_score = complexity_penalty * (num_nodes + heights)
 
-        # Stage-dependent novelty weight (decrease novelty pressure as evolution progresses)
-        novelty_weight = (
-            1 - stage
-        ) * 0.2  # Higher novelty pressure early in evolution, reducing to 0 later.
+    # 2. Diversity Score (Euclidean Distance in Feature Space)
+    predicted_values = np.array([ind.predicted_values for ind in population])
+    min_vals = np.min(predicted_values, axis=1, keepdims=True)
+    max_vals = np.max(predicted_values, axis=1, keepdims=True)
+    normalized_predicted_values = (predicted_values - min_vals) / (
+        max_vals - min_vals + 1e-8
+    )
 
-        # Combined score: Lower fitness, higher novelty
-        combined_score = fitnesses_norm - novelty_weight * novelty_norm
-        return chosen[np.argmin(combined_score)]  # Minimize combined score
+    diversity_matrix = np.zeros((pop_size, pop_size))
+    for i in range(pop_size):
+        for j in range(i + 1, pop_size):
+            distance = np.linalg.norm(
+                normalized_predicted_values[i] - normalized_predicted_values[j]
+            )
+            diversity_matrix[i, j] = distance
+            diversity_matrix[j, i] = distance
+    diversity_score = np.sum(diversity_matrix, axis=1) / (pop_size - 1 + 1e-8)
 
-    parent_a = [
-        adaptive_tournament(population, evolutionary_stage) for _ in range(num_parents)
-    ]
+    # 3. Specialization Score (Encourage individuals to fit specific subsets of cases well)
+    specialization_scores = []
+    for ind in population:
+        # Calculate the standard deviation of the residuals.
+        # Higher standard deviation implies higher variance in residuals
+        # thus less specialization on all cases. Lower standard deviation implies more specialization
+        specialization_score = -np.std(ind.y - ind.predicted_values)
+        specialization_scores.append(specialization_score)
+    specialization_scores = np.array(specialization_scores)
 
-    # 2. Crossover-Aware Pairing (Parent B) - Error Gradient & Novelty
+    # Combine MSE, complexity, diversity, and specialization
+    combined_score = -(
+        mse_values
+        + complexity_score
+        - diversity_pressure * diversity_score
+        - specialization_pressure * specialization_scores
+    )
+    probabilities = softmax(combined_score * temperature)
+
+    parent_a_indices = np.random.choice(
+        pop_size, size=k // 2, replace=False, p=probabilities
+    )
+    parent_a = [population[i] for i in parent_a_indices]
+
+    # --- Complementarity-Based Parent B Selection with Diversity Bonus ---
     parent_b = []
-    all_predictions = np.array([ind.predicted_values for ind in population])
     for ind_a in parent_a:
-        # Calculate residuals for individual A
-        residual_a = ind_a.y - ind_a.predicted_values
+        combined_error = float("inf")
+        best_ind_b_index = -1
 
-        # Error Gradient: How much does adding this individual reduce the MSE *overall*
-        error_reductions = np.array(
-            [
-                np.mean(
-                    (ind_a.y - (ind_a.predicted_values + ind.predicted_values) / 2) ** 2
-                )
-                for ind in population
+        # Calculate the predicted_values for the current parent a
+        predicted_values_a = ind_a.predicted_values
+
+        for i, ind_b in enumerate(population):
+            if ind_b is ind_a:
+                continue
+
+            # Calculate the predicted_values for the current parent b
+            predicted_values_b = ind_b.predicted_values
+
+            # Combine predicted values and calculate combined error
+            combined_predicted = (predicted_values_a + predicted_values_b) / 2.0
+            combined_residual = np.abs(ind_a.y - combined_predicted)
+            candidate_error = np.mean(combined_residual)
+
+            # Diversity bonus: encourage different predictions from parent A
+            diversity_bonus = (
+                np.linalg.norm(predicted_values_a - predicted_values_b)
+                * diversity_pressure
+            )
+
+            # Adjust candidate error with diversity
+            candidate_error = candidate_error - diversity_bonus
+
+            if candidate_error < combined_error:
+                combined_error = candidate_error
+                best_ind_b_index = i
+
+        if best_ind_b_index != -1:
+            parent_b.append(population[best_ind_b_index])
+        else:
+            # Fallback: If no suitable partner is found, select a random individual (excluding ind_a)
+            eligible_indices = [
+                i for i in range(pop_size) if population[i] is not ind_a
             ]
-        )
+            if eligible_indices:
+                parent_b_index = np.random.choice(eligible_indices)
+                parent_b.append(population[parent_b_index])
+            else:
+                # Last Resort, when no other option is avaliable.
+                parent_b.append(ind_a)
 
-        # Novelty component in pairing: Prefer individuals that are different from A
-        prediction_diffs = np.mean(
-            (all_predictions - ind_a.predicted_values) ** 2, axis=1
-        )
-
-        # Combine error reduction and novelty
-        combined_metric = (
-            error_reductions - 0.1 * evolutionary_stage * prediction_diffs
-        )  # Balance error reduction and novelty, less novelty later
-
-        # Avoid self-selection
-        combined_metric[population.index(ind_a)] = float("inf")
-
-        best_complement_index = np.argmin(combined_metric)
-        parent_b.append(population[best_complement_index])
-
-    # 3. Stage-Specific Pressure & 4. Interpretability
-    if evolutionary_stage > 0.7:  # Strong pressure later in evolution
-        # Prioritize smaller individuals with lower height
-        parent_a = sorted(parent_a, key=lambda ind: (len(ind) + ind.height * 0.2))
-        parent_b = sorted(parent_b, key=lambda ind: (len(ind) + ind.height * 0.2))
-    elif evolutionary_stage < 0.3:  # Early stage: Favor diversity and exploration
-        # Slight encouragement of small trees, but primarily driven by fitness and novelty.
-        parent_a = sorted(
-            parent_a,
-            key=lambda ind: (
-                np.mean(ind.case_values) + (len(ind) + ind.height * 0.1) * 0.001
-            ),
-        )
-        parent_b = sorted(
-            parent_b,
-            key=lambda ind: (
-                np.mean(ind.case_values) + (len(ind) + ind.height * 0.1) * 0.001
-            ),
-        )
-
-    # 5. Combine and Return
-    selected_individuals = [val for pair in zip(parent_a, parent_b) for val in pair]
-
-    # Enforce k constraint
-    selected_individuals = selected_individuals[:k]
-
+    # --- Interleave parents ---
+    selected_individuals = [
+        individual for pair in zip(parent_a, parent_b) for individual in pair
+    ]
     return selected_individuals
 
 

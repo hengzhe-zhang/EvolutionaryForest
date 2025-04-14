@@ -2,6 +2,17 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 
+def filter_unique_case_values(pool):
+    seen = set()
+    unique_pool = []
+    for ind in pool:
+        key = tuple(ind.case_values)
+        if key not in seen:
+            seen.add(key)
+            unique_pool.append(ind)
+    return unique_pool
+
+
 def is_standardized(X):
     """
     Checks if a matrix X is standardized for each feature.

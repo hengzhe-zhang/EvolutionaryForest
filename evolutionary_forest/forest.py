@@ -353,6 +353,7 @@ from evolutionary_forest.strategies.subset_transfer import (
     train_final_model_on_full_batch,
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
+from evolutionary_forest.utility.check_util import filter_unique_case_values
 from evolutionary_forest.utility.eql_hybrid.eql_hybrid_utils import (
     eql_hybrid_on_pareto_front,
     eql_hybrid_on_best,
@@ -983,6 +984,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.time_limit = time_limit
         self.subset_transfer = subset_transfer
         self.llm_functions = llm_functions
+        self.evolution_status = {}
 
     def automatic_operator_selection_initialization(self):
         if self.select == "Auto":
@@ -5586,29 +5588,33 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             and self.select.startswith("NovelSelection")
                         ):
                             # a bit special, select all to reduce overhead
-                            for ind in parent + external_archive:
+                            pool = parent + external_archive
+                            pool = filter_unique_case_values(pool)
+                            for ind in pool:
                                 ind.y = self.y
                                 ind.residual = ind.y - ind.predicted_values
                                 ind.number_of_nodes = len(ind)
 
-                            self.evolution_status = {
-                                "current_generation": self.current_gen,
-                                "total_generation": self.n_gen,
-                                "evolutionary_stage": self.current_gen / self.n_gen,
-                            }
+                            self.evolution_status.update(
+                                {
+                                    "current_generation": self.current_gen,
+                                    "total_generation": self.n_gen,
+                                    "evolutionary_stage": self.current_gen / self.n_gen,
+                                }
+                            )
                             if has_status_arg(toolbox.select):
                                 offspring = toolbox.select(
-                                    parent + external_archive,
+                                    pool,
                                     self.n_pop,
                                     status=self.evolution_status,
                                 )
                             else:
                                 offspring = toolbox.select(
-                                    parent + external_archive,
+                                    pool,
                                     self.n_pop,
                                 )
 
-                            for ind in parent + external_archive:
+                            for ind in pool:
                                 # To save memory
                                 if hasattr(ind, "y"):
                                     del ind.y
