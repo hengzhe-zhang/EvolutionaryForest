@@ -2,6 +2,7 @@ import json
 
 from deap import gp
 from deap.gp import PrimitiveSet
+from openai import OpenAI
 
 from evolutionary_forest.utils import efficient_deepcopy
 
@@ -77,8 +78,9 @@ def json_to_individual(data, template, pset: PrimitiveSet):
 
 
 class ChatGP:
-    def __init__(self):
-        self.client = None
+    def __init__(self, service):
+        self.client: OpenAI = None
+        self.service = service
 
     def lazy_load(self):
         from evolutionary_forest.component.llm.chatgpt import (
@@ -90,10 +92,10 @@ class ChatGP:
             return
 
         config_file = "config.yaml"
-        api_key = load_api_key(config_file)
+        api_key = load_api_key(config_file, self.service)
 
         # Initialize OpenAI client
-        self.client = initialize_openai(api_key)
+        self.client = initialize_openai(api_key, self.service)
 
 
 def generate_trees(chatgp: ChatGP, pattern, parent_json, tree_num=10):

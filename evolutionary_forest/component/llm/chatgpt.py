@@ -6,16 +6,16 @@ use_gemini = True
 
 
 # Function to load API key from config.yaml
-def load_api_key(config_file="config.yaml"):
+def load_api_key(config_file="config.yaml", service=None):
     try:
         with open(config_file, "r") as file:
             config = yaml.safe_load(file)
-            if open_router:
-                return config.get("open_router_key")
-            elif use_gemini:
+            if service == "Gemini":
                 return config.get("gemini_key")
-            else:
+            elif service == "OpenAI":
                 return config.get("api_key")
+            else:
+                raise ValueError("Unknown service")
     except FileNotFoundError:
         raise FileNotFoundError(f"Configuration file '{config_file}' not found.")
     except KeyError:
@@ -23,19 +23,16 @@ def load_api_key(config_file="config.yaml"):
 
 
 # Initialize OpenAI client using the new API structure
-def initialize_openai(api_key):
-    if open_router:
-        return OpenAI(
-            api_key=api_key,
-            base_url="https://openrouter.ai/api/v1",
-        )
-    elif use_gemini:
+def initialize_openai(api_key, service):
+    if service == "Gemini":
         return OpenAI(
             api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
-    else:
+    elif service == "OpenAI":
         return OpenAI(api_key=api_key)
+    else:
+        raise Exception(f"Unknown service '{service}'")
 
 
 # Function to generate a response from ChatGPT using the new API
