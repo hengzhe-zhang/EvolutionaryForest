@@ -2,6 +2,7 @@ import random
 
 import numpy as np
 from deap import tools
+from scipy.stats import spearmanr
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
@@ -163,151 +164,195 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 
 def novel_selection(population, k=100, status={}):
-    from scipy.special import softmax
-
     """
-    A custom selection operator that balances performance, diversity,
-    interpretability, and complementarity, with stage-specific pressure.
-    It employs a hybrid approach: Pareto-based selection for parent A,
-    complemented by a specialized pairing strategy for parent B that focuses
-    on minimizing combined error and encouraging specialization.
+    A novel selection operator for genetic programming that combines aspects of tournament selection,
+    epsilon lexicase selection, and Pareto optimality to balance exploitation, exploration, and
+    parsimony pressure.  It focuses on improved complementarity by using Spearman correlation
+    instead of raw MSE reduction when selecting parent_b.
     """
     pop_size = len(population)
     if pop_size == 0:
         return []
+
     if k > pop_size:
         k = pop_size
 
-    evolutionary_stage = status.get("evolutionary_stage", 0.0)
+    if k % 2 != 0:
+        k -= 1  # Ensure k is even for pairing
 
-    # --- Stage-Specific Parameters ---
-    if evolutionary_stage < 0.3:
-        tournament_size = 2
-        complexity_penalty = 0.05  # Even gentler early on
-        diversity_pressure = 0.5  # High diversity pressure in early stages
-        temperature = 0.5  # For softmax
-        specialization_pressure = 0.1  # Encourage specialization early on
-    elif evolutionary_stage > 0.7:
-        tournament_size = 5
-        complexity_penalty = 0.7  # Stronger penalty later
-        diversity_pressure = 0.1  # Lower diversity pressure as population converges
-        temperature = 2.0  # For softmax
-        specialization_pressure = 0.5  # Increase specialization pressure later
-    else:
-        tournament_size = 3
-        complexity_penalty = 0.3
-        diversity_pressure = 0.3
-        temperature = 1.0
-        specialization_pressure = 0.3
+    evolutionary_stage = status.get("evolutionary_stage", 0.0)  # Default to early stage
 
-    # --- Calculate Fitness and Complexity Metrics (Vectorized) ---
-    mse_values = np.array([np.mean(ind.case_values) for ind in population])
-    num_nodes = np.array([len(ind) for ind in population])
-    heights = np.array([ind.height for ind in population])
-    residuals = np.array(
-        [np.sum(np.abs(ind.y - ind.predicted_values)) for ind in population]
+    # 1. Fitness Evaluation and Normalization
+    mse_vectors = np.array([ind.case_values for ind in population])
+    individual_lengths = np.array([len(ind) for ind in population])
+    individual_heights = np.array([ind.height for ind in population])
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+
+    # Overall fitness (mean MSE)
+    fitness_values = np.mean(mse_vectors, axis=1)
+
+    # Normalize fitness, length, and height for combined scoring
+    fitness_norm = (fitness_values - np.min(fitness_values)) / (
+        np.max(fitness_values) - np.min(fitness_values) + 1e-8
+    )
+    length_norm = (individual_lengths - np.min(individual_lengths)) / (
+        np.max(individual_lengths) - np.min(individual_lengths) + 1e-8
+    )
+    height_norm = (individual_heights - np.min(individual_heights)) / (
+        np.max(individual_heights) - np.min(individual_heights) + 1e-8
     )
 
-    # --- Pareto-Based Parent A Selection with Specialization ---
-    # Encourage individuals that are good at specific subsets of cases.
+    # Stage-dependent weights:  Early stage favors exploration (diversity), late stage favors exploitation (fitness) and interpretability.
+    fitness_weight = (
+        0.3 + 0.7 * evolutionary_stage
+    )  # Increased fitness as evolution continues
+    length_weight = (
+        0.2 - 0.2 * evolutionary_stage
+    )  # Reduce tree size as evolution progresses.
+    height_weight = 0.2 - 0.2 * evolutionary_stage  # reduce height
+    diversity_weight = (
+        0.5 - 0.4 * evolutionary_stage
+    )  # Diversity decreases as evolution proceeds, allowing for convergence
 
-    # 1. Complexity Score
-    complexity_score = complexity_penalty * (num_nodes + heights)
+    # Calculate combined score
+    combined_score = (
+        fitness_weight
+        * (1 - fitness_norm)  # Invert fitness_norm because lower is better
+        + length_weight * (1 - length_norm)  # Prefer shorter lengths
+        + height_weight * (1 - height_norm)
+    )  # Prefer lower heights
 
-    # 2. Diversity Score (Euclidean Distance in Feature Space)
-    predicted_values = np.array([ind.predicted_values for ind in population])
-    min_vals = np.min(predicted_values, axis=1, keepdims=True)
-    max_vals = np.max(predicted_values, axis=1, keepdims=True)
-    normalized_predicted_values = (predicted_values - min_vals) / (
-        max_vals - min_vals + 1e-8
-    )
+    # 2. Diversity Promotion using Epsilon Lexicase
+    def epsilon_lexicase_selection(individuals, epsilon=0.01):
+        """Selects an individual using epsilon-lexicase selection."""
+        num_cases = len(individuals[0].case_values)
 
-    diversity_matrix = np.zeros((pop_size, pop_size))
-    for i in range(pop_size):
-        for j in range(i + 1, pop_size):
-            distance = np.linalg.norm(
-                normalized_predicted_values[i] - normalized_predicted_values[j]
+        # Start with all individuals as candidates
+        candidates = list(range(len(individuals)))
+
+        for case in range(num_cases):
+            if len(candidates) == 1:
+                break
+
+            # Find the best performance on this case
+            case_errors = np.array(
+                [individuals[i].case_values[case] for i in candidates]
             )
-            diversity_matrix[i, j] = distance
-            diversity_matrix[j, i] = distance
-    diversity_score = np.sum(diversity_matrix, axis=1) / (pop_size - 1 + 1e-8)
+            best_error = np.min(case_errors)
 
-    # 3. Specialization Score (Encourage individuals to fit specific subsets of cases well)
-    specialization_scores = []
-    for ind in population:
-        # Calculate the standard deviation of the residuals.
-        # Higher standard deviation implies higher variance in residuals
-        # thus less specialization on all cases. Lower standard deviation implies more specialization
-        specialization_score = -np.std(ind.y - ind.predicted_values)
-        specialization_scores.append(specialization_score)
-    specialization_scores = np.array(specialization_scores)
+            # Identify individuals within epsilon of the best error
+            nearly_best = case_errors <= (best_error + epsilon)
 
-    # Combine MSE, complexity, diversity, and specialization
-    combined_score = -(
-        mse_values
-        + complexity_score
-        - diversity_pressure * diversity_score
-        - specialization_pressure * specialization_scores
-    )
-    probabilities = softmax(combined_score * temperature)
-
-    parent_a_indices = np.random.choice(
-        pop_size, size=k // 2, replace=False, p=probabilities
-    )
-    parent_a = [population[i] for i in parent_a_indices]
-
-    # --- Complementarity-Based Parent B Selection with Diversity Bonus ---
-    parent_b = []
-    for ind_a in parent_a:
-        combined_error = float("inf")
-        best_ind_b_index = -1
-
-        # Calculate the predicted_values for the current parent a
-        predicted_values_a = ind_a.predicted_values
-
-        for i, ind_b in enumerate(population):
-            if ind_b is ind_a:
-                continue
-
-            # Calculate the predicted_values for the current parent b
-            predicted_values_b = ind_b.predicted_values
-
-            # Combine predicted values and calculate combined error
-            combined_predicted = (predicted_values_a + predicted_values_b) / 2.0
-            combined_residual = np.abs(ind_a.y - combined_predicted)
-            candidate_error = np.mean(combined_residual)
-
-            # Diversity bonus: encourage different predictions from parent A
-            diversity_bonus = (
-                np.linalg.norm(predicted_values_a - predicted_values_b)
-                * diversity_pressure
-            )
-
-            # Adjust candidate error with diversity
-            candidate_error = candidate_error - diversity_bonus
-
-            if candidate_error < combined_error:
-                combined_error = candidate_error
-                best_ind_b_index = i
-
-        if best_ind_b_index != -1:
-            parent_b.append(population[best_ind_b_index])
-        else:
-            # Fallback: If no suitable partner is found, select a random individual (excluding ind_a)
-            eligible_indices = [
-                i for i in range(pop_size) if population[i] is not ind_a
+            # Reduce the candidate pool
+            candidates = [
+                candidates[i]
+                for i, is_nearly_best in enumerate(nearly_best)
+                if is_nearly_best
             ]
-            if eligible_indices:
-                parent_b_index = np.random.choice(eligible_indices)
-                parent_b.append(population[parent_b_index])
-            else:
-                # Last Resort, when no other option is avaliable.
-                parent_b.append(ind_a)
 
-    # --- Interleave parents ---
+        # If multiple candidates remain, choose one randomly
+        return individuals[random.choice(candidates)]
+
+    # 3. Pareto-based Tournament Selection for Initial Parent A Population
+    def pareto_tournament_selection(population, k, tournsize=3):
+        selected = []
+        for _ in range(k):
+            tournament_indices = np.random.choice(
+                len(population), tournsize, replace=False
+            )
+            tournament = [population[i] for i in tournament_indices]
+
+            # Define Pareto dominance based on fitness and complexity (length)
+            def dominates(ind1, ind2):
+                return (
+                    np.mean(ind1.case_values) <= np.mean(ind2.case_values)
+                    and len(ind1) < len(ind2)
+                ) or (
+                    np.mean(ind1.case_values) < np.mean(ind2.case_values)
+                    and len(ind1) <= len(ind2)
+                )
+
+            # Find non-dominated individuals in the tournament
+            non_dominated = []
+            for ind1 in tournament:
+                is_dominated = False
+                for ind2 in tournament:
+                    if ind1 is not ind2 and dominates(ind2, ind1):
+                        is_dominated = True
+                        break
+                if not is_dominated:
+                    non_dominated.append(ind1)
+
+            # If multiple non-dominated individuals, choose one randomly. If none exist (very rare) pick a random individual from the tournament
+            if non_dominated:
+                selected.append(random.choice(non_dominated))
+            else:
+                selected.append(random.choice(tournament))
+
+        return selected
+
+    # parent_a = Select k//2 individuals for parent A, optionally considering residuals, diversity, and complexity.
+    num_pareto = k // 4
+    parent_a = pareto_tournament_selection(population, num_pareto)
+
+    num_epsilon = k // 4
+    for _ in range(num_epsilon):
+        parent_a.append(epsilon_lexicase_selection(population))
+
+    while len(parent_a) < k // 2:
+        parent_a.append(random.choice(population))  # pad if needed
+
+    # parent_b = Select k//2 individuals for parent B, considering complementarity in reducing error; diversity and complexity may also be considered.
+    parent_b = []
+    remaining_population_indices = list(range(pop_size))
+
+    for _ in range(k // 2):
+        if not remaining_population_indices:
+            # if we run out of candidates, just randomly select from the population
+            parent_b.append(population[np.random.choice(range(pop_size))])
+            continue
+
+        complementarity_scores = []
+        for j in remaining_population_indices:
+            # Measure improvement in error reduction if individual j is paired with a random individual from parent_a.
+            individual_j = population[j]
+
+            # choose a random parent A
+            random_parent_a = random.choice(parent_a)
+
+            # Spearman correlation of residuals to promote complementarity
+            corr, _ = spearmanr(
+                random_parent_a.y - random_parent_a.predicted_values,
+                individual_j.y - individual_j.predicted_values,
+            )
+
+            # If correlation is NaN, set to a large value to avoid selecting this individual
+            if np.isnan(corr):
+                corr = 1.0
+
+            complementarity_scores.append(corr)
+
+        complementarity_scores = np.array(complementarity_scores)
+
+        # Lower (more negative) correlation means better complementarity
+        best_index_within_remaining = np.argmin(complementarity_scores)
+        selected_index = remaining_population_indices[best_index_within_remaining]
+        parent_b.append(population[selected_index])
+
+        # Remove selected index to avoid duplicate selections
+        remaining_population_indices.pop(best_index_within_remaining)
+
+    # Interleave parent_a and parent_b to form crossover pairs
     selected_individuals = [
         individual for pair in zip(parent_a, parent_b) for individual in pair
     ]
+
+    # if the length of selected_individuals is less than k, then we have to pad it with random individuals
+    if len(selected_individuals) < k:
+        num_to_pad = k - len(selected_individuals)
+        for _ in range(num_to_pad):
+            selected_individuals.append(population[np.random.choice(range(pop_size))])
+
     return selected_individuals
 
 
