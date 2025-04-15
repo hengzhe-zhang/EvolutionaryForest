@@ -5,8 +5,6 @@ from deap import tools
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
-from scipy.special import softmax
-
 
 def fast_pearson(x, y):
     x = x - np.mean(x)
@@ -165,243 +163,153 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 
 def novel_selection(population, k=100, status={}):
-    """
-    Hybrid symbolic regression parent selector synthesizing strengths of Operators A & B:
-
-    Key Features:
-      - Adaptive nonlinear epsilon-lexicase filtering with early tightening + slight late relaxation.
-      - Greedy coverage-based Parent A selection promoting diverse specialization.
-      - Stochastic fallback tournament for Parent A fill robustness.
-      - Parent B selection via annealed softmax sampling balancing residual weak spots,
-        complementarity, residual diversity, and soft adaptive complexity penalty.
-      - Strict duplicate avoidance for Parent B.
-      - Complementarity and diversity explicitly included to promote crossover synergy.
-      - Complexity penalty annealed and applied softly as tie-break and score component.
-      - Clear stopping conditions to handle edge cases.
-      - Vectorized numpy operations, minimal loops.
-
-    Args:
-        population (list): Individuals with attributes:
-            - case_values (np.array): mse/errors per case (lower better)
-            - residual (np.array): y - predicted_values residual vector
-            - predicted_values (np.array)
-            - height (int)
-            - __len__() or number_of_nodes (int)
-            - y (np.array): true target values, consistent across population
-        k (int): even positive integer, number of total parents to select (paired)
-        status (dict): expects "evolutionary_stage" float in [0,1]
-
-    Returns:
-        list: k selected individuals interleaved as [parent_a0, parent_b0, parent_a1, parent_b1, ...]
-    """
-    rng = np.random.default_rng()
-    N = len(population)
-    if N < 2 or k < 2:
+    # Defensive checks
+    n = len(population)
+    if n == 0 or k == 0:
         return []
-    k = min(k, 2 * N)
-    if k % 2 != 0:
-        k -= 1
-    if k == 0:
-        return []
+    k = min(k, n if n % 2 == 0 else n - 1)
 
-    evo_stage = float(status.get("evolutionary_stage", 0.0))
-    evo_stage = np.clip(evo_stage, 0.0, 1.0)
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    alpha = 1 - stage  # early favors exploration, late exploitation
 
-    # --- Extract population data arrays ---
-    fitness_matrix = np.stack(
-        [np.asarray(ind.case_values) for ind in population]
-    )  # (N,C)
-    residual_matrix = np.stack(
-        [np.asarray(ind.residual) for ind in population]
-    )  # (N,C)
-    y_true = population[0].y
-    C = fitness_matrix.shape[1]
-
-    nodes = np.array(
+    # Extract metrics using numpy arrays
+    mses = np.array(
         [
-            len(ind) if hasattr(ind, "__len__") else getattr(ind, "number_of_nodes", 0)
+            np.mean(ind.case_values)
+            if hasattr(ind.case_values, "__len__")
+            else float(ind.case_values)
             for ind in population
         ],
         dtype=float,
     )
-    height = np.array([getattr(ind, "height", 0) for ind in population], dtype=float)
+    nodes = np.array([len(ind) for ind in population], dtype=float)
+    height = np.array([ind.height for ind in population], dtype=float)
+    residuals = np.array(
+        [ind.y - ind.predicted_values for ind in population], dtype=float
+    )  # shape (n,samples)
 
-    # Normalize complexities to [0,1]
-    nodes_norm = (nodes - np.min(nodes)) / max(np.ptp(nodes), 1e-12)
-    height_norm = (height - np.min(height)) / max(np.ptp(height), 1e-12)
-    complexity = 0.5 * nodes_norm + 0.5 * height_norm  # combined complexity (0=best)
-
-    # --- Adaptive epsilon schedule (based on Operator A nonlinear + stability) ---
-    # Early tightening: ~1.0 -> 0.4 by evo=0.55; slight relaxation to ~0.6 by evo=1.0
-    if evo_stage < 0.55:
-        eps_factor = 1.0 - 1.6 * (evo_stage / 0.55)
+    # Normalize complexity weighted: nodes (0.7) + height (0.3)
+    max_nodes = nodes.max() if nodes.max() > 0 else 1
+    max_height = height.max() if height.max() > 0 else 1
+    comp_raw = (nodes / max_nodes) * 0.7 + (height / max_height) * 0.3
+    if comp_raw.max() > 0:
+        comp = comp_raw / comp_raw.max()
     else:
-        eps_factor = 0.4 + 0.2 * ((evo_stage - 0.55) / 0.45)
-    eps_factor = np.clip(eps_factor, 0.3, 1.0)
+        comp = comp_raw
 
-    median_abs_residuals = np.median(np.abs(residual_matrix), axis=0)  # (C,)
-    epsilon = median_abs_residuals * eps_factor  # adaptive epsilon per case
+    mse_max = mses.max() if mses.max() > 0 else 1
+    mse_norm = mses / mse_max
 
-    # Identify specialization mask: True if individual's residual for case <= min + epsilon
-    min_residuals = np.min(residual_matrix, axis=0)  # (C,)
-    spec_mask = residual_matrix <= (min_residuals + epsilon)  # (N,C)
-    spec_scores = spec_mask.sum(axis=1) / C  # fraction of cases specialized
+    # Residual clustering for diversity (use fallback zeros on failure)
+    try:
+        from sklearn.random_projection import GaussianRandomProjection
+        from sklearn.cluster import KMeans
 
-    # --- Parent A Selection: Greedy coverage of specialized cases + soft complexity tie-break + fallback tournament ---
+        n_components = min(10, residuals.shape[1])
+        proj = GaussianRandomProjection(
+            n_components=n_components, random_state=0
+        ).fit_transform(residuals)
+        n_clusters = min(10, proj.shape[0])
+        clusters = KMeans(n_clusters=n_clusters, n_init=5, random_state=1).fit_predict(
+            proj
+        )
+    except Exception:
+        clusters = np.zeros(n, dtype=int)
 
-    # Candidates ordered descending by specialization fraction
-    candidate_order = np.argsort(-spec_scores)
-    selected_a_idx = []
-    covered_cases = np.zeros(C, dtype=bool)
+    unique_clusters = np.unique(clusters)
+    c_num = len(unique_clusters)
 
-    # Soft complexity penalty weight diminishes as evolution progresses
-    complexity_weight_a = 0.15 * (1.0 - evo_stage)  # tie-break weight
+    rng = np.random.default_rng()
 
-    # Greedy coverage selection loop with minimal iterations (early break)
-    for idx in candidate_order:
-        if len(selected_a_idx) >= (k // 2):
+    # Introduce mild noise scaled inversely by alpha to favor exploration early,
+    # but reduce noise late for exploitation stability
+    noise = rng.uniform(0, 0.05 + 0.05 * alpha, size=n)
+
+    # Score parent A candidates by weighted mse+complexity plus noise for diversity
+    cluster_scores = np.empty(n)
+    for c in unique_clusters:
+        idx = clusters == c
+        cluster_scores[idx] = (
+            alpha * (mse_norm[idx] + comp[idx]) + (1 - alpha) * noise[idx]
+        )
+
+    # Select parent A: per cluster limit adaptive to cluster count, ensuring diversity
+    parent_a = []
+    limit_per_cluster = max(1, k // (2 * c_num))
+    for c in unique_clusters:
+        c_idx = np.where(clusters == c)[0]
+        sorted_idx = c_idx[np.argsort(cluster_scores[c_idx])]
+        parent_a.extend(population[i] for i in sorted_idx[:limit_per_cluster])
+
+    # Fill parent A if not enough
+    if len(parent_a) < k // 2:
+        combined_scores = alpha * mse_norm + (1 - alpha) * comp
+        global_order = np.argsort(combined_scores)
+        for i in global_order:
+            if population[i] not in parent_a and len(parent_a) < k // 2:
+                parent_a.append(population[i])
+    parent_a = parent_a[: k // 2]
+
+    # Prepare parent B candidates: top 2*k by combined score
+    combined_scores = alpha * mse_norm + (1 - alpha) * comp
+    top_b_candidates = np.argsort(combined_scores)[: min(2 * k, n)]
+
+    # Normalize residuals to zero-mean and unit std (per individual)
+    resid_mean = residuals.mean(axis=1, keepdims=True)
+    resid_std = residuals.std(axis=1, keepdims=True) + 1e-12
+    residuals_norm = (residuals - resid_mean) / resid_std
+
+    parent_b = []
+    taken_b = set()
+    pop_index = {id(ind): i for i, ind in enumerate(population)}
+
+    # For each parent A, find complementary parent B minimizing residual corr + penalty
+    for ind_a in parent_a:
+        i_a = pop_index[id(ind_a)]
+        res_a = residuals_norm[i_a]
+        candidates = [i for i in top_b_candidates if i not in taken_b and i != i_a]
+        if not candidates:
             break
-        new_coverage = spec_mask[idx] & (~covered_cases)
-        # Accept if covers new cases or if no parents selected yet
-        if new_coverage.any() or len(selected_a_idx) == 0:
-            selected_a_idx.append(idx)
-            covered_cases |= spec_mask[idx]
+        # Vectorized abs correlations:
+        # corr(X,Y) = cov(X,Y)/ (std(X)* std(Y))
+        # Here std=1 already normalized, so corr = dot product / (len-1)
+        # But safer to stick with numpy corrcoef for correctness on small arrays
 
-    # Backup fill ignoring coverage but favor higher specialization - with soft complexity tie-break
-    if len(selected_a_idx) < (k // 2):
-        remaining = [idx for idx in candidate_order if idx not in selected_a_idx]
-        # Calculate tie-break score: specialization_fraction - complexity_weight * complexity
-        # Higher specialization + lower complexity preferred
-        tie_scores = (
-            spec_scores[remaining] - complexity_weight_a * complexity[remaining]
+        corrs = np.array(
+            [
+                np.abs(np.corrcoef(res_a, residuals_norm[c])[0, 1])
+                if residuals_norm[c].size > 1
+                else 1.0
+                for c in candidates
+            ]
         )
-        rem_order = np.argsort(-tie_scores)
-        for i in rem_order:
-            selected_a_idx.append(remaining[i])
-            if len(selected_a_idx) >= (k // 2):
+
+        # Penalize with complexity+mse combined score (weight 0.5) to keep quality
+        penalty = combined_scores[candidates]
+        scores = corrs + 0.5 * penalty
+
+        sel = candidates[np.argmin(scores)]
+        parent_b.append(population[sel])
+        taken_b.add(sel)
+        if len(parent_b) >= k // 2:
+            break
+
+    # Fill parent B if not enough
+    if len(parent_b) < k // 2:
+        rest = [
+            i
+            for i in range(n)
+            if population[i] not in parent_a and population[i] not in parent_b
+        ]
+        rest_sorted = sorted(rest, key=lambda i: combined_scores[i])
+        for i in rest_sorted:
+            if len(parent_b) == k // 2:
                 break
+            parent_b.append(population[i])
+    parent_b = parent_b[: k // 2]
 
-    # Fallback stochastic tournament if still insufficient
-    if len(selected_a_idx) < (k // 2):
-        remaining = [i for i in range(N) if i not in selected_a_idx]
-        if remaining:
-            spec_norm = (spec_scores - spec_scores.min()) / max(
-                np.ptp(spec_scores), 1e-12
-            )
-            tournament_size = int(np.interp(evo_stage, [0, 1], [5, 3]))
-            while len(selected_a_idx) < (k // 2):
-                participants = rng.choice(
-                    remaining, min(tournament_size, len(remaining)), replace=False
-                )
-                winner = participants[np.argmax(spec_norm[participants])]
-                selected_a_idx.append(winner)
-                remaining.remove(winner)
-
-    selected_a_idx = np.array(selected_a_idx[: (k // 2)])
-
-    # --- Parent B Selection: Annealed softmax sampling on composite scoring ---
-    # Components:
-    #   - residual weak spots mean error (lower better)
-    #   - complementarity norm (lower better)
-    #   - residual diversity (higher better)
-    #   - complexity penalty (lower complexity better)
-    # Annealed weights modulated by evo_stage for balance.
-
-    residuals_centered = residual_matrix - residual_matrix.mean(axis=1, keepdims=True)
-    norm_residuals = np.linalg.norm(residuals_centered, axis=1) + 1e-12
-
-    used_b = set()
-    selected_b_idx = []
-
-    # Annealing weights for components
-    complexity_weight_b = (
-        0.6 * (1.0 - evo_stage) + 0.15 * evo_stage
-    )  # stronger early, lighter late
-    diversity_weight = (
-        0.25 * (1.0 - evo_stage) + 0.4 * evo_stage
-    )  # diversity gains weight late
-    complementarity_weight = (
-        0.5 * (1.0 - evo_stage) + 0.35 * evo_stage
-    )  # complementarity balanced
-    residual_weight = (
-        0.4 * (1.0 - evo_stage) + 0.6 * evo_stage
-    )  # residual weak spots more important late
-
-    # Temperature annealing for softmax: high early, low late for exploration->exploitation
-    temperature = np.interp(evo_stage, [0, 1], [2.8, 0.5])
-
-    for a_idx in selected_a_idx:
-        a_residual = residual_matrix[a_idx]
-        a_res_centered = residuals_centered[a_idx]
-        a_norm = norm_residuals[a_idx]
-
-        # Define weak spots: residuals above 75th percentile of a_idx residuals
-        weak_threshold = np.percentile(a_residual, 75)
-        weak_spots = a_residual > weak_threshold
-        if not np.any(weak_spots):
-            weak_spots = np.ones_like(weak_spots, dtype=bool)  # fallback all cases
-
-        # Mean residuals on weak spots: lower better
-        residual_scores = residual_matrix[:, weak_spots].mean(axis=1)
-
-        # Complementarity (how well residuals offset each other): sum of abs(a_residual + candidate residual)
-        combined_abs = np.abs(a_residual[None, :] + residual_matrix)
-        combined_sum = combined_abs.sum(axis=1)
-        combined_norm = (combined_sum - combined_sum.min()) / max(
-            np.ptp(combined_sum), 1e-12
-        )
-
-        # Diversity: cosine distance (1 - cosine similarity)
-        dotprod = residuals_centered @ a_res_centered
-        cosine_sim = dotprod / (norm_residuals * a_norm)
-        diversity_score = 1.0 - cosine_sim  # higher = more diverse
-
-        # Composite raw score (lower better)
-        raw_score = (
-            residual_weight * residual_scores
-            + complementarity_weight * combined_norm
-            - diversity_weight * diversity_score
-            + complexity_weight_b * complexity
-        )
-
-        # Exclude self and duplicates strictly
-        raw_score[a_idx] = np.inf
-        for used_idx in used_b:
-            raw_score[used_idx] = np.inf
-
-        valid_mask = np.isfinite(raw_score)
-        if np.any(valid_mask):
-            neg_scores = -raw_score[valid_mask]
-            probs = softmax(neg_scores * temperature)
-            # Stability check for probs
-            if np.sum(probs) < 1e-14 or np.any(np.isnan(probs)):
-                candidates = np.where(valid_mask)[0]
-                chosen_rel = rng.choice(candidates)
-                chosen_b = np.flatnonzero(valid_mask)[chosen_rel]
-            else:
-                candidate_indices = np.where(valid_mask)[0]
-                chosen_b = rng.choice(candidate_indices, p=probs)
-        else:
-            # Fallback relax: allow duplicates but not self
-            fallback_mask = np.ones(N, dtype=bool)
-            fallback_mask[a_idx] = False
-            candidates = np.where(fallback_mask)[0]
-            chosen_b = rng.choice(candidates)
-
-        selected_b_idx.append(chosen_b)
-        used_b.add(chosen_b)
-
-    selected_b_idx = np.array(selected_b_idx)
-
-    # --- Form final selection interleaving Parent A and Parent B ---
-    parent_a = [population[i] for i in selected_a_idx]
-    parent_b = [population[i] for i in selected_b_idx]
-
+    # Interleave parent_a and parent_b for final selection
     selected_individuals = [ind for pair in zip(parent_a, parent_b) for ind in pair]
-
-    assert len(selected_individuals) == k, (
-        f"Expected {k} selected but got {len(selected_individuals)}"
-    )
 
     return selected_individuals
 
