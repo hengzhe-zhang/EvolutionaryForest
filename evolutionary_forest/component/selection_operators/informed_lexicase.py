@@ -83,7 +83,7 @@ def select_cps_regression(population, k, operator="Tournament"):
     """
     selected = []
 
-    for _ in range(k):
+    for _ in range(k // 2):
         # 1. Tournament selection for mother (tournsize=3)
         if operator == "Tournament":
             mother = tools.selTournament(population, 1, tournsize=3)[0]
