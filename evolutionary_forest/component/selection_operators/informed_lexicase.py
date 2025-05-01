@@ -163,88 +163,61 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 
 def novel_selection(population, k=100, status={}):
-    evo_stage = status.get("evolutionary_stage", 0)
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
     n = len(population)
-    if n == 0:
-        return []
-    k = min(k, 2 * (n // 2))  # Ensure pairs
+    k = min(k, n if n % 2 == 0 else n - 1)
+    half_k = k // 2
 
-    # Extract traits
-    mse = np.array([ind.case_values.mean() for ind in population])
-    nodes = np.array([len(ind) for ind in population], dtype=float)
-    height = np.array([ind.height for ind in population], dtype=float)
-    complexity = (nodes / (nodes.max() + 1e-8) + height / (height.max() + 1e-8)) / 2
+    mses = np.array([ind.case_values.mean() for ind in population])
+    nodes = np.array([len(ind) for ind in population])
+    heights = np.array([ind.height for ind in population])
+    complexity = nodes + heights
+    preds = np.array([ind.predicted_values for ind in population])
+    resid = np.array([ind.y - ind.predicted_values for ind in population])
+    n_inst = preds.shape[1]
 
-    residuals = np.array([ind.y - ind.predicted_values for ind in population])
-    n_subsets = 5
-    subset_len = residuals.shape[1] // n_subsets
-    pressure = (
-        0.5 + 0.5 * evo_stage
-    )  # from 0.5 to 1 increasing interpretability pressure
+    mse_n = (mses - mses.min()) / (mses.ptp() + 1e-12)
+    comp_n = (complexity - complexity.min()) / (complexity.ptp() + 1e-12)
+    interp = 1 / (1 + complexity)
 
-    # Normalize mse for fitness blend
-    mse_norm = (mse - mse.min()) / (mse.ptp() + 1e-9)
-    base_fitness = (1 - pressure) * (1 - complexity) + pressure * (1 - mse_norm)
+    w_fit = 0.7 * stage + 0.3 * (1 - stage)
+    w_interp = 0.7 * (1 - stage) + 0.3 * stage
+    w_div = 0.5 * (1 - stage)
 
-    parent_a = []
-    used = set()
+    rng = np.random.default_rng(42 + int(stage * 1e5))
+    size_sub_a = max(5, n_inst // 7)
+    size_sub_b = max(5, n_inst // 6)
+    idx_sub_a = rng.choice(n_inst, size_sub_a, replace=False)
+    idx_sub_b = rng.choice(n_inst, size_sub_b, replace=False)
 
-    # Diverse, specialized selection via subsets
-    for si in range(n_subsets):
-        if len(parent_a) >= k // 2:
-            break
-        start = si * subset_len
-        end = (start + subset_len) if si < n_subsets - 1 else residuals.shape[1]
-        res_sub = residuals[:, start:end]
-        var_sub = np.var(res_sub, axis=1)
-        var_norm = var_sub / (var_sub.max() + 1e-8)
-        subset_score = base_fitness + 0.5 * var_norm  # encourage specialization
+    preds_a = preds[:, idx_sub_a]
+    preds_b = preds[:, idx_sub_b]
 
-        order = np.argsort(-subset_score)
-        for idx in order:
-            if len(parent_a) >= k // 2:
-                break
-            if idx in used:
-                continue
-            if (
-                all(
-                    np.linalg.norm(residuals[idx] - residuals[p]) > 0.1
-                    for p in parent_a
-                )
-                or len(parent_a) < 2
-            ):
-                parent_a.append(idx)
-                used.add(idx)
+    # Diversity for parent A on subset A
+    diff_a = preds_a[:, None, :] - preds_a[None, :, :]
+    diversity_a = np.sqrt(np.mean(diff_a**2, axis=2)).mean(axis=1)
 
-    # Fill up parent_a if needed
-    if len(parent_a) < k // 2:
-        remain = list(set(range(n)) - used)
-        w = base_fitness[remain]
-        if w.sum() > 0:
-            w = w / w.sum()
-            chosen = np.random.choice(
-                remain, k // 2 - len(parent_a), replace=False, p=w
-            )
-        else:
-            chosen = np.random.choice(remain, k // 2 - len(parent_a), replace=False)
-        parent_a.extend(chosen)
+    # Composite score for parent A balancing fit, interpretability, diversity
+    score_a = w_fit * (1 - mse_n) + w_interp * interp + w_div * diversity_a
+    idx_a = np.argpartition(-score_a, half_k)[:half_k]
+    parent_a = [population[i] for i in idx_a]
 
-    # Parent B: select complements maximizing orthogonality, fitness & simplicity
+    max_comp = max(complexity.max(), 1)
+    comp_penalty = 0.5 * (complexity[:, None] + complexity) / (2 * max_comp)
+
     parent_b = []
-    for pa in parent_a:
-        dist = np.linalg.norm(residuals - residuals[pa], axis=1)
-        dist_norm = dist / (dist.max() + 1e-8)
-        comp_score = (
-            pressure * (1 - mse_norm)
-            + (1 - pressure) * (1 - complexity)
-            + 0.5 * dist_norm
-        )
-        comp_score[pa] = -np.inf
-        idx_b = np.argmax(comp_score)
-        parent_b.append(idx_b)
+    for i_a in idx_a:
+        res_a = resid[i_a, idx_sub_b]
+        div_i = np.sqrt(np.mean((preds_b[i_a] - preds_b) ** 2, axis=1))
+        mask = np.arange(n) != i_a
+        combined_var = np.var(res_a + resid[:, idx_sub_b], axis=1)
+        combined_var[~mask] = np.inf
+        scores = combined_var + comp_penalty[i_a] - 0.3 * div_i
+        b_idx = np.argmin(scores)
+        parent_b.append(population[b_idx])
 
-    selected = [population[i] for pair in zip(parent_a, parent_b) for i in pair]
-    return selected[:k]
+    selected_individuals = [ind for pair in zip(parent_a, parent_b) for ind in pair]
+    return selected_individuals[:k]
 
 
 def novel_selection_plus(population, k=1, status={}):
