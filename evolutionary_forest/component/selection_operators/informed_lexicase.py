@@ -164,76 +164,87 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 def novel_selection(population, k=100, status={}):
     evo_stage = status.get("evolutionary_stage", 0)
-    max_iter = 10 * k
-    selected_a, selected_b = [], []
     n = len(population)
+    if n == 0:
+        return []
+    k = min(k, 2 * (n // 2))  # Ensure pairs
 
-    # Precompute scalar metrics for each individual
-    mse_arr = np.array([np.mean(ind.case_values) for ind in population])
-    nodes_arr = np.array([len(ind) for ind in population])
-    height_arr = np.array([ind.height for ind in population])
-    complexity = nodes_arr + height_arr
-    # Normalize complexity and mse
-    c_norm = (complexity - complexity.min()) / (complexity.ptp() + 1e-8)
-    mse_norm = (mse_arr - mse_arr.min()) / (mse_arr.ptp() + 1e-8)
+    # Extract traits
+    mse = np.array([ind.case_values.mean() for ind in population])
+    nodes = np.array([len(ind) for ind in population], dtype=float)
+    height = np.array([ind.height for ind in population], dtype=float)
+    complexity = (nodes / (nodes.max() + 1e-8) + height / (height.max() + 1e-8)) / 2
 
-    # Stage-dependent weight factors (early: diversity, late: performance & simplicity)
-    w_perf = 0.3 + 0.7 * evo_stage
-    w_comp = 0.7 - 0.5 * evo_stage
-    w_div = 1 - (w_perf + w_comp)
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    n_subsets = 5
+    subset_len = residuals.shape[1] // n_subsets
+    pressure = (
+        0.5 + 0.5 * evo_stage
+    )  # from 0.5 to 1 increasing interpretability pressure
 
-    # Diversity: pairwise residual patterns (vectorized)
-    residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
-    norm_res = residuals / (np.linalg.norm(residuals, axis=1, keepdims=True) + 1e-8)
-    div_matrix = 1 - np.dot(norm_res, norm_res.T)
+    # Normalize mse for fitness blend
+    mse_norm = (mse - mse.min()) / (mse.ptp() + 1e-9)
+    base_fitness = (1 - pressure) * (1 - complexity) + pressure * (1 - mse_norm)
 
-    # Score for parent_a: prioritize high perf, simplicity, and diversity
-    score_a = (1 - mse_norm) * w_perf + (1 - c_norm) * w_comp
-    indices = np.argsort(score_a)[::-1]
-    # Select diverse top individuals iteratively with complexity & max attempts
-    attempts = 0
-    while len(selected_a) < k // 2 and attempts < max_iter:
-        candidate = population[indices[len(selected_a)]]
-        # Check diversity to selected_a in residual space
-        if (
-            all(
-                div_matrix[population.index(candidate), population.index(sel)] > 0.3
-                for sel in selected_a
+    parent_a = []
+    used = set()
+
+    # Diverse, specialized selection via subsets
+    for si in range(n_subsets):
+        if len(parent_a) >= k // 2:
+            break
+        start = si * subset_len
+        end = (start + subset_len) if si < n_subsets - 1 else residuals.shape[1]
+        res_sub = residuals[:, start:end]
+        var_sub = np.var(res_sub, axis=1)
+        var_norm = var_sub / (var_sub.max() + 1e-8)
+        subset_score = base_fitness + 0.5 * var_norm  # encourage specialization
+
+        order = np.argsort(-subset_score)
+        for idx in order:
+            if len(parent_a) >= k // 2:
+                break
+            if idx in used:
+                continue
+            if (
+                all(
+                    np.linalg.norm(residuals[idx] - residuals[p]) > 0.1
+                    for p in parent_a
+                )
+                or len(parent_a) < 2
+            ):
+                parent_a.append(idx)
+                used.add(idx)
+
+    # Fill up parent_a if needed
+    if len(parent_a) < k // 2:
+        remain = list(set(range(n)) - used)
+        w = base_fitness[remain]
+        if w.sum() > 0:
+            w = w / w.sum()
+            chosen = np.random.choice(
+                remain, k // 2 - len(parent_a), replace=False, p=w
             )
-            or len(selected_a) == 0
-        ):
-            selected_a.append(candidate)
-        attempts += 1
-    if len(selected_a) < k // 2:
-        selected_a += [population[i] for i in indices[len(selected_a) : k // 2]]
+        else:
+            chosen = np.random.choice(remain, k // 2 - len(parent_a), replace=False)
+        parent_a.extend(chosen)
 
-    # Score for parent_b: complementarity to parent_a residuals (+simplicity & perf)
-    selected_a_idx = [population.index(ind) for ind in selected_a]
-    mean_res_a = norm_res[selected_a_idx].mean(axis=0)
-    comp_scores = []
-    for i, ind in enumerate(population):
-        res_dot = np.dot(norm_res[i], mean_res_a)
-        comp = 1 - res_dot  # Complementarity (want high)
-        perf_sim = (1 - mse_norm[i]) * w_perf + (1 - c_norm[i]) * w_comp
-        comp_scores.append(comp + perf_sim * w_div)
-    comp_scores = np.array(comp_scores)
-    b_indices = comp_scores.argsort()[::-1]
+    # Parent B: select complements maximizing orthogonality, fitness & simplicity
+    parent_b = []
+    for pa in parent_a:
+        dist = np.linalg.norm(residuals - residuals[pa], axis=1)
+        dist_norm = dist / (dist.max() + 1e-8)
+        comp_score = (
+            pressure * (1 - mse_norm)
+            + (1 - pressure) * (1 - complexity)
+            + 0.5 * dist_norm
+        )
+        comp_score[pa] = -np.inf
+        idx_b = np.argmax(comp_score)
+        parent_b.append(idx_b)
 
-    attempts = 0
-    while len(selected_b) < k // 2 and attempts < max_iter:
-        candidate = population[b_indices[len(selected_b)]]
-        # Enforce difference from parent_a to encourage complementarity
-        if all(
-            div_matrix[population.index(candidate), idx] > 0.4 for idx in selected_a_idx
-        ):
-            selected_b.append(candidate)
-        attempts += 1
-    if len(selected_b) < k // 2:
-        selected_b += [population[i] for i in b_indices[len(selected_b) : k // 2]]
-
-    # Interleave parent_a and parent_b for crossover pairs
-    selected_individuals = [ind for pair in zip(selected_a, selected_b) for ind in pair]
-    return selected_individuals
+    selected = [population[i] for pair in zip(parent_a, parent_b) for i in pair]
+    return selected[:k]
 
 
 def novel_selection_plus(population, k=1, status={}):
