@@ -163,100 +163,85 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 
 def novel_selection(population, k=100, status={}):
-    n = len(population)
-    k = min(k, n if n % 2 == 0 else n - 1)
-    half_k = k // 2
     stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    n = len(population)
+    if n == 0 or k == 0:
+        return []
+    k = min(k, n - (k % 2))
+    half_k = k // 2
+    n_cases = population[0].y.shape[0]
 
-    mse = np.array([ind.case_values.mean() for ind in population])
+    mse = np.array([np.mean(ind.case_values) for ind in population])
     nodes = np.array([len(ind) for ind in population])
     height = np.array([ind.height for ind in population])
-    complexity = nodes + height
+    complexity = (nodes / max(nodes.max(), 1) + height / max(height.max(), 1)) / 2
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
 
-    # Normalize helper
-    norm = lambda x: (x - x.min()) / (x.ptp() + 1e-9)
-    mse_n, comp_n = norm(mse), norm(complexity)
+    def norm(x):
+        r = x.ptp()
+        return (x - x.min()) / (r + 1e-9)
 
-    # Residuals and instance subsampling
-    resids = np.array([ind.y - ind.predicted_values for ind in population])
-    inst_cnt = resids.shape[1]
-    subset_size = max(5, int(0.15 * inst_cnt))
-    subset_idx = np.random.choice(inst_cnt, subset_size, replace=False)
-    sub_resids = resids[:, subset_idx]
+    mse_n = norm(mse)
+    diversity = np.array([np.std(res) for res in residuals])
+    diversity_n = norm(diversity)
 
-    # Diversity: mean absolute deviation on subset
-    diversity = np.abs(sub_resids - sub_resids.mean(axis=1, keepdims=True)).mean(axis=1)
-    div_n = diversity / (diversity.max() + 1e-9)
+    fit_w = 0.4 + 0.6 * stage
+    comp_w = 1 - fit_w
 
-    # Stage-adjusted weights favoring error early, complexity late, diversity always
-    alpha_err = 0.65 * (1 - stage) + 0.35 * stage
-    alpha_cplx = 1 - alpha_err
-
-    # Compute base score combining normalized mse, complexity, and diversity (diversity reduces score)
-    base_score = alpha_err * mse_n + alpha_cplx * comp_n - 0.5 * div_n
-
-    # Select parent A: best individuals with low score on two random disjoint subsets for specialization
-    half_sub = subset_size // 2 if subset_size >= 6 else max(1, subset_size // 2)
-    idx_perm = np.random.permutation(subset_size)
-    idx_sub1, idx_sub2 = (
-        subset_idx[idx_perm[:half_sub]],
-        subset_idx[idx_perm[half_sub:]],
-    )
-
-    mse_sub1 = np.array(
-        [
-            ind.case_values[idx_sub1].mean()
-            if len(idx_sub1) > 0
-            else ind.case_values.mean()
-            for ind in population
-        ]
-    )
-    mse_sub1_n = norm(mse_sub1)
-    score_sub1 = alpha_err * mse_sub1_n + alpha_cplx * comp_n - 0.4 * div_n
-    parent_a_idx = np.argpartition(score_sub1, half_k)[:half_k]
-    parent_a = [population[i] for i in parent_a_idx]
-
-    # Select parent B complementary to each parent A based on residual anticorrelation and complexity/diversity penalties
-    selected_b = []
-    resids_sub2 = resids[:, idx_sub2] if len(idx_sub2) > 0 else resids
-    mse_sub2 = np.array(
-        [
-            ind.case_values[idx_sub2].mean()
-            if len(idx_sub2) > 0
-            else ind.case_values.mean()
-            for ind in population
-        ]
-    )
-    mse_sub2_n = norm(mse_sub2)
-
-    for i, ind_a in enumerate(parent_a):
-        a_idx = parent_a_idx[i]
-        a_resid = resids_sub2[a_idx]
-        if a_resid.std() < 1e-12:
-            selected_b.append(ind_a)
-            continue
-        candidates = [j for j in range(n) if j != a_idx]
-        cand_resids = resids_sub2[candidates]
-        stds = cand_resids.std(axis=1)
-        valid = stds > 1e-12
-        corrs = np.zeros(len(candidates))
-        if np.any(valid):
-            corrs[valid] = np.array(
-                [np.corrcoef(a_resid, cand_resids[i])[0, 1] for i in np.where(valid)[0]]
-            )
-        anticorr = 1 - np.abs(corrs)
-
-        comp_score = (
-            anticorr * (0.6 + 0.4 * stage)
-            - 0.35 * stage * comp_n[candidates]
-            + 0.25 * (1 - stage) * div_n[candidates]
-            - 0.25 * mse_sub2_n[candidates]
+    subsets = np.array_split(np.random.permutation(n_cases), half_k)
+    parent_a, used = [], set()
+    for subset in subsets:
+        subset_mse = np.array(
+            [
+                np.mean((ind.y[subset] - ind.predicted_values[subset]) ** 2)
+                for ind in population
+            ]
         )
-        best = candidates[np.argmax(comp_score)]
-        selected_b.append(population[best])
+        spec_score = norm(-subset_mse)
+        score = fit_w * (1 - mse_n) + comp_w * (
+            0.4 * (1 - complexity) + 0.35 * spec_score + 0.25 * diversity_n
+        )
+        sorted_idx = np.argsort(-score)
+        for idx in sorted_idx:
+            if idx not in used:
+                parent_a.append(population[idx])
+                used.add(idx)
+                break
+        else:
+            parent_a.append(population[sorted_idx[0]])
+            used.add(sorted_idx[0])
 
-    # Interleave parents for paired crossover
-    return [ind for pair in zip(parent_a, selected_b) for ind in pair]
+    parent_b = []
+    diversity_max = max(diversity.max(), 1)
+    nodes_max, height_max = max(nodes.max(), 1), max(height.max(), 1)
+    complexity_raw = (nodes / nodes_max + height / height_max) / 2
+    for ind_a in parent_a:
+        res_a = ind_a.y - ind_a.predicted_values
+        std_a = np.std(res_a)
+        std_a = std_a if std_a > 1e-10 else 1
+        res_b_all = residuals
+        std_b_all = np.std(res_b_all, axis=1)
+        std_b_all[std_b_all < 1e-10] = 1
+        corr_num = (
+            (res_b_all - res_b_all.mean(axis=1, keepdims=True))
+            * (res_a - np.mean(res_a))
+        ).mean(axis=1)
+        corr = corr_num / (std_b_all * std_a)
+        corr[np.isnan(corr)] = 0
+        idx_a = np.where(np.array(population) == ind_a)[0][0]
+        corr[idx_a] = np.inf
+        fit_score = mse
+        diversity_scaled = diversity / diversity_max
+        combined_score = (
+            np.abs(corr) * (1 - stage)
+            + comp_w * (0.4 * complexity_raw + 0.25 * diversity_scaled)
+            + fit_score * stage
+        )
+        combined_score[idx_a] = np.inf
+        best_idx = np.argmin(combined_score)
+        parent_b.append(population[best_idx])
+
+    return [ind for pair in zip(parent_a, parent_b) for ind in pair]
 
 
 def novel_selection_plus(population, k=1, status={}):
