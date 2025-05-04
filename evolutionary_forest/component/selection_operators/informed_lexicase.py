@@ -245,79 +245,71 @@ def novel_selection(population, k=100, status={}):
 
 
 def novel_selection_plus(population, k=100, status={}):
-    evo = status.get("evolutionary_stage", 0)
     n = len(population)
-    k = min(k, (n // 2) * 2)
-    half_k = k // 2
+    k = min(k, n if n % 2 == 0 else n - 1)
+    if k == 0:
+        return []
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    pressure = 0.5 + 0.5 * stage  # from 0.5 (early) to 1 (late)
+    M = k // 2
 
-    mse = np.array([np.mean(ind.case_values) for ind in population])
-    nodes = np.array([len(ind) for ind in population])
-    height = np.array([ind.height for ind in population])
-    complexity = nodes + 2 * height
-    comp_norm = (complexity - complexity.min()) / (complexity.ptp() + 1e-8)
-    comp_inv = 1 - comp_norm  # prefer simpler
+    nodes = np.array([len(ind) for ind in population], float)
+    heights = np.array([ind.height for ind in population], float)
+    mse_mat = np.array([ind.case_values for ind in population], float)
+    residuals = np.array([ind.y - ind.predicted_values for ind in population], float)
+    n_cases = mse_mat.shape[1]
 
-    residuals = np.array([ind.y - ind.predicted_values for ind in population])
-    inst_count = residuals.shape[1]
-    norm_mse = (mse - mse.min()) / (mse.ptp() + 1e-8)
-    fit_score = 1 - norm_mse
-    abs_res = np.abs(residuals)
+    # Normalize complexity for interpretability (prefer simpler individuals)
+    complexity = (nodes / (nodes.max() + 1e-9) + heights / (heights.max() + 1e-9)) / 2
 
-    # Define subsets emphasizing diversity & specialization by stage
-    if evo < 0.1:
-        subsets = [np.random.choice(inst_count, max(inst_count // 3, 1), replace=False)]
-    elif evo < 0.4:
-        q = max(inst_count // 4, 1)
-        subsets = [slice(i * q, (i + 1) * q) for i in range(4)]
-    else:
-        subsets = [slice(0, max(inst_count // 2, 1))]
+    rng = np.random.default_rng()
+    parent_a_idx = []
+    max_tries = 10 * M
+    tries = 0
+    subset_size = max(1, n_cases // 3)
 
-    scores = []
-    for s in subsets:
-        std_sub = np.std(residuals[:, s], axis=1)
-        diversity = std_sub / (std_sub.max() + 1e-8)
-        if evo < 0.3:
-            score = (0.5 * fit_score + 0.4 * diversity) * comp_inv
-        else:
-            score = 0.6 * fit_score + 0.3 * comp_inv + 0.1 * diversity
-        scores.append(score)
-    combined = np.mean(scores, axis=0)
+    residual_var = residuals.var(axis=1)
 
-    # Late stage: refine combined with specialization on early instances if evo >= 0.4
-    if evo >= 0.4:
-        q = max(inst_count // 4, 1)
-        std_q = np.std(residuals[:, :q], axis=1)
-        std_q_n = std_q / (std_q.max() + 1e-8)
-        combined = 0.6 * fit_score + 0.3 * comp_inv + 0.1 * std_q_n
+    # Diverse & specialized selection for parent A combining fitness, complexity & residual variance
+    # Residual variance encourages specialization on different errors
+    while len(parent_a_idx) < M and tries < max_tries:
+        tries += 1
+        subset = rng.choice(n_cases, size=subset_size, replace=False)
+        fit_sub = mse_mat[:, subset].mean(axis=1)
+        # Combine stage-weighted fitness, complexity, and negative residual variance
+        score = pressure * fit_sub + (1 - pressure) * complexity - 0.15 * residual_var
+        candidate = np.argmin(score)
+        if candidate not in parent_a_idx:
+            parent_a_idx.append(candidate)
+    if len(parent_a_idx) < M:
+        leftover = np.setdiff1d(np.arange(n), parent_a_idx)
+        leftover_fit = mse_mat.mean(axis=1)
+        leftover_score = (
+            pressure * leftover_fit[leftover]
+            + (1 - pressure) * complexity[leftover]
+            - 0.15 * residual_var[leftover]
+        )
+        best_leftover = leftover[np.argsort(leftover_score)[: M - len(parent_a_idx)]]
+        parent_a_idx.extend(best_leftover.tolist())
+    parent_a_idx = np.array(parent_a_idx)
 
-    parent_a_idx = np.argsort(-combined)[:half_k]
-    parent_a = [population[i] for i in parent_a_idx]
-
-    mean_abs = abs_res.mean(axis=1)
-    std_abs = abs_res.std(axis=1)
-
-    parent_b = []
+    norm_residuals = np.linalg.norm(residuals, axis=1) + 1e-10
+    parent_b_idx = []
+    # Crossover-aware pairing: balance residual similarity and complexity difference with stage-aware weighting
     for i in parent_a_idx:
-        ea = abs_res[i]
-        std_ea = std_abs[i]
-        if std_ea < 1e-12:
-            score_b = comp_norm.copy()
-            score_b[i] = np.inf
-            idx_b = np.argmin(score_b)
-        else:
-            mean_ea = mean_abs[i]
-            cov = ((abs_res - mean_abs[:, None]) * (ea - mean_ea)).mean(axis=1)
-            corr = np.where(std_abs > 1e-12, cov / (std_ea * std_abs), 0)
-            # Favor complementarity and simplicity
-            score_b = -corr - 0.03 * comp_norm
-            score_b[i] = -np.inf
-            idx_b = np.argmax(score_b)
-            if score_b[idx_b] == -np.inf:
-                idx_b = np.lexsort((complexity, mse))[0]
-        parent_b.append(population[idx_b])
+        res_a = residuals[i]
+        norm_a = norm_residuals[i]
+        sims = (residuals @ res_a) / (norm_residuals * norm_a)  # cosine similarity
+        comp_diff = np.abs(complexity - complexity[i])
+        # Early stage: emphasize complexity difference; late stage: emphasize residual similarity
+        scores = sims * pressure + comp_diff * (1 - pressure)
+        scores[i] = np.inf  # exclude self
+        partner = np.argmin(scores)
+        parent_b_idx.append(partner)
+    parent_b_idx = np.array(parent_b_idx)
 
-    selected_individuals = [ind for pair in zip(parent_a, parent_b) for ind in pair]
-    return selected_individuals[:k]
+    selected = [population[i] for pair in zip(parent_a_idx, parent_b_idx) for i in pair]
+    return selected
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
