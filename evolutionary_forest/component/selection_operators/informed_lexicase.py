@@ -244,163 +244,80 @@ def novel_selection(population, k=100, status={}):
     return [ind for pair in zip(parent_a, parent_b) for ind in pair]
 
 
-def novel_selection_plus(population, k=1, status={}):
-    """
-    Hybrid adaptive specialization + diversity coverage + complementarity + stage-aware complexity
-    selection for symbolic regression genetic programming offspring pairing.
+def novel_selection_plus(population, k=100, status={}):
+    evo = status.get("evolutionary_stage", 0)
+    n = len(population)
+    k = min(k, (n // 2) * 2)
+    half_k = k // 2
 
-    Key design:
-    - Parent A: lexicase-inspired specialization fraction (no complexity penalty),
-      greedy coverage with max_iters guard for diverse specialized niches
-    - Parent B: complementarity on parent's weak cases (top 25% residuals),
-      complexity penalty scaled up with evolutionary stage (0.3→1.0)
-    - Combined complexity: normalized avg of number_of_nodes and height
-    - Avoid duplicates in parent_b to maintain diversity
-    - Adaptive epsilon threshold using median absolute residual and evo stage
-    - Interleaved output [parent_a0, parent_b0, parent_a1, parent_b1, ...]
-    - Clear fallback handling and efficient numpy vectorization
+    mse = np.array([np.mean(ind.case_values) for ind in population])
+    nodes = np.array([len(ind) for ind in population])
+    height = np.array([ind.height for ind in population])
+    complexity = nodes + 2 * height
+    comp_norm = (complexity - complexity.min()) / (complexity.ptp() + 1e-8)
+    comp_inv = 1 - comp_norm  # prefer simpler
 
-    Args:
-        population: list of individuals with attributes:
-            - case_values: per-case MSE/errors (lower better) (array-like)
-            - residual: per-case residuals (y - predicted) (array-like)
-            - predicted_values
-            - number_of_nodes or fallback len(individual)
-            - height (int)
-        k: even int number of individuals to select (paired: k//2 parent_a, k//2 parent_b)
-        status: dict; must contain 'evolutionary_stage' key in [0,1]
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    inst_count = residuals.shape[1]
+    norm_mse = (mse - mse.min()) / (mse.ptp() + 1e-8)
+    fit_score = 1 - norm_mse
+    abs_res = np.abs(residuals)
 
-    Returns:
-        list of k selected individuals interleaved as [parent_a0, parent_b0, parent_a1, parent_b1, ...]
-    """
+    # Define subsets emphasizing diversity & specialization by stage
+    if evo < 0.1:
+        subsets = [np.random.choice(inst_count, max(inst_count // 3, 1), replace=False)]
+    elif evo < 0.4:
+        q = max(inst_count // 4, 1)
+        subsets = [slice(i * q, (i + 1) * q) for i in range(4)]
+    else:
+        subsets = [slice(0, max(inst_count // 2, 1))]
 
-    if len(population) == 0 or k == 0:
-        return []
+    scores = []
+    for s in subsets:
+        std_sub = np.std(residuals[:, s], axis=1)
+        diversity = std_sub / (std_sub.max() + 1e-8)
+        if evo < 0.3:
+            score = (0.5 * fit_score + 0.4 * diversity) * comp_inv
+        else:
+            score = 0.6 * fit_score + 0.3 * comp_inv + 0.1 * diversity
+        scores.append(score)
+    combined = np.mean(scores, axis=0)
 
-    pop_size = len(population)
-    max_k = pop_size * 2 if pop_size > 0 else 0
-    k = min(k, max_k)
-    if k % 2 != 0:
-        k -= 1
-    if k == 0:
-        return []
+    # Late stage: refine combined with specialization on early instances if evo >= 0.4
+    if evo >= 0.4:
+        q = max(inst_count // 4, 1)
+        std_q = np.std(residuals[:, :q], axis=1)
+        std_q_n = std_q / (std_q.max() + 1e-8)
+        combined = 0.6 * fit_score + 0.3 * comp_inv + 0.1 * std_q_n
 
-    evo_stage = float(status.get("evolutionary_stage", 0.0))
-    evo_stage = np.clip(evo_stage, 0, 1)
+    parent_a_idx = np.argsort(-combined)[:half_k]
+    parent_a = [population[i] for i in parent_a_idx]
 
-    # Extract fitness (per case MSE) and residuals matrix (N, C)
-    fitness_matrix = np.array([ind.case_values for ind in population])  # shape (N,C)
-    residual_matrix = np.array([ind.residual for ind in population])  # shape (N,C)
+    mean_abs = abs_res.mean(axis=1)
+    std_abs = abs_res.std(axis=1)
 
-    # Extract complexity metrics: number_of_nodes and height
-    complexities = np.array(
-        [
-            getattr(ind, "number_of_nodes", len(ind) if hasattr(ind, "__len__") else 0)
-            for ind in population
-        ],
-        dtype=float,
-    )
-    heights = np.array([getattr(ind, "height", 0) for ind in population], dtype=float)
+    parent_b = []
+    for i in parent_a_idx:
+        ea = abs_res[i]
+        std_ea = std_abs[i]
+        if std_ea < 1e-12:
+            score_b = comp_norm.copy()
+            score_b[i] = np.inf
+            idx_b = np.argmin(score_b)
+        else:
+            mean_ea = mean_abs[i]
+            cov = ((abs_res - mean_abs[:, None]) * (ea - mean_ea)).mean(axis=1)
+            corr = np.where(std_abs > 1e-12, cov / (std_ea * std_abs), 0)
+            # Favor complementarity and simplicity
+            score_b = -corr - 0.03 * comp_norm
+            score_b[i] = -np.inf
+            idx_b = np.argmax(score_b)
+            if score_b[idx_b] == -np.inf:
+                idx_b = np.lexsort((complexity, mse))[0]
+        parent_b.append(population[idx_b])
 
-    # Normalize complexity metrics with epsilon to avoid div by zero
-    comp_range = max(np.ptp(complexities), 1e-8)
-    height_range = max(np.ptp(heights), 1e-8)
-
-    comp_norm = (complexities - complexities.min()) / comp_range
-    height_norm = (heights - heights.min()) / height_range
-
-    complexity = 0.5 * comp_norm + 0.5 * height_norm  # combined complexity [0,1]
-
-    num_cases = fitness_matrix.shape[1]
-
-    # Adaptive epsilon threshold for lexicase specialization mask
-    median_abs_residuals = np.median(np.abs(residual_matrix), axis=0)  # shape (C,)
-    epsilon = median_abs_residuals * (0.2 + 0.8 * evo_stage)
-
-    min_residuals = np.min(residual_matrix, axis=0)  # shape (C,)
-
-    # Parent A - specialization mask (boolean pass per case)
-    pass_mask = residual_matrix <= (min_residuals + epsilon)
-    specialization_score = pass_mask.sum(axis=1) / num_cases  # fraction [0,1]
-
-    # Parent A selection: greedy coverage of specialized cases, no complexity penalty applied here
-    sorted_candidates = np.argsort(
-        -specialization_score
-    )  # descending order specialization
-
-    selected_a_idx = []
-    covered_cases = np.zeros(num_cases, dtype=bool)
-    max_iters = 1000
-    iters = 0
-
-    # Greedy coverage loop: select individuals adding new specialty coverage
-    while len(selected_a_idx) < (k // 2) and iters < max_iters:
-        for idx in sorted_candidates:
-            if len(selected_a_idx) >= (k // 2):
-                break
-            new_cases = pass_mask[idx] & (~covered_cases)
-            if new_cases.any() or len(selected_a_idx) == 0:
-                selected_a_idx.append(idx)
-                covered_cases |= pass_mask[idx]
-        iters += 1
-        if iters >= max_iters:
-            break
-
-    # Backup fill if not enough selected ignoring coverage now
-    if len(selected_a_idx) < (k // 2):
-        existing = set(selected_a_idx)
-        for idx in sorted_candidates:
-            if idx not in existing:
-                selected_a_idx.append(idx)
-                if len(selected_a_idx) >= (k // 2):
-                    break
-
-    selected_a_idx = selected_a_idx[: k // 2]
-
-    # Prepare Parent B selection
-    # Complexity penalty scaled progressively higher late evo phase: from 0.3 to 1.0
-    comp_penalty_scale_b = 0.3 + 0.7 * evo_stage
-    complexity_penalty_b = complexity * comp_penalty_scale_b
-
-    selected_b_idx = []
-    used_b = set()
-
-    for a_idx in selected_a_idx:
-        a_residual = residual_matrix[a_idx]
-        threshold_75 = np.percentile(a_residual, 75)
-        weak_mask = a_residual > threshold_75
-
-        # If no weak cases, consider all cases to avoid empty mask for mean
-        if not weak_mask.any():
-            weak_mask = np.ones_like(a_residual, dtype=bool)
-
-        # Score candidates by mean residual over parent's weak cases + complexity penalty
-        scores_b = residual_matrix[:, weak_mask].mean(axis=1) + complexity_penalty_b
-
-        # Avoid self and duplicates
-        scores_b[a_idx] = np.inf
-        for ub in used_b:
-            scores_b[ub] = np.inf
-
-        best_b_idx = np.argmin(scores_b)
-
-        # Fallback if all inf (no suitable candidate)
-        if scores_b[best_b_idx] == np.inf:
-            candidates = [i for i in range(pop_size) if i != a_idx and i not in used_b]
-            if not candidates:
-                candidates = [i for i in range(pop_size) if i != a_idx]
-            best_b_idx = np.random.choice(candidates)
-
-        selected_b_idx.append(best_b_idx)
-        used_b.add(best_b_idx)
-
-    # Build parent lists
-    parent_a = [population[i] for i in selected_a_idx]
-    parent_b = [population[i] for i in selected_b_idx]
-
-    # Interleave for paired crossover
     selected_individuals = [ind for pair in zip(parent_a, parent_b) for ind in pair]
-    return selected_individuals
+    return selected_individuals[:k]
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
