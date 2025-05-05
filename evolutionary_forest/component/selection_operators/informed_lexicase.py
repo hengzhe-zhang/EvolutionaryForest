@@ -245,71 +245,96 @@ def novel_selection(population, k=100, status={}):
 
 
 def novel_selection_plus(population, k=100, status={}):
+    evo = np.clip(status.get("evolutionary_stage", 0), 0, 1)
     n = len(population)
-    k = min(k, n if n % 2 == 0 else n - 1)
-    if k == 0:
-        return []
-    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
-    pressure = 0.5 + 0.5 * stage  # from 0.5 (early) to 1 (late)
-    M = k // 2
+    k = min(k, n - n % 2)
+    half_k = k // 2
 
-    nodes = np.array([len(ind) for ind in population], float)
-    heights = np.array([ind.height for ind in population], float)
-    mse_mat = np.array([ind.case_values for ind in population], float)
-    residuals = np.array([ind.y - ind.predicted_values for ind in population], float)
-    n_cases = mse_mat.shape[1]
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    mse = np.array([ind.case_values for ind in population])
+    nodes = np.array([len(ind) for ind in population], dtype=float)
+    heights = np.array([ind.height for ind in population], dtype=float)
 
-    # Normalize complexity for interpretability (prefer simpler individuals)
-    complexity = (nodes / (nodes.max() + 1e-9) + heights / (heights.max() + 1e-9)) / 2
+    # Complexity & interpretability (higher better)
+    comp = nodes + heights + 1e-9
+    interp = 1 / comp
+    interp = (interp - interp.min()) / (interp.ptp() + 1e-9)
 
-    rng = np.random.default_rng()
-    parent_a_idx = []
-    max_tries = 10 * M
+    # Normalize performance (higher better)
+    mean_mse = mse.mean(axis=1)
+    perf = 1 / (mean_mse + 1e-9)
+    perf = (perf - perf.min()) / (perf.ptp() + 1e-9)
+
+    # Diversity proxy (higher better)
+    div = residuals.std(axis=1)
+    div = (div - div.min()) / (div.ptp() + 1e-9)
+
+    # Cluster cases by residual variance for specialization
+    var_resid = residuals.var(axis=0)
+    cluster_count = min(5, max(1, residuals.shape[1] // 10))
+    clusters = np.array_split(np.argsort(var_resid), cluster_count)
+
+    # Adaptive weights per stage to balance objectives
+    w_perf = 0.6 * (1 - evo) + 0.35 * evo
+    w_interp = 0.15 * (1 - evo) + 0.6 * evo
+    w_div = 0.25 * (1 - evo)
+
+    chosen_a = set()
     tries = 0
-    subset_size = max(1, n_cases // 3)
-
-    residual_var = residuals.var(axis=1)
-
-    # Diverse & specialized selection for parent A combining fitness, complexity & residual variance
-    # Residual variance encourages specialization on different errors
-    while len(parent_a_idx) < M and tries < max_tries:
+    max_tries = 10 * cluster_count
+    while len(chosen_a) < half_k and tries < max_tries:
+        c = clusters[tries % cluster_count]
+        if c.size == 0:
+            tries += 1
+            continue
+        cl_mse = mse[:, c].mean(axis=1)
+        cl_perf = 1 / (cl_mse + 1e-9)
+        cl_perf = (cl_perf - cl_perf.min()) / (cl_perf.ptp() + 1e-9)
+        scores = w_perf * cl_perf + w_interp * interp - w_div * div
+        candidate = np.argmax(scores)
+        if candidate not in chosen_a:
+            chosen_a.add(candidate)
         tries += 1
-        subset = rng.choice(n_cases, size=subset_size, replace=False)
-        fit_sub = mse_mat[:, subset].mean(axis=1)
-        # Combine stage-weighted fitness, complexity, and negative residual variance
-        score = pressure * fit_sub + (1 - pressure) * complexity - 0.15 * residual_var
-        candidate = np.argmin(score)
-        if candidate not in parent_a_idx:
-            parent_a_idx.append(candidate)
-    if len(parent_a_idx) < M:
-        leftover = np.setdiff1d(np.arange(n), parent_a_idx)
-        leftover_fit = mse_mat.mean(axis=1)
-        leftover_score = (
-            pressure * leftover_fit[leftover]
-            + (1 - pressure) * complexity[leftover]
-            - 0.15 * residual_var[leftover]
-        )
-        best_leftover = leftover[np.argsort(leftover_score)[: M - len(parent_a_idx)]]
-        parent_a_idx.extend(best_leftover.tolist())
-    parent_a_idx = np.array(parent_a_idx)
 
-    norm_residuals = np.linalg.norm(residuals, axis=1) + 1e-10
+    # Fill remaining prioritizing combined score and low correlation to chosen
+    if len(chosen_a) < half_k:
+        combined = w_perf * perf + w_interp * interp + w_div * div
+        rem = np.array([i for i in range(n) if i not in chosen_a])
+        sorted_rem = rem[np.argsort(-combined[rem])]
+        pred_vals = np.array([ind.predicted_values for ind in population])
+        for c in sorted_rem:
+            if len(chosen_a) >= half_k:
+                break
+            # Check low correlation to chosen_a (specialization)
+            if all(
+                np.corrcoef(pred_vals[c], pred_vals[i])[0, 1] < 0.9 for i in chosen_a
+            ):
+                chosen_a.add(c)
+        # If still not filled, add from top scores ignoring correlation
+        if len(chosen_a) < half_k:
+            needed = half_k - len(chosen_a)
+            chosen_a.update(sorted_rem[:needed])
+
+    chosen_a = sorted(chosen_a)
+    parent_a = [population[i] for i in chosen_a]
+
+    # For parent B, pick complement minimizing correlation to parent A residuals + complexity penalty
+    residuals_centered = residuals - residuals.mean(axis=1, keepdims=True)
+    norms = np.linalg.norm(residuals_centered, axis=1, keepdims=True)
+    corr_matrix = (residuals_centered @ residuals_centered.T) / (norms @ norms.T + 1e-9)
+    np.fill_diagonal(corr_matrix, 2)
+
+    comp_penalty = (evo * 0.3) / comp
     parent_b_idx = []
-    # Crossover-aware pairing: balance residual similarity and complexity difference with stage-aware weighting
-    for i in parent_a_idx:
-        res_a = residuals[i]
-        norm_a = norm_residuals[i]
-        sims = (residuals @ res_a) / (norm_residuals * norm_a)  # cosine similarity
-        comp_diff = np.abs(complexity - complexity[i])
-        # Early stage: emphasize complexity difference; late stage: emphasize residual similarity
-        scores = sims * pressure + comp_diff * (1 - pressure)
-        scores[i] = np.inf  # exclude self
-        partner = np.argmin(scores)
-        parent_b_idx.append(partner)
-    parent_b_idx = np.array(parent_b_idx)
+    for i_a in chosen_a:
+        scores = -corr_matrix[i_a] + comp_penalty
+        scores[i_a] = -np.inf
+        best_b = np.argmax(scores)
+        parent_b_idx.append(best_b)
+    parent_b = [population[i] for i in parent_b_idx]
 
-    selected = [population[i] for pair in zip(parent_a_idx, parent_b_idx) for i in pair]
-    return selected
+    # Interleave parents for pairs
+    return [ind for pair in zip(parent_a, parent_b) for ind in pair]
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
