@@ -245,76 +245,7 @@ def novel_selection(population, k=100, status={}):
 
 
 def novel_selection_plus(population, k=100, status={}):
-    if k == 0 or not population:
-        return []
-    n = len(population)
-    k = min(k, n - n % 2)
-    stage = status.get("evolutionary_stage", 0.0)
-    rng = np.random.default_rng(12345)
-
-    n_samples = population[0].y.size
-    subset_base = max(6, n_samples // 7)
-    n_subsets = min(k // 2, 8)
-    subsets = [
-        rng.choice(n_samples, subset_base + int(subset_base * stage), replace=False)
-        for _ in range(n_subsets)
-    ]
-
-    residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
-    full_mse = np.array([ind.case_values.mean() for ind in population])
-    complexities = np.array(
-        [(len(ind) + 1.5 * ind.height) for ind in population], dtype=float
-    )
-    if complexities.max() > 0:
-        complexities /= complexities.max()
-
-    subset_mses = np.array(
-        [[ind.case_values[s].mean() for s in subsets] for ind in population]
-    )
-    spec_ratios = subset_mses / (full_mse[:, None] + 1e-9)
-    spec_scores = spec_ratios.mean(axis=1)
-    spec_scores = (spec_scores - spec_scores.min()) / max(spec_scores.ptp(), 1e-9)
-
-    full_mse_norm = (full_mse.max() - full_mse) / max(full_mse.ptp(), 1e-9)
-
-    w_perf = 0.5 + 0.5 * stage  # increase weight on performance over time
-    w_spec = 0.4 - 0.4 * stage  # decrease specialization weight over time
-    w_comp = 0.1  # consistent complexity penalty
-    scores = w_perf * full_mse_norm + w_spec * (1 - spec_scores) - w_comp * complexities
-
-    parent_a_idx = np.argpartition(-scores, k // 2)[: k // 2]
-
-    comp_w = 0.5 * (1 - stage)
-    parent_b_idx = []
-    stds = residuals.std(axis=1)
-    for i_a in parent_a_idx:
-        r_a = residuals[i_a]
-        std_a = stds[i_a]
-        # Compute correlations vectorized without explicit np.corrcoef for all (except i_a)
-        valid = (stds > 1e-8) & (std_a > 1e-8)
-        corrs = np.ones(n) * 10
-        valid_indices = np.where((np.arange(n) != i_a) & valid)[0]
-        if valid_indices.size > 0:
-            # Normalize residuals to zero mean and unit std for correlation
-            r_a_n = (r_a - r_a.mean()) / std_a
-            norm_residuals = (
-                residuals[valid_indices]
-                - residuals[valid_indices].mean(axis=1, keepdims=True)
-            ) / stds[valid_indices, None]
-            corrs_vec = norm_residuals @ r_a_n / r_a_n.size
-            corrs[valid_indices] = corrs_vec
-        scores_b = corrs + comp_w * complexities
-        parent_b_idx.append(np.argmin(scores_b))
-
-    selected = [
-        ind
-        for pair in zip(
-            (population[i] for i in parent_a_idx),
-            (population[i] for i in parent_b_idx),
-        )
-        for ind in pair
-    ]
-    return selected[:k]
+    pass
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
