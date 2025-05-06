@@ -245,83 +245,74 @@ def novel_selection(population, k=100, status={}):
 
 
 def novel_selection_plus(population, k=100, status={}):
-    if not population or k == 0:
+    if k == 0 or not population:
         return []
     n = len(population)
-    k = min(k, n - (n % 2))
+    k = min(k, n - n % 2)
     stage = status.get("evolutionary_stage", 0.0)
+    rng = np.random.default_rng(12345)
+
     n_samples = population[0].y.size
-    rng = np.random.default_rng(1234)
+    subset_base = max(6, n_samples // 7)
+    n_subsets = min(k // 2, 8)
+    subsets = [
+        rng.choice(n_samples, subset_base + int(subset_base * stage), replace=False)
+        for _ in range(n_subsets)
+    ]
 
-    # Precompute metrics
-    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
     full_mse = np.array([ind.case_values.mean() for ind in population])
-    complexity = np.array([(len(ind) + ind.height) / 100 for ind in population])
-    inds = np.arange(n)
+    complexities = np.array(
+        [(len(ind) + 1.5 * ind.height) for ind in population], dtype=float
+    )
+    if complexities.max() > 0:
+        complexities /= complexities.max()
 
-    # Adaptive subset size: smaller subsets early to emphasize specialization, larger later
-    base_subset = max(8, n_samples // 8)
-    subset_size = int(base_subset * (1 + stage))
-    subsets = [rng.choice(n_samples, subset_size, replace=False) for _ in range(k // 2)]
+    subset_mses = np.array(
+        [[ind.case_values[s].mean() for s in subsets] for ind in population]
+    )
+    spec_ratios = subset_mses / (full_mse[:, None] + 1e-9)
+    spec_scores = spec_ratios.mean(axis=1)
+    spec_scores = (spec_scores - spec_scores.min()) / max(spec_scores.ptp(), 1e-9)
 
-    # Score favors specialization (low subset mse relative to full mse), complexity (stage-weighted),
-    # and encourages diversity across chosen parents via a penalty on proximity in residual space
-    chosen_a = []
-    chosen_a_residuals = []
+    full_mse_norm = (full_mse.max() - full_mse) / max(full_mse.ptp(), 1e-9)
 
-    def subs_mse(ind_idx, s):
-        vals = population[ind_idx].case_values[s]
-        return vals.mean()
+    w_perf = 0.5 + 0.5 * stage  # increase weight on performance over time
+    w_spec = 0.4 - 0.4 * stage  # decrease specialization weight over time
+    w_comp = 0.1  # consistent complexity penalty
+    scores = w_perf * full_mse_norm + w_spec * (1 - spec_scores) - w_comp * complexities
 
-    # Cache subset MSEs for efficiency
-    sub_mse_cache = np.empty((n, k // 2))
-    for i in range(n):
-        for j, s in enumerate(subsets):
-            sub_mse_cache[i, j] = subs_mse(i, s)
+    parent_a_idx = np.argpartition(-scores, k // 2)[: k // 2]
 
-    penalty_mul = (1 - stage) * 5  # diversity penalty stronger early on
+    comp_w = 0.5 * (1 - stage)
+    parent_b_idx = []
+    stds = residuals.std(axis=1)
+    for i_a in parent_a_idx:
+        r_a = residuals[i_a]
+        std_a = stds[i_a]
+        # Compute correlations vectorized without explicit np.corrcoef for all (except i_a)
+        valid = (stds > 1e-8) & (std_a > 1e-8)
+        corrs = np.ones(n) * 10
+        valid_indices = np.where((np.arange(n) != i_a) & valid)[0]
+        if valid_indices.size > 0:
+            # Normalize residuals to zero mean and unit std for correlation
+            r_a_n = (r_a - r_a.mean()) / std_a
+            norm_residuals = (
+                residuals[valid_indices]
+                - residuals[valid_indices].mean(axis=1, keepdims=True)
+            ) / stds[valid_indices, None]
+            corrs_vec = norm_residuals @ r_a_n / r_a_n.size
+            corrs[valid_indices] = corrs_vec
+        scores_b = corrs + comp_w * complexities
+        parent_b_idx.append(np.argmin(scores_b))
 
-    for j, subset in enumerate(subsets):
-        scores = sub_mse_cache[:, j] / (full_mse + 1e-8)  # specialization ratio
-        scores += complexity * (stage * 0.7 + 0.3)
-        if chosen_a:
-            # Penalize candidates close in residual space to already chosen individuals
-            stacked = np.stack(chosen_a_residuals)
-            dist = np.mean(np.abs(residuals - stacked[:, None]).mean(axis=2), axis=0)
-            dist_penalty = penalty_mul / (dist + 1e-6)
-            scores += dist_penalty
-        pick = np.argmin(scores)
-        chosen_a.append(pick)
-        chosen_a_residuals.append(residuals[pick])
-        if len(chosen_a) >= k // 2:
-            break
-
-    # For each parent_a select parent_b to maximize complementary residual (minimize correlation)
-    comp_w = (1 - stage) * 0.6
-    parent_b = []
-    for idx_a in chosen_a:
-        r_a = residuals[idx_a]
-        # residual std to avoid nan correlations
-        stds = residuals.std(axis=1)
-        corrs = np.where(
-            inds != idx_a,
-            np.array(
-                [
-                    np.corrcoef(r_a, residuals[i])[0, 1] if stds[i] > 1e-8 else 0
-                    for i in range(n)
-                ]
-            ),
-            2,  # exclude self, big penalty
-        )
-        score_b = corrs + complexity * comp_w  # penalize complex individuals
-        pick_b = np.argmin(score_b)
-        parent_b.append(pick_b)
-
-    # Interleave parents to form pairs
     selected = [
         ind
-        for pair in zip(chosen_a, parent_b)
-        for ind in (population[pair[0]], population[pair[1]])
+        for pair in zip(
+            (population[i] for i in parent_a_idx),
+            (population[i] for i in parent_b_idx),
+        )
+        for ind in pair
     ]
     return selected[:k]
 
