@@ -245,7 +245,70 @@ def novel_selection(population, k=100, status={}):
 
 
 def novel_selection_plus(population, k=100, status={}):
-    pass
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    n = len(population)
+    k = min(k, n // 2 * 2)
+    m = len(population[0].case_values)
+
+    errors = np.array([np.mean(ind.case_values) for ind in population])
+    nodes = np.array([len(ind) for ind in population])
+    heights = np.array([ind.height for ind in population])
+    complexity = nodes + heights + 1e-8
+    comp_norm = complexity / complexity.max()
+
+    w_fit = 1 - 0.7 * stage
+    w_comp = 0.1 + 0.9 * stage
+    w_spec = 0.4 + 0.6 * stage  # weight for relative perf emphasizing specialization
+
+    subset_size = max(3, m // 10)
+    num_subsets = k // 2
+    np.random.seed(42)
+
+    # Structured diverse subsets: non-overlapping if possible else random
+    chosen = set()
+    subsets = []
+    for _ in range(num_subsets):
+        avail = [i for i in range(m) if i not in chosen]
+        if len(avail) >= subset_size:
+            idxs = np.random.choice(avail, subset_size, replace=False)
+            chosen.update(idxs)
+        else:
+            idxs = np.random.choice(m, subset_size, replace=False)
+        subsets.append(idxs)
+    subsets = np.array(subsets)
+
+    # Vectorized MSE on subsets
+    mse_sub = np.array(
+        [[np.mean(ind.case_values[sub]) for ind in population] for sub in subsets]
+    )
+    rel_perf = errors / (mse_sub + 1e-8)
+
+    # Score combines fitness (inverse mse), specialization (rel_perf) and complexity
+    scores = w_fit / (mse_sub + 1e-8) + w_spec * rel_perf + w_comp / complexity
+
+    parent_a_idx = [np.argmax(scores[i]) for i in range(num_subsets)]
+    parent_a = [population[i] for i in parent_a_idx]
+
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    parent_b_idx = []
+    for i in parent_a_idx:
+        res_a = residuals[i]
+        corr = np.array(
+            [
+                np.corrcoef(res_a, residuals[j])[0, 1]
+                if j != i and res_a.std() > 0 and residuals[j].std() > 0
+                else 1.0
+                for j in range(n)
+            ]
+        )
+        corr = np.nan_to_num(corr, nan=1.0)
+        combined = corr + w_comp * comp_norm
+        combined[i] = np.inf
+        parent_b_idx.append(np.argmin(combined))
+    parent_b = [population[i] for i in parent_b_idx]
+
+    selected = [ind for pair in zip(parent_a, parent_b) for ind in pair]
+    return selected[:k]
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
