@@ -247,7 +247,7 @@ def novel_selection(population, k=100, status={}):
 def novel_selection_plus(population, k=100, status={}):
     stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
     n = len(population)
-    k = min(k, n // 2 * 2)
+    k = min(k, (n // 2) * 2)
     m = len(population[0].case_values)
 
     errors = np.array([np.mean(ind.case_values) for ind in population])
@@ -256,59 +256,52 @@ def novel_selection_plus(population, k=100, status={}):
     complexity = nodes + heights + 1e-8
     comp_norm = complexity / complexity.max()
 
+    # Stage-varying weights for fitness, specialization, and complexity
     w_fit = 1 - 0.7 * stage
-    w_comp = 0.1 + 0.9 * stage
-    w_spec = 0.4 + 0.6 * stage  # weight for relative perf emphasizing specialization
+    w_spec = 0.3 + 0.7 * stage
+    w_comp = 0.1 + 0.85 * stage
 
-    subset_size = max(3, m // 10)
+    # Construct diverse, mostly disjoint subsets with fallback to full range
+    subset_size = max(3, m // 8)
     num_subsets = k // 2
-    np.random.seed(42)
-
-    # Structured diverse subsets: non-overlapping if possible else random
-    chosen = set()
+    used = set()
     subsets = []
     for _ in range(num_subsets):
-        avail = [i for i in range(m) if i not in chosen]
-        if len(avail) >= subset_size:
-            idxs = np.random.choice(avail, subset_size, replace=False)
-            chosen.update(idxs)
-        else:
-            idxs = np.random.choice(m, subset_size, replace=False)
-        subsets.append(idxs)
+        avail = [i for i in range(m) if i not in used]
+        if len(avail) < subset_size:
+            avail = list(range(m))
+        sub = np.random.choice(avail, subset_size, replace=False)
+        used.update(sub)
+        subsets.append(sub)
     subsets = np.array(subsets)
 
-    # Vectorized MSE on subsets
+    # Compute subset MSE matrix and relative performance
     mse_sub = np.array(
-        [[np.mean(ind.case_values[sub]) for ind in population] for sub in subsets]
+        [[np.mean(ind.case_values[s]) for ind in population] for s in subsets]
     )
     rel_perf = errors / (mse_sub + 1e-8)
 
-    # Score combines fitness (inverse mse), specialization (rel_perf) and complexity
+    # Score: weighted sum of inverted subset error, relative perf., and inverse complexity
     scores = w_fit / (mse_sub + 1e-8) + w_spec * rel_perf + w_comp / complexity
-
-    parent_a_idx = [np.argmax(scores[i]) for i in range(num_subsets)]
+    parent_a_idx = np.argmax(scores, axis=1)
     parent_a = [population[i] for i in parent_a_idx]
 
     residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    norms = np.linalg.norm(residuals, axis=1) + 1e-10
+
     parent_b_idx = []
     for i in parent_a_idx:
         res_a = residuals[i]
-        corr = np.array(
-            [
-                np.corrcoef(res_a, residuals[j])[0, 1]
-                if j != i and res_a.std() > 0 and residuals[j].std() > 0
-                else 1.0
-                for j in range(n)
-            ]
-        )
-        corr = np.nan_to_num(corr, nan=1.0)
-        combined = corr + w_comp * comp_norm
+        norm_a = norms[i]
+        corrs = residuals @ res_a / (norms * norm_a)  # cosine similarity
+        # Promote complementarity: minimize absolute correlation plus complexity penalty
+        combined = np.abs(corrs) + w_comp * comp_norm
         combined[i] = np.inf
         parent_b_idx.append(np.argmin(combined))
     parent_b = [population[i] for i in parent_b_idx]
 
-    selected = [ind for pair in zip(parent_a, parent_b) for ind in pair]
-    return selected[:k]
+    # Interleave parents into pairs
+    return [ind for pair in zip(parent_a, parent_b) for ind in pair][:k]
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
