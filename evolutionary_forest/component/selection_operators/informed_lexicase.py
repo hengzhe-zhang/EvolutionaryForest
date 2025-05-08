@@ -271,7 +271,7 @@ def novel_selection_plus(population, k=100, status={}):
     # Adaptive weights balancing specialization, overall fit, and complexity by stage
     w_spec = 1.15 - 0.95 * stage  # from ~1.15 -> 0.2
     w_full = 0.1 + 0.9 * stage  # from 0.1 -> 1.0
-    w_comp = 0.1 * (0.65 - 0.55 * stage)  # from 0.65 -> 0.1
+    w_comp = 0.65 - 0.55 * stage  # from 0.65 -> 0.1
 
     scores = w_spec * spec_scores + w_full * full_mse + w_comp * c_norm
     parent_a_idx = np.argsort(scores)[: k // 2]
