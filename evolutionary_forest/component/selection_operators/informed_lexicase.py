@@ -245,7 +245,60 @@ def novel_selection(population, k=100, status={}):
 
 
 def novel_selection_plus(population, k=100, status={}):
-    pass
+    n = len(population)
+    k = min(k, n // 2 * 2)
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    n_cases = population[0].case_values.size
+
+    errors = np.array([ind.case_values for ind in population])  # n x m squared errors
+    residuals = np.array(
+        [ind.y - ind.predicted_values for ind in population]
+    )  # n x m residuals
+    complexity = np.array([len(ind) + ind.height for ind in population], dtype=float)
+    c_norm = complexity / (complexity.max() + 1e-8)
+    full_mse = errors.mean(axis=1)
+
+    rng = np.random.default_rng(42)
+    subset_count = max(3, min(5, n_cases // 15))
+    subset_size = max(3, n_cases // subset_count)
+    subsets = [
+        rng.choice(n_cases, subset_size, replace=False) for _ in range(subset_count)
+    ]
+    spec_scores = np.min(
+        np.vstack([errors[:, s].mean(axis=1) for s in subsets]), axis=0
+    )
+
+    # Adaptive weights balancing specialization, overall fit, and complexity by stage
+    w_spec = 1.15 - 0.95 * stage  # from ~1.15 -> 0.2
+    w_full = 0.1 + 0.9 * stage  # from 0.1 -> 1.0
+    w_comp = 0.1 * (0.65 - 0.55 * stage)  # from 0.65 -> 0.1
+
+    scores = w_spec * spec_scores + w_full * full_mse + w_comp * c_norm
+    parent_a_idx = np.argsort(scores)[: k // 2]
+    parent_a = [population[i] for i in parent_a_idx]
+
+    # Normalize residuals, avoid zero norm
+    norms = np.linalg.norm(residuals, axis=1, keepdims=True)
+    norms[norms == 0] = 1
+    norm_res = residuals / norms
+
+    parent_b = []
+    max_tries = 20
+    for i in parent_a_idx:
+        corr = norm_res @ norm_res[i]
+        corr[i] = 2  # exclude self
+        penalty = corr + 0.018 * (c_norm[i] + c_norm)  # modest complexity penalty
+        candidates = np.argsort(penalty)
+        choice = None
+        for c in candidates[:max_tries]:
+            if penalty[c] < 1.4:  # cutoff tighter than operator B, looser than A
+                choice = population[c]
+                break
+        if choice is None:
+            choice = population[candidates[0]]
+        parent_b.append(choice)
+
+    return [ind for pair in zip(parent_a, parent_b) for ind in pair]
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
