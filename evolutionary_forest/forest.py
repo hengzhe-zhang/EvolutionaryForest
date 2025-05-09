@@ -266,6 +266,9 @@ from evolutionary_forest.component.selection_operators.pareto_tournament import 
     sel_subset_best,
     pareto_tournament_controller,
 )
+from evolutionary_forest.component.selection_operators.rds_tournament import (
+    rds_tournament_selection,
+)
 from evolutionary_forest.component.stateful_gp import make_class
 from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
     genHalfAndHalf_STGP_constant_biased,
@@ -2546,6 +2549,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register(
                 "select",
                 n_plexicase_selection,
+            )
+        elif self.select == "RDS-Tournament":
+            toolbox.register(
+                "select",
+                rds_tournament_selection,
             )
         elif self.select == "DynamicDifficultyLexicase":
             toolbox.register(
