@@ -81,6 +81,9 @@ from evolutionary_forest.component.archive_operators.shapley_hof import (
 from evolutionary_forest.component.base_learner.in_context_learning import (
     InContextLearnerRegressor,
 )
+from evolutionary_forest.component.base_learner.linear_scaling import (
+    LinearScalingRegressor,
+)
 from evolutionary_forest.component.bloat_control.alpha_dominance import AlphaDominance
 from evolutionary_forest.component.bloat_control.direct_semantic_approximation import (
     DSA,
@@ -1924,6 +1927,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.base_learner == "PL-Tree":
             ridge_model = LinearTreeRegressor(base_estimator=LinearRegression())
+        elif self.base_learner == "LS":
+            ridge_model = LinearScalingRegressor()
         elif (
             self.base_learner == "RidgeCV"
             or "PCA-RidgeCV" in self.base_learner
