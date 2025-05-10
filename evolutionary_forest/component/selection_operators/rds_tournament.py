@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 
-def rds_tournament_selection(population, k=100, tour_size=3):
+def rds_tournament_selection(population, k=100, tour_size=7):
     def downsample_indices(total_cases, fraction=0.1):
         num_samples = max(1, int(total_cases * fraction))
         return random.sample(range(total_cases), num_samples)
