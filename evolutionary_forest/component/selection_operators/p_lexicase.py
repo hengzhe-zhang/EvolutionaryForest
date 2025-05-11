@@ -30,7 +30,7 @@ def n_plexicase_selection(population, k, temperature=1.0):
     )
 
     # Step 4: Sample from non-dominated individuals
-    selected_indices = np.random.choice(nondom_set, size=k, p=probs, replace=False)
+    selected_indices = np.random.choice(nondom_set, size=k, p=probs, replace=True)
     return [population[i] for i in selected_indices]
 
 
