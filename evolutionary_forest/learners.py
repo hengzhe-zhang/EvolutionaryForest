@@ -16,7 +16,7 @@ class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
             ensemble_size=1,
             initial_tree_size="0-6",
             gene_num=10,
-            basic_primitives="Add,Sub,Mul,AQ,Sqrt,AbsLog,Abs,Square,RSin,RCos,Max,Min,Neg",
+            basic_primitives="Add,Sub,Mul,AQ,Sqrt,AbsLog,Abs,Square,SinPi,CosPi,Max,Min,Neg",
             base_learner="RidgeCV",
             verbose=False,
             boost_size=None,
