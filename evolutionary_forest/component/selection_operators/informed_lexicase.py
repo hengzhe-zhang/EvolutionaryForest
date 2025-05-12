@@ -248,82 +248,71 @@ def novel_selection_plus(population, k=100, status={}):
     stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
     n = len(population)
     half_k = k // 2
-    rng = np.random.default_rng()
+    y = population[0].y
+    n_cases = y.size
 
-    # Extract fitness and complexity data
-    case_vals = np.vstack([ind.case_values for ind in population])  # (n, cases)
-    mse_full = case_vals.mean(axis=1)
+    ssize = max(7, n_cases // max(1, 2 * half_k))
+    half_struct = half_k // 2
+    structured = [
+        np.arange(i * ssize, min((i + 1) * ssize, n_cases)) for i in range(half_struct)
+    ]
+    random_ = [
+        np.random.choice(n_cases, ssize, replace=False)
+        for _ in range(half_k - half_struct)
+    ]
+    subsets = structured + random_
+
     residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
-    complexity = np.array([len(ind) + ind.height for ind in population], dtype=float)
-    complexity_norm = (complexity - complexity.min()) / (complexity.ptp() + 1e-9)
-
-    n_cases = case_vals.shape[1]
-
-    # Compose subsets: half structured (equal slices), half random (random idxs)
-    struct_count = half_k // 2
-    rand_count = half_k - struct_count
-    boundaries = np.linspace(0, n_cases, struct_count + 1, dtype=int)
-    structured_subsets = [
-        np.arange(boundaries[i], boundaries[i + 1]) for i in range(struct_count)
-    ]
-
-    # Subset size for random subsets balances diversity and size limits
-    sub_size = (
-        max(7, min(40, n_cases // max(1, 2 * rand_count))) if rand_count > 0 else 0
+    complexity = np.array([len(ind) + ind.height for ind in population], float)
+    complexity /= max(1, complexity.max())
+    mse_full = (residuals**2).mean(axis=1)
+    subset_mse = np.array(
+        [
+            [((residuals[i, s]) ** 2).mean() if s.size else np.inf for s in subsets]
+            for i in range(n)
+        ]
     )
-    random_subsets = [
-        rng.choice(n_cases, sub_size, replace=False) for _ in range(rand_count)
-    ]
+    specialize = subset_mse.min(axis=1) < mse_full
 
-    subsets = structured_subsets + random_subsets
+    pressure = 0.43 + 0.57 * stage
+    spec_w = 0.58 * stage
+    comp_w = 0.5 * (1 - 0.8 * stage) + 0.3 * stage
+    comp_factor = 0.25 + 0.25 * stage
 
-    # Dynamic weights evolve with stage
-    pressure = 0.3 + 0.6 * stage  # weight on subset mse (0.3->0.9)
-    complexity_weight_a = (
-        0.2 * (1 - stage) + 0.05
-    )  # complexity penalty for parent_a, less late
-    complexity_weight_b = (
-        0.1 + 0.3 * stage
-    )  # complexity penalty for parent_b, more late
-    improvement_weight = 0.6  # weight on improvement factor
-
-    # Calculate subset MSE and improvement relative to full MSE
-    subset_mse = np.stack(
-        [case_vals[:, idxs].mean(axis=1) for idxs in subsets]
-    )  # (half_k, n)
-    mse_range = mse_full.ptp() + 1e-9
-    improvement = (mse_full - subset_mse) / mse_range
-
-    # Score combines local mse, overall mse adjusted by improvement, and complexity
-    scores = (
-        pressure * subset_mse
-        + (1 - pressure) * (mse_full - improvement_weight * improvement)
-        + complexity_weight_a * complexity_norm
+    score = np.where(
+        specialize,
+        pressure * (spec_w * mse_full + (1 - spec_w) * subset_mse.min(axis=1))
+        + (1 - pressure) * comp_w * complexity,
+        pressure * mse_full + (1 - pressure) * comp_w * complexity,
     )
 
-    parent_a_idx = np.argmin(scores, axis=1)
-
-    # Center residuals for correlation
-    res_centered = residuals - residuals.mean(axis=1, keepdims=True)
-    norms = np.linalg.norm(res_centered, axis=1) + 1e-9
-
-    parent_b_idx = []
-    for i_a in parent_a_idx:
-        res_a = res_centered[i_a]
-        corr_abs = np.abs(res_centered @ res_a) / (norms * norms[i_a])
-        corr_abs[i_a] = np.inf  # exclude self
-        score_b = corr_abs + complexity_weight_b * complexity_norm
-        parent_b_idx.append(np.argmin(score_b))
-
-    selected = [
-        ind
-        for pair in zip(
-            (population[i] for i in parent_a_idx),
-            (population[i] for i in parent_b_idx),
-        )
-        for ind in pair
+    parent_a = [
+        population[np.lexsort((complexity, subset_mse[:, i]))[0]]
+        for i in range(len(subsets))
     ]
-    return selected[:k]
+    inv_score = np.exp(-(score - score.min()))
+    inv_score /= inv_score.sum()
+    tries, max_tries = 0, 10 * half_k
+    while len(parent_a) < half_k and tries < max_tries:
+        chosen = np.random.choice(n, p=inv_score)
+        parent_a.append(population[chosen])
+        tries += 1
+    parent_a = parent_a[:half_k]
+
+    idx_map = {ind: i for i, ind in enumerate(population)}
+    norms = np.linalg.norm(residuals, axis=1) + 1e-12
+
+    parent_b = []
+    for a in parent_a:
+        i_a = idx_map[a]
+        res_a = residuals[i_a]
+        cors = (residuals @ res_a) / (norms * norms[i_a])
+        cors[i_a] = 1
+        comp_score = np.abs(cors) + comp_factor * complexity
+        b_idx = np.argmin(comp_score)
+        parent_b.append(population[b_idx])
+
+    return [ind for pair in zip(parent_a, parent_b) for ind in pair][:k]
 
 
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
