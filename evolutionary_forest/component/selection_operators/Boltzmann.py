@@ -35,10 +35,11 @@ def selBoltzmann(
 
     # Compute Boltzmann weights
     scores = [getattr(ind, fit_attr).wvalues[0] for ind in individuals]
-    exp_scores = [math.exp(score / tau) for score in scores]
-    sum_exp = sum(exp_scores)
 
-    # Normalize weights to get probabilities
+    # Numerically stable softmax
+    max_score = max(scores)
+    exp_scores = [math.exp((score - max_score) / tau) for score in scores]
+    sum_exp = sum(exp_scores)
     probabilities = [w / sum_exp for w in exp_scores]
 
     # Sample k individuals with weighted probabilities
