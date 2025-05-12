@@ -222,7 +222,6 @@ from evolutionary_forest.component.selection import (
     selGPED,
     selMAPElites,
     selMAPEliteClustering,
-    selKnockout,
     selRoulette,
     selMaxAngleSelection,
     selAngleDrivenSelection,
@@ -240,6 +239,7 @@ from evolutionary_forest.component.selection import (
     hybrid_lexicase_dcd,
     selHOFRandom,
 )
+from evolutionary_forest.component.selection_operators.Boltzmann import selBoltzmann
 from evolutionary_forest.component.selection_operators.curriculum_learning import (
     GenerationInfo,
     dynamic_difficulty_lexicase_selection,
@@ -2733,8 +2733,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selMaxAngleSelection, target=self.y)
         elif self.select == "AngleDrivenSelection":
             toolbox.register("select", selAngleDrivenSelection, target=self.y)
-        elif self.select == "Knockout":
-            toolbox.register("select", selKnockout)
+        elif self.select == "Boltzmann":
+            toolbox.register("select", selBoltzmann, model=self, N=self.n_gen)
         elif self.select in ["Random"]:
             toolbox.register("select", selRandom)
         elif self.select == "Hybrid":
