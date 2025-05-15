@@ -258,6 +258,9 @@ from evolutionary_forest.component.selection_operators.lexicase_pareto_tournamen
     sel_lexicase_pareto_tournament_random_subset,
     sel_lexicase_pareto_tournament_weighted_subset,
 )
+from evolutionary_forest.component.selection_operators.minimum_variance_lexicase import (
+    selMinimumVarianceLexicaseFast,
+)
 from evolutionary_forest.component.selection_operators.niche_base_selection import (
     niche_base_selection,
 )
@@ -2644,8 +2647,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", partial(selGroupALS, inner_selection="DCD-ALS"))
         elif self.select == "Niching":
             toolbox.register("select", niche_base_selection)
-        elif self.select == "Niching+":
-            toolbox.register("select", partial(niche_base_selection, key_objective=1))
+        elif self.select == "D-Split":
+            toolbox.register("select", selMinimumVarianceLexicaseFast)
         elif self.select == "DoubleLexicase" or self.select == "SoftmaxDLS":
             lexicase_round = self.bloat_control_configuration.lexicase_round
             size_selection = self.bloat_control_configuration.size_selection
