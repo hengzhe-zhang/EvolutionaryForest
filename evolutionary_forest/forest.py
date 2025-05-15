@@ -247,6 +247,7 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     adaptive_epsilon_curriculum_lexicase,
     adaptive_tier_lexicase_selection,
 )
+from evolutionary_forest.component.selection_operators.da_lexicase import selDAlexFast
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
     novel_selection_plus,
     novel_selection,
@@ -2643,8 +2644,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register(
                 "select", partial(selGroupALS, inner_selection="LexicaseDCD")
             )
-        elif self.select == "GroupDCD-ALS":
-            toolbox.register("select", partial(selGroupALS, inner_selection="DCD-ALS"))
+        elif self.select == "DALex":
+            toolbox.register("select", selDAlexFast)
         elif self.select == "Niching":
             toolbox.register("select", niche_base_selection)
         elif self.select == "D-Split":
