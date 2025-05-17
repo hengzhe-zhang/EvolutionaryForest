@@ -163,6 +163,84 @@ def complementary_tournament(population, k=100, tour_size=3):
 
 
 def novel_selection(population, k=100, status={}):
+    evo_stage = status.get("evolutionary_stage", 0.0)
+    n = len(population)
+    if n == 0:
+        return []
+
+    # Extract metrics
+    errs = np.array([np.mean(ind.case_values) for ind in population], dtype=float)
+    sizes = np.array([len(ind) for ind in population], dtype=float)
+    heights = np.array([ind.height for ind in population], dtype=float)
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    preds = np.array([ind.predicted_values for ind in population])
+
+    def safe_norm(arr):
+        m = max(arr.max(), 1e-10)
+        return arr / m
+
+    norm_size, norm_height = safe_norm(sizes), safe_norm(heights)
+    res_vars = np.var(residuals, axis=1)
+    res_norms = np.linalg.norm(residuals, axis=1)
+    norm_var, norm_resnorm = safe_norm(res_vars), safe_norm(res_norms)
+    norm_err = safe_norm(errs)
+
+    # Complexity metric combines more residual stats while balancing structural features
+    complexity = (norm_size + norm_height + norm_var + norm_resnorm) / 4
+    alpha, beta = 1 - evo_stage, evo_stage
+    base_score = beta * (1 - norm_err) + alpha * (1 - complexity)
+    base_score -= base_score.min()
+    if base_score.sum() == 0:
+        base_score[:] = 1
+    base_probs = base_score / base_score.sum()
+
+    # Novelty score based on residuals and predicted values diversity
+    def novelty_score(mat):
+        centered = mat - mat.mean(axis=1, keepdims=True)
+        norms = np.linalg.norm(centered, axis=1, keepdims=True) + 1e-10
+        normed = centered / norms
+        sim = normed @ normed.T
+        nov = 1 - sim.mean(axis=1)
+        max_n = nov.max()
+        return nov / (max_n if max_n > 0 else 1)
+
+    novelty_res = novelty_score(residuals)
+    novelty_pred = novelty_score(preds)
+    novelty = 0.5 * (novelty_res + novelty_pred)
+
+    # Dynamic novelty weighting: stronger early novelty, moderate late novelty
+    novelty_weight = 0.35 + 0.3 * (1 - evo_stage) ** 0.8
+
+    mixed_probs = (1 - novelty_weight) * base_probs + novelty_weight * novelty
+    mixed_probs -= mixed_probs.min()
+    if mixed_probs.sum() == 0:
+        mixed_probs[:] = 1
+    mixed_probs /= mixed_probs.sum()
+
+    # Adaptive tournament size encourages pressure on error, preserves diversity
+    tour_size = min(3 + int(evo_stage * 2), n)
+    selected = []
+    while len(selected) < k:
+        chosen = np.random.choice(n, size=tour_size, replace=False, p=mixed_probs)
+        # Tournament winner: lowest error considering base scores and novelty tie-break
+        chosen_errs = errs[chosen]
+        chosen_scores = base_probs[chosen]
+        min_err_idx = chosen_errs.argmin()
+        # Tie-break with highest combined score
+        best_candidates = np.flatnonzero(chosen_errs == chosen_errs[min_err_idx])
+        if len(best_candidates) > 1:
+            best_scores = (
+                chosen_scores[best_candidates] + novelty[chosen][best_candidates]
+            )
+            winner_idx = best_candidates[np.argmax(best_scores)]
+        else:
+            winner_idx = min_err_idx
+        selected.append(population[chosen[winner_idx]])
+    return selected
+
+
+def novel_selection_plus_plus(population, k=100, status={}):
+    # a historical version of a novelty selection
     stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
     n = len(population)
     if n == 0 or k == 0:
