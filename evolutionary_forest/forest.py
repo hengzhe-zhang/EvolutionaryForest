@@ -254,6 +254,7 @@ from evolutionary_forest.component.selection_operators.informed_lexicase import 
     complementary_tournament,
     select_cps_regression,
     select_cpsr_regression,
+    novel_selection_simplified,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2553,6 +2554,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register(
                 "select",
                 novel_selection_plus,
+            )
+        elif self.select == "NovelSelection-Simplified":
+            toolbox.register(
+                "select",
+                novel_selection_simplified,
             )
         elif self.select == "P-Lexicase":
             toolbox.register(

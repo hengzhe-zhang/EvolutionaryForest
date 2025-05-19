@@ -393,6 +393,56 @@ def novel_selection_plus(population, k=100, status={}):
     return [ind for pair in zip(parent_a, parent_b) for ind in pair][:k]
 
 
+def novel_selection_simplified(population, k=100, status={}):
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    n = len(population)
+    half_k = k // 2
+    y = population[0].y
+    n_cases = y.size
+
+    ssize = max(7, n_cases // max(1, 2 * half_k))
+    half_struct = half_k // 2
+    structured = [
+        np.arange(i * ssize, min((i + 1) * ssize, n_cases)) for i in range(half_struct)
+    ]
+    random_ = [
+        np.random.choice(n_cases, ssize, replace=False)
+        for _ in range(half_k - half_struct)
+    ]
+    subsets = structured + random_
+
+    residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
+    complexity = np.array([len(ind) + ind.height for ind in population], float)
+    complexity /= max(1, complexity.max())
+    subset_mse = np.array(
+        [
+            [((residuals[i, s]) ** 2).mean() if s.size else np.inf for s in subsets]
+            for i in range(n)
+        ]
+    )
+    comp_factor = 0.25 + 0.25 * stage
+
+    parent_a = [
+        population[np.lexsort((complexity, subset_mse[:, i]))[0]]
+        for i in range(len(subsets))
+    ]
+
+    idx_map = {ind: i for i, ind in enumerate(population)}
+    norms = np.linalg.norm(residuals, axis=1) + 1e-12
+
+    parent_b = []
+    for a in parent_a:
+        i_a = idx_map[a]
+        res_a = residuals[i_a]
+        cors = (residuals @ res_a) / (norms * norms[i_a])
+        cors[i_a] = 1
+        comp_score = np.abs(cors) + comp_factor * complexity
+        b_idx = np.argmin(comp_score)
+        parent_b.append(population[b_idx])
+
+    return [ind for pair in zip(parent_a, parent_b) for ind in pair][:k]
+
+
 def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1):
     """
     Tournament Selection with Random Down-Sampling:
