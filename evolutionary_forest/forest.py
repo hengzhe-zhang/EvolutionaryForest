@@ -2555,6 +2555,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 novel_selection_plus,
             )
+        elif self.select == "NovelSelection-Fixed":
+            from evolutionary_forest.component.selection_operators.informed_lexicase import (
+                novel_selection_fixed,
+            )
+
+            toolbox.register(
+                "select",
+                novel_selection_fixed,
+            )
         elif self.select == "NovelSelection-Simplified":
             toolbox.register(
                 "select",
