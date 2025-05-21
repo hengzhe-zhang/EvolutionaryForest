@@ -12,6 +12,8 @@ def load_api_key(config_file="config.yaml", service=None):
             config = yaml.safe_load(file)
             if service == "Gemini":
                 return config.get("gemini_key")
+            elif service == "DeepSeek":
+                return config.get("deepseek_key")
             elif service == "OpenAI":
                 return config.get("api_key")
             else:
@@ -28,6 +30,11 @@ def initialize_openai(api_key, service):
         return OpenAI(
             api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+    elif service == "DeepSeek":
+        return OpenAI(
+            api_key=api_key,
+            base_url="https://llm.chutes.ai/v1/",
         )
     elif service == "OpenAI":
         return OpenAI(api_key=api_key)
