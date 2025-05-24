@@ -8,13 +8,13 @@ from evolutionary_forest.component.llm.gp_tree_converter import (
     parent_to_json,
     generate_trees,
     json_to_individual,
-    ChatGP,
+    GPT,
 )
 
 
 @lru_cache(maxsize=None)
 def get_llm_model():
-    gpt = ChatGP()
+    gpt = GPT()
     gpt.lazy_load()
     return gpt
 

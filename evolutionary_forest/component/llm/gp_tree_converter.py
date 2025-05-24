@@ -77,7 +77,7 @@ def json_to_individual(data, template, pset: PrimitiveSet):
     return population
 
 
-class ChatGP:
+class GPT:
     def __init__(self, service):
         self.client: OpenAI = None
         self.service = service
@@ -98,7 +98,7 @@ class ChatGP:
         self.client = initialize_openai(api_key, self.service)
 
 
-def generate_trees(chatgp: ChatGP, pattern, parent_json, tree_num=10):
+def generate_trees(chatgp: GPT, pattern, parent_json, tree_num=10):
     chatgp.lazy_load()
     if pattern == "":
         llm_text = f"""
@@ -133,7 +133,7 @@ Please only output the generated solutions. Ensure the solutions follows the gra
     return chat_completion.choices[0].message.content
 
 
-def generate_pattern(chatgpt: ChatGP, good_bad_json, top_k=5, tree_num=10):
+def generate_pattern(chatgpt: GPT, good_bad_json, top_k=5, tree_num=10):
     chatgpt.lazy_load()
     chat_completion = chatgpt.client.chat.completions.create(
         messages=[
