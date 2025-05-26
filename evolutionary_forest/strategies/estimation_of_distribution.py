@@ -46,6 +46,7 @@ eda_operators = [
     "EDA-Terminal-PM-SC-WS",
     "EDA-Terminal-PM-SC-NT",
     "EDA-Terminal-PM-SameIndex",
+    "EDA-SemanticLibrary",
 ]
 
 
@@ -212,6 +213,9 @@ class EstimationOfDistribution:
         self.algorithm: "EvolutionaryForestRegressor" = algorithm
         self.turn_on = self.algorithm.mutation_scheme == "EDA-Terminal-PM"
 
+        if self.algorithm.mutation_scheme == "EDA-SemanticLibrary":
+            self.algorithm.mutation_configuration.pool_base_feature_selection = True
+
         self.primitive_prob = None
         self.terminal_prob = None
 
@@ -357,6 +361,9 @@ class EstimationOfDistribution:
         return primitive_prob_count, terminal_prob_count
 
     def frequency_counting(self, importance_weight=True):
+        if self.algorithm.mutation_scheme == "EDA-SemanticLibrary":
+            return
+
         self.init_probability_matrix()
         if self.eda_archive is not None:
             self.eda_archive.update(self.algorithm.pop)
@@ -512,6 +519,8 @@ class EstimationOfDistribution:
             terminal_counts[k] = p * sum
 
     def probability_normalization(self):
+        if self.algorithm.mutation_scheme == "EDA-SemanticLibrary":
+            return
         if self.decision_tree_mode:
             return
         # Sampling primitive and terminal nodes based on the probability matrix

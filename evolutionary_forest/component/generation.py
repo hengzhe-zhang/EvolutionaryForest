@@ -14,7 +14,6 @@ from evolutionary_forest.component.configuration import (
     CrossoverConfiguration,
     MutationConfiguration,
 )
-from evolutionary_forest.component.llm.llm_crossover import llm_crossover
 from evolutionary_forest.component.mutation.tree_replacement import tree_replacement
 from evolutionary_forest.component.stgp.strongly_type_gp_utility import revert_back
 from evolutionary_forest.component.toolbox import TypedToolbox
@@ -23,10 +22,11 @@ from evolutionary_forest.utility.deletion_utils import *
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+    from evolutionary_forest.utility.tree_pool import SemanticLibrary
 
 
 from evolutionary_forest.multigene_gp import (
-    gene_crossover,
+    tree_crossover,
     MultipleGeneGP,
     gene_mutation,
 )
@@ -155,12 +155,11 @@ def varAndPlus(
                 and crossover_configuration.llm_crossover > 0
                 and random.random() < crossover_configuration.llm_crossover
             ):
-                # top_ind = list(
-                #     sorted(
-                #         algorithm.pop, key=lambda x: x.fitness.wvalues[0], reverse=True
-                #     )[:2]
-                # )
                 try:
+                    from evolutionary_forest.component.llm.llm_crossover import (
+                        llm_crossover,
+                    )
+
                     assert len(offspring) == 2
                     llm_offspring = llm_crossover(
                         # top_ind,
@@ -179,7 +178,7 @@ def varAndPlus(
                     pass
 
             if isinstance(cxpb, np.ndarray):
-                # MGP crossover
+                # modular GP
                 if crossover_configuration.number_of_invokes > 0:
                     invokes = crossover_configuration.number_of_invokes
                 else:
@@ -188,7 +187,7 @@ def varAndPlus(
                 for c in range(invokes):
                     assert not crossover_configuration.var_or, "Not supported varOr!"
                     if i % 2 == 0 and random.random() < cxpb[c]:
-                        offspring[i].gene[c], offspring[i + 1].gene[c] = gene_crossover(
+                        offspring[i].gene[c], offspring[i + 1].gene[c] = tree_crossover(
                             offspring[i].gene[c],
                             offspring[i + 1].gene[c],
                             configuration=crossover_configuration,
@@ -246,6 +245,11 @@ def varAndPlus(
                 for c in range(invokes):
                     # If in var_or mode, once crossed, not allowed to be mutated
                     if random.random() < mutpb:
+                        if mutation_configuration.pool_base_feature_selection:
+                            algorithm.tree_pool: "SemanticLibrary"
+                            algorithm.tree_pool.update_variable_probability(
+                                offspring[i], algorithm
+                            )
                         (offspring[i],) = toolbox.mutate(offspring[i])
                         # if crossover already modifies an individual,
                         # then set its parent fitness as the fitness values of two parents

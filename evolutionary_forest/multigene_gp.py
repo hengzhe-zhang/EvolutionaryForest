@@ -14,7 +14,6 @@ from deap.gp import (
     compile,
     cxOnePoint,
     mutUniform,
-    mutShrink,
     mutInsert,
     cxOnePointLeafBiased,
     PrimitiveSet,
@@ -345,7 +344,7 @@ def get_random_from_interval(x, c):
     return random.randint(interval_start, interval_end - 1)
 
 
-def cxOnePoint_multiple_gene(
+def cxOnePoint_multiple_tree(
     ind1: MultipleGeneGP,
     ind2: MultipleGeneGP,
     pset: PrimitiveSet = None,
@@ -386,10 +385,10 @@ def cxOnePoint_multiple_gene(
             gene1_b = copy.deepcopy(gene1_b)
             gene2_b = copy.deepcopy(gene2_b)
             # mutate worst, preserve best
-            ind1.gene[id1_b], _ = gene_crossover(
+            ind1.gene[id1_b], _ = tree_crossover(
                 gene1_b, gene2_a, configuration=crossover_configuration
             )
-            _, ind2.gene[id2_b] = gene_crossover(
+            _, ind2.gene[id2_b] = tree_crossover(
                 gene1_a, gene2_b, configuration=crossover_configuration
             )
             return ind1, ind2
@@ -405,7 +404,7 @@ def cxOnePoint_multiple_gene(
     ):
         ind1.gene[id1], ind2.gene[id2] = gene2, gene1
     else:
-        ind1.gene[id1], ind2.gene[id2] = gene_crossover(
+        ind1.gene[id1], ind2.gene[id2] = tree_crossover(
             gene1, gene2, configuration=crossover_configuration, pset=pset
         )
     return ind1, ind2
@@ -424,7 +423,7 @@ def modular_gp_crossover(ind1, ind2):
     return gene1, gene2, id1, id2
 
 
-def gene_crossover(tree1, tree2, configuration: CrossoverConfiguration, pset=None):
+def tree_crossover(tree1, tree2, configuration: CrossoverConfiguration, pset=None):
     if configuration.safe_crossover:
         tree1, tree2 = cxOnePointSizeSafe(tree1, tree2, configuration)
     elif configuration.merge_crossover:
@@ -623,12 +622,12 @@ def cxOnePoint_multiple_gene_SC(
     2. Migrate a portion of useful materials from well-behaved one
     """
     temperature = crossover_configuration.sc_temperature
-    gene_crossover(
+    tree_crossover(
         ind1.softmax_selection(reverse=True, temperature=temperature),
         copy.deepcopy(ind2.softmax_selection(temperature=temperature)),
         crossover_configuration,
     )
-    gene_crossover(
+    tree_crossover(
         ind2.softmax_selection(reverse=True, temperature=temperature),
         copy.deepcopy(ind1.softmax_selection(temperature=temperature)),
         crossover_configuration,
@@ -647,12 +646,12 @@ def cxOnePoint_multiple_gene_TSC(
     2. Migrate a portion of useful materials from well-behaved one with Tournament Selection
     """
     tournsize = crossover_configuration.sc_tournament_size
-    gene_crossover(
+    tree_crossover(
         ind1.tournament_selection(tournsize, reverse=True),
         copy.deepcopy(ind2.tournament_selection(tournsize)),
         crossover_configuration,
     )
-    gene_crossover(
+    tree_crossover(
         ind2.tournament_selection(tournsize, reverse=True),
         copy.deepcopy(ind1.tournament_selection(tournsize)),
         crossover_configuration,
@@ -864,44 +863,6 @@ def mutUniform_multiple_gene_with_probability(
         if random.random() < probability:
             mutUniform(g, expr, pset)
     return (individual,)
-
-
-def mutShrink_multiple_gene(individual: MultipleGeneGP, expr, pset):
-    if random.random() < 0.5:
-        mutUniform(individual.random_select(), expr, pset)
-    else:
-        mutShrink(individual.random_select())
-    return (individual,)
-
-
-def mutUniform_multiple_gene_worst(individual: MultipleGeneGP, expr, pset):
-    mutUniform(individual.worst_gene(), expr, pset)
-    return (individual,)
-
-
-def mutUniform_multiple_gene_threshold(individual: MultipleGeneGP, expr, pset):
-    s = sum([1 - c for c in individual.coef])
-    for g, c in zip(individual.gene, individual.coef):
-        if random.random() < (1 - c) / s:
-            mutUniform(individual.worst_gene(), expr, pset)
-    return (individual,)
-
-
-def mutUniform_multiple_gene_with_prob(
-    individual: MultipleGeneGP, expr, pset, terminal_probs, primitive_probs
-):
-    root_individual = individual
-    individual = individual.random_select()
-    index = random.randrange(len(individual))
-    slice_ = individual.searchSubtree(index)
-    type_ = individual[index].ret
-    individual[slice_] = expr(
-        pset=pset,
-        type_=type_,
-        terminal_probs=terminal_probs,
-        primitive_probs=primitive_probs,
-    )
-    return (root_individual,)
 
 
 def mutInsert_multiple_gene(individual: MultipleGeneGP, pset):

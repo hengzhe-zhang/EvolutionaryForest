@@ -986,3 +986,31 @@ class SemanticLibrary:
                 patience=5,
                 loss_weight=self.mutation_configuration.weight_of_contrastive_learning,
             )
+
+    def update_variable_probability(
+        self,
+        ind: MultipleGeneGP,
+        algorithm: "EvolutionaryForestRegressor",
+    ):
+        desire_semantics = algorithm.y - ind.semantics
+        dist, index = self.kd_tree.query(desire_semantics, k=10)
+        dist_neg, index_neg = self.kd_tree.query(-desire_semantics, k=10)
+        index = np.concatenate([index, index_neg])
+        trees = self.trees[index]
+
+        assert object in algorithm.pset.terminals
+        terminals = {v: k for k, v in enumerate(algorithm.pset.terminals[object])}
+        probability = np.ones(len(terminals))
+        for tree in trees:
+            for node in tree:
+                if not isinstance(node, Terminal):
+                    continue
+
+                if node in terminals:
+                    probability[terminals[node]] += 1
+                else:
+                    # constant
+                    probability[-1] += 1
+
+        algorithm.estimation_of_distribution.terminal_prob = probability
+        return

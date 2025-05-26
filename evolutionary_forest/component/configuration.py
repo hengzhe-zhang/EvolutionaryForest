@@ -283,6 +283,7 @@ class MutationConfiguration(Configuration):
         neural_pool_mlp_layers=3,
         selective_retrain=True,
         retrieval_augmented_generation=True,
+        pool_base_feature_selection=False,
         **params,
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -296,6 +297,8 @@ class MutationConfiguration(Configuration):
         self.max_height = max_height
         self.addition_or_deletion = addition_or_deletion
         self.pool_based_addition = pool_based_addition
+        # use pool in random mutation
+        self.pool_base_feature_selection = pool_base_feature_selection
         self.pool_addition_mode = pool_addition_mode
         self.redundant_based_deletion = redundant_based_deletion
         self.deletion_strategy = deletion_strategy

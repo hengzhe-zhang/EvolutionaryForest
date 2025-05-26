@@ -2292,13 +2292,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     tree_generation=gp.genFull,
                     configuration=self.mutation_configuration,
                 )
-            elif mutation_operator == "worst":
-                toolbox.register(
-                    "mutate",
-                    mutUniform_multiple_gene_worst,
-                    expr=toolbox.expr_mut,
-                    pset=pset,
-                )
             else:
                 raise Exception
         elif self.mutation_scheme in eda_operators:

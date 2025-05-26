@@ -38,7 +38,7 @@ def initialize_crossover_operator(
         toolbox.mate = cxOnePointAdaptive
     else:
         toolbox.mate = partial(
-            cxOnePoint_multiple_gene,
+            cxOnePoint_multiple_tree,
             pset=self.pset,
             crossover_configuration=self.get_crossover_configuration(),
         )
