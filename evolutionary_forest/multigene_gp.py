@@ -1148,15 +1148,14 @@ def mapElitesCrossover(
     map_elites_configuration: MAPElitesConfiguration,
 ):
     importance_result, semantic_result = get_semantic_results(ind1, ind2, target)
-    semantic_result = np.nan_to_num(semantic_result, nan=0.0)
-    kpca = Pipeline(
-        [
-            ("Standardization", StandardScaler(with_mean=False)),
-            ("KPCA", KernelPCA(kernel="cosine", n_components=2)),
-        ]
+    scaler = StandardScaler(with_mean=False)
+    semantic_standardized = scaler.fit_transform(semantic_result)
+    semantic_standardized = np.nan_to_num(
+        semantic_standardized, nan=0.0, posinf=0.0, neginf=0.0
     )
 
-    kpca_semantics = kpca.fit_transform(semantic_result)
+    kpca = KernelPCA(kernel="cosine", n_components=2)
+    kpca_semantics = kpca.fit_transform(semantic_standardized)
     assert not np.any(np.isnan(kpca_semantics)), "No KPCA semantics should be nan!"
     selected = []
     while len(selected) < len(ind1.gene):
