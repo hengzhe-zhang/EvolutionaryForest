@@ -41,7 +41,7 @@ def calculate_pearson_correlation(x, y):
     return numerator / denominator
 
 
-def igci(x, y, ref_measure="uniform", estimator="integral"):
+def igci(x: np.ndarray, y: np.ndarray, ref_measure="uniform", estimator="integral"):
     x = np.asarray(x).flatten()
     y = np.asarray(y).flatten()
     n = len(x)

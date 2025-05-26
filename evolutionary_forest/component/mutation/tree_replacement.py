@@ -159,15 +159,17 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_size = llm_complexity(ind.gene[id], None)
                 complexity_function = llm_complexity
             elif pool_addition_mode == "Smallest~Auto~Frequency":
-                complexity_function = lambda tree, _: algorithm.tree_pool.frequency[
-                    str(tree)
-                ]
+
+                def complexity_function(tree, _):
+                    return algorithm.tree_pool.frequency[str(tree)]
+
                 incumbent_size = complexity_function(ind.gene[id], None)
             elif pool_addition_mode == "Smallest~Auto~Complexity":
                 semantics = ind.semantics[indexes, id]
-                complexity_function = lambda tree, semantics: igci(
-                    semantics, algorithm.y[indexes], algorithm.X[indexes]
-                )
+
+                def complexity_function(_, semantics):
+                    return igci(semantics, algorithm.y[indexes])
+
                 incumbent_size = complexity_function(ind.gene[id], semantics)
             else:
                 incumbent_size = -1
