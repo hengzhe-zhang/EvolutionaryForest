@@ -284,6 +284,7 @@ class MutationConfiguration(Configuration):
         selective_retrain=True,
         retrieval_augmented_generation=True,
         pool_base_feature_selection=False,
+        frequency_k_candidates=10,
         **params,
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -323,6 +324,7 @@ class MutationConfiguration(Configuration):
         self.scaling_before_replacement = scaling_before_replacement
 
         self.top_k_candidates = top_k_candidates
+        self.frequency_k_candidates = frequency_k_candidates
         self.lib_feature_selection = lib_feature_selection
         self.lib_feature_selection_mode = lib_feature_selection_mode
         self.local_search_dropout = local_search_dropout
