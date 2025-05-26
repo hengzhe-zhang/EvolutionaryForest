@@ -992,22 +992,25 @@ class SemanticLibrary:
         ind: MultipleGeneGP,
         algorithm: "EvolutionaryForestRegressor",
     ):
-        desire_semantics = algorithm.y - ind.semantics
+        desire_semantics = (
+            algorithm.y[self.clustering_indexes]
+            - ind.individual_semantics[self.clustering_indexes]
+        )
         dist, index = self.kd_tree.query(desire_semantics, k=10)
         dist_neg, index_neg = self.kd_tree.query(-desire_semantics, k=10)
         index = np.concatenate([index, index_neg])
-        trees = self.trees[index]
+        trees = [self.trees[idx] for idx in index]
 
         assert object in algorithm.pset.terminals
-        terminals = {v: k for k, v in enumerate(algorithm.pset.terminals[object])}
+        terminals = {v.name: k for k, v in enumerate(algorithm.pset.terminals[object])}
         probability = np.ones(len(terminals))
         for tree in trees:
             for node in tree:
                 if not isinstance(node, Terminal):
                     continue
 
-                if node in terminals:
-                    probability[terminals[node]] += 1
+                if node.name in terminals:
+                    probability[terminals[node.name]] += 1
                 else:
                     # constant
                     probability[-1] += 1
