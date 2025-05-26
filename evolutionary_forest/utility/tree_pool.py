@@ -999,7 +999,9 @@ class SemanticLibrary:
         desire_semantics = normalize_vector(desire_semantics)
         top_k_candidates = algorithm.mutation_configuration.top_k_candidates
         dist, index = self.kd_tree.query(desire_semantics, k=top_k_candidates)
+        dist, index = dist.flatten(), index.flatten()
         dist_neg, index_neg = self.kd_tree.query(-desire_semantics, k=top_k_candidates)
+        dist_neg, index_neg = dist_neg.flatten(), index_neg.flatten()
         top = np.argsort(np.concatenate((dist, dist_neg)))
         index = np.concatenate([index, index_neg])[top[:top_k_candidates]]
         trees = [self.trees[idx] for idx in index]
