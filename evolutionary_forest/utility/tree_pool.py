@@ -996,14 +996,17 @@ class SemanticLibrary:
             algorithm.y[self.clustering_indexes]
             - ind.individual_semantics[self.clustering_indexes]
         )
-        dist, index = self.kd_tree.query(desire_semantics, k=10)
-        dist_neg, index_neg = self.kd_tree.query(-desire_semantics, k=10)
-        index = np.concatenate([index, index_neg])
+        desire_semantics = normalize_vector(desire_semantics)
+        top_k_candidates = algorithm.mutation_configuration.top_k_candidates
+        dist, index = self.kd_tree.query(desire_semantics, k=top_k_candidates)
+        dist_neg, index_neg = self.kd_tree.query(-desire_semantics, k=top_k_candidates)
+        top = np.argsort(np.concatenate((dist, dist_neg)))
+        index = np.concatenate([index, index_neg])[top[:top_k_candidates]]
         trees = [self.trees[idx] for idx in index]
 
         assert object in algorithm.pset.terminals
         terminals = {v.name: k for k, v in enumerate(algorithm.pset.terminals[object])}
-        probability = np.ones(len(terminals))
+        probability = np.zeros(len(terminals))
         for tree in trees:
             for node in tree:
                 if not isinstance(node, Terminal):
