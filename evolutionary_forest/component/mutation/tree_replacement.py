@@ -166,7 +166,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
             elif pool_addition_mode == "Smallest~Auto~Complexity":
                 semantics = ind.semantics[indexes, id]
                 complexity_function = lambda tree, semantics: igci(
-                    semantics, algorithm.y, algorithm.X[indexes]
+                    semantics, algorithm.y[indexes], algorithm.X[indexes]
                 )
                 incumbent_size = complexity_function(ind.gene[id], semantics)
             else:
