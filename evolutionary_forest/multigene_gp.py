@@ -20,9 +20,8 @@ from deap.gp import (
     PrimitiveSet,
     Terminal,
 )
-from deap.tools import selTournament, selRandom
+from deap.tools import selRandom
 from scipy.special import softmax
-from scipy.stats import pearsonr
 from sklearn.decomposition import KernelPCA
 from sklearn.metrics import pairwise_distances
 from sklearn.pipeline import Pipeline
@@ -502,7 +501,7 @@ def get_frequency_vector(individual, pset):
     return terminal_prob
 
 
-def mutUniform_multiple_gene(
+def mutUniform_multiple_tree(
     individual: MultipleGeneGP,
     expr: Callable,
     pset,
@@ -910,165 +909,6 @@ def mutInsert_multiple_gene(individual: MultipleGeneGP, pset):
     return (individual,)
 
 
-def mutWeight_multiple_gene(
-    individual: MultipleGeneGP, expr, pset, threshold_ratio=0.2
-):
-    good_features, threshold = construct_feature_pools(
-        [individual], True, threshold_ratio=threshold_ratio
-    )
-
-    def replaces_features(ind: MultipleGeneGP):
-        for i, c in enumerate(ind.coef):
-            positive = False
-            if (positive and c >= threshold) or (not positive and c < threshold):
-                new_features = mutUniform(
-                    copy.deepcopy(random.choice(good_features)), expr, pset
-                )
-                ind.gene[i] = new_features[0]
-
-    replaces_features(individual)
-    return (individual,)
-
-
-def construct_feature_pools(
-    pop, positive, threshold_ratio=0.2, good_features_threshold=None
-):
-    # positive: get all important features
-    # negative: get all unimportant features
-    good_features = []
-    good_features_str = set()
-    if good_features_threshold == None:
-        threshold = np.quantile([ind.coef for ind in pop], threshold_ratio)
-    elif good_features_threshold == "mean":
-        threshold = np.mean([ind.coef for ind in pop])
-    else:
-        # threshold for good features
-        threshold = np.quantile([ind.coef for ind in pop], good_features_threshold)
-
-    def add_features(ind):
-        for c, x in zip(ind.coef, ind.gene):
-            if (positive and c >= threshold) or (not positive and c < threshold):
-                if str(x) in good_features_str:
-                    continue
-                # assign a fitness value for each feature
-                x.fitness = c
-                good_features.append(x)
-                good_features_str.add(str(x))
-
-    for ind in pop:
-        add_features(ind)
-
-    # calculate the threshold for crossover
-    threshold = np.quantile([ind.coef for ind in pop], threshold_ratio)
-    return good_features, threshold
-
-
-def feature_crossover_cross(ind1, ind2, threshold_ratio):
-    pop = [ind1, ind2]
-    good_features, threshold = construct_feature_pools(
-        pop, True, threshold_ratio=threshold_ratio
-    )
-    new_pop = []
-    for ind in pop:
-        ind = cxOnePoint_multiple_gene_weight_plus(ind, good_features, threshold, False)
-        new_pop.append(ind)
-    return new_pop
-
-
-def feature_crossover_cross_global(ind1, ind2, regressor):
-    pop = [ind1, ind2]
-    new_pop = []
-    for ind in pop:
-        ind = cxOnePoint_multiple_gene_weight_plus(
-            ind, regressor.good_features, regressor.cx_threshold, False
-        )
-        new_pop.append(ind)
-    return new_pop
-
-
-def feature_mutation_global(individual: MultipleGeneGP, expr, pset, regressor):
-    threshold = regressor.cx_threshold
-
-    def replaces_features(ind: MultipleGeneGP):
-        for i, c in enumerate(ind.coef):
-            if c < threshold:
-                new_features = mutUniform(
-                    copy.deepcopy(random.choice(regressor.good_features)), expr, pset
-                )
-                ind.gene[i] = new_features[0]
-
-    replaces_features(individual)
-    return (individual,)
-
-
-def pool_based_mutation(
-    individual: MultipleGeneGP,
-    expr,
-    pset,
-    regressor,
-    pearson_selection=False,
-    feature_evaluation=None,
-    tournament_size=0,
-):
-    # construct features from the pool of good features
-    # in addition to that, we force new features are not equivalent to old features and useless features
-    def replaces_features(ind: MultipleGeneGP):
-        for i, c in enumerate(ind.coef):
-            if (
-                str(ind.gene[i]) in regressor.generated_features
-                or c < regressor.cx_threshold
-            ):
-                # new_features = copy.deepcopy(ind.gene[i])
-                while True:
-
-                    def feature_selection():
-                        if tournament_size == 0:
-                            return random.choice(regressor.good_features)
-                        else:
-                            return selTournament(
-                                regressor.good_features, tournament_size, 1
-                            )[0]
-
-                    if random.random() < 0.2:
-                        # mutation (in order to deal with the case of infinite loop)
-                        new_features = mutUniform(
-                            copy.deepcopy(feature_selection()), expr, pset
-                        )[0]
-                    else:
-                        # crossover
-                        new_features = cxOnePoint(
-                            copy.deepcopy(feature_selection()),
-                            copy.deepcopy(feature_selection()),
-                        )
-                        new_features = random.choice(new_features)
-                    regressor.repetitive_feature_count[-1] += 1
-                    if str(new_features) not in regressor.generated_features:
-                        # Pre-selection by Pearson correlation to ensure the synthesized feature is useful
-                        # However, such a process might be misleading
-                        if pearson_selection:
-                            func = compile(new_features, pset)
-                            Yp = result_calculation(
-                                [func], regressor.X[:20], False
-                            ).flatten()
-                            if np.abs(pearsonr(Yp, regressor.y[:20])[0]) <= 0.05:
-                                # useless features
-                                regressor.generated_features.add(str(new_features))
-                            else:
-                                break
-                        elif feature_evaluation != None:
-                            # using semantic diversity when generating new features
-                            y = feature_evaluation(new_features)
-                            if y not in regressor.generated_features:
-                                break
-                        else:
-                            break
-                ind.gene[i] = new_features
-            # regressor.generated_features.add(str(new_features))
-
-    replaces_features(individual)
-    return (individual,)
-
-
 def map_elites_selection(data, scores, k, map_elites_configuration, bins=10):
     """
     Selects k elements from a Mx2 matrix using map-elites algorithm.
@@ -1233,20 +1073,6 @@ def get_semantic_results(ind1, ind2, target):
     vector1, vector2 = np.abs(ind1.coef), np.abs(ind2.coef)
     importance_result = np.hstack((vector1, vector2))
     return importance_result, semantic_result
-
-
-def feature_crossover(ind1, ind2, positive, threshold_ratio):
-    pop = [ind1, ind2]
-    good_features, threshold = construct_feature_pools(
-        pop, positive, threshold_ratio=threshold_ratio
-    )
-    new_pop = []
-    for ind in pop:
-        ind = cxOnePoint_multiple_gene_weight_plus(
-            ind, good_features, threshold, positive
-        )
-        new_pop.append(ind)
-    return new_pop
 
 
 def cxOnePoint_multiple_gene_weight_plus(

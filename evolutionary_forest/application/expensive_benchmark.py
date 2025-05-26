@@ -54,7 +54,7 @@ class ExpensiveBenchmarkGenerator(BaseEstimator):
         )
         toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
         toolbox.register(
-            "mutate", mutUniform_multiple_gene, expr=toolbox.expr_mut, pset=self.pset
+            "mutate", mutUniform_multiple_tree, expr=toolbox.expr_mut, pset=self.pset
         )
         toolbox.select = partial(selTournament, tournsize=7)
 

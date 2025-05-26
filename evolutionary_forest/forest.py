@@ -50,7 +50,6 @@ from sklearn.preprocessing import (
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
 from sklearn2pmml.ensemble import GBDTLRClassifier
-from tpot import TPOTRegressor
 from xgboost import XGBRegressor
 
 from evolutionary_forest.component.archive import *
@@ -401,7 +400,7 @@ from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
-multi_gene_operators = [
+multi_tree_operators = [
     "uniform-plus",
     "uniform-plus-SC",
     "uniform-plus-BSC",
@@ -872,6 +871,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.ensemble_cooperation = True
 
         if self.base_learner == "Hybrid":
+            from tpot import TPOTRegressor
+
             self.tpot_model = TPOTRegressor()
             self.tpot_model._fit_init()
         else:
@@ -2258,7 +2259,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.mutate = self.mutation_scheme.mutate
         elif (
             "uniform" in self.mutation_scheme
-            or self.mutation_scheme in multi_gene_operators
+            or self.mutation_scheme in multi_tree_operators
         ):
             # extract mutation operator
             if "|" in self.mutation_scheme:
@@ -2285,7 +2286,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             elif mutation_operator is None:
                 toolbox.register(
                     "mutate",
-                    mutUniform_multiple_gene,
+                    mutUniform_multiple_tree,
                     expr=toolbox.expr_mut,
                     pset=pset,
                     tree_generation=gp.genFull,
@@ -2327,7 +2328,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # Register mutation operator using random tree mutation
             toolbox.register(
                 "mutate",
-                mutUniform_multiple_gene,
+                mutUniform_multiple_tree,
                 expr=toolbox.expr_mut,
                 pset=pset,
                 tree_generation=partial_func,
@@ -2358,7 +2359,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             random_replace=random_replace,
         )
 
-        if not self.multi_gene_mutation():
+        if not self.multi_tree_mutation():
             toolbox.decorate("mate", self.static_limit_function)
             toolbox.decorate("mutate", self.static_limit_function)
         else:
@@ -3232,16 +3233,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             self.lasso_hof = None
 
-    def construct_global_feature_pool(self, pop):
-        good_features, threshold = construct_feature_pools(
-            pop,
-            True,
-            threshold_ratio=self.cx_threshold_ratio,
-            good_features_threshold=self.good_features_threshold,
-        )
-        self.good_features = good_features
-        self.cx_threshold = threshold
-
     def fit(self, X, y, test_X=None, categorical_features=None):
         if self.precision == "Float32":
             X = X.astype(np.float32)
@@ -4047,9 +4038,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 X, y, test_size=self.validation_size
             )
 
-    def multi_gene_mutation(self):
+    def multi_tree_mutation(self):
         return (
-            self.mutation_scheme in multi_gene_operators
+            self.mutation_scheme in multi_tree_operators
             or self.mutation_scheme in eda_operators
             or isinstance(self.mutation_scheme, MutationOperator)
         )
@@ -4089,10 +4080,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         :param cxpb: The probability of crossover.
         :param mutpb: The probability of mutation.
         :param ngen: The number of generations.
-        :param stats:
+        :param stats: Statistics object to collect statistics during evolution.
         :param halloffame: An archive of the best individuals.
-        :param verbose:
-        :return:
+        :param verbose: If True, print the logbook.
+        :return: population, logbook
         """
         starting_time = time.time()
 
@@ -4135,11 +4126,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.diversity_search != "None":
             self.diversity_assignment(population)
-
-        if isinstance(self.mutation_scheme, str) and (
-            "global" in self.mutation_scheme or "extreme" in self.mutation_scheme
-        ):
-            self.construct_global_feature_pool(population)
 
         record = stats.compile(population) if stats else {}
         logbook.record(gen=0, nevals=len(evaluated_inds), **record)
@@ -4216,7 +4202,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     )
                 else:
                     self.estimation_of_distribution.frequency_counting()
-                self.estimation_of_distribution.probability_sampling()
+                self.estimation_of_distribution.probability_normalization()
             if (
                 self.external_archive == "HallOfFame"
                 and (self.hof is not None)
@@ -4308,7 +4294,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 offspring = self.semantic_prune_and_plant(offspring)
 
                 # Vary the pool of individuals
-                if self.multi_gene_mutation():
+                if self.multi_tree_mutation():
                     limitation_check = self.static_limit_function
                     if (
                         self.bloat_control is not None
@@ -4544,10 +4530,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.stage_flag:
                 print("Stop HOF updating")
 
-            if isinstance(self.mutation_scheme, str) and (
-                "global" in self.mutation_scheme or "extreme" in self.mutation_scheme
-            ):
-                self.construct_global_feature_pool(population)
             self.append_evaluated_features(offspring)
 
             best_fitness = np.max([ind.fitness.wvalues[0] for ind in offspring])

@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 eda_operators = [
-    "probability-TS",
     "EDA-Primitive",
     "EDA-Terminal",
     "EDA-PM",
@@ -512,7 +511,7 @@ class EstimationOfDistribution:
         for p, k in zip(terminal_probs, terminal_ids):
             terminal_counts[k] = p * sum
 
-    def probability_sampling(self):
+    def probability_normalization(self):
         if self.decision_tree_mode:
             return
         # Sampling primitive and terminal nodes based on the probability matrix
