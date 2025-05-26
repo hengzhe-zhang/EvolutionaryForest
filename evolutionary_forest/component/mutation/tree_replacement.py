@@ -12,7 +12,7 @@ from evolutionary_forest.component.external_archive.semantic_library_mode_contro
 )
 from evolutionary_forest.component.generalization.smoothness import (
     llm_complexity,
-    smoothness,
+    igci,
 )
 from evolutionary_forest.component.gradient_optimization.linear_scaling import (
     calculate_slope,
@@ -165,7 +165,7 @@ def tree_replacement(ind: MultipleGeneGP, algorithm: "EvolutionaryForestRegresso
                 incumbent_size = complexity_function(ind.gene[id], None)
             elif pool_addition_mode == "Smallest~Auto~Complexity":
                 semantics = ind.semantics[indexes, id]
-                complexity_function = lambda tree, semantics: smoothness(
+                complexity_function = lambda tree, semantics: igci(
                     semantics, algorithm.y, algorithm.X[indexes]
                 )
                 incumbent_size = complexity_function(ind.gene[id], semantics)

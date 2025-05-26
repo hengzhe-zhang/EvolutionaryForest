@@ -41,18 +41,41 @@ def calculate_pearson_correlation(x, y):
     return numerator / denominator
 
 
-def smoothness(semantics: np.ndarray, target, x):
-    # normalize semantics, because of linear scaling
-    semantics = semantics / np.linalg.norm(semantics)
-    target = target / np.linalg.norm(target)
-
-    smoothness = np.inf
-    for x_i in x.T:
-        idx = np.argsort(x_i)
-        smoothness = min(
-            smoothness, np.mean((np.diff(semantics[idx]) - np.diff(target[idx]) ** 2))
+def igci(x, y, ref_measure="uniform", estimator="integral"):
+    x = np.asarray(x).flatten()
+    y = np.asarray(y).flatten()
+    n = len(x)
+    if n != len(y) or n < 20:
+        raise ValueError(
+            "x and y must be 1D arrays with at least 20 elements each, and of same length."
         )
-    return smoothness
+
+    # Standardize
+    if ref_measure == "uniform":
+        x = (x - x.min()) / (x.max() - x.min())
+        y = (y - y.min()) / (y.max() - y.min())
+    elif ref_measure == "gaussian":
+        x = (x - x.mean()) / x.std()
+        y = (y - y.mean()) / y.std()
+
+    if estimator == "entropy":
+
+        def entropy(v):
+            v = np.sort(v)
+            deltas = np.diff(v)
+            deltas = deltas[deltas != 0]
+            return np.mean(np.log(np.abs(deltas))) if len(deltas) else 0
+
+        f = entropy(y) - entropy(x)
+    elif estimator == "integral":
+        x_idx = np.argsort(x)
+        y_idx = np.argsort(y)
+        a = np.mean(np.log(np.abs(np.diff(y[x_idx]) / np.diff(x[x_idx]))))
+        b = np.mean(np.log(np.abs(np.diff(x[y_idx]) / np.diff(y[y_idx]))))
+        f = a - b
+    else:
+        raise ValueError("Unknown estimator type.")
+    return f
 
 
 def function_second_order_smoothness(y, y_truth):
