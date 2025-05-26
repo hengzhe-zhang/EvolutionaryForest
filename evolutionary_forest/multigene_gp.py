@@ -1148,6 +1148,7 @@ def mapElitesCrossover(
     map_elites_configuration: MAPElitesConfiguration,
 ):
     importance_result, semantic_result = get_semantic_results(ind1, ind2, target)
+    semantic_result = np.nan_to_num(semantic_result, nan=0.0)
     kpca = Pipeline(
         [
             ("Standardization", StandardScaler(with_mean=False)),
