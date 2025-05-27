@@ -997,7 +997,7 @@ class SemanticLibrary:
             - ind.individual_semantics[self.clustering_indexes]
         )
         desire_semantics = normalize_vector(desire_semantics)
-        top_k_candidates = algorithm.mutation_configuration.frequency_k_candidates
+        top_k_candidates = algorithm.mutation_configuration.top_k_candidates
         dist, index = self.kd_tree.query(desire_semantics, k=top_k_candidates)
         dist, index = dist.flatten(), index.flatten()
         dist_neg, index_neg = self.kd_tree.query(-desire_semantics, k=top_k_candidates)
