@@ -245,7 +245,10 @@ def varAndPlus(
                 for c in range(invokes):
                     # If in var_or mode, once crossed, not allowed to be mutated
                     if random.random() < mutpb:
-                        if mutation_configuration.pool_base_feature_selection:
+                        if (
+                            mutation_configuration.pool_based_addition
+                            and mutation_configuration.pool_base_feature_selection
+                        ):
                             algorithm.tree_pool: "SemanticLibrary"
                             algorithm.tree_pool.update_variable_probability(
                                 offspring[i], algorithm
