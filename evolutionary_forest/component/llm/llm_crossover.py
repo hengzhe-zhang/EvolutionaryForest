@@ -8,8 +8,8 @@ from evolutionary_forest.component.llm.gp_tree_converter import (
     parent_to_json,
     generate_trees,
     json_to_individual,
-    GPT,
 )
+from llm_feature_generator.llm_selection.chatgpt import GPT
 
 
 @lru_cache(maxsize=None)
