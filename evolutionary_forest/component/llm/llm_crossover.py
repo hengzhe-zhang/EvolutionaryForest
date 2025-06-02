@@ -9,7 +9,7 @@ from evolutionary_forest.component.llm.gp_tree_converter import (
     generate_trees,
     json_to_individual,
 )
-from llm_feature_generator.llm_selection.chatgpt import GPT
+from llm_selection.chatgpt import GPT
 
 
 @lru_cache(maxsize=None)
