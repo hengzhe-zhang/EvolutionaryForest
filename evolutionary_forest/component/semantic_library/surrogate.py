@@ -1,3 +1,4 @@
+import pickle
 import random
 import time
 
@@ -13,6 +14,29 @@ import torch.nn as nn
 from evolutionary_forest.component.semantic_library.surrogate_tool import (
     remap_gp_tree_variables,
 )
+
+
+class SplitRidge:
+    def __init__(self, alpha=1e-6, batch_size=50000):
+        self.alpha = alpha
+        self.batch_size = batch_size
+        self.ridges = []
+        self.n_targets = 0
+
+    def fit(self, X, Y):
+        n_targets = Y.shape[1]
+        self.n_targets = n_targets
+        self.ridges = []
+        for start in range(0, n_targets, self.batch_size):
+            end = min(start + self.batch_size, n_targets)
+            ridge = Ridge(alpha=self.alpha, fit_intercept=False)
+            ridge.fit(X, Y[:, start:end])
+            self.ridges.append(ridge)
+        return self
+
+    def predict(self, X):
+        preds = [ridge.predict(X) for ridge in self.ridges]
+        return np.hstack(preds)
 
 
 class FastFeatureAttentionRegressor(nn.Module):
@@ -64,6 +88,14 @@ def protected_sqrt(x):
     return np.sqrt(np.abs(x))
 
 
+def sin_pi(x):
+    return np.sin(np.pi * x)
+
+
+def cos_pi(x):
+    return np.cos(np.pi * x)
+
+
 class SemanticLibraryRegressor:
     def __init__(self, n_basis=100, alpha=1e-6, n_equations=1000):
         self.n_basis = n_basis
@@ -74,18 +106,21 @@ class SemanticLibraryRegressor:
         self.pset = None
         self.ridge = None
 
+        self._last_X = None
+        self._last_pred_semantics = None
+        self._last_mapping = None
+
     def _setup_pset(self, n_features):
         pset = gp.PrimitiveSet("MAIN", n_features)
         pset.addPrimitive(np.add, 2)
         pset.addPrimitive(np.subtract, 2)
         pset.addPrimitive(np.multiply, 2)
         pset.addPrimitive(protected_div, 2)
-        pset.addPrimitive(np.sin, 1)
-        # pset.addPrimitive(np.cos, 1)
-        # pset.addPrimitive(np.tanh, 1)
+        pset.addPrimitive(sin_pi, 1)
+        pset.addPrimitive(cos_pi, 1)
+        pset.addPrimitive(np.tanh, 1)
         pset.addPrimitive(np.square, 1)
-        # pset.addPrimitive(protected_sqrt, 1)
-        # pset.addEphemeralConstant("const", lambda: random.uniform(-1, 1))
+        pset.addPrimitive(protected_sqrt, 1)
         for i in range(n_features):
             pset.renameArguments(**{f"ARG{i}": f"x{i}"})
         return pset
@@ -146,7 +181,7 @@ class SemanticLibraryRegressor:
         self.basis_indices = random.sample(range(n_unique), min(self.n_basis, n_unique))
         X_basis = semantics[:, self.basis_indices]
 
-        self.ridge = Ridge(alpha=self.alpha, fit_intercept=False)
+        self.ridge = SplitRidge(alpha=self.alpha)
         self.ridge.fit(X_basis, semantics)
 
     def predict(self, X, return_mapping=False):
@@ -178,7 +213,15 @@ class SemanticLibraryRegressor:
         return X_new, mapping
 
     def retrieve_nearest(self, X, vec, topk=1):
-        pred_semantics, mapping = self.predict(X, return_mapping=True)
+        if X is self._last_X:
+            pred_semantics = self._last_pred_semantics
+            mapping = self._last_mapping
+        else:
+            pred_semantics, mapping = self.predict(X, return_mapping=True)
+            self._last_X = X
+            self._last_pred_semantics = pred_semantics
+            self._last_mapping = mapping
+
         vec = np.asarray(vec).reshape(1, -1)
         sims = cosine_similarity(pred_semantics.T, vec).flatten()
         topk_idx = np.argsort(sims)[-topk:][::-1]
@@ -188,6 +231,44 @@ class SemanticLibraryRegressor:
             expr_remapped = remap_gp_tree_variables(expr, mapping, self.pset)
             results.append((expr_remapped, idx, sims[idx]))
         return results  # List of (remapped_expr, idx, similarity)
+
+    def save(self, filepath):
+        """Save the regressor's state to a file."""
+        state = {
+            "n_basis": self.n_basis,
+            "alpha": self.alpha,
+            "n_equations": self.n_equations,
+            "expressions": self.expressions,
+            "basis_indices": self.basis_indices,
+            "pset": self.pset,
+            "ridge": self.ridge,
+        }
+        with open(filepath, "wb") as f:
+            pickle.dump(state, f)
+
+    @classmethod
+    def load(cls, filepath):
+        """Load a regressor's state from a file and return the object."""
+        # Make sure DEAP creator classes are registered
+        from deap import creator, base, gp
+
+        if not hasattr(creator, "FitnessMax"):
+            creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+        if not hasattr(creator, "Individual"):
+            creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
+
+        with open(filepath, "rb") as f:
+            state = pickle.load(f)
+        obj = cls(
+            n_basis=state["n_basis"],
+            alpha=state["alpha"],
+            n_equations=state["n_equations"],
+        )
+        obj.expressions = state["expressions"]
+        obj.basis_indices = state["basis_indices"]
+        obj.pset = state["pset"]
+        obj.ridge = state["ridge"]
+        return obj
 
 
 if __name__ == "__main__":
@@ -199,12 +280,15 @@ if __name__ == "__main__":
     n_basis = 100
     n_features = 10
 
-    X_train = np.random.normal(0, 1, size=(n_train, n_features))
-    X_test = np.random.normal(0, 1, size=(n_test, 3))
+    X_train = np.random.uniform(-10, 10, size=(n_train, n_features))
+    X_test = np.random.uniform(-10, 10, size=(n_test, 3))
 
     print("Fitting semantic library regressor...")
     reg = SemanticLibraryRegressor(n_basis=n_basis, alpha=1e-6, n_equations=200000)
     reg.fit(X_train)
+
+    reg.save("result/fast_semantic_library.pkl")
+    reg = SemanticLibraryRegressor.load("result/fast_semantic_library.pkl")
 
     # --- Predict semantics (regressor handles padding internally) ---
     print("\n=== Test: All features available (with auto-padding) ===")
