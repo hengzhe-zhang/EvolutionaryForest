@@ -79,9 +79,12 @@ def center_and_normalize(X, axis=0):
     return normalize(Xc, axis=axis)
 
 
-def protected_div(x, y, threshold=1e-6):
-    denom = np.where(np.abs(y) > threshold, y, 1)
-    return np.divide(x, denom)
+def protected_div(x, y):
+    return np.where(np.abs(y) > 1e-8, np.true_divide(x, y), 1.0)
+
+
+def protected_log(x):
+    return np.log(np.abs(x) + 1)
 
 
 def protected_sqrt(x):
@@ -120,7 +123,10 @@ class SemanticLibraryRegressor:
         pset.addPrimitive(cos_pi, 1)
         pset.addPrimitive(np.tanh, 1)
         pset.addPrimitive(np.square, 1)
+        pset.addPrimitive(protected_log, 1)
         pset.addPrimitive(protected_sqrt, 1)
+        pset.addPrimitive(np.minimum, 2)
+        pset.addPrimitive(np.maximum, 2)
         for i in range(n_features):
             pset.renameArguments(**{f"ARG{i}": f"x{i}"})
         return pset

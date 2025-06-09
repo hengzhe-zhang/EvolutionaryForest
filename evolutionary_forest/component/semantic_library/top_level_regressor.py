@@ -1,7 +1,9 @@
 from sklearn.datasets import make_friedman1
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import r2_score
 
-from surrogate import *
+from evolutionary_forest.component.semantic_library.sympy_converter import tree_to_sympy
+from evolutionary_forest.component.semantic_library.surrogate import *
 
 
 from sklearn.linear_model import Ridge
@@ -87,7 +89,6 @@ class BoostedSemanticRegressor:
                     best_expr = expr
                     best_scaler = scaler
                     best_semantic = y_pred_scaled  # store scaled output
-
             # Add the new best component
             self.expressions.append(best_expr)
             self.scalers.append(best_scaler)
@@ -122,10 +123,24 @@ class BoostedSemanticRegressor:
             y_pred += self.learning_rate * scaler.predict(y_expr)
         return y_pred
 
+    def model(self):
+        import sympy
+
+        exprs = self.best_expressions
+        scalers = self.best_scalers
+        total = 0
+        for expr, scaler in zip(exprs, scalers):
+            sym = tree_to_sympy(expr, self.pset)
+            coef = scaler.coef_.flatten()[0]
+            intercept = scaler.intercept_.item()
+            total += self.learning_rate * (coef * sym + intercept)
+        print("Boosted symbolic model:")
+        sympy.pprint(total, use_unicode=True)
+        return total
+
 
 if __name__ == "__main__":
     from sklearn.model_selection import train_test_split
-    from sklearn.metrics import r2_score
     from sklearn.linear_model import LinearRegression
     from sklearn.ensemble import RandomForestRegressor
 
@@ -148,6 +163,7 @@ if __name__ == "__main__":
     top_regressor.fit(X_train, y_train)
     y_pred_train_sem = top_regressor.predict(X_train)
     y_pred_test_sem = top_regressor.predict(X_test)
+    print(top_regressor.model())
 
     print("Semantic Regressor:")
     print(f"  R2 on training set: {r2_score(y_train, y_pred_train_sem):.3f}")
