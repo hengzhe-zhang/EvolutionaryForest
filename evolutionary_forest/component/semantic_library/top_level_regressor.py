@@ -1,3 +1,4 @@
+from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import make_friedman1
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import r2_score
@@ -12,7 +13,7 @@ import numpy as np
 import copy
 
 
-class BoostedSemanticRegressor:
+class BoostedSemanticRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, model_path, n_boosting_rounds=10, topk=100, learning_rate=1.0):
         self.model_path = model_path
         self.n_boosting_rounds = n_boosting_rounds
