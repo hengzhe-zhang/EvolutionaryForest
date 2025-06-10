@@ -1,6 +1,6 @@
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import make_friedman1
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score
 
 from evolutionary_forest.component.semantic_library.sympy_converter import tree_to_sympy
@@ -146,14 +146,14 @@ if __name__ == "__main__":
     from sklearn.ensemble import RandomForestRegressor
 
     # --- Data loading and scaling ---
-    X, y = make_friedman1(n_samples=500, random_state=1)
+    X, y = make_friedman1(n_samples=250, random_state=1)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=0
     )
-    x_scaler = MinMaxScaler(feature_range=(-1, 1))
+    x_scaler = StandardScaler()
     X_train = x_scaler.fit_transform(X_train)
     X_test = x_scaler.transform(X_test)
-    y_scaler = MinMaxScaler()
+    y_scaler = StandardScaler()
     y_train = y_scaler.fit_transform(y_train.reshape(-1, 1)).flatten()
     y_test = y_scaler.transform(y_test.reshape(-1, 1)).flatten()
 

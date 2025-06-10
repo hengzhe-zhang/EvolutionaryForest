@@ -290,7 +290,7 @@ if __name__ == "__main__":
     X_test = np.random.uniform(-10, 10, size=(n_test, 3))
 
     print("Fitting semantic library regressor...")
-    reg = SemanticLibraryRegressor(n_basis=n_basis, alpha=1e-6, n_equations=500000)
+    reg = SemanticLibraryRegressor(n_basis=n_basis, alpha=1e-6, n_equations=200000)
     reg.fit(X_train)
 
     reg.save("result/fast_semantic_library.pkl")
