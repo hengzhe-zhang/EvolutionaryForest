@@ -1,6 +1,6 @@
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import make_friedman1
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import r2_score
 
 from evolutionary_forest.component.semantic_library.sympy_converter import tree_to_sympy
@@ -47,8 +47,7 @@ class BoostedSemanticRegressor(BaseEstimator, RegressorMixin):
         round_count = 0
 
         while (
-            round_count < self.n_boosting_rounds
-            or round_count < 10 * self.n_boosting_rounds
+            round_count < self.n_boosting_rounds or round_count < self.n_boosting_rounds
         ):
             # Rolling window logic
             if round_count < self.n_boosting_rounds:
@@ -146,25 +145,32 @@ if __name__ == "__main__":
     from sklearn.ensemble import RandomForestRegressor
 
     # --- Data loading and scaling ---
-    X, y = make_friedman1(n_samples=250, random_state=1)
+    # X, y, _ = get_dataset({"dataset": 586})
+    X, y = make_friedman1(n_features=10, noise=1)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=0
     )
-    x_scaler = StandardScaler()
+    x_scaler = MinMaxScaler()
     X_train = x_scaler.fit_transform(X_train)
     X_test = x_scaler.transform(X_test)
-    y_scaler = StandardScaler()
-    y_train = y_scaler.fit_transform(y_train.reshape(-1, 1)).flatten()
-    y_test = y_scaler.transform(y_test.reshape(-1, 1)).flatten()
 
     # --- TopLevelSemanticRegressor ---
     top_regressor = BoostedSemanticRegressor(
-        n_boosting_rounds=10, topk=100, model_path="result/fast_semantic_library.pkl"
+        n_boosting_rounds=1, topk=100, model_path="result/fast_semantic_library.pkl"
     )
     top_regressor.fit(X_train, y_train)
     y_pred_train_sem = top_regressor.predict(X_train)
     y_pred_test_sem = top_regressor.predict(X_test)
-    print(top_regressor.model())
+    y_pred_test_sem = (
+        10 * np.sin(np.pi * X_test[:, 0] * X_test[:, 1])
+        + 20 * (X_test[:, 2] - 0.5) ** 2
+        + 10 * X_test[:, 3]
+        + 5 * X_test[:, 4]
+    )
+    y_pred_test_sem = y_pred_test_sem.reshape(-1, 1)
+    y_pred_test_sem = (
+        LinearRegression().fit(y_pred_test_sem, y_test).predict(y_pred_test_sem)
+    )
 
     print("Semantic Regressor:")
     print(f"  R2 on training set: {r2_score(y_train, y_pred_train_sem):.3f}")
