@@ -18,7 +18,6 @@ from deap import gp
 from deap import tools
 from deap.gp import PrimitiveTree, Primitive, Terminal
 from numpy.testing import assert_almost_equal
-from onedal.primitives import rbf_kernel
 from scipy.spatial.distance import cdist
 from scipy.stats import wilcoxon, truncnorm
 from sklearn import model_selection
@@ -32,6 +31,7 @@ from sklearn.metrics import (
     accuracy_score,
     r2_score,
 )
+from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.model_selection import (
     StratifiedKFold,
     train_test_split,
