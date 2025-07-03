@@ -3,7 +3,9 @@ import random
 import numpy as np
 from deap import tools
 
-from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
+from evolutionary_forest.component.selection import (
+    selAutomaticEpsilonLexicaseFast,
+)
 
 
 def fast_pearson(x, y):

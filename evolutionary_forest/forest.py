@@ -239,6 +239,9 @@ from evolutionary_forest.component.selection import (
     selHOFRandom,
 )
 from evolutionary_forest.component.selection_operators.Boltzmann import selBoltzmann
+from evolutionary_forest.component.selection_operators.cps_fast import (
+    select_cpsr_regression_fast,
+)
 from evolutionary_forest.component.selection_operators.curriculum_learning import (
     GenerationInfo,
     dynamic_difficulty_lexicase_selection,
@@ -252,7 +255,6 @@ from evolutionary_forest.component.selection_operators.informed_lexicase import 
     novel_selection,
     complementary_tournament,
     select_cps_regression,
-    select_cpsr_regression,
     novel_selection_simplified,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
@@ -2527,7 +2529,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 score_function = "Pearson"
             toolbox.register(
                 "select",
-                partial(select_cpsr_regression, target=self.y, metric=score_function),
+                partial(
+                    select_cpsr_regression_fast,
+                    target=self.y,
+                    metric=score_function,
+                ),
             )
         elif self.select == "CPS-Lexicase":
             toolbox.register(
