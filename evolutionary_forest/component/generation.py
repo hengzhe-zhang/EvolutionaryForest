@@ -216,6 +216,16 @@ def varAndPlus(
                 invokes = get_number_of_invokes(gene_num, crossover_configuration)
                 for c in range(invokes):
                     if i % 2 == 0 and random.random() < cxpb:
+                        if crossover_configuration.record_parent_expressions:
+                            offspring[i].parent_expressions = (
+                                str(offspring[i]),
+                                str(offspring[i + 1]),
+                            )
+                            offspring[i + 1].parent_expressions = (
+                                str(offspring[i + 1]),
+                                str(offspring[i]),
+                            )
+
                         offspring[i], offspring[i + 1] = toolbox.mate(
                             offspring[i], offspring[i + 1]
                         )
@@ -253,6 +263,10 @@ def varAndPlus(
                             algorithm.tree_pool.update_variable_probability(
                                 offspring[i], algorithm
                             )
+
+                        if crossover_configuration.record_parent_expressions:
+                            offspring[i].parent_expressions = (str(offspring[i]),)
+
                         (offspring[i],) = toolbox.mutate(offspring[i])
                         # if crossover already modifies an individual,
                         # then set its parent fitness as the fitness values of two parents

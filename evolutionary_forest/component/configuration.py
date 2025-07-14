@@ -153,6 +153,7 @@ class CrossoverConfiguration(Configuration):
         weighted_crossover=False,
         llm_crossover=False,
         llm_pattern_extraction=False,
+        record_parent_expressions=False,
         **params,
     ):
         # max height after crossover
@@ -198,6 +199,9 @@ class CrossoverConfiguration(Configuration):
         self.llm_crossover = llm_crossover
         self.llm_pattern_extraction = llm_pattern_extraction
         self.llm_pattern = ""
+
+        # only use for analysis
+        self.record_parent_expressions = record_parent_expressions
 
 
 class MAPElitesConfiguration(Configuration):

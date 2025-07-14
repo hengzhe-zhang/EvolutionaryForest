@@ -179,26 +179,14 @@ def get_unique_individuals(individuals):
     return result
 
 
-def adaptive_knee_point(knee_point, X, y):
+def adaptive_knee_point(knee_point, X, y, threshold=0.8):
     scores = cross_val_score(ExtraTreesRegressor(), X, y, cv=5)
     avg_score = scores.mean()
 
-    if avg_score >= 0.8:
+    if avg_score >= threshold:
         return "BestHarmonicRank"
     else:
         return knee_point.replace("Adaptive", "")
-
-
-def adaptive_knee_point_cluster_number(X, y):
-    scores = cross_val_score(ExtraTreesRegressor(), X, y, cv=5)
-    avg_score = scores.mean()
-
-    if avg_score <= 0.5:
-        # toward much simpler model
-        return 2
-    else:
-        # more clusters->toward slightly complex model
-        return 3
 
 
 class NSGA2(EnvironmentalSelection):
@@ -233,14 +221,15 @@ class NSGA2(EnvironmentalSelection):
 
     def knee_point_check(self):
         if isinstance(self.knee_point, str) and self.knee_point.startswith("Adaptive"):
+            # extract threshold from arg
+            threshold = 0.8
+            if "-" in self.knee_point:
+                self.knee_point, threshold = self.knee_point.split("-")
+                threshold = float(threshold)
+
             self.knee_point = adaptive_knee_point(
-                self.knee_point, self.algorithm.X, self.algorithm.y
+                self.knee_point, self.algorithm.X, self.algorithm.y, threshold
             )
-        if isinstance(self.knee_point, str) and self.knee_point == "AngleMKS~Adaptive":
-            cluster = adaptive_knee_point_cluster_number(
-                self.algorithm.X, self.algorithm.y
-            )
-            self.knee_point = f"AngleMKS~{cluster}"
 
     def select(self, population, offspring):
         """

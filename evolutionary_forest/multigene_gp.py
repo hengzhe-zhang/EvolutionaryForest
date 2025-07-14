@@ -209,6 +209,7 @@ class MultipleGeneGP:
         # self-adaptive evolution (for Lasso)
         self.parameters = AdaptiveParameters()
         self.parent_fitness: tuple[float] = None
+        self.parent_expressions: tuple[str] = None
         self.crossover_type = None
         self.individual_configuration = IndividualConfiguration(**kwargs)
         self.pseudo_random = PseudoRandom(self.gene_num)
