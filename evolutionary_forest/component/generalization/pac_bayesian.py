@@ -15,7 +15,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
-from analysis.pac_bayesian.evaluation.dropout import dropout_features
 from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
     Configuration,
@@ -27,6 +26,7 @@ from evolutionary_forest.component.evaluation import (
 from evolutionary_forest.component.generalization.cache.sharpness_memory import (
     TreeLRUCache,
 )
+from evolutionary_forest.component.generalization.util.dropout import dropout_features
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import (
     calculate_cross_entropy,
