@@ -241,87 +241,60 @@ def novel_selection(population, k=100, status={}):
     return selected
 
 
-def novel_selection_plus_plus(population, k=100, status={}):
-    # a historical version of a novelty selection
-    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+def novel_selection_v2(population, k=100, status={}):
+    stage = status.get("evolutionary_stage", 0)
     n = len(population)
-    if n == 0 or k == 0:
-        return []
-    k = min(k, n - (k % 2))
     half_k = k // 2
-    n_cases = population[0].y.shape[0]
+    rng = np.random.default_rng(12345)
 
-    mse = np.array([np.mean(ind.case_values) for ind in population])
-    nodes = np.array([len(ind) for ind in population])
-    height = np.array([ind.height for ind in population])
-    complexity = (nodes / max(nodes.max(), 1) + height / max(height.max(), 1)) / 2
+    errs = np.array([ind.case_values for ind in population])  # (n,n_cases)
     residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    sizes = np.array([len(ind) for ind in population])
+    heights = np.array([ind.height for ind in population])
 
-    def norm(x):
-        r = x.ptp()
-        return (x - x.min()) / (r + 1e-9)
+    n_cases = errs.shape[1]
+    comp_pen = (
+        (sizes + heights) * (0.4 + 0.6 * stage) / (40 + 60 * stage)
+    )  # adaptive comp penalty
 
-    mse_n = norm(mse)
-    diversity = np.array([np.std(res) for res in residuals])
-    diversity_n = norm(diversity)
+    subset_size = max(8, n_cases // (half_k + 2))
+    max_tries = 15 * half_k
+    tried_subsets = set()
+    full_mse = errs.mean(axis=1)
 
-    fit_w = 0.4 + 0.6 * stage
-    comp_w = 1 - fit_w
+    parent_a = []
+    tries = 0
+    while len(parent_a) < half_k and tries < max_tries:
+        tries += 1
+        subset = tuple(sorted(rng.choice(n_cases, subset_size, replace=False)))
+        if subset in tried_subsets:
+            continue
+        tried_subsets.add(subset)
 
-    subsets = np.array_split(np.random.permutation(n_cases), half_k)
-    parent_a, used = [], set()
-    for subset in subsets:
-        subset_mse = np.array(
-            [
-                np.mean((ind.y[subset] - ind.predicted_values[subset]) ** 2)
-                for ind in population
-            ]
-        )
-        spec_score = norm(-subset_mse)
-        score = fit_w * (1 - mse_n) + comp_w * (
-            0.4 * (1 - complexity) + 0.35 * spec_score + 0.25 * diversity_n
-        )
-        sorted_idx = np.argsort(-score)
-        for idx in sorted_idx:
-            if idx not in used:
-                parent_a.append(population[idx])
-                used.add(idx)
-                break
-        else:
-            parent_a.append(population[sorted_idx[0]])
-            used.add(sorted_idx[0])
+        mse_sub = errs[:, subset].mean(axis=1)
+        specialization = full_mse - mse_sub  # + means better on subset specialization
+        scores = (
+            (1 - stage) * specialization + stage * (1 / (full_mse + 1e-10))
+        ) - comp_pen
+        best_idx = np.argmax(scores)
+        parent_a.append(population[best_idx])
 
+    if not parent_a:
+        parent_a = rng.choice(population, half_k, replace=True).tolist()
+
+    norm_resid = residuals / (np.linalg.norm(residuals, axis=1, keepdims=True) + 1e-10)
     parent_b = []
-    diversity_max = max(diversity.max(), 1)
-    nodes_max, height_max = max(nodes.max(), 1), max(height.max(), 1)
-    complexity_raw = (nodes / nodes_max + height / height_max) / 2
-    for ind_a in parent_a:
-        res_a = ind_a.y - ind_a.predicted_values
-        std_a = np.std(res_a)
-        std_a = std_a if std_a > 1e-10 else 1
-        res_b_all = residuals
-        std_b_all = np.std(res_b_all, axis=1)
-        std_b_all[std_b_all < 1e-10] = 1
-        corr_num = (
-            (res_b_all - res_b_all.mean(axis=1, keepdims=True))
-            * (res_a - np.mean(res_a))
-        ).mean(axis=1)
-        corr = corr_num / (std_b_all * std_a)
-        corr[np.isnan(corr)] = 0
-        idx_a = np.where(np.array(population) == ind_a)[0][0]
-        corr[idx_a] = np.inf
-        fit_score = mse
-        diversity_scaled = diversity / diversity_max
-        combined_score = (
-            np.abs(corr) * (1 - stage)
-            + comp_w * (0.4 * complexity_raw + 0.25 * diversity_scaled)
-            + fit_score * stage
-        )
-        combined_score[idx_a] = np.inf
-        best_idx = np.argmin(combined_score)
-        parent_b.append(population[best_idx])
+    comp_factor = 5 if stage < 0.5 else 10  # stronger complexity pressure late
+    for a in parent_a:
+        a_idx = population.index(a)
+        corr = norm_resid @ norm_resid[a_idx]
+        corr[a_idx] = 1  # exclude self
+        scores = corr + comp_pen / comp_factor
+        comp_idx = np.argmin(scores)
+        parent_b.append(population[comp_idx])
 
-    return [ind for pair in zip(parent_a, parent_b) for ind in pair]
+    selected = [ind for pair in zip(parent_a, parent_b) for ind in pair]
+    return selected[:k]
 
 
 def novel_selection_plus(population, k=100, status={}):
