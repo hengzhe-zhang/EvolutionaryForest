@@ -168,6 +168,7 @@ from evolutionary_forest.component.function_selection.prior.one_stage_selection 
 from evolutionary_forest.component.function_selection.two_stage.two_stage_shapley import (
     two_stage_feature_selection,
 )
+from evolutionary_forest.component.generalization.optimal_transport import TransportR2
 from evolutionary_forest.component.generalization.pac_bayesian import (
     PACBayesianConfiguration,
     SharpnessType,
@@ -1162,6 +1163,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.score_func = R2GrandComplexity()
         elif isinstance(score_func, str) and score_func == "R2-Size":
             self.score_func = R2Size()
+        elif isinstance(score_func, str) and score_func == "R2-Transport":
+            self.score_func = TransportR2()
         elif isinstance(score_func, str) and score_func == "R2-Smoothness":
             self.score_func = R2Smoothness(**params)
         elif isinstance(score_func, str) and score_func == "R2-Pearson":
