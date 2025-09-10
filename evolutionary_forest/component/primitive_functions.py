@@ -66,22 +66,11 @@ def gaussian_torch(x):
     return torch.exp(-torch.multiply(x, x) / 2.0)
 
 
-def protected_division(x1, *x2, threshold=1e-10):
-    # with np.errstate(divide="ignore", invalid="ignore"):
-    x2 = reduce(operator.mul, x2)
-
-    # Identify small positive values that are less than the threshold
-    small_positive_values = (x2 >= 0) & (x2 < threshold)
-
-    # Identify small negative values that are greater than the negative threshold
-    small_negative_values = (x2 < 0) & (x2 > -threshold)
-
-    # Apply threshold to small positive values
-    x2 = np.where(small_positive_values, threshold, x2)
-
-    # Apply negative threshold to small negative values
-    x2 = np.where(small_negative_values, -threshold, x2)
-    return np.divide(x1, x2)
+def protected_division(x1, x2, eps=1e-10):
+    # Smooth floor: sqrt(y^2 + eps^2) ≈ |y| for large y, ≥ eps, C^1 everywhere
+    safe_sign = np.where(x2 >= 0, 1.0, -1.0)
+    safe = safe_sign * np.sqrt(x2 * x2 + eps)
+    return np.divide(x1, safe)
 
 
 def smooth_protected_division(x, y, epsilon=1e-6):
