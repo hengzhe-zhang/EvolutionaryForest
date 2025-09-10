@@ -33,7 +33,6 @@ class PolicyNet(nn.Module):
 @dataclass
 class RLConfig:
     lr: float = 1e-3
-    gamma: float = 1.0
     temperature: float = 1.0
     baseline_momentum: float = 0.9
     clip_grad_norm: Optional[float] = 5.0
@@ -136,42 +135,48 @@ class ParentSelectorRL:
 
     # batch-aware REINFORCE update (single optimizer step)
     def update(self, logprob, reward):
-        # allow single or batched inputs
+        # ---- 1) Normalize inputs & filter Nones in pairs ----
         if isinstance(logprob, (list, tuple)):
-            logprobs = [lp for lp in logprob if lp is not None]
-            rewards = [rw for lp, rw in zip(logprob, reward) if lp is not None]
+            pairs = [(lp, rw) for lp, rw in zip(logprob, reward) if lp is not None]
+            if not pairs:
+                return
+            logprobs, rewards = zip(*pairs)  # tuples
         else:
             if logprob is None:
                 return
-            logprobs = [logprob]
-            rewards = [reward]
-
-        if not logprobs:
-            return
+            logprobs, rewards = (logprob,), (reward,)
 
         device = self.device
         r = torch.as_tensor(rewards, dtype=torch.float32, device=device)
 
-        # EMA baseline applied sequentially across the batch
+        # ---- 2) Freeze a baseline for this batch (same for all samples) ----
         beta = self.cfg.baseline_momentum
-        baseline = self.baseline if self.baseline is not None else r[0].detach()
+        # use previous EMA baseline if available; otherwise start with this batch mean
+        frozen_baseline = (
+            self.baseline.detach()
+            if getattr(self, "baseline", None) is not None
+            else r.mean().detach()
+        )
 
-        losses = []
-        for lp, ri in zip(logprobs, r):
-            adv = ri - baseline
-            losses.append(-(lp * adv))
-            baseline = beta * baseline + (1.0 - beta) * ri.detach()
+        # ---- 3) Compute advantages with the frozen baseline ----
+        adv = r - frozen_baseline
 
-        self.baseline = baseline
+        # ---- 4) Build REINFORCE loss over the batch ----
+        loss = -torch.stack([lp * a for lp, a in zip(logprobs, adv)]).sum()
 
-        total_loss = torch.stack(losses).sum()
+        # ---- 5) Backprop + (optional) grad clipping ----
         self.opt.zero_grad(set_to_none=True)
-        total_loss.backward()
+        loss.backward()
         if self.cfg.clip_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), self.cfg.clip_grad_norm
             )
         self.opt.step()
+
+        # ---- 6) Offline EMA update of baseline using batch statistic ----
+        batch_stat = r.mean().detach()
+        new_baseline = beta * frozen_baseline + (1.0 - beta) * batch_stat
+        self.baseline = new_baseline
 
     @staticmethod
     def compute_reward(
@@ -191,21 +196,6 @@ class ParentSelectorRL:
         shuffle: bool = True,
         verbose: bool = True,
     ):
-        """
-        Supervised pretraining using the heuristic:
-          choose j with the largest sum over features in feats_ij.
-        Args:
-            data: iterable of (i, Phi, target) triples.
-                  - i: int index of the first parent in Phi
-                  - Phi: [N, D] np.ndarray or torch.Tensor
-                  - target: [D] np.ndarray or torch.Tensor
-            epochs: number of passes over `data`
-            lr: optional temporary learning rate just for pretraining
-            shuffle: shuffle examples each epoch
-            verbose: print simple running stats
-        Returns:
-            history: dict with 'loss' and 'acc' lists (per epoch)
-        """
         # Optionally override LR just for this routine
         orig_lrs = [pg["lr"] for pg in self.opt.param_groups]
         if lr is not None:
