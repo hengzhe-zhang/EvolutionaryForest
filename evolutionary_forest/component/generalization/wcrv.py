@@ -1,9 +1,10 @@
 import numpy as np
-from minepy import MINE
 
 
 # Function to calculate the MIC using minepy
 def calculate_mic(x, y):
+    from minepy import MINE
+
     mine = MINE()
     mine.compute_score(x, y)
     mic = mine.mic()
