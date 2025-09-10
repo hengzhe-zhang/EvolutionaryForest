@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from matplotlib import pyplot as plt
+
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
 
@@ -29,7 +31,8 @@ class PolicyNet(nn.Module):
 class RLConfig:
     lr: float = 1e-3
     gamma: float = 1.0
-    temperature: float = 1.0
+    # temperature: float = 1.0
+    temperature: float = 0.0001
     baseline_momentum: float = 0.9
     clip_grad_norm: Optional[float] = 5.0
     device: str = "cpu"
@@ -45,14 +48,14 @@ class ParentSelectorRL:
     ):
         self.cfg = cfg
         self.device = torch.device(cfg.device)
-        self.model = PolicyNet(dim_in=sem_dim * 2, hidden=hidden, dropout=dropout).to(
+        # ⬇️ input is now element-wise product → dimension = sem_dim
+        self.model = PolicyNet(dim_in=sem_dim, hidden=hidden, dropout=dropout).to(
             self.device
         )
         self.opt = torch.optim.Adam(self.model.parameters(), lr=cfg.lr)
         self.baseline = None
 
     def _to_tensor(self, Phi) -> torch.Tensor:
-        """Ensure Phi is a torch.Tensor on the right device."""
         if isinstance(Phi, np.ndarray):
             Phi = torch.from_numpy(Phi).float()
         elif not isinstance(Phi, torch.Tensor):
@@ -60,19 +63,24 @@ class ParentSelectorRL:
         return Phi.to(self.device)
 
     @torch.no_grad()
-    def _concat_pairs(self, phi_i: torch.Tensor, Phi: torch.Tensor, mask_idx: int):
+    def _pair_features(self, phi_i: torch.Tensor, Phi: torch.Tensor, mask_idx: int):
+        """
+        Build element-wise product features: feat_ij = phi_i * phi_j for all j != i.
+        Returns:
+          feats: [N-1, D], candidate_indices: [N-1]
+        """
         N, D = Phi.shape
         candidate_indices = torch.arange(N, device=Phi.device)
         candidate_indices = candidate_indices[candidate_indices != mask_idx]
         phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)
-        pairs = torch.cat([phi_i_rep, Phi[candidate_indices]], dim=1)
-        return pairs, candidate_indices
+        feats = phi_i_rep * Phi[candidate_indices]  # ⬅️ element-wise product
+        return feats, candidate_indices
 
     def score_candidates(self, i: int, Phi) -> Tuple[torch.Tensor, torch.Tensor]:
         Phi = self._to_tensor(Phi)
         phi_i = Phi[i]
-        pairs, candidate_indices = self._concat_pairs(phi_i, Phi, mask_idx=i)
-        scores = self.model(pairs)
+        feats, candidate_indices = self._pair_features(phi_i, Phi, mask_idx=i)
+        scores = self.model(feats)  # feats shape: [N-1, D]
         return scores, candidate_indices
 
     def select_second_parent(self, i: int, Phi, mode: str = "eval"):
@@ -85,6 +93,7 @@ class ParentSelectorRL:
         if mode == "train":
             logits = scores / max(1e-8, self.cfg.temperature)
             probs = F.softmax(logits, dim=0)
+            # print(probs)
             m = torch.distributions.Categorical(probs=probs)
             idx = m.sample()
             j = int(candidate_indices[idx].item())
@@ -99,9 +108,8 @@ class ParentSelectorRL:
         aux["candidate_indices"] = candidate_indices.detach().cpu()
         return j, aux
 
-    # ---- modify ParentSelectorRL.update to support batch ----
+    # ---- batch-aware update (unchanged from your latest) ----
     def update(self, logprob, reward):
-        # Accept single (tensor, float) or batches (list/tuple of tensors & floats)
         if isinstance(logprob, (list, tuple)):
             logprobs = list(logprob)
             rewards = list(reward)
@@ -112,7 +120,6 @@ class ParentSelectorRL:
         device = self.device
         r = torch.as_tensor(rewards, dtype=torch.float32, device=device)
 
-        # EMA baseline applied sequentially across the batch
         beta = self.cfg.baseline_momentum
         baseline = self.baseline if self.baseline is not None else r[0].detach()
 
@@ -137,10 +144,11 @@ class ParentSelectorRL:
     def compute_reward(
         parent1_perf: float, offspring1_perf: float, higher_is_better: bool = True
     ) -> float:
-        if higher_is_better:
-            return float(offspring1_perf - parent1_perf)
-        else:
-            return float(parent1_perf - offspring1_perf)
+        return (
+            float(offspring1_perf - parent1_perf)
+            if higher_is_better
+            else float(parent1_perf - offspring1_perf)
+        )
 
 
 def select_general_reinforcement_learning(
@@ -177,6 +185,17 @@ def update_nn(population, model: ParentSelectorRL):
 
     if logprobs:
         model.update(logprobs, rewards)
+
+    # plot_reward_distribution(rewards)
+
+
+def plot_reward_distribution(rewards):
+    plt.hist(rewards, bins=30, edgecolor="black", alpha=0.7)
+    plt.title("Reward Distribution")
+    plt.xlabel("Reward")
+    plt.ylabel("Frequency")
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
 
 
 if __name__ == "__main__":
