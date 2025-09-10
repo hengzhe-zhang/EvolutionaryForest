@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from matplotlib import pyplot as plt
+from typing import Union
+
+from torch.nn import LeakyReLU
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
 
@@ -16,7 +19,7 @@ class PolicyNet(nn.Module):
         layers = []
         last = dim_in
         for h in hidden:
-            layers += [nn.Linear(last, h), nn.ReLU()]
+            layers += [nn.Linear(last, h), LeakyReLU()]
             if dropout > 0:
                 layers += [nn.Dropout(dropout)]
             last = h
@@ -31,8 +34,7 @@ class PolicyNet(nn.Module):
 class RLConfig:
     lr: float = 1e-3
     gamma: float = 1.0
-    # temperature: float = 1.0
-    temperature: float = 0.0001
+    temperature: float = 1.0
     baseline_momentum: float = 0.9
     clip_grad_norm: Optional[float] = 5.0
     device: str = "cpu"
@@ -43,51 +45,75 @@ class ParentSelectorRL:
         self,
         sem_dim: int,
         cfg: RLConfig = RLConfig(),
-        hidden=(32, 8),
+        hidden=(16, 8),
         dropout: float = 0.0,
     ):
         self.cfg = cfg
         self.device = torch.device(cfg.device)
-        # ⬇️ input is now element-wise product → dimension = sem_dim
+        # input is element-wise product features -> dimension = sem_dim
         self.model = PolicyNet(dim_in=sem_dim, hidden=hidden, dropout=dropout).to(
             self.device
         )
         self.opt = torch.optim.Adam(self.model.parameters(), lr=cfg.lr)
-        self.baseline = None
+        self.baseline: Optional[torch.Tensor] = None
 
-    def _to_tensor(self, Phi) -> torch.Tensor:
-        if isinstance(Phi, np.ndarray):
-            Phi = torch.from_numpy(Phi).float()
-        elif not isinstance(Phi, torch.Tensor):
-            raise TypeError(f"Expected np.ndarray or torch.Tensor, got {type(Phi)}")
-        return Phi.to(self.device)
+    def _to_tensor(self, x: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x).float()
+        elif not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected np.ndarray or torch.Tensor, got {type(x)}")
+        return x.to(self.device)
 
     @torch.no_grad()
-    def _pair_features(self, phi_i: torch.Tensor, Phi: torch.Tensor, mask_idx: int):
+    def _pair_features(
+        self,
+        phi_i: torch.Tensor,  # [D]
+        Phi: torch.Tensor,  # [N, D]
+        target: Union[np.ndarray, torch.Tensor],  # [D]
+        mask_idx: int,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Build element-wise product features: feat_ij = phi_i * phi_j for all j != i.
-        Returns:
-          feats: [N-1, D], candidate_indices: [N-1]
+        feats_ij = norm2_center( (phi_i + phi_j)/2 ) ⊙ norm2_center(target)
+        where norm2_center(x) = (x - mean(x)) / ||x - mean(x)||_2
         """
         N, D = Phi.shape
         candidate_indices = torch.arange(N, device=Phi.device)
-        candidate_indices = candidate_indices[candidate_indices != mask_idx]
-        phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)
-        feats = phi_i_rep * Phi[candidate_indices]  # ⬅️ element-wise product
+        candidate_indices = candidate_indices[candidate_indices != mask_idx]  # [N-1]
+
+        # Build avg per candidate
+        phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)  # [N-1, D]
+        avg = (phi_i_rep + Phi[candidate_indices]) * 0.5  # [N-1, D]
+
+        # Center (per-row) and L2-normalize each row
+        avg_centered = avg - avg.mean(dim=1, keepdim=True)  # [N-1, D]
+        avg_norm = torch.norm(avg_centered, dim=1, keepdim=True).clamp_min(1e-12)
+        avg_unit = avg_centered / avg_norm  # [N-1, D]
+
+        # Target: center once and L2-normalize
+        t = self._to_tensor(target).view(-1)  # [D]
+        t_centered = t - t.mean()  # [D]
+        t_norm = torch.norm(t_centered).clamp_min(1e-12)  # scalar
+        t_unit = t_centered / t_norm  # [D]
+
+        # Element-wise product (broadcast over rows)
+        feats = avg_unit * t_unit  # [N-1, D]
         return feats, candidate_indices
 
-    def score_candidates(self, i: int, Phi) -> Tuple[torch.Tensor, torch.Tensor]:
-        Phi = self._to_tensor(Phi)
-        phi_i = Phi[i]
-        feats, candidate_indices = self._pair_features(phi_i, Phi, mask_idx=i)
-        scores = self.model(feats)  # feats shape: [N-1, D]
+    def score_candidates(
+        self, i: int, Phi, target
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        Phi = self._to_tensor(Phi)  # [N, D]
+        phi_i = Phi[i]  # [D]
+        feats, candidate_indices = self._pair_features(phi_i, Phi, target, mask_idx=i)
+        scores = self.model(feats)  # [N-1]
         return scores, candidate_indices
 
-    def select_second_parent(self, i: int, Phi, mode: str = "eval"):
+    def select_second_parent(self, i: int, Phi, target, mode: str = "eval"):
         self.model.eval() if mode == "eval" else self.model.train()
         Phi = self._to_tensor(Phi)
+        target = self._to_tensor(target)
 
-        scores, candidate_indices = self.score_candidates(i, Phi)
+        scores, candidate_indices = self.score_candidates(i, Phi, target)
         aux = {}
 
         if mode == "train":
@@ -108,18 +134,25 @@ class ParentSelectorRL:
         aux["candidate_indices"] = candidate_indices.detach().cpu()
         return j, aux
 
-    # ---- batch-aware update (unchanged from your latest) ----
+    # batch-aware REINFORCE update (single optimizer step)
     def update(self, logprob, reward):
+        # allow single or batched inputs
         if isinstance(logprob, (list, tuple)):
-            logprobs = list(logprob)
-            rewards = list(reward)
+            logprobs = [lp for lp in logprob if lp is not None]
+            rewards = [rw for lp, rw in zip(logprob, reward) if lp is not None]
         else:
+            if logprob is None:
+                return
             logprobs = [logprob]
             rewards = [reward]
+
+        if not logprobs:
+            return
 
         device = self.device
         r = torch.as_tensor(rewards, dtype=torch.float32, device=device)
 
+        # EMA baseline applied sequentially across the batch
         beta = self.cfg.baseline_momentum
         baseline = self.baseline if self.baseline is not None else r[0].detach()
 
@@ -150,6 +183,107 @@ class ParentSelectorRL:
             else float(parent1_perf - offspring1_perf)
         )
 
+    def pretrain_with_sum_rule(
+        self,
+        data,
+        epochs: int = 1,
+        lr: float = None,
+        shuffle: bool = True,
+        verbose: bool = True,
+    ):
+        """
+        Supervised pretraining using the heuristic:
+          choose j with the largest sum over features in feats_ij.
+        Args:
+            data: iterable of (i, Phi, target) triples.
+                  - i: int index of the first parent in Phi
+                  - Phi: [N, D] np.ndarray or torch.Tensor
+                  - target: [D] np.ndarray or torch.Tensor
+            epochs: number of passes over `data`
+            lr: optional temporary learning rate just for pretraining
+            shuffle: shuffle examples each epoch
+            verbose: print simple running stats
+        Returns:
+            history: dict with 'loss' and 'acc' lists (per epoch)
+        """
+        # Optionally override LR just for this routine
+        orig_lrs = [pg["lr"] for pg in self.opt.param_groups]
+        if lr is not None:
+            for pg in self.opt.param_groups:
+                pg["lr"] = lr
+
+        self.model.train()
+        history = {"loss": [], "acc": []}
+
+        # Simple helper to turn any input into device tensor
+        def _to_dev(x):
+            return self._to_tensor(x)
+
+        for ep in range(epochs):
+            # Materialize data in memory so we can shuffle if desired
+            if not isinstance(data, list):
+                dataset = list(data)
+            else:
+                dataset = data
+
+            if shuffle:
+                import random
+
+                random.shuffle(dataset)
+
+            total_loss = 0.0
+            total_correct = 0
+            total_count = 0
+
+            for i, Phi, target in dataset:
+                Phi = _to_dev(Phi)  # [N, D]
+                target_t = _to_dev(target)  # [D]
+
+                # Build feats_ij and candidate set (excludes i)
+                phi_i = Phi[i]  # [D]
+                feats, candidate_indices = self._pair_features(
+                    phi_i, Phi, target_t, mask_idx=i
+                )  # feats: [N-1, D]
+
+                # Heuristic label: index with largest sum(feats_ij)
+                with torch.no_grad():
+                    label_local = torch.argmax(feats.sum(dim=1))  # int in [0, N-2]
+                # Forward pass
+                logits = self.model(feats)  # [N-1]
+                # Shape to [1, C] for cross-entropy
+                loss = F.cross_entropy(logits.unsqueeze(0), label_local.view(1))
+
+                # Optimize
+                self.opt.zero_grad(set_to_none=True)
+                loss.backward()
+                if self.cfg.clip_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.cfg.clip_grad_norm
+                    )
+                self.opt.step()
+
+                # Stats
+                total_loss += float(loss.detach().cpu())
+                pred_local = int(torch.argmax(logits).item())
+                total_correct += int(pred_local == int(label_local))
+                total_count += 1
+
+            mean_loss = total_loss / max(1, total_count)
+            acc = total_correct / max(1, total_count)
+            history["loss"].append(mean_loss)
+            history["acc"].append(acc)
+            if verbose:
+                print(
+                    f"[pretrain epoch {ep + 1}/{epochs}] loss={mean_loss:.4f} acc={acc:.3f}"
+                )
+
+        # Restore original LR if we changed it
+        if lr is not None:
+            for pg, old in zip(self.opt.param_groups, orig_lrs):
+                pg["lr"] = old
+
+        return history
+
 
 def select_general_reinforcement_learning(
     population, k, model: ParentSelectorRL, target: np.ndarray
@@ -157,17 +291,12 @@ def select_general_reinforcement_learning(
     selected = []
     Phi = np.stack([ind.predicted_values for ind in population]).astype(np.float32)
 
-    # residuals and L2 row-wise normalization
-    residuals = Phi - target.astype(np.float32)  # [N, M]
-    l2 = np.linalg.norm(residuals, axis=1, keepdims=True)  # [N, 1]
-    residuals = residuals / np.maximum(l2, 1e-12)  # avoid divide-by-zero
-
     for _ in range(k // 2):
         mother = selAutomaticEpsilonLexicaseFast(population, 1)[0]
         mother.rl_selected = False
         i = population.index(mother)
 
-        j, aux = model.select_second_parent(i, residuals, mode="train")
+        j, aux = model.select_second_parent(i, Phi, target, mode="train")
         father = population[j]
         father.rl_selected = True
         mother.aux = aux
