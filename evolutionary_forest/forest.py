@@ -278,6 +278,11 @@ from evolutionary_forest.component.selection_operators.pareto_tournament import 
 from evolutionary_forest.component.selection_operators.rds_tournament import (
     rds_tournament_selection,
 )
+from evolutionary_forest.component.selection_operators.rl_selection import (
+    select_general_reinforcement_learning,
+    ParentSelectorRL,
+    update_nn,
+)
 from evolutionary_forest.component.stateful_gp import make_class
 from evolutionary_forest.component.stgp.constant_biased_tree_generation import (
     genHalfAndHalf_STGP_constant_biased,
@@ -2519,6 +2524,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
+        elif self.select == "RLS":
+            self.rl_selection = ParentSelectorRL(len(self.X))
+            toolbox.register(
+                "select",
+                select_general_reinforcement_learning,
+                model=self.rl_selection,
+                target=self.y,
+            )
         elif self.select == "CPS":
             toolbox.register(
                 "select",
@@ -3851,6 +3864,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def callback(self):
         # self.plot_distance()
         log_check(self)
+        if self.select == "RLS" and self.current_gen > 0:
+            update_nn(self.pop, self.rl_selection)
+
+        if self.select == "RLS":
+            Phi = np.stack([ind.predicted_values for ind in self.pop]).astype(
+                np.float32
+            )
+
+            train_data = [(i, Phi, self.y) for i in range(len(Phi))]
+            self.rl_selection.pretrain_with_sum_rule(
+                train_data, epochs=10, lr=0.01, verbose=False
+            )
+
         self.generation_info.current_gen += 1
 
         if (

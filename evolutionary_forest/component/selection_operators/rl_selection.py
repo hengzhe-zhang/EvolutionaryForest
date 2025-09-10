@@ -11,6 +11,22 @@ from typing import Union
 from torch.nn import LeakyReLU
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
+from torch.utils.data import Dataset, DataLoader
+
+
+class SumRuleDataset(Dataset):
+    def __init__(self, data, to_tensor_fn):
+        self.samples = list(data)
+        self._to_dev = to_tensor_fn
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        i, Phi, target = self.samples[idx]
+        Phi = self._to_dev(Phi)
+        target = self._to_dev(target)
+        return i, Phi, target
 
 
 class PolicyNet(nn.Module):
@@ -105,14 +121,14 @@ class ParentSelectorRL:
         phi_i = Phi[i]  # [D]
         feats, candidate_indices = self._pair_features(phi_i, Phi, target, mask_idx=i)
         scores = self.model(feats)  # [N-1]
-        return scores, candidate_indices
+        return scores, candidate_indices, feats
 
     def select_second_parent(self, i: int, Phi, target, mode: str = "eval"):
         self.model.eval() if mode == "eval" else self.model.train()
         Phi = self._to_tensor(Phi)
         target = self._to_tensor(target)
 
-        scores, candidate_indices = self.score_candidates(i, Phi, target)
+        scores, candidate_indices, feats = self.score_candidates(i, Phi, target)
         aux = {}
 
         if mode == "train":
@@ -122,6 +138,12 @@ class ParentSelectorRL:
             m = torch.distributions.Categorical(probs=probs)
             idx = m.sample()
             j = int(candidate_indices[idx].item())
+            # print(
+            #     "Sampled index:",
+            #     j,
+            #     "Ground Truth:",
+            #     torch.argmax(feats.sum(dim=1)).item(),
+            # )
             aux["logprob"] = m.log_prob(idx)
             aux["probs"] = probs.detach().cpu()
         else:
@@ -195,55 +217,59 @@ class ParentSelectorRL:
         lr: float = None,
         shuffle: bool = True,
         verbose: bool = True,
+        batch_size: int = 32,  # can be >1 if N fixed
+        num_workers: int = 0,
     ):
-        # Optionally override LR just for this routine
+        # LR override
         orig_lrs = [pg["lr"] for pg in self.opt.param_groups]
         if lr is not None:
             for pg in self.opt.param_groups:
                 pg["lr"] = lr
 
+        dataset = SumRuleDataset(data, self._to_tensor)
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=num_workers,
+        )
+
         self.model.train()
         history = {"loss": [], "acc": []}
 
-        # Simple helper to turn any input into device tensor
-        def _to_dev(x):
-            return self._to_tensor(x)
-
         for ep in range(epochs):
-            # Materialize data in memory so we can shuffle if desired
-            if not isinstance(data, list):
-                dataset = list(data)
-            else:
-                dataset = data
+            total_loss, total_correct, total_count = 0.0, 0, 0
 
-            if shuffle:
-                import random
+            for batch in loader:
+                # batch contains a tuple of batched tensors
+                # i: [B], Phi: [B, N, D], target: [B, D]
+                i_batch, Phi_batch, target_batch = batch
 
-                random.shuffle(dataset)
+                batch_losses = []
+                batch_correct = 0
 
-            total_loss = 0.0
-            total_correct = 0
-            total_count = 0
+                for i, Phi, target in zip(i_batch, Phi_batch, target_batch):
+                    i = int(i.item())  # convert scalar tensor to int
 
-            for i, Phi, target in dataset:
-                Phi = _to_dev(Phi)  # [N, D]
-                target_t = _to_dev(target)  # [D]
+                    phi_i = Phi[i]
+                    feats, candidate_indices = self._pair_features(
+                        phi_i, Phi, target, mask_idx=i
+                    )
 
-                # Build feats_ij and candidate set (excludes i)
-                phi_i = Phi[i]  # [D]
-                feats, candidate_indices = self._pair_features(
-                    phi_i, Phi, target_t, mask_idx=i
-                )  # feats: [N-1, D]
+                    with torch.no_grad():
+                        label_local = torch.argmax(feats.sum(dim=1))
 
-                # Heuristic label: index with largest sum(feats_ij)
-                with torch.no_grad():
-                    label_local = torch.argmax(feats.sum(dim=1))  # int in [0, N-2]
-                # Forward pass
-                logits = self.model(feats)  # [N-1]
-                # Shape to [1, C] for cross-entropy
-                loss = F.cross_entropy(logits.unsqueeze(0), label_local.view(1))
+                    logits = self.model(feats)
+                    loss = F.cross_entropy(logits.unsqueeze(0), label_local.view(1))
 
-                # Optimize
+                    batch_losses.append(loss)
+
+                    pred_local = int(torch.argmax(logits).item())
+                    batch_correct += int(pred_local == int(label_local))
+
+                # Average batch loss
+                loss = torch.stack(batch_losses).mean()
+
                 self.opt.zero_grad(set_to_none=True)
                 loss.backward()
                 if self.cfg.clip_grad_norm is not None:
@@ -252,22 +278,17 @@ class ParentSelectorRL:
                     )
                 self.opt.step()
 
-                # Stats
                 total_loss += float(loss.detach().cpu())
-                pred_local = int(torch.argmax(logits).item())
-                total_correct += int(pred_local == int(label_local))
-                total_count += 1
+                total_correct += batch_correct
+                total_count += len(i_batch)
 
             mean_loss = total_loss / max(1, total_count)
             acc = total_correct / max(1, total_count)
             history["loss"].append(mean_loss)
             history["acc"].append(acc)
             if verbose:
-                print(
-                    f"[pretrain epoch {ep + 1}/{epochs}] loss={mean_loss:.4f} acc={acc:.3f}"
-                )
+                print(f"[epoch {ep + 1}/{epochs}] loss={mean_loss:.4f} acc={acc:.3f}")
 
-        # Restore original LR if we changed it
         if lr is not None:
             for pg, old in zip(self.opt.param_groups, orig_lrs):
                 pg["lr"] = old

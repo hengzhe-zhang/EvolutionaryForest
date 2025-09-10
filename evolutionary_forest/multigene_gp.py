@@ -338,6 +338,18 @@ class MultipleGeneGP:
     def __repr__(self):
         return str([str(g) for g in self.gene])
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "aux":
+                continue
+            setattr(result, k, copy.deepcopy(v, memo))
+        # keep the attribute but empty
+        result.aux = None
+        return result
+
 
 def get_random_from_interval(x, c):
     interval_start = (x // c) * c
