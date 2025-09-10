@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
+
 
 class PolicyNet(nn.Module):
     def __init__(self, dim_in: int, hidden=(128, 64), dropout: float = 0.0):
@@ -38,7 +40,7 @@ class ParentSelectorRL:
         self,
         sem_dim: int,
         cfg: RLConfig = RLConfig(),
-        hidden=(128, 64),
+        hidden=(32, 8),
         dropout: float = 0.0,
     ):
         self.cfg = cfg
@@ -97,20 +99,34 @@ class ParentSelectorRL:
         aux["candidate_indices"] = candidate_indices.detach().cpu()
         return j, aux
 
-    def update(self, logprob: Optional[torch.Tensor], reward: float):
-        if logprob is None:
-            return
-        r = torch.as_tensor(reward, dtype=torch.float32, device=self.device)
-        if self.baseline is None:
-            self.baseline = r.detach()
+    # ---- modify ParentSelectorRL.update to support batch ----
+    def update(self, logprob, reward):
+        # Accept single (tensor, float) or batches (list/tuple of tensors & floats)
+        if isinstance(logprob, (list, tuple)):
+            logprobs = list(logprob)
+            rewards = list(reward)
         else:
-            beta = self.cfg.baseline_momentum
-            self.baseline = beta * self.baseline + (1 - beta) * r.detach()
-        advantage = r - self.baseline
-        loss = -(logprob * advantage)
+            logprobs = [logprob]
+            rewards = [reward]
 
+        device = self.device
+        r = torch.as_tensor(rewards, dtype=torch.float32, device=device)
+
+        # EMA baseline applied sequentially across the batch
+        beta = self.cfg.baseline_momentum
+        baseline = self.baseline if self.baseline is not None else r[0].detach()
+
+        losses = []
+        for lp, ri in zip(logprobs, r):
+            adv = ri - baseline
+            losses.append(-(lp * adv))
+            baseline = beta * baseline + (1.0 - beta) * ri.detach()
+
+        self.baseline = baseline
+
+        total_loss = torch.stack(losses).sum()
         self.opt.zero_grad(set_to_none=True)
-        loss.backward()
+        total_loss.backward()
         if self.cfg.clip_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), self.cfg.clip_grad_norm
@@ -125,6 +141,42 @@ class ParentSelectorRL:
             return float(offspring1_perf - parent1_perf)
         else:
             return float(parent1_perf - offspring1_perf)
+
+
+def select_general_reinforcement_learning(
+    population, k, model: ParentSelectorRL, target: np.ndarray
+):
+    selected = []
+    Phi = np.stack([ind.predicted_values for ind in population]).astype(np.float32)
+
+    # residuals and L2 row-wise normalization
+    residuals = Phi - target.astype(np.float32)  # [N, M]
+    l2 = np.linalg.norm(residuals, axis=1, keepdims=True)  # [N, 1]
+    residuals = residuals / np.maximum(l2, 1e-12)  # avoid divide-by-zero
+
+    for _ in range(k // 2):
+        mother = selAutomaticEpsilonLexicaseFast(population, 1)[0]
+        mother.rl_selected = False
+        i = population.index(mother)
+
+        j, aux = model.select_second_parent(i, residuals, mode="train")
+        father = population[j]
+        father.rl_selected = True
+        mother.aux = aux
+
+        selected.extend((mother, father))
+    return selected
+
+
+def update_nn(population, model: ParentSelectorRL):
+    logprobs, rewards = [], []
+    for ind in population:
+        if not ind.rl_selected:
+            logprobs.append(ind.aux["logprob"])
+            rewards.append(ind.fitness.wvalues[0] - ind.parent_fitness[0])
+
+    if logprobs:
+        model.update(logprobs, rewards)
 
 
 if __name__ == "__main__":
