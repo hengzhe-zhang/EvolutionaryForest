@@ -99,19 +99,11 @@ class ParentSelectorRL:
         phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)  # [N-1, D]
         avg = (phi_i_rep + Phi[candidate_indices]) * 0.5  # [N-1, D]
 
-        # Center (per-row) and L2-normalize each row
-        avg_centered = avg - avg.mean(dim=1, keepdim=True)  # [N-1, D]
-        avg_norm = torch.norm(avg_centered, dim=1, keepdim=True).clamp_min(1e-12)
-        avg_unit = avg_centered / avg_norm  # [N-1, D]
-
         # Target: center once and L2-normalize
         t = self._to_tensor(target).view(-1)  # [D]
-        t_centered = t - t.mean()  # [D]
-        t_norm = torch.norm(t_centered).clamp_min(1e-12)  # scalar
-        t_unit = t_centered / t_norm  # [D]
 
         # Element-wise product (broadcast over rows)
-        feats = avg_unit * t_unit  # [N-1, D]
+        feats = -((avg - t) ** 2)
         return feats, candidate_indices
 
     def score_candidates(
