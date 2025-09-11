@@ -2524,7 +2524,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
-        elif self.select == "RLS":
+        elif self.select in ["RLS", "RLS-A"]:
             self.rl_selection = ParentSelectorRL(len(self.X))
             toolbox.register(
                 "select",
@@ -3864,10 +3864,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def callback(self):
         # self.plot_distance()
         log_check(self)
-        if self.select == "RLS" and self.current_gen > 0:
+        if self.select in ["RLS", "RLS-A"] and self.current_gen > 0:
             update_nn(self.pop, self.rl_selection)
 
-        if self.select == "RLS":
+        if (self.select == "RLS" and self.current_gen == 0) or (self.select == "RLS-A"):
             Phi = np.stack([ind.predicted_values for ind in self.pop]).astype(
                 np.float32
             )

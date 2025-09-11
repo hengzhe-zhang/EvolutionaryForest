@@ -323,7 +323,10 @@ def update_nn(population, model: ParentSelectorRL):
     for ind in population:
         if not ind.rl_selected:
             logprobs.append(ind.aux["logprob"])
-            rewards.append(ind.fitness.wvalues[0] - ind.parent_fitness[0])
+            reward = ind.fitness.wvalues[0] - ind.parent_fitness[0]
+            if reward <= 0:
+                continue
+            rewards.append(reward)
 
     if logprobs:
         model.update(logprobs, rewards)
