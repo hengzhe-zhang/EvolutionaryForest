@@ -260,7 +260,9 @@ class ParentSelectorRL:
                         label_local = torch.argmax(feats.sum(dim=1))
 
                     logits = self.model(feats)
-                    loss = F.cross_entropy(logits.unsqueeze(0), label_local.view(1))
+                    loss = F.cross_entropy(
+                        logits.unsqueeze(0), label_local.view(1), label_smoothing=0.1
+                    )
 
                     batch_losses.append(loss)
 
