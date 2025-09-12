@@ -71,9 +71,9 @@ class ParentSelectorRL:
         )
         self.baseline: Optional[torch.Tensor] = None
 
-        self.fuse_logit = nn.Parameter(torch.zeros(sem_dim, 2))  # [D,2], init ~ average
+        self.fuser = nn.Linear(2 * sem_dim, sem_dim).to(self.device)
         self.opt = torch.optim.Adam(
-            list(self.model.parameters()) + [self.fuse_logit], lr=cfg.lr
+            list(self.model.parameters()) + list(self.fuser.parameters()), lr=cfg.lr
         )
 
     def _to_tensor(self, x: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
@@ -83,7 +83,6 @@ class ParentSelectorRL:
             raise TypeError(f"Expected np.ndarray or torch.Tensor, got {type(x)}")
         return x.to(self.device)
 
-    @torch.no_grad()
     def _pair_features(
         self,
         phi_i: torch.Tensor,  # [D]
@@ -100,20 +99,17 @@ class ParentSelectorRL:
         candidate_indices = candidate_indices[candidate_indices != mask_idx]  # [N-1]
 
         # Build avg per candidate
-        phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)  # [N-1, D]
+        phi_i_rep = (
+            phi_i.unsqueeze(0).expand(candidate_indices.numel(), D).detach()
+        )  # [N-1, D]
 
         # Target: center once and L2-normalize
-        t = self._to_tensor(target).view(-1)  # [D]
+        t = self._to_tensor(target).view(-1).detach()  # [D]
 
         gating = True
         if gating:
-            # weights per-dim, convex via softmax
-            w = torch.softmax(self.fuse_logit, dim=1)  # [D,2]
-            w_i, w_j = w[:, 0], w[:, 1]  # [D]
-
-            # build fused semantics for each candidate
-            # phi_i_rep: [N-1, D], Phi[candidate_indices]: [N-1, D]
-            avg = w_i * phi_i_rep + w_j * Phi[candidate_indices]  # [N-1, D]
+            pair = torch.cat([phi_i_rep, Phi[candidate_indices]], dim=1)  # [N-1, 2D]
+            avg = self.fuser(pair)  # [N-1, D]  (trainable linear fusion)
         else:
             avg = (phi_i_rep + Phi[candidate_indices]) * 0.5  # [N-1, D]
 
@@ -137,11 +133,11 @@ class ParentSelectorRL:
         scores, candidate_indices, feats = self.score_candidates(i, Phi, target)
         aux = {}
 
+        logits = scores / max(1e-8, self.cfg.temperature)
+        probs = F.softmax(logits, dim=0)
+        m = torch.distributions.Categorical(probs=probs)
+
         if mode == "train":
-            logits = scores / max(1e-8, self.cfg.temperature)
-            probs = F.softmax(logits, dim=0)
-            # print(probs)
-            m = torch.distributions.Categorical(probs=probs)
             idx = m.sample()
             j = int(candidate_indices[idx].item())
             # print(
@@ -155,7 +151,7 @@ class ParentSelectorRL:
         else:
             idx = torch.argmax(scores)
             j = int(candidate_indices[idx].item())
-            aux["logprob"] = None
+            aux["logprob"] = m.log_prob(idx)
 
         aux["scores"] = scores.detach().cpu()
         aux["candidate_indices"] = candidate_indices.detach().cpu()
@@ -255,16 +251,35 @@ class ParentSelectorRL:
                 batch_correct = 0
 
                 for i, Phi, target in zip(i_batch, Phi_batch, target_batch):
-                    i = int(i.item())  # convert scalar tensor to int
+                    Phi = self._to_tensor(Phi)
+                    target = self._to_tensor(target)
 
-                    phi_i = Phi[i]
+                    N, D = Phi.shape
+                    i = int(i) if isinstance(i, int) else int(i.item())
+
+                    phi_i = Phi[i]  # [D]
+                    candidate_indices = torch.arange(N, device=Phi.device)
+                    candidate_indices = candidate_indices[
+                        candidate_indices != i
+                    ]  # [N-1]
+
+                    # Repeat phi_i to match candidate count: [N-1, D]
+                    phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)
+
+                    # Target as a fixed reference
+                    t = target.view(-1).detach()  # [D]
+
+                    # Simple average fusion (replace with your fuser if desired)
+                    avg = 0.5 * (phi_i_rep + Phi[candidate_indices])  # [N-1, D]
+
+                    # Ground-truth label: index of the MIN distance, not max
+                    with torch.no_grad():
+                        d2 = ((avg - t) ** 2).sum(dim=1)  # [N-1]
+                        label_local = torch.argmin(d2)  # scalar tensor
+
                     feats, candidate_indices = self._pair_features(
                         phi_i, Phi, target, mask_idx=i
                     )
-
-                    with torch.no_grad():
-                        label_local = torch.argmax(feats.sum(dim=1))
-
                     logits = self.model(feats)
                     loss = F.cross_entropy(
                         logits.unsqueeze(0), label_local.view(1), label_smoothing=0.1
