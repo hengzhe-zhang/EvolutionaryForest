@@ -45,7 +45,7 @@ class ParentSelectorDQN(ParentSelectorRL):
         cfg: RLConfig = RLConfig(),
         hidden=(16, 8),
         dropout: float = 0.0,
-        buffer_capacity: int = 5000,
+        buffer_capacity: int = 500,
         batch_size: int = 64,
     ):
         super().__init__(sem_dim=sem_dim, cfg=cfg, hidden=hidden, dropout=dropout)

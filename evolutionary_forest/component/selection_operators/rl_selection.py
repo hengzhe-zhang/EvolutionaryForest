@@ -69,8 +69,12 @@ class ParentSelectorRL:
         self.model = PolicyNet(dim_in=sem_dim, hidden=hidden, dropout=dropout).to(
             self.device
         )
-        self.opt = torch.optim.Adam(self.model.parameters(), lr=cfg.lr)
         self.baseline: Optional[torch.Tensor] = None
+
+        self.fuse_logit = nn.Parameter(torch.zeros(sem_dim, 2))  # [D,2], init ~ average
+        self.opt = torch.optim.Adam(
+            list(self.model.parameters()) + [self.fuse_logit], lr=cfg.lr
+        )
 
     def _to_tensor(self, x: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
         if isinstance(x, np.ndarray):
@@ -97,12 +101,22 @@ class ParentSelectorRL:
 
         # Build avg per candidate
         phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)  # [N-1, D]
-        avg = (phi_i_rep + Phi[candidate_indices]) * 0.5  # [N-1, D]
 
         # Target: center once and L2-normalize
         t = self._to_tensor(target).view(-1)  # [D]
 
-        # Element-wise product (broadcast over rows)
+        gating = True
+        if gating:
+            # weights per-dim, convex via softmax
+            w = torch.softmax(self.fuse_logit, dim=1)  # [D,2]
+            w_i, w_j = w[:, 0], w[:, 1]  # [D]
+
+            # build fused semantics for each candidate
+            # phi_i_rep: [N-1, D], Phi[candidate_indices]: [N-1, D]
+            avg = w_i * phi_i_rep + w_j * Phi[candidate_indices]  # [N-1, D]
+        else:
+            avg = (phi_i_rep + Phi[candidate_indices]) * 0.5  # [N-1, D]
+
         feats = -((avg - t) ** 2)
         return feats, candidate_indices
 
