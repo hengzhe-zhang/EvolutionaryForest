@@ -3869,7 +3869,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             update_nn(self.pop, self.rl_selection)
             # update_nn_dqn(self.pop, self.rl_selection)
 
-        if self.select in ["RLS-A"]:
+        if self.select in ["RLS-A"] or (
+            self.select == "RLS" and self.current_gen % 5 == 0
+        ):
             Phi = np.stack([ind.predicted_values for ind in self.pop]).astype(
                 np.float32
             )
