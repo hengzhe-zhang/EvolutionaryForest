@@ -14,6 +14,20 @@ from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseF
 from torch.utils.data import Dataset, DataLoader
 
 
+class SimpleFuser(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.w1 = nn.Parameter(torch.tensor(0.5))  # weight for phi_i
+        self.w2 = nn.Parameter(torch.tensor(0.5))  # weight for phi_j
+        self.bias = nn.Parameter(torch.zeros(dim))  # bias vector
+
+    def forward(self, pair: torch.Tensor) -> torch.Tensor:
+        # pair: [N-1, 2D]
+        D = pair.shape[1] // 2
+        a, b = pair[:, :D], pair[:, D:]  # split into two halves [N-1, D]
+        return self.w1 * a + self.w2 * b + self.bias  # [N-1, D]
+
+
 class SumRuleDataset(Dataset):
     def __init__(self, data, to_tensor_fn):
         self.samples = list(data)
@@ -72,7 +86,7 @@ class ParentSelectorRL:
         )
         self.baseline: Optional[torch.Tensor] = None
 
-        self.fuser = nn.Linear(2 * sem_dim, sem_dim).to(self.device)
+        self.fuser = SimpleFuser(sem_dim).to(self.device)
         self.opt = torch.optim.Adam(
             list(self.model.parameters()) + list(self.fuser.parameters()), lr=cfg.lr
         )
@@ -266,32 +280,26 @@ class ParentSelectorRL:
                         phi_i, Phi, target, mask_idx=i
                     )
 
-                    if self.self_learning:
-                        with torch.no_grad():
-                            label_local = torch.argmax(feats.sum(dim=1))
-                    else:
-                        candidate_indices = torch.arange(N, device=Phi.device)
-                        candidate_indices = candidate_indices[
-                            candidate_indices != i
-                        ]  # [N-1]
+                    candidate_indices = torch.arange(N, device=Phi.device)
+                    candidate_indices = candidate_indices[
+                        candidate_indices != i
+                    ]  # [N-1]
 
-                        # Repeat phi_i to match candidate count: [N-1, D]
-                        phi_i_rep = (
-                            phi_i.unsqueeze(0)
-                            .expand(candidate_indices.numel(), D)
-                            .detach()
-                        )
+                    # Repeat phi_i to match candidate count: [N-1, D]
+                    phi_i_rep = (
+                        phi_i.unsqueeze(0).expand(candidate_indices.numel(), D).detach()
+                    )
 
-                        # Target as a fixed reference
-                        t = target.view(-1).detach()  # [D]
+                    # Target as a fixed reference
+                    t = target.view(-1).detach()  # [D]
 
-                        # Simple average fusion (replace with your fuser if desired)
-                        avg = 0.5 * (phi_i_rep + Phi[candidate_indices])  # [N-1, D]
+                    # Simple average fusion (replace with your fuser if desired)
+                    avg = 0.5 * (phi_i_rep + Phi[candidate_indices])  # [N-1, D]
 
-                        # Ground-truth label: index of the MIN distance, not max
-                        with torch.no_grad():
-                            d2 = ((avg - t) ** 2).sum(dim=1)  # [N-1]
-                            label_local = torch.argmin(d2)  # scalar tensor
+                    # Ground-truth label: index of the MIN distance, not max
+                    with torch.no_grad():
+                        d2 = ((avg - t) ** 2).sum(dim=1)  # [N-1]
+                        label_local = torch.argmin(d2)  # scalar tensor
 
                     logits = self.model(feats)
                     loss = F.cross_entropy(
