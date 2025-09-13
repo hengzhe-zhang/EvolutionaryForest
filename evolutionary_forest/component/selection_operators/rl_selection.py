@@ -62,6 +62,7 @@ class ParentSelectorRL:
         cfg: RLConfig = RLConfig(),
         hidden=(16, 8),
         dropout: float = 0.0,
+        self_learning=False,
     ):
         self.cfg = cfg
         self.device = torch.device(cfg.device)
@@ -75,6 +76,8 @@ class ParentSelectorRL:
         self.opt = torch.optim.Adam(
             list(self.model.parameters()) + list(self.fuser.parameters()), lr=cfg.lr
         )
+
+        self.self_learning = self_learning
 
     def _to_tensor(self, x: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
         if isinstance(x, np.ndarray):
@@ -183,7 +186,7 @@ class ParentSelectorRL:
         )
 
         # ---- 3) Compute advantages with the frozen baseline ----
-        adv = r - frozen_baseline
+        adv = r
 
         # ---- 4) Build REINFORCE loss over the batch ----
         loss = -torch.stack([lp * a for lp, a in zip(logprobs, adv)]).sum()
@@ -258,28 +261,38 @@ class ParentSelectorRL:
                     i = int(i) if isinstance(i, int) else int(i.item())
 
                     phi_i = Phi[i]  # [D]
-                    candidate_indices = torch.arange(N, device=Phi.device)
-                    candidate_indices = candidate_indices[
-                        candidate_indices != i
-                    ]  # [N-1]
-
-                    # Repeat phi_i to match candidate count: [N-1, D]
-                    phi_i_rep = phi_i.unsqueeze(0).expand(candidate_indices.numel(), D)
-
-                    # Target as a fixed reference
-                    t = target.view(-1).detach()  # [D]
-
-                    # Simple average fusion (replace with your fuser if desired)
-                    avg = 0.5 * (phi_i_rep + Phi[candidate_indices])  # [N-1, D]
-
-                    # Ground-truth label: index of the MIN distance, not max
-                    with torch.no_grad():
-                        d2 = ((avg - t) ** 2).sum(dim=1)  # [N-1]
-                        label_local = torch.argmin(d2)  # scalar tensor
 
                     feats, candidate_indices = self._pair_features(
                         phi_i, Phi, target, mask_idx=i
                     )
+
+                    if self.self_learning:
+                        with torch.no_grad():
+                            label_local = torch.argmax(feats.sum(dim=1))
+                    else:
+                        candidate_indices = torch.arange(N, device=Phi.device)
+                        candidate_indices = candidate_indices[
+                            candidate_indices != i
+                        ]  # [N-1]
+
+                        # Repeat phi_i to match candidate count: [N-1, D]
+                        phi_i_rep = (
+                            phi_i.unsqueeze(0)
+                            .expand(candidate_indices.numel(), D)
+                            .detach()
+                        )
+
+                        # Target as a fixed reference
+                        t = target.view(-1).detach()  # [D]
+
+                        # Simple average fusion (replace with your fuser if desired)
+                        avg = 0.5 * (phi_i_rep + Phi[candidate_indices])  # [N-1, D]
+
+                        # Ground-truth label: index of the MIN distance, not max
+                        with torch.no_grad():
+                            d2 = ((avg - t) ** 2).sum(dim=1)  # [N-1]
+                            label_local = torch.argmin(d2)  # scalar tensor
+
                     logits = self.model(feats)
                     loss = F.cross_entropy(
                         logits.unsqueeze(0), label_local.view(1), label_smoothing=0.1
