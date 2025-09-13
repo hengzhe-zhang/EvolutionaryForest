@@ -4,6 +4,54 @@ from sklearn.model_selection import train_test_split
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
+class LASGPLearner(EvolutionaryForestRegressor):
+    def __init__(self, gene_num=10, **params):
+        basic_primitives = (
+            "Add,Sub,Mul,Div,Sqrt,AbsLog,Abs,Square,SinPi,CosPi,Max,Min,Neg"
+        )
+        parameter_dict = dict(
+            n_gen=100,
+            n_pop=200,
+            select="AutomaticLexicase",
+            cross_pb=0.9,
+            mutation_pb=0.1,
+            max_height=10,
+            ensemble_size=1,
+            initial_tree_size="0-6",
+            gene_num=gene_num,
+            basic_primitives=basic_primitives,
+            base_learner="RidgeCV",
+            verbose=False,
+            boost_size=None,
+            normalize="MinMax",
+            external_archive=1,
+            max_trees=10000,
+            library_clustering_mode="Hardest-KMeans",
+            pool_addition_mode="Smallest~Auto",
+            pool_hard_instance_interval=10,
+            random_order_replacement=True,
+            pool_based_addition=True,
+            semantics_length=50,
+            change_semantic_after_deletion=True,
+            include_subtree_to_lib=True,
+            library_updating_mode="Recent",
+            root_crossover=True,
+            scaling_before_replacement=False,
+            score_func="R2",
+            number_of_invokes=0,
+            mutation_scheme="EDA-SemanticLibrary",
+            environmental_selection=None,
+            record_training_data=False,
+            complementary_replacement=False,
+            validation_size=0,
+            constant_type="Float",
+            full_scaling_after_replacement=False,
+            semantic_local_search_pb=0.2,
+        )
+        parameter_dict.update(params)
+        super().__init__(**parameter_dict)
+
+
 class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
     def __init__(self, early_stop=-1, **params):
         parameter_dict = dict(
