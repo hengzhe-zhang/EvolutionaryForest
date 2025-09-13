@@ -64,7 +64,6 @@ class PolicyNet(nn.Module):
 class RLConfig:
     lr: float = 1e-3
     temperature: float = 1.0
-    baseline_momentum: float = 0.9
     clip_grad_norm: Optional[float] = 5.0
     device: str = "cpu"
 
@@ -190,22 +189,10 @@ class ParentSelectorRL:
         device = self.device
         r = torch.as_tensor(rewards, dtype=torch.float32, device=device)
 
-        # ---- 2) Freeze a baseline for this batch (same for all samples) ----
-        beta = self.cfg.baseline_momentum
-        # use previous EMA baseline if available; otherwise start with this batch mean
-        frozen_baseline = (
-            self.baseline.detach()
-            if getattr(self, "baseline", None) is not None
-            else r.mean().detach()
-        )
+        # ---- 2) Build REINFORCE loss over the batch ----
+        loss = -torch.stack([lp * reward for lp, reward in zip(logprobs, r)]).sum()
 
-        # ---- 3) Compute advantages with the frozen baseline ----
-        adv = r
-
-        # ---- 4) Build REINFORCE loss over the batch ----
-        loss = -torch.stack([lp * a for lp, a in zip(logprobs, adv)]).sum()
-
-        # ---- 5) Backprop + (optional) grad clipping ----
+        # ---- 3) Backprop + grad clipping ----
         self.opt.zero_grad(set_to_none=True)
         loss.backward()
         if self.cfg.clip_grad_norm is not None:
@@ -213,11 +200,6 @@ class ParentSelectorRL:
                 self.model.parameters(), self.cfg.clip_grad_norm
             )
         self.opt.step()
-
-        # ---- 6) Offline EMA update of baseline using batch statistic ----
-        batch_stat = r.mean().detach()
-        new_baseline = beta * frozen_baseline + (1.0 - beta) * batch_stat
-        self.baseline = new_baseline
 
     @staticmethod
     def compute_reward(
