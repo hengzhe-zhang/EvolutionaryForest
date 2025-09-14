@@ -5,10 +5,12 @@ from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
 class LASGPLearner(EvolutionaryForestRegressor):
-    def __init__(self, gene_num=10, **params):
-        basic_primitives = (
-            "Add,Sub,Mul,Div,Sqrt,AbsLog,Abs,Square,SinPi,CosPi,Max,Min,Neg"
-        )
+    def __init__(
+        self,
+        gene_num=10,
+        basic_primitives="Add,Sub,Mul,Div,Sqrt,AbsLog,Abs,Square,SinPi,CosPi,Max,Min,Neg",
+        **params,
+    ):
         parameter_dict = dict(
             n_gen=100,
             n_pop=200,
