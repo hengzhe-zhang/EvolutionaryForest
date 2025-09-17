@@ -8,32 +8,56 @@ from sklearn.utils.validation import check_is_fitted
 
 
 class RFRoutingEnsemble(BaseEstimator, RegressorMixin):
-    def __init__(self, base_estimators, n_estimators_rf=10):
+    def __init__(
+        self, base_estimators, n_estimators_rf=10, random_state=None, **rf_kwargs
+    ):
+        # Note: trailing underscore is usually for fitted attrs, but keeping your naming.
         self.base_estimators_ = base_estimators
         self.n_estimators_rf = n_estimators_rf
+        self.random_state = random_state
+        self.rf_kwargs = rf_kwargs
 
     def fit(self, X, y):
-        X = np.array(X)
-        y = np.array(y)
-        predictions = np.array([est.predict(X) for est in self.base_estimators_]).T
-        errors = np.square(y[:, np.newaxis] - predictions)
-        best_args = errors.argmin(axis=1)
-        self.candidates_ = np.unique(best_args)
-        self.router_ = RandomForestClassifier(n_estimators=self.n_estimators_rf)
-        self.router_.fit(X, best_args)
-        self.base_predictions_ = predictions
+        X = np.asarray(X)
+        y = np.asarray(y)
+
+        # preds: (n_samples, n_estimators)
+        preds = np.column_stack([est.predict(X) for est in self.base_estimators_])
+
+        # For each sample, which base estimator had the lowest squared error?
+        best_labels = np.argmin(
+            (y[:, None] - preds) ** 2, axis=1
+        )  # labels are estimator indices
+
+        # Train a classifier to route to the best estimator index
+        self.router_ = RandomForestClassifier(
+            n_estimators=self.n_estimators_rf,
+            random_state=self.random_state,
+            **self.rf_kwargs,
+        )
+        self.router_.fit(X, best_labels)
+
+        # Store the classes (subset of estimator indices) and keep their order
+        self.classes_ = self.router_.classes_  # e.g., array([3, 7, 34, ...])
         return self
 
     def predict(self, X):
-        check_is_fitted(
-            self, ["base_estimators_", "router_", "candidates_", "base_predictions_"]
-        )
-        X = np.array(X)
-        predictions = np.array([est.predict(X) for est in self.base_estimators_])
+        check_is_fitted(self, ["router_", "classes_"])
+        X = np.asarray(X)
+
+        # base_preds: (n_estimators, n_samples)
+        base_preds = np.vstack([est.predict(X) for est in self.base_estimators_])
+
+        # Select only the estimators the router knows about, in the SAME order as classes_
+        # selected: (k, n_samples), where k = len(self.classes_)
+        selected = base_preds[self.classes_, :]
+
+        # proba: (n_samples, k) with columns aligned to router_.classes_
         proba = self.router_.predict_proba(X)
-        relevant_proba = proba[:, self.candidates_]
-        selected_predictions = predictions[self.candidates_, :]
-        final_prediction = np.sum(relevant_proba * selected_predictions.T, axis=1)
+
+        # Weighted average over candidates
+        # (n_samples, k) * (n_samples, k) -> sum over k -> (n_samples,)
+        final_prediction = np.sum(proba * selected.T, axis=1)
         return final_prediction
 
 
