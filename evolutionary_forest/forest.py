@@ -136,7 +136,7 @@ from evolutionary_forest.component.ensemble_learning.utils import (
 from evolutionary_forest.component.ensemble_selection.DSE import (
     DynamicSelectionEnsemble,
 )
-from evolutionary_forest.component.ensemble_selection.RF_DSE import RFRoutingEnsemble
+from evolutionary_forest.component.ensemble_selection.RF_DSE import TopKRoutingEnsemble
 from evolutionary_forest.component.ensemble_selection.dynamic_ensemble_selection.deep_des import (
     DESMetaRegressor,
 )
@@ -240,6 +240,9 @@ from evolutionary_forest.component.selection import (
     selHOFRandom,
 )
 from evolutionary_forest.component.selection_operators.Boltzmann import selBoltzmann
+from evolutionary_forest.component.selection_operators.batch_tournament_selection import (
+    selBatchTournament,
+)
 from evolutionary_forest.component.selection_operators.cps_fast import (
     select_cpsr_regression_fast,
 )
@@ -2603,6 +2606,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 n_plexicase_selection,
             )
+        elif self.select == "BatchTournament":
+            toolbox.register(
+                "select",
+                selBatchTournament,
+            )
         elif self.select == "RDS-Tournament":
             toolbox.register(
                 "select",
@@ -3740,7 +3748,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.meta_learner == "DES":
             self.final_meta_learner = DynamicSelectionEnsemble(models)
         elif self.meta_learner == "RF-DES":
-            self.final_meta_learner = RFRoutingEnsemble(models)
+            self.final_meta_learner = TopKRoutingEnsemble(models)
         elif self.meta_learner == "DeepDES":
             self.final_meta_learner = DESMetaRegressor(verbose=False, **self.param)
 

@@ -1,5 +1,5 @@
 import random
-from typing import Sequence, List, Optional, Callable
+from typing import Sequence, List
 import numpy as np
 
 
@@ -10,7 +10,6 @@ def selBatchTournament(
     batch_size: int = 16,
     tourn_size: int = 16,
     shuffle: bool = True,
-    get_errors: Optional[Callable] = None,
     rng: random.Random = random,
 ) -> List:
     """
@@ -25,11 +24,9 @@ def selBatchTournament(
         return []
     if not individuals:
         raise ValueError("Population is empty.")
-    if get_errors is None:
-        get_errors = lambda ind: getattr(ind, "semantics")
 
     # Error matrix: shape (N_individuals, N_cases)
-    E = np.asarray([get_errors(ind) for ind in individuals], dtype=float)
+    E = np.asarray([ind.case_values for ind in individuals], dtype=float)
     if E.ndim != 2 or E.shape[1] == 0:
         raise ValueError(
             "Each individual's error vector must be non-empty and same length."

@@ -5,7 +5,7 @@ from evolutionary_forest.component.primitive_functions import *
 simple_reduce = lambda function, *x: reduce(function, x)
 
 
-def get_functions(p):
+def get_functions(p: str):
     primitive = {
         # Arithmetic operations
         "Add": (np.add, 2),  # Addition

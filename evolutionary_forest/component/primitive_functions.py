@@ -617,15 +617,15 @@ def less_or_equal_than(a, b):
 
 
 def greater_or_equal_than_triple_a(a, b, c):
-    return np.where(a >= b, a + b, c)
+    return np.where(a >= 0, b, c)
 
 
 def greater_or_equal_than_triple_b(a, b, c):
-    return np.where(a >= b, a + b, a + c)
+    return np.where(a >= 0, b + c, b - c)
 
 
 def greater_or_equal_than_triple_c(a, b, c):
-    return np.where(a >= b, a + b, a * c)
+    return np.where(a >= 0, b + c, b * c)
 
 
 def greater_or_equal_than_triple_d(a, b, c):
