@@ -9,6 +9,7 @@ from deap.gp import PrimitiveTree
 from numba import njit
 from scipy.stats import mode
 
+
 threshold = 1e-6
 
 
@@ -164,19 +165,16 @@ def analytical_log_torch(x):
     return torch.log(torch.sqrt(1 + x**2))
 
 
-def individual_to_tuple(ind):
+def individual_to_tuple(ind, structure_check=True):
     encoded_ind = []
     for tree in ind.gene:
-        encoded_ind.append(tree_to_tuple(tree))
+        encoded_ind.append(tree_to_tuple(tree, structure_check))
     if hasattr(ind, "base_model"):
         encoded_ind.append((ind.base_model,))
     return tuple(sorted(encoded_ind))
 
 
-structure_check = False
-
-
-def tree_to_tuple(tree: PrimitiveTree):
+def tree_to_tuple(tree: PrimitiveTree, structure_check=True):
     if structure_check:
         return tuple(node.name for node in tree)
     else:

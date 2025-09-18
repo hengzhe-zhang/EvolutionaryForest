@@ -34,8 +34,9 @@ if TYPE_CHECKING:
 
 
 class SelectionConfiguration:
-    def __init__(self, **params):
+    def __init__(self, structural_duplication_check=True, **params):
         self.current_gen = 0
+        self.structural_duplication_check = structural_duplication_check
 
 
 class Selection:

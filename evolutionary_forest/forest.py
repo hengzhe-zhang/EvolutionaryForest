@@ -4166,7 +4166,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.append_evaluated_features(population)
         for o in population:
-            self.evaluated_pop.add(individual_to_tuple(o))
+            self.evaluated_pop.add(
+                individual_to_tuple(
+                    o,
+                    structure_check=self.selection_configuration.structural_duplication_check,
+                )
+            )
 
         if halloffame is not None:
             halloffame.update(population)
@@ -4437,15 +4442,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                     if len(new_offspring) < individuals_to_generate:
                         # checking redundant individuals
+                        genotype = individual_to_tuple(  # noqa: F405
+                            o,
+                            structure_check=self.selection_configuration.structural_duplication_check,
+                        )
                         if (
                             self.allow_revisit
-                            or (individual_to_tuple(o) not in self.evaluated_pop)
+                            or (genotype not in self.evaluated_pop)
                             # for single-tree, may have many chances to repeat,
                             # so less restrictive
                             or (self.gene_num == 1 and count > pop_size * 10)
                         ):
                             # sometime, when gene num is very small, it is hard to generate a unique individual
-                            self.evaluated_pop.add(individual_to_tuple(o))
+                            self.evaluated_pop.add(genotype)
                             new_offspring.append(o)
                         else:
                             discarded_individuals += 1
