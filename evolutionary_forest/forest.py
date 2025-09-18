@@ -4169,7 +4169,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.evaluated_pop.add(
                 individual_to_tuple(
                     o,
-                    structure_check=self.selection_configuration.structural_duplication_check,
+                    check_constants=self.selection_configuration.check_constants,
                 )
             )
 
@@ -4444,7 +4444,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                         # checking redundant individuals
                         genotype = individual_to_tuple(  # noqa: F405
                             o,
-                            structure_check=self.selection_configuration.structural_duplication_check,
+                            check_constants=self.selection_configuration.check_constants,
                         )
                         if (
                             self.allow_revisit

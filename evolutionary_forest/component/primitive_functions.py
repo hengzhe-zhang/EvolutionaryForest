@@ -165,20 +165,20 @@ def analytical_log_torch(x):
     return torch.log(torch.sqrt(1 + x**2))
 
 
-def individual_to_tuple(ind, structure_check=True):
+def individual_to_tuple(ind, check_constants=False):
     encoded_ind = []
     for tree in ind.gene:
-        encoded_ind.append(tree_to_tuple(tree, structure_check))
+        encoded_ind.append(tree_to_tuple(tree, check_constants))
     if hasattr(ind, "base_model"):
         encoded_ind.append((ind.base_model,))
     return tuple(sorted(encoded_ind))
 
 
-def tree_to_tuple(tree: PrimitiveTree, structure_check=True):
-    if structure_check:
-        return tuple(node.name for node in tree)
-    else:
-        return str(tree)
+def tree_to_tuple(tree: PrimitiveTree, check_constants=False):
+    return tuple(
+        f"{n.name} {n.value}" if check_constants and hasattr(n, "value") else n.name
+        for n in tree
+    )
 
 
 def protect_loge(x1):
