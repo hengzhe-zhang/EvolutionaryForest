@@ -1,7 +1,7 @@
 import copy
 import random
 from itertools import chain
-from typing import List
+from typing import List, TYPE_CHECKING
 
 import numpy as np
 from deap.gp import PrimitiveTree, Terminal
@@ -9,6 +9,9 @@ from deap.gp import PrimitiveTree, Terminal
 from evolutionary_forest.component.crossover_mutation import hoistMutation
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 from evolutionary_forest.utils import gene_to_string
+
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
 class SHM:

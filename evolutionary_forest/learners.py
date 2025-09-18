@@ -1,6 +1,7 @@
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
 
+from evolutionary_forest.component import primitive_functions
 from evolutionary_forest.forest import EvolutionaryForestRegressor
 
 
@@ -56,6 +57,9 @@ class LASGPLearner(EvolutionaryForestRegressor):
 
 class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
     def __init__(self, early_stop=-1, **params):
+        # For backward compatibility
+        primitive_functions.structure_check = True
+
         parameter_dict = dict(
             n_gen=100,
             n_pop=200,

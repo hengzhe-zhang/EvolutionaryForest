@@ -173,8 +173,10 @@ def individual_to_tuple(ind):
     return tuple(sorted(encoded_ind))
 
 
+structure_check = False
+
+
 def tree_to_tuple(tree: PrimitiveTree):
-    structure_check = False
     if structure_check:
         return tuple(node.name for node in tree)
     else:
