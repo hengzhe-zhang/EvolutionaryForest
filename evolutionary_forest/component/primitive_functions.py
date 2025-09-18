@@ -174,7 +174,11 @@ def individual_to_tuple(ind):
 
 
 def tree_to_tuple(tree: PrimitiveTree):
-    return tuple(node.name for node in tree)
+    structure_check = False
+    if structure_check:
+        return tuple(node.name for node in tree)
+    else:
+        return str(tree)
 
 
 def protect_loge(x1):
