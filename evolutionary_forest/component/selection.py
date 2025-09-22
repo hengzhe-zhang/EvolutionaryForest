@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 
 class SelectionConfiguration:
-    def __init__(self, check_constants=True, **params):
+    def __init__(self, check_constants=False, **params):
         self.current_gen = 0
         self.check_constants = check_constants
 
