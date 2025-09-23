@@ -1,14 +1,20 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from evolutionary_forest.forest import EvolutionaryForestRegressor
+
+
 class MultiFidelityEvaluation:
     def __init__(
         self,
-        base_learner,
+        algorithm: "EvolutionaryForestRegressor",
         n_gen,
         interleaving_period,
         verbose,
         sr_tree_ratio=0,
         **kwargs,
     ):
-        self.base_learner: str = base_learner
+        self.algorithm = algorithm
         self.n_gen: int = n_gen
         self.sr_tree_ratio: float = sr_tree_ratio
         self.interleaving_period: int = interleaving_period
@@ -24,21 +30,27 @@ class MultiFidelityEvaluation:
         if (
             self.interleaving_period is None or self.interleaving_period == 0
         ) and current_gen > self.n_gen * (1 - self.sr_tree_ratio):
-            if isinstance(self.base_learner, str) and self.base_learner.startswith(
-                "Fast-"
-            ):
-                self.base_learner = self.base_learner.replace("Fast-", "")
+            if isinstance(
+                self.algorithm.base_learner, str
+            ) and self.algorithm.base_learner.startswith("Fast-"):
+                self.algorithm.base_learner = self.algorithm.base_learner.replace(
+                    "Fast-", ""
+                )
 
     def interleave_fast_evaluation(self, current_gen):
         if self.interleaving_period > 0:
             # Interleaving changing
             if current_gen % self.interleaving_period == 0:
-                if not self.base_learner.startswith("Fast"):
-                    self.base_learner = "Fast-" + self.base_learner
+                if not self.algorithm.base_learner.startswith("Fast"):
+                    self.algorithm.base_learner = "Fast-" + self.algorithm.base_learner
             else:
-                self.base_learner = self.base_learner.replace("Fast-", "")
+                self.algorithm.base_learner = self.algorithm.base_learner.replace(
+                    "Fast-", ""
+                )
             if self.verbose:
-                print(current_gen, self.base_learner, self.interleaving_period)
+                print(
+                    current_gen, self.algorithm.base_learner, self.interleaving_period
+                )
 
     def legacy_parameters(self, kwargs):
         # some legacy parameters

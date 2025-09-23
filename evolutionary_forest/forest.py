@@ -238,6 +238,7 @@ from evolutionary_forest.component.selection import (
     selLexicaseKNN,
     hybrid_lexicase_dcd,
     selHOFRandom,
+    MTLAutomaticLexicase,
 )
 from evolutionary_forest.component.selection_operators.Boltzmann import selBoltzmann
 from evolutionary_forest.component.selection_operators.batch_tournament_selection import (
@@ -977,7 +978,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             **params,
             **vars(self),
         )
-        self.multi_fidelity_evaluation = MultiFidelityEvaluation(**params, **vars(self))
+        self.multi_fidelity_evaluation = MultiFidelityEvaluation(
+            algorithm=self, **params, **vars(self)
+        )
         self.surrogate_model = SurrogateModel(self, **params)
         self.estimation_of_distribution = EstimationOfDistribution(
             algorithm=self, **params, **vars(self)
@@ -2519,6 +2522,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", self.select.select)
         elif callable(self.select):
             toolbox.register("select", self.select)
+        elif self.select == "MTLLexicase":
+            lexicase = MTLAutomaticLexicase()
+            toolbox.register("select", lexicase.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
         elif self.select == "AdaptiveTierLexicase":
@@ -5170,7 +5176,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 )
         return cxpb, mutpb
 
-    def post_prune(self, hof: List[MultipleGeneGP]):
+    def post_prune(self, hof: HallOfFame):
         if self.redundant_hof_size > 0:
             # select the smallest one from redundant individuals
             best_ind = min(self.hof, key=lambda x: len(x))
