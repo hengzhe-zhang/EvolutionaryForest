@@ -2523,7 +2523,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif callable(self.select):
             toolbox.register("select", self.select)
         elif self.select == "MTLLexicase":
-            lexicase = MTLAutomaticLexicase()
+            lexicase = MTLAutomaticLexicase(self.y.shape[1])
             toolbox.register("select", lexicase.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
@@ -3879,11 +3879,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def callback(self):
         # self.plot_distance()
         log_check(self)
-        if self.select in ["RLS", "RLS-A"] and self.current_gen > 0:
-            update_nn(self.pop, self.rl_selection)
-            # update_nn_dqn(self.pop, self.rl_selection)
+        if (
+            self.select
+            in ["RLS", "RLS-Neg", "RLS-Both", "RLS-A", "RLS-A-Neg", "RLS-A-Both"]
+            and self.current_gen > 0
+        ):
+            if self.select in ["RLS-Neg", "RLS-A-Neg"]:
+                update_nn(self.pop, self.rl_selection, filter_nonpositive_reward=False)
+            elif self.select in ["RLS-Both", "RLS-A-Both"]:
+                update_nn(self.pop, self.rl_selection, only_first_offspring=False)
+            else:
+                update_nn(self.pop, self.rl_selection)
 
-        if self.select in ["RLS-A"]:
+        if self.select in ["RLS-A", "RLS-A-Neg", "RLS-A-Both"]:
             Phi = np.stack([ind.predicted_values for ind in self.pop]).astype(
                 np.float32
             )

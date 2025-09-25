@@ -23,6 +23,7 @@ from evolutionary_forest.component.primitive_functions import individual_to_tupl
 
 
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
+from experiment.oil_prediction.analysis_util import model_simplification
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -166,7 +167,9 @@ def get_feature_importance(
         #     mul_symbol="dot",
         # )
         # processing_code = lambda g: f"${latex_string(g)}$"
-        processing_code = lambda g: gene_to_string(g)
+        processing_code = (
+            lambda g: rf"{latex(parse_expr(model_simplification(gene_to_string(g))), mode='inline')}"
+        )
     else:
         processing_code = lambda g: f"{code_generation(regressor_model, g)}"
 
@@ -230,9 +233,12 @@ def select_top_features(code_importance_dict, ratio=None):
     return features
 
 
-def plot_feature_importance(feature_importance_dict, save_fig=False):
-    import textwrap
-
+def plot_feature_importance(
+    feature_importance_dict,
+    save_fig=False,
+    top_features=10,
+    figure_name="feature_importance",
+):
     names, importance = (
         list(feature_importance_dict.keys()),
         list(feature_importance_dict.values()),
@@ -248,18 +254,13 @@ def plot_feature_importance(feature_importance_dict, save_fig=False):
     # Sort the DataFrame in order decreasing feature importance
     fi_df.sort_values(by=["feature_importance"], ascending=False, inplace=True)
 
-    # Wrap long feature names
-    fi_df["feature_names"] = fi_df["feature_names"].apply(
-        lambda x: "\n".join(textwrap.wrap(x, width=45))
-    )
-
     # Define size of bar plot
-    plt.figure(figsize=(16, 16))
-    sns.set(style="white", font_scale=1.5)
+    plt.figure(figsize=(16 * 0.65, 10 * 0.65))
+    sns.set(style="whitegrid", font_scale=1.5)
     # Plot Seaborn bar chart
     sns.barplot(
-        x=fi_df["feature_importance"][:15],
-        y=fi_df["feature_names"][:15],
+        x=fi_df["feature_importance"][:top_features],
+        y=fi_df["feature_names"][:top_features],
         palette="bone",
     )
 
@@ -268,8 +269,8 @@ def plot_feature_importance(feature_importance_dict, save_fig=False):
     plt.ylabel("Feature Name")
     plt.tight_layout()
     if save_fig:
-        plt.savefig("result/feature_importance.png", format="png")
-        plt.savefig("result/feature_importance.eps", format="eps")
+        plt.savefig("result/%s.png" % figure_name, format="png")
+        plt.savefig("result/%s.eps" % figure_name, format="eps")
     plt.show()
 
 

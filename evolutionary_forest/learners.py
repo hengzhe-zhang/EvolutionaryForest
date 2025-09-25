@@ -72,7 +72,6 @@ class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
             boost_size=None,
             normalize=True,
             external_archive=1,
-            categorical_encoder="Target",
             root_crossover=True,
             score_func="R2",
             number_of_invokes=0,
@@ -82,6 +81,23 @@ class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
             constant_type="Float",
             # early stopping
             early_stop=early_stop,
+        )
+        parameter_dict.update(params)
+        super().__init__(**parameter_dict)
+
+
+class EnsembleLearner(RidgeEvolutionaryFeatureLearner):
+    def __init__(
+        self,
+        ensemble_size=100,
+        ps_tree_ratio=0.2,
+        base_learner="Fast-RidgeBDT-Plus",
+        **params,
+    ):
+        parameter_dict = dict(
+            ensemble_size=ensemble_size,
+            ps_tree_ratio=ps_tree_ratio,
+            base_learner=base_learner,
         )
         parameter_dict.update(params)
         super().__init__(**parameter_dict)

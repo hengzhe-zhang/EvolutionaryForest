@@ -342,13 +342,18 @@ def select_general_reinforcement_learning(
     return selected
 
 
-def update_nn(population, model: ParentSelectorRL):
+def update_nn(
+    population,
+    model: ParentSelectorRL,
+    only_first_offspring=True,
+    filter_nonpositive_reward=True,
+):
     logprobs, rewards = [], []
     for ind in population:
-        if not ind.rl_selected:
+        if not ind.rl_selected or (not only_first_offspring):
             logprobs.append(ind.aux["logprob"])
             reward = ind.fitness.wvalues[0] - ind.parent_fitness[0]
-            if reward <= 0:
+            if reward <= 0 and filter_nonpositive_reward:
                 continue
             rewards.append(reward)
 
