@@ -2533,7 +2533,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
-        elif self.select in ["RLS", "RLS-A"]:
+        elif self.select in [
+            "RLS",
+            "RLS-Neg",
+            "RLS-Both",
+            "RLS-A",
+            "RLS-A-Neg",
+            "RLS-A-Both",
+        ]:
             self.rl_selection = ParentSelectorRL(len(self.X))
             # self.rl_selection = ParentSelectorDQN(len(self.X))
             toolbox.register(

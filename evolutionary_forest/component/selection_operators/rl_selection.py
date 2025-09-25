@@ -337,6 +337,7 @@ def select_general_reinforcement_learning(
         father = population[j]
         father.rl_selected = True
         mother.aux = aux
+        father.aux = aux
 
         selected.extend((mother, father))
     return selected
