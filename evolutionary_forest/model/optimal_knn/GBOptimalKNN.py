@@ -19,6 +19,7 @@ class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y):
         """Fit the gradient boosting model."""
+        self._check_n_features(X, True)
         X, y = check_X_y(X, y)
 
         # Step 1: Fit the initial model (OptimalKNN)
