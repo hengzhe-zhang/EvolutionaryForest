@@ -370,7 +370,6 @@ def cxOnePoint_multiple_tree(
     """
     if crossover_configuration is None:
         crossover_configuration = CrossoverConfiguration()
-    same_index = crossover_configuration.same_index
 
     if ind1.mgp_mode == True:
         gene1, gene2, id1, id2 = modular_gp_crossover(ind1, ind2)
@@ -380,11 +379,10 @@ def cxOnePoint_multiple_tree(
             or crossover_configuration.tree_selection == None
         ):
             gene1, id1 = ind1.random_select(with_id=True)
-            if same_index:
-                gene2 = ind2.gene[id1]
-                id2 = id1
-            else:
-                gene2, id2 = ind2.random_select(with_id=True)
+            gene2, id2 = ind2.random_select(with_id=True)
+        elif crossover_configuration.tree_selection == "SameIndex":
+            gene1, id1 = ind1.random_select(with_id=True)
+            gene2, id2 = ind2.gene[id1], id1
         elif crossover_configuration.tree_selection == "PseudoRandom":
             gene1, id1 = ind1.pseudo_random_select_index()
             gene2, id2 = ind2.pseudo_random_select_index()
@@ -709,13 +707,6 @@ def cxOnePoint_multiple_gene_BSC(
     else:
         cxOnePoint(b_material, a_good)
     ind2.gene[b_bad_id] = a_good
-    return ind1, ind2
-
-
-def cxOnePoint_multiple_gene_same_index(ind1: MultipleGeneGP, ind2: MultipleGeneGP):
-    # Crossover on the same location
-    index = random.randint(0, ind1.gene_num - 1)
-    cxOnePoint(ind1.gene[index], ind2.gene[index])
     return ind1, ind2
 
 

@@ -30,8 +30,6 @@ def initialize_crossover_operator(
             cxOnePoint_multiple_gene_TSC,
             crossover_configuration=self.crossover_configuration,
         )
-    elif "SameIndex" in self.mutation_scheme:
-        toolbox.mate = cxOnePoint_multiple_gene_same_index
     elif "AllGene" in self.mutation_scheme:
         toolbox.mate = cxOnePoint_all_gene
     elif "AdaptiveCrossover" in self.mutation_scheme:

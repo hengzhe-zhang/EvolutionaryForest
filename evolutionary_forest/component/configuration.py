@@ -130,7 +130,6 @@ class CrossoverConfiguration(Configuration):
         # single-tree crossover
         root_crossover=False,
         safe_crossover=False,
-        same_index=False,
         leaf_biased=False,
         # macro crossover
         macro_crossover_rate=0,
@@ -169,7 +168,6 @@ class CrossoverConfiguration(Configuration):
         self.dimension_crossover_rate = dimension_crossover_rate
         # 90% weights to primitives, 10% to terminals
         self.leaf_biased = leaf_biased
-        self.same_index = same_index
         self.var_or = var_or
         # semantic feature crossover
         # different from traditional semantic crossover, this semantic crossover is performed on the feature level

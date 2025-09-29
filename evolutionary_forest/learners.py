@@ -83,6 +83,7 @@ class RidgeEvolutionaryFeatureLearner(EvolutionaryForestRegressor):
             early_stop=early_stop,
         )
         parameter_dict.update(params)
+        self.parameter_dict = parameter_dict
         super().__init__(**parameter_dict)
 
 
@@ -100,6 +101,7 @@ class EnsembleLearner(RidgeEvolutionaryFeatureLearner):
             base_learner=base_learner,
         )
         parameter_dict.update(params)
+        self.parameter_dict = parameter_dict
         super().__init__(**parameter_dict)
 
 
