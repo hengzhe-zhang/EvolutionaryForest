@@ -33,7 +33,7 @@ class MTLRidgeCV(RidgeCV):
         for y_true, model in zip(y.reshape((-1, tasks)).T, self.mtl_ridge.estimators_):
             real_p = cv_prediction_from_ridge(y_true, model)
             predictions.append(real_p)
-        return np.concatenate(np.array(predictions).T, axis=0)
+        return np.array(predictions).T
 
 
 class MTLLassoCV(LassoCV):

@@ -1284,7 +1284,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     def fitness_evaluation(self, individual: MultipleGeneGP):
         # single individual evaluation
         X, Y = self.X, self.y
-        Y = Y.flatten()
+        if len(Y.shape) > 1 and Y.shape[1] == 1:
+            Y = Y.flatten()
 
         # func = self.toolbox.compile(individual)
         pipe: GPPipeline
@@ -1683,13 +1684,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             or self.score_func == "Lower-Bound"
             or isinstance(self.score_func, Fitness)
         ):
-            if self.validation_ratio:
-                number = len(Y) - round(len(Y) * self.validation_ratio)
-                individual.case_values = (
-                    ((y_pred - Y.flatten()).flatten()[:number]) ** 2
-                )
+            if len(y_pred.shape) == 2 and y_pred.shape[1] > 1:
+                assert y_pred.shape[1] == Y.shape[1]
+                individual.case_values = (y_pred - Y) ** 2
             else:
-                individual.case_values = ((y_pred - Y.flatten()).flatten()) ** 2
+                individual.case_values = (y_pred.flatten() - Y.flatten()) ** 2
+
+            if self.validation_ratio > 0:
+                number = len(Y) - round(len(Y) * self.validation_ratio)
+                individual.case_values = individual.case_values[:number]
 
             if (
                 self.evaluation_configuration.sample_weight == "Adaptive-Plus"
