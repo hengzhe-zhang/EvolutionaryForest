@@ -7,6 +7,49 @@ from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 
+class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
+    def __init__(self, knn_params=None):
+        """
+        RidgeBoostedKNN: A two-stage regressor that first fits RidgeCV,
+        then fits OptimalKNN on the residuals.
+
+        Parameters
+        ----------
+        knn_params : dict or None
+            Parameters passed to OptimalKNN.
+        """
+        self.knn_params = knn_params if knn_params is not None else {}
+
+    def fit(self, X, y):
+        """Fit RidgeCV first, then OptimalKNN on residuals."""
+        X, y = check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]
+
+        # Stage 1: Fit RidgeCV
+        self.ridge_model_ = RidgeCV()
+        self.ridge_model_.fit(X, y)
+
+        # Stage 2: Fit OptimalKNN on residuals
+        residuals = y - self.ridge_model_.predict(X)
+        self.knn_model_ = OptimalKNN(**self.knn_params)
+        self.knn_model_.fit(X, residuals)
+
+        return self
+
+    def predict(self, X):
+        """Predict by combining RidgeCV predictions + KNN residual correction."""
+        check_is_fitted(self, ["ridge_model_", "knn_model_"])
+        X = check_array(X)
+
+        # Base prediction from RidgeCV
+        predictions = self.ridge_model_.predict(X)
+
+        # Add correction from OptimalKNN
+        predictions += self.knn_model_.predict(X)
+
+        return predictions
+
+
 class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
     def __init__(self, knn_params=None):
         """
