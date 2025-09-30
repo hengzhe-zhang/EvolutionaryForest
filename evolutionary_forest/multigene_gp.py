@@ -523,26 +523,26 @@ def mutUniform_multiple_tree(
 
     if isinstance(pset, MultiplePrimitiveSet):
         gene, id = individual.random_select(with_id=True)
-        gene_mutation(gene, pset.pset_list[id], expr, tree_generation, configuration)
+        tree_mutation(gene, pset.pset_list[id], expr, tree_generation, configuration)
     else:
         gene, id = individual.random_select(with_id=True)
-        gene_mutation(gene, pset, expr, tree_generation, configuration)
+        tree_mutation(gene, pset, expr, tree_generation, configuration)
 
     if hasattr(individual, "introns_results"):
         individual.introns_results[id].clear()
     return (individual,)
 
 
-def gene_mutation(
-    gene, pset, expr, tree_generation, configuration: MutationConfiguration
+def tree_mutation(
+    tree, pset, expr, tree_generation, configuration: MutationConfiguration
 ):
     if configuration.safe_mutation:
-        genes = mutUniformSizeSafe(gene, tree_generation, pset, configuration)
+        trees = mutUniformSizeSafe(tree, tree_generation, pset, configuration)
     elif configuration.basic_primitives:
-        genes = mutUniformSTGP(gene, expr, pset)
+        trees = mutUniformSTGP(tree, expr, pset)
     else:
-        genes = mutUniform(gene, expr, pset)
-    return genes
+        trees = mutUniform(tree, expr, pset)
+    return trees
 
 
 def simple_multi_tree_evaluation(compiled_genes, x):

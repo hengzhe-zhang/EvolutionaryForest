@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 from evolutionary_forest.multigene_gp import (
     tree_crossover,
     MultipleGeneGP,
-    gene_mutation,
+    tree_mutation,
 )
 from evolutionary_forest.utility.multi_tree_utils import (
     gene_addition,
@@ -194,7 +194,7 @@ def varAndPlus(
                         )
 
                     if random.random() < mutpb[c]:
-                        (offspring[i].gene[c],) = gene_mutation(
+                        (offspring[i].gene[c],) = tree_mutation(
                             offspring[i].gene[c],
                             toolbox.pset.pset_list[c],
                             toolbox.expr_mut,

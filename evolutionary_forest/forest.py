@@ -4386,7 +4386,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     crossover_configuration = self.crossover_configuration
                     if crossover_configuration.crossover_operator == "EliteLearning":
                         offspring = learn_from_elite_multitree(
-                            offspring, population, toolbox=self.toolbox
+                            self, offspring, population
                         )
                     elif (
                         random.random()
