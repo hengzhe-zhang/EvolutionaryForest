@@ -16,7 +16,7 @@ def learn_from_elite_multitree(
     model: "EvolutionaryForestRegressor",
     individuals,
     population,
-    s1_probability=0.5,
+    s1_probability=0.8,
     elite_ratio=0.2,
 ):
     """
@@ -33,6 +33,9 @@ def learn_from_elite_multitree(
     Returns:
         Single offspring or list of offspring (matches input type)
     """
+    archive = model.external_archive
+    if isinstance(archive, list):
+        population += archive
     toolbox = model.toolbox
     # Handle both single individual and list of individuals
     if not isinstance(individuals, list):
@@ -42,7 +45,9 @@ def learn_from_elite_multitree(
         return_single = False
 
     # Sort population once
-    sorted_pop = sorted(population, key=lambda ind: ind.fitness.values[0])
+    sorted_pop = sorted(
+        population, key=lambda ind: ind.fitness.wvalues[0], reverse=True
+    )
     n_elite = int(elite_ratio * len(population))
     elite = sorted_pop[:n_elite]
 

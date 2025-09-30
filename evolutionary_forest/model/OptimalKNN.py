@@ -284,7 +284,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         knn_subsampling=100,
         base_learner=None,
         informed_optimal_knn_sampling=False,
-        random_knn_subsampling=False,
+        random_knn_subsampling=True,
         **params,
     ):
         self.n_neighbors = n_neighbors

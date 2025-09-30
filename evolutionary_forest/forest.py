@@ -6197,6 +6197,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             learner = h.pipe["Ridge"]
             if isinstance(learner, DecisionTreeRegressor):
                 count += learner.tree_.node_count
+            elif isinstance(learner, (RidgeBoostedKNN)):
+                count += learner.ridge_model_.coef_.shape[0]
+                for weight in learner.knn_model_.weights:
+                    count += weight.shape[0]
             elif isinstance(learner, SoftPLTreeRegressor):
                 count += learner.complexity()
             elif isinstance(learner, LinearModel):

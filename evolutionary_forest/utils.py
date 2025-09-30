@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 class MeanRegressor(BaseEstimator, RegressorMixin):
     def fit(self, X, y=None):
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
