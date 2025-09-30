@@ -115,7 +115,7 @@ from evolutionary_forest.component.crossover.crossover_controller import (
     perform_semantic_macro_crossover,
     handle_tpot_base_learner_mutation,
     check_redundancy_and_fix,
-    norevisit_strategy_handler,
+    no_revisit_strategy_handler,
 )
 from evolutionary_forest.component.crossover.elite_learning import (
     learn_from_elite_multitree,
@@ -590,7 +590,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         log_item=None,
         feature_clipping=False,
         seed_with_linear_model=False,
-        norevisit_strategy="",
+        no_revisit_strategy="",
         lamarck_constant=False,
         categorical_encoding=None,
         validation_based_ensemble_selection=0,
@@ -996,7 +996,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.mutation_configuration.pool_based_addition:
             self.evaluation_configuration.save_semantics = True
         self.feature_clipping = feature_clipping
-        self.norevisit_strategy = norevisit_strategy
+        self.no_revisit_strategy = no_revisit_strategy
         self.lamarck_constant = lamarck_constant
 
         self.automatic_operator_selection_initialization()
@@ -4326,7 +4326,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if self.pre_selection != None:
                 individuals_to_generate *= self.surrogate_model.brood_generation_ratio
 
-            if self.norevisit_strategy == "Crossover+Mutation":
+            if self.no_revisit_strategy == "Crossover+Mutation":
                 offspring = []
                 while len(offspring) < pop_size:
                     a, b = self.select_pair_of_parents(
@@ -4358,7 +4358,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if count > pop_size * 100:
                     raise Exception("Error!")
                 count += 1
-                if self.norevisit_strategy == "Crossover+Mutation":
+                if self.no_revisit_strategy == "Crossover+Mutation":
                     offspring = offspring
                 else:
                     offspring = self.select_pair_of_parents(
@@ -4455,10 +4455,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.self_adaptive_evolution(offspring)
                 offspring = self.post_selection(offspring)
 
-                norevisit_strategy_handler(
+                no_revisit_strategy_handler(
                     offspring,
                     toolbox,
-                    self.norevisit_strategy,
+                    self.no_revisit_strategy,
                     self.evaluated_pop,
                     partial(gene_addition, algorithm=self),
                 )

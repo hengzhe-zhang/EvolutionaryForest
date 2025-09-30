@@ -77,15 +77,15 @@ def check_redundancy_and_fix(
     return offspring
 
 
-def norevisit_strategy_handler(
+def no_revisit_strategy_handler(
     offspring,
     toolbox,
-    norevisit_strategy,
+    no_revisit_strategy,
     evaluated_individuals,
     gene_addition_function,
 ):
     temp_evaluated_individuals = set()
-    if norevisit_strategy == "Mutation":
+    if no_revisit_strategy == "Mutation":
         for o in offspring:
             while (
                 individual_to_tuple(o) in evaluated_individuals
@@ -93,7 +93,7 @@ def norevisit_strategy_handler(
             ):
                 o = toolbox.mutate(o)[0]
             temp_evaluated_individuals.add(individual_to_tuple(o))
-    elif norevisit_strategy == "MutationOrAdditionOrDeletion":
+    elif no_revisit_strategy == "MutationOrAdditionOrDeletion":
         for o in offspring:
             while (
                 individual_to_tuple(o) in evaluated_individuals
