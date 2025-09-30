@@ -117,6 +117,9 @@ from evolutionary_forest.component.crossover.crossover_controller import (
     check_redundancy_and_fix,
     norevisit_strategy_handler,
 )
+from evolutionary_forest.component.crossover.elite_learning import (
+    learn_from_elite_multitree,
+)
 from evolutionary_forest.component.crossover.intron_based_crossover import (
     IntronPrimitive,
     IntronTerminal,
@@ -124,7 +127,6 @@ from evolutionary_forest.component.crossover.intron_based_crossover import (
 from evolutionary_forest.component.crossover.semantic_crossover import resxo, stagexo
 from evolutionary_forest.component.crossover_mutation import (
     hoistMutation,
-    individual_combination,
 )
 from evolutionary_forest.component.ensemble_learning.stacking_strategy import (
     StackingStrategy,
@@ -193,9 +195,7 @@ from evolutionary_forest.component.llm.llm_tools import (
 )
 from evolutionary_forest.component.log_tool.semantic_lib_log import SemanticLibLog
 from evolutionary_forest.component.mutation.common import MutationOperator
-from evolutionary_forest.component.mutation.learning_based_mutation import (
-    BuildingBlockLearning,
-)
+
 from evolutionary_forest.component.primitive_controller import (
     get_functions,
     get_differentiable_functions,
@@ -2275,6 +2275,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "EDA-based mutation operator must be listed!"
             )
         if "LBM" in self.mutation_scheme:
+            from evolutionary_forest.component.mutation.learning_based_mutation import (
+                BuildingBlockLearning,
+            )
+
             initialize_crossover_operator(self, toolbox)
             self.mutation_scheme = BuildingBlockLearning(pset)
             toolbox.mutate = self.mutation_scheme.mutate
@@ -4378,50 +4382,45 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 # Vary the pool of individuals
                 if self.multi_tree_mutation():
                     limitation_check = self.static_limit_function
-                    if (
-                        self.bloat_control is not None
-                        and random.random()
-                        < self.bloat_control.get("tree_combination", 0)
+                    offspring: List[MultipleGeneGP]
+                    crossover_configuration = self.crossover_configuration
+                    if crossover_configuration.crossover_operator == "EliteLearning":
+                        offspring = learn_from_elite_multitree(
+                            offspring, population, toolbox=self.toolbox
+                        )
+                    elif (
+                        random.random()
+                        < crossover_configuration.semantic_crossover_probability
+                        and crossover_configuration.semantic_crossover_mode
+                        == CrossoverMode.Independent
                     ):
-                        offspring = individual_combination(
-                            offspring, toolbox, self.pset, limitation_check
+                        offspring, parent = perform_semantic_macro_crossover(
+                            offspring, self.crossover_configuration, toolbox, self.y
+                        )
+                        # mark as macro crossover
+                        self.record_parent_fitness(
+                            parent, offspring, crossover_type="Macro"
                         )
                     else:
-                        offspring: List[MultipleGeneGP]
-                        crossover_configuration = self.crossover_configuration
                         if (
-                            random.random()
-                            < crossover_configuration.semantic_crossover_probability
-                            and crossover_configuration.semantic_crossover_mode
+                            crossover_configuration.semantic_crossover_mode
                             == CrossoverMode.Independent
                         ):
-                            offspring, parent = perform_semantic_macro_crossover(
-                                offspring, self.crossover_configuration, toolbox, self.y
-                            )
-                            # mark as macro crossover
-                            self.record_parent_fitness(
-                                parent, offspring, crossover_type="Macro"
-                            )
-                        else:
-                            if (
-                                crossover_configuration.semantic_crossover_mode
-                                == CrossoverMode.Independent
-                            ):
-                                # only mark this in parallel mode
-                                for o in offspring:
-                                    o.crossover_type = "Micro"
-                            # these original individuals will not change,
-                            # because var function will copy these individuals internally
-                            offspring = varAndPlus(
-                                offspring,
-                                toolbox,
-                                cxpb,
-                                mutpb,
-                                limitation_check,
-                                crossover_configuration=crossover_configuration,
-                                mutation_configuration=self.mutation_configuration,
-                                algorithm=self,
-                            )
+                            # only mark this in parallel mode
+                            for o in offspring:
+                                o.crossover_type = "Micro"
+                        # these original individuals will not change,
+                        # because var function will copy these individuals internally
+                        offspring = varAndPlus(
+                            offspring,
+                            toolbox,
+                            cxpb,
+                            mutpb,
+                            limitation_check,
+                            crossover_configuration=crossover_configuration,
+                            mutation_configuration=self.mutation_configuration,
+                            algorithm=self,
+                        )
                 else:
                     offspring: MultipleGeneGP = varAnd(offspring, toolbox, cxpb, mutpb)
 

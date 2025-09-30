@@ -150,6 +150,7 @@ class CrossoverConfiguration(Configuration):
         dimension_crossover_rate=0,
         merge_crossover=False,
         weighted_crossover=False,
+        crossover_operator=None,
         llm_crossover=False,
         llm_pattern_extraction=False,
         record_parent_expressions=False,
@@ -197,6 +198,9 @@ class CrossoverConfiguration(Configuration):
         self.llm_crossover = llm_crossover
         self.llm_pattern_extraction = llm_pattern_extraction
         self.llm_pattern = ""
+
+        # such as elite learning
+        self.crossover_operator = crossover_operator
 
         # only use for analysis
         self.record_parent_expressions = record_parent_expressions
