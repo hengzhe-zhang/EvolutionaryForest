@@ -1,5 +1,25 @@
 import numpy as np
-from numpy.linalg import eig, lstsq
+from numpy.linalg import eig
+
+
+def safe_lstsq(A, b, rcond=None):
+    """
+    Safe least squares when A is already regularized/conditioned
+    """
+    try:
+        # Try standard lstsq first
+        result = np.linalg.lstsq(A, b, rcond=rcond)
+        return result
+    except np.linalg.LinAlgError:
+        # Fallback: Use pseudoinverse (no additional regularization)
+        A_pinv = np.linalg.pinv(A, rcond=rcond)
+        m = A_pinv @ b
+        residuals = (
+            np.sum((A @ m - b) ** 2) if A.shape[0] >= A.shape[1] else np.array([])
+        )
+        rank = np.linalg.matrix_rank(A)
+        s = np.array([])  # Skip SVD computation to avoid same convergence issue
+        return m, residuals, rank, s
 
 
 def compute_lambda_matrix(y, epsilon=1e-5):
@@ -143,7 +163,7 @@ def solve_transformation_matrix(
     # Solve for m
     # Using numpy.linalg.lstsq for better numerical stability
     # Alternatively, you can use np.linalg.solve if BTB is guaranteed to be invertible
-    m, residuals, rank, s = lstsq(BTB, BTd, rcond=None)
+    m, residuals, rank, s = safe_lstsq(BTB, BTd, rcond=None)
 
     # Step 3: Reshape m to form matrix M
     M = m.reshape(k, k)
