@@ -1,14 +1,26 @@
 from scipy import stats
 from sklearn.base import RegressorMixin, BaseEstimator, ClassifierMixin
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn2pmml.ensemble import GBDTLRClassifier
+import numpy as np
 
 
-class GBDTLRClassifierX(GBDTLRClassifier):
-    def fit(self, X, y, **fit_params):
-        super().fit(X, y, **fit_params)
-        self.classes_ = self.gbdt_.classes_
-        return self
+ensemble_model_registry = {}
+
+
+def make_GBDT_LR(**params):
+    from sklearn2pmml.ensemble import GBDTLRClassifier
+
+    if "GBDTLRClassifier" in ensemble_model_registry:
+        return ensemble_model_registry["GBDTLRClassifier"]
+
+    class GBDTLRClassifierX(GBDTLRClassifier):
+        def fit(self, X, y, **fit_params):
+            super().fit(X, y, **fit_params)
+            self.classes_ = self.gbdt_.classes_
+            return self
+
+    ensemble_model_registry["GBDTLRClassifier"] = GBDTLRClassifierX
+    return GBDTLRClassifierX
 
 
 class EnsembleRegressor(RegressorMixin, BaseEstimator):

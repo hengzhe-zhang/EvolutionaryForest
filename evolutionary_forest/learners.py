@@ -93,16 +93,21 @@ class EnsembleLearner(RidgeEvolutionaryFeatureLearner):
         ensemble_size=100,
         ps_tree_ratio=0.2,
         base_learner="Fast-RidgeBDT-Plus",
-        **params,
+        **subclass_parameters,
     ):
-        parameter_dict = dict(
+        self.subclass_parameters = subclass_parameters
+        super().__init__(
             ensemble_size=ensemble_size,
             ps_tree_ratio=ps_tree_ratio,
             base_learner=base_learner,
+            **self.subclass_parameters,
         )
-        parameter_dict.update(params)
-        self.parameter_dict = parameter_dict
-        super().__init__(**parameter_dict)
+
+    def get_params(self, deep=True):
+        out = super().get_params(deep)
+        for k, v in self.subclass_parameters.items():
+            out[k] = v
+        return out
 
 
 if __name__ == "__main__":

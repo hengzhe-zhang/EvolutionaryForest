@@ -26,7 +26,9 @@ from evolutionary_forest.component.evaluation import multi_tree_evaluation
 from evolutionary_forest.component.fitness import Fitness
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.forest import EvolutionaryForestRegressor
-from evolutionary_forest.component.ensemble_learning.utils import GBDTLRClassifierX
+from evolutionary_forest.component.ensemble_learning.utils import (
+    make_GBDT_LR,
+)
 from evolutionary_forest.model.ArgMaxClassifier import MaxValueClassifier
 from evolutionary_forest.model.PLTree import LRDTClassifier
 from evolutionary_forest.model.SafetyLR import SafetyLogisticRegression
@@ -382,7 +384,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
                 n_estimators=10, learning_rate=1, max_depth=3, linear_tree=True
             )
         elif self.base_learner == "GBDT-LR":
-            ridge_model = GBDTLRClassifierX(
+            ridge_model = make_GBDT_LR()(
                 LGBMClassifier(n_estimators=10, learning_rate=1, max_depth=3),
                 SafetyLogisticRegression(max_iter=1000, solver="liblinear"),
             )

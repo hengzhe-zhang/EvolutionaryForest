@@ -49,8 +49,6 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
-from sklearn2pmml.ensemble import GBDTLRClassifier
-from xgboost import XGBRegressor
 
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import (
@@ -134,6 +132,7 @@ from evolutionary_forest.component.ensemble_learning.stacking_strategy import (
 from evolutionary_forest.component.ensemble_learning.utils import (
     EnsembleRegressor,
     EnsembleClassifier,
+    ensemble_model_registry,
 )
 from evolutionary_forest.component.ensemble_selection.DSE import (
     DynamicSelectionEnsemble,
@@ -1264,7 +1263,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 coef = np.abs(base_learner.coef_)
         elif isinstance(base_learner, (BaseDecisionTree, LGBMModel)):
             coef = base_learner.feature_importances_
-        elif isinstance(base_learner, (GBDTLRClassifier)):
+        elif isinstance(
+            base_learner, ensemble_model_registry.get("GBDTLRClassifier", ())
+        ):
             coef = base_learner.gbdt_.feature_importances_
         elif isinstance(base_learner, SVR):
             coef = np.ones(self.X.shape[1])
@@ -3509,6 +3510,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             and self.score_func.sharpness_type == SharpnessType.DataLGBM
         ):
             if self.pac_bayesian.reference_model == "XGB":
+                from xgboost import XGBRegressor
+
                 self.reference_lgbm = XGBRegressor(n_jobs=1)
             elif self.pac_bayesian.reference_model == "LR":
                 self.reference_lgbm = LinearRegression()
