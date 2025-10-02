@@ -235,6 +235,15 @@ class MultipleGeneGP:
         index = self.pseudo_random.randint()
         return self.gene[index], index
 
+    def get_random_tree_from_group(self, idx, group_size=5):
+        """Sample a random gene from the same group as idx."""
+        group_idx = idx // group_size
+        group_start = group_idx * group_size
+        group_end = min((group_idx + 1) * group_size - 1, self.gene_num - 1)
+
+        idx = random.randint(group_start, group_end)
+        return self.gene[idx], idx
+
     def random_select(self, with_id=False):
         if with_id:
             id = random.randint(0, len(self.gene) - 1)
@@ -386,6 +395,9 @@ def cxOnePoint_multiple_tree(
         elif crossover_configuration.tree_selection == "PseudoRandom":
             gene1, id1 = ind1.pseudo_random_select_index()
             gene2, id2 = ind2.pseudo_random_select_index()
+        elif crossover_configuration.tree_selection == "Group":
+            gene1, id1 = ind1.random_select(with_id=True)
+            gene2, id2 = ind2.get_random_tree_from_group(id1)
         elif crossover_configuration.tree_selection == "Self-Competitive":
             gene1_a, id1_a = ind1.best_gene(with_id=True)
             gene2_a, id2_a = ind2.best_gene(with_id=True)

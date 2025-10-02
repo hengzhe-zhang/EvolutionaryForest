@@ -50,6 +50,80 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         return predictions
 
 
+class SplitFeatureRidgeKNN(RidgeBoostedKNN):
+    """
+    A variant where the first half of features go to Ridge,
+    and the second half go to KNN (which models residuals).
+
+    Parameters
+    ----------
+    knn_params : dict or None
+        Parameters passed to OptimalKNN.
+    split_index : int or None
+        Index to split features. If None, splits at midpoint.
+    """
+
+    def __init__(self, knn_params=None, split_index=None):
+        super().__init__(knn_params=knn_params)
+        self.split_index = split_index
+
+    def fit(self, X, y):
+        """Fit Ridge on first half of features, KNN on second half."""
+        X, y = check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]
+
+        # Determine split point
+        if self.split_index is None:
+            self.split_index_ = X.shape[1] // 2
+        else:
+            self.split_index_ = self.split_index
+
+        # Validate split index
+        if not (0 < self.split_index_ < X.shape[1]):
+            raise ValueError(
+                f"split_index must be between 0 and {X.shape[1]}, "
+                f"got {self.split_index_}"
+            )
+
+        # Split features
+        X_ridge = X[:, : self.split_index_]
+        X_knn = X[:, self.split_index_ :]
+
+        # Stage 1: Fit RidgeCV on first half of features
+        self.ridge_model_ = RidgeCV()
+        self.ridge_model_.fit(X_ridge, y)
+
+        # Stage 2: Fit OptimalKNN on second half of features using residuals
+        residuals = y - self.ridge_model_.predict(X_ridge)
+        self.knn_model_ = OptimalKNN(**self.knn_params)
+        self.knn_model_.fit(X_knn, residuals)
+
+        return self
+
+    def predict(self, X):
+        """Predict by combining Ridge (first features) + KNN (second features)."""
+        check_is_fitted(self, ["ridge_model_", "knn_model_", "split_index_"])
+        X = check_array(X)
+
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"X has {X.shape[1]} features, but model was trained on "
+                f"{self.n_features_in_} features"
+            )
+
+        # Split features
+        X_ridge = X[:, : self.split_index_]
+        X_knn = X[:, self.split_index_ :]
+
+        # Base prediction from Ridge (first half of features)
+        predictions = self.ridge_model_.predict(X_ridge)
+
+        # Add correction from KNN (second half of features)
+        predictions += self.knn_model_.predict(X_knn)
+
+        return predictions
+
+
 class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
     def __init__(self, knn_params=None):
         """
