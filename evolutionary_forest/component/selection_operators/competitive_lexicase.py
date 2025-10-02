@@ -4,7 +4,7 @@ from collections import defaultdict
 import numpy as np
 
 from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseFast
-from evolutionary_forest.model.OptimalKNN import OptimalKNN
+from evolutionary_forest.model.optimal_knn.GBOptimalKNN import RidgeBoostedKNN
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
@@ -16,8 +16,8 @@ def selCompetitive(pop, k):
     # Group individuals by n_neighbors
     for ind in pop:
         ind: MultipleGeneGP
-        assert isinstance(ind.base_model, OptimalKNN)
-        n_neighbors = ind.base_model.knn.n_neighbors
+        assert isinstance(ind.pipe["Ridge"], RidgeBoostedKNN)
+        n_neighbors = ind.pipe["Ridge"].knn_model_.n_neighbors
         count[n_neighbors] += 1
         inds[n_neighbors].append(ind)
 
