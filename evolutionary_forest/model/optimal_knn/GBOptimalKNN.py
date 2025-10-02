@@ -1,3 +1,5 @@
+import random
+
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import make_friedman1
 from sklearn.linear_model import LinearRegression, RidgeCV
@@ -48,6 +50,37 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         predictions += self.knn_model_.predict(X)
 
         return predictions
+
+
+class RandomNeighborRidgeBoostedKNN(RidgeBoostedKNN):
+    def __init__(self, knn_params=None, neighbor_choices=None):
+        super().__init__(knn_params=knn_params)
+        self.neighbor_choices = (
+            neighbor_choices if neighbor_choices is not None else [5, 10, 20]
+        )
+
+    def fit(self, X, y):
+        """Fit RidgeCV first, then OptimalKNN with random n_neighbors on residuals."""
+        X, y = check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]
+
+        # Stage 1: Fit RidgeCV
+        self.ridge_model_ = RidgeCV()
+        self.ridge_model_.fit(X, y)
+
+        # Randomly select n_neighbors
+        self.n_neighbors_ = random.choice(self.neighbor_choices)
+
+        # Update knn_params with the randomly chosen n_neighbors
+        knn_params = self.knn_params.copy()
+        knn_params["n_neighbors"] = self.n_neighbors_
+
+        # Stage 2: Fit OptimalKNN on residuals
+        residuals = y - self.ridge_model_.predict(X)
+        self.knn_model_ = OptimalKNN(**knn_params)
+        self.knn_model_.fit(X, residuals)
+
+        return self
 
 
 class SplitFeatureRidgeKNN(RidgeBoostedKNN):

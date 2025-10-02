@@ -243,6 +243,9 @@ from evolutionary_forest.component.selection_operators.Boltzmann import selBoltz
 from evolutionary_forest.component.selection_operators.batch_tournament_selection import (
     selBatchTournament,
 )
+from evolutionary_forest.component.selection_operators.competitive_lexicase import (
+    selCompetitive,
+)
 from evolutionary_forest.component.selection_operators.cps_fast import (
     select_cpsr_regression_fast,
 )
@@ -341,6 +344,7 @@ from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
     GradientBoostingWithOptimalKNN,
     RidgeBoostedKNN,
     SplitFeatureRidgeKNN,
+    RandomNeighborRidgeBoostedKNN,
 )
 from evolutionary_forest.model.optimal_knn.mixup_regression import data_augmentation
 from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
@@ -1894,6 +1898,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = GradientBoostingWithOptimalKNN(self.param)
         elif self.base_learner == "RidgeBoostedKNN":
             ridge_model = RidgeBoostedKNN(self.param)
+        elif self.base_learner == "RandomNeighborRidgeBoostedKNN":
+            ridge_model = RandomNeighborRidgeBoostedKNN(self.param)
         elif self.base_learner == "SplitFeatureRidgeKNN":
             ridge_model = SplitFeatureRidgeKNN(self.param)
         elif self.base_learner == "DS-OptimalKNN":
@@ -2547,6 +2553,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 adaptive_tier_lexicase_selection,
                 generation_info=self.generation_info,
             )
+        elif self.select == "CompetitiveSelection":
+            toolbox.register("select", selCompetitive)
         elif self.select in [
             "RLS",
             "RLS-Neg",
