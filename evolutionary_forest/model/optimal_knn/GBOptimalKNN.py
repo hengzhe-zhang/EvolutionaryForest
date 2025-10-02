@@ -6,6 +6,7 @@ from sklearn.linear_model import LinearRegression, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
+from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 
@@ -50,6 +51,17 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         predictions += self.knn_model_.predict(X)
 
         return predictions
+
+
+class ConstraintRidgeBoostedKNN(RidgeBoostedKNN):
+    def fit(self, X, y):
+        self.y_transformer = NearestValueTransformer()
+        self.y_transformer.fit_transform(y)
+        return super().fit(X, y)
+
+    def predict(self, X):
+        preds = super().predict(X)
+        return self.y_transformer.transform(preds)
 
 
 class RandomNeighborRidgeBoostedKNN(RidgeBoostedKNN):

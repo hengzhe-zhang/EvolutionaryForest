@@ -344,7 +344,7 @@ from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
     GradientBoostingWithOptimalKNN,
     RidgeBoostedKNN,
     SplitFeatureRidgeKNN,
-    RandomNeighborRidgeBoostedKNN,
+    ConstraintRidgeBoostedKNN,
 )
 from evolutionary_forest.model.optimal_knn.mixup_regression import data_augmentation
 from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
@@ -1898,8 +1898,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = GradientBoostingWithOptimalKNN(self.param)
         elif self.base_learner == "RidgeBoostedKNN":
             ridge_model = RidgeBoostedKNN(self.param)
-        elif self.base_learner == "RandomNeighborRidgeBoostedKNN":
-            ridge_model = RandomNeighborRidgeBoostedKNN(self.param)
+        elif self.base_learner == "ConstraintRidgeBoostedKNN":
+            ridge_model = ConstraintRidgeBoostedKNN(self.param)
         elif self.base_learner == "SplitFeatureRidgeKNN":
             ridge_model = SplitFeatureRidgeKNN(self.param)
         elif self.base_learner == "DS-OptimalKNN":
