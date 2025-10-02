@@ -59,8 +59,16 @@ class RandomNeighborRidgeBoostedKNN(RidgeBoostedKNN):
             neighbor_choices if neighbor_choices is not None else [5, 10, 20]
         )
 
+        # Randomly select n_neighbors at initialization
+        self.n_neighbors_ = random.choice(self.neighbor_choices)
+
+        # Update knn_params with the randomly chosen n_neighbors
+        if self.knn_params is None:
+            self.knn_params = {}
+        self.knn_params["n_neighbors"] = self.n_neighbors_
+
     def fit(self, X, y):
-        """Fit RidgeCV first, then OptimalKNN with random n_neighbors on residuals."""
+        """Fit RidgeCV first, then OptimalKNN with pre-selected n_neighbors on residuals."""
         X, y = check_X_y(X, y)
         self.n_features_in_ = X.shape[1]
 
@@ -68,16 +76,9 @@ class RandomNeighborRidgeBoostedKNN(RidgeBoostedKNN):
         self.ridge_model_ = RidgeCV()
         self.ridge_model_.fit(X, y)
 
-        # Randomly select n_neighbors
-        self.n_neighbors_ = random.choice(self.neighbor_choices)
-
-        # Update knn_params with the randomly chosen n_neighbors
-        knn_params = self.knn_params.copy()
-        knn_params["n_neighbors"] = self.n_neighbors_
-
-        # Stage 2: Fit OptimalKNN on residuals
+        # Stage 2: Fit OptimalKNN on residuals (n_neighbors already set in __init__)
         residuals = y - self.ridge_model_.predict(X)
-        self.knn_model_ = OptimalKNN(**knn_params)
+        self.knn_model_ = OptimalKNN(**self.knn_params)
         self.knn_model_.fit(X, residuals)
 
         return self

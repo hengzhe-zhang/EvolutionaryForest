@@ -130,6 +130,8 @@ class MultipleGeneGP:
     scaler: StandardScaler
     # operators for generation
     generation_operator: str
+    # model
+    estimators: List
 
     @property
     def gene_num(self):

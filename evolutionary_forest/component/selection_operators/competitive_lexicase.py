@@ -17,7 +17,7 @@ def selCompetitive(pop, k):
     for ind in pop:
         ind: MultipleGeneGP
         assert isinstance(ind.pipe["Ridge"], RidgeBoostedKNN)
-        n_neighbors = ind.pipe["Ridge"].knn_model_.n_neighbors
+        n_neighbors = ind.pipe["Ridge"].knn_params.get("n_neighbors", 5)
         count[n_neighbors] += 1
         inds[n_neighbors].append(ind)
 
