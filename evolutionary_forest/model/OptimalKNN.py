@@ -296,6 +296,14 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
 
         # Initialize KNN regressor based on distance type
         self.base_learner = base_learner
+
+        self.weights = []  # List to store transformation matrices for each group
+        self.weighted_instance = weighted_instance
+        self.knn_subsampling = knn_subsampling
+        self.random_knn_subsampling = random_knn_subsampling
+        self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
+
+    def get_knn_model(self, base_learner, distance):
         if base_learner is not None:
             self.knn = base_learner
         elif distance == "Softmax":
@@ -321,14 +329,15 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
                 n_neighbors=self.n_neighbors, weights="distance"
             )
 
-        self.weights = []  # List to store transformation matrices for each group
-        self.weighted_instance = weighted_instance
-        self.knn_subsampling = knn_subsampling
-        self.random_knn_subsampling = random_knn_subsampling
-        self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
-
     def fit(self, GP_X, y):
         self.n_features_in_ = GP_X.shape[1]
+        if self.n_neighbors == "Adaptive":
+            if len(np.unique(y)) <= 50:
+                self.n_neighbors = 20
+            else:
+                self.n_neighbors = 5
+        self.get_knn_model(self.base_learner, self.distance)
+
         # Determine if we need to subsample
         knn_subsampling = self.knn_subsampling
         if len(y) > knn_subsampling:
