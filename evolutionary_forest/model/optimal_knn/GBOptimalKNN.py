@@ -5,6 +5,7 @@ from sklearn.datasets import make_friedman1
 from sklearn.linear_model import LinearRegression, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+import numpy as np
 
 from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
@@ -25,6 +26,12 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y):
         """Fit RidgeCV first, then OptimalKNN on residuals."""
+        if self.knn_params.get("n_neighbors", "") == "Adaptive":
+            if len(np.unique(y)) <= 50:
+                self.knn_params["n_neighbors"] = 20
+            else:
+                self.knn_params["n_neighbors"] = 5
+
         X, y = check_X_y(X, y)
         self.n_features_in_ = X.shape[1]
 

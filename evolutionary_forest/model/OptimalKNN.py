@@ -331,11 +331,6 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
 
     def fit(self, GP_X, y):
         self.n_features_in_ = GP_X.shape[1]
-        if self.n_neighbors == "Adaptive":
-            if len(np.unique(y)) <= 50:
-                self.n_neighbors = 20
-            else:
-                self.n_neighbors = 5
         self.get_knn_model(self.base_learner, self.distance)
 
         # Determine if we need to subsample
