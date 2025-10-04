@@ -341,10 +341,11 @@ from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
 )
 from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
-    GradientBoostingWithOptimalKNN,
     RidgeBoostedKNN,
     SplitFeatureRidgeKNN,
     ConstraintRidgeBoostedKNN,
+    RidgeBoostedSimpleKNN,
+    RidgeKNNTree,
 )
 from evolutionary_forest.model.optimal_knn.mixup_regression import data_augmentation
 from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
@@ -1787,6 +1788,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_learner = "ElasticNetCV"
             individual.pipe = self.get_base_model()
             self.base_learner = "RidgeCV-ENet"
+        if self.base_learner == "RidgeKNNTree":
+            individual.pipe = self.get_base_model(base_model="RidgeKNNTree")
         if self.imbalanced_configuration.balanced_final_training:
             individual.pipe = self.get_base_model()
         # avoid re-training
@@ -1894,10 +1897,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = OptimalKNN(**self.param, distance="Softmax")
         elif self.base_learner == "SNCA-Uniform":
             ridge_model = OptimalKNN(**self.param, distance="SkipUniform")
-        elif self.base_learner == "GB-OptimalKNN":
-            ridge_model = GradientBoostingWithOptimalKNN(self.param)
-        elif self.base_learner == "RidgeBoostedKNN":
+        elif self.base_learner == "RidgeBoostedKNN-U":
+            ridge_model = RidgeBoostedKNN({**self.param, "distance": "Uniform"})
+        elif base_model == "RidgeKNNTree":
+            # This order is quite important
+            ridge_model = RidgeKNNTree(self.param)
+        elif self.base_learner in ["RidgeBoostedKNN", "RidgeKNNTree"]:
             ridge_model = RidgeBoostedKNN(self.param)
+        elif self.base_learner == "RidgeBoostedSimpleKNN":
+            ridge_model = RidgeBoostedSimpleKNN(self.param)
         elif self.base_learner == "ConstraintRidgeBoostedKNN":
             ridge_model = ConstraintRidgeBoostedKNN(self.param)
         elif self.base_learner == "SplitFeatureRidgeKNN":

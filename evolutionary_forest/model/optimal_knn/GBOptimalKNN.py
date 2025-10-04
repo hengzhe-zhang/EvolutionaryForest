@@ -10,6 +10,8 @@ import numpy as np
 from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
+from sklearn.tree import DecisionTreeRegressor
+
 
 class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
     def __init__(self, knn_params=None):
@@ -26,11 +28,7 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y):
         """Fit RidgeCV first, then OptimalKNN on residuals."""
-        if self.knn_params.get("n_neighbors", "") == "Adaptive":
-            if len(np.unique(y)) <= 50:
-                self.knn_params["n_neighbors"] = 20
-            else:
-                self.knn_params["n_neighbors"] = 5
+        self.get_n_neighbors(y)
 
         X, y = check_X_y(X, y)
         self.n_features_in_ = X.shape[1]
@@ -46,6 +44,13 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
 
         return self
 
+    def get_n_neighbors(self, y):
+        if self.knn_params.get("n_neighbors", "") == "Adaptive":
+            if len(np.unique(y)) <= 50:
+                self.knn_params["n_neighbors"] = 20
+            else:
+                self.knn_params["n_neighbors"] = 5
+
     def predict(self, X):
         """Predict by combining RidgeCV predictions + KNN residual correction."""
         check_is_fitted(self, ["ridge_model_", "knn_model_"])
@@ -58,6 +63,74 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         predictions += self.knn_model_.predict(X)
 
         return predictions
+
+
+class RidgeKNNTree(RidgeBoostedKNN):
+    """
+    RidgeKNNTree: A three-stage regressor.
+      1. Fit RidgeCV to capture linear trends.
+      2. Fit OptimalKNN on the residuals from RidgeCV.
+      3. Fit DecisionTreeRegressor on the residuals from KNN.
+    """
+
+    def __init__(self, knn_params=None, tree_params=None):
+        super().__init__(knn_params=knn_params)
+        self.tree_params = tree_params if tree_params is not None else {}
+
+    def fit(self, X, y):
+        """Fit RidgeCV -> OptimalKNN -> DecisionTreeRegressor in sequence."""
+        self.get_n_neighbors(y)
+        X, y = check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]
+
+        # Stage 1: RidgeCV
+        self.ridge_model_ = RidgeCV()
+        self.ridge_model_.fit(X, y)
+        residuals_1 = y - self.ridge_model_.predict(X)
+
+        # Stage 2: OptimalKNN
+        self.knn_model_ = OptimalKNN(**self.knn_params)
+        self.knn_model_.fit(X, residuals_1)
+        residuals_2 = residuals_1 - self.knn_model_.predict(X)
+
+        # Stage 3: Decision Tree on residuals
+        self.tree_model_ = DecisionTreeRegressor(**self.tree_params)
+        self.tree_model_.fit(X, residuals_2)
+
+        return self
+
+    def predict(self, X):
+        """Combine predictions from all three stages."""
+        X = check_array(X)
+        ridge_pred = self.ridge_model_.predict(X)
+        knn_pred = self.knn_model_.predict(X)
+        tree_pred = self.tree_model_.predict(X)
+        return ridge_pred + knn_pred + tree_pred
+
+
+class RidgeBoostedSimpleKNN(RidgeBoostedKNN):
+    """
+    Variant of RidgeBoostedKNN that uses scikit-learn's
+    KNeighborsRegressor instead of OptimalKNN.
+    """
+
+    def fit(self, X, y):
+        """Fit RidgeCV first, then plain KNeighborsRegressor on residuals."""
+        self.get_n_neighbors(y)
+
+        X, y = check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]
+
+        # Stage 1: RidgeCV
+        self.ridge_model_ = RidgeCV()
+        self.ridge_model_.fit(X, y)
+
+        # Stage 2: Fit KNeighborsRegressor on residuals
+        residuals = y - self.ridge_model_.predict(X)
+        self.knn_model_ = KNeighborsRegressor(**self.knn_params)
+        self.knn_model_.fit(X, residuals)
+
+        return self
 
 
 class ConstraintRidgeBoostedKNN(RidgeBoostedKNN):
