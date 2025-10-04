@@ -342,7 +342,6 @@ from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
 )
 from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
     RidgeBoostedKNN,
-    SplitFeatureRidgeKNN,
     ConstraintRidgeBoostedKNN,
     RidgeBoostedSimpleKNN,
     RidgeKNNTree,
@@ -1908,16 +1907,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = RidgeBoostedSimpleKNN(self.param)
         elif self.base_learner == "ConstraintRidgeBoostedKNN":
             ridge_model = ConstraintRidgeBoostedKNN(self.param)
-        elif self.base_learner == "SplitFeatureRidgeKNN":
-            ridge_model = SplitFeatureRidgeKNN(self.param)
+        elif self.base_learner == "RidgeBoostedKNN-RBF":
+            ridge_model = RidgeBoostedKNN({**self.param, "distance": "Softmax"})
         elif self.base_learner == "DS-OptimalKNN":
             ridge_model = DynamicSelectionOptimalKNN(**self.param)
         elif self.base_learner == "Informed-OptimalKNN":
             ridge_model = OptimalKNN(
                 **self.param, distance="SkipUniform", informed_optimal_knn_sampling=True
             )
-        elif self.base_learner == "SNCA-Distance":
-            ridge_model = OptimalKNN(**self.param, distance="SkipDistance")
         elif self.base_learner == "NCA-Uniform":
             ridge_model = OptimalKNN(**self.param, distance="Uniform")
         elif self.base_learner == "NCA-Euclidean":

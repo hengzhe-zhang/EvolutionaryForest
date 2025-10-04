@@ -10,7 +10,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
+from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor, rbf_weights
 from evolutionary_forest.model.optimal_knn.smart_sampling import (
     stratified_sampling_indices,
 )
@@ -146,41 +146,6 @@ class EnsembleUniformKNNRegressor(KNeighborsRegressor):
         return y_pred
 
 
-class SoftmaxWeightedKNNRegressor(KNeighborsRegressor):
-    def predict(self, X):
-        """
-        Predict using softmax-weighted KNN.
-        Softmax weighting provides better numerical stability and smoother influence distribution compared to inverse distance weighting.
-
-        Parameters:
-        X : array-like, shape (n_samples, n_features)
-            Test samples.
-
-        Returns:
-        y_pred : array, shape (n_samples,)
-            Target values for each sample.
-        """
-        # Ensure the model is already fitted
-        check_is_fitted(self, "_fit_X")
-        X = check_array(X, accept_sparse="csr")
-
-        # Find the nearest neighbors
-        distances, neighbors = self.kneighbors(X)
-
-        # Avoid division by zero in distance (add a small epsilon)
-        distances = np.where(distances == 0, 1e-10, distances)
-
-        # Compute softmax weights based on inverse distances
-        softmax_weights = np.exp(-distances) / np.sum(
-            np.exp(-distances), axis=1, keepdims=True
-        )
-
-        # Weighted predictions
-        y_pred = np.sum(softmax_weights * self._y[neighbors], axis=1)
-
-        return y_pred
-
-
 class WeightedKNNWithGPRidge(BaseEstimator, RegressorMixin):
     def __init__(
         self,
@@ -307,8 +272,8 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         if base_learner is not None:
             self.knn = base_learner
         elif distance == "Softmax":
-            self.knn = SoftmaxWeightedKNNRegressor(
-                n_neighbors=self.n_neighbors, weights="distance"
+            self.knn = SkipKNeighborsRegressor(
+                n_neighbors=self.n_neighbors, weights=rbf_weights
             )
         elif distance == "SkipUniform":
             if self.n_groups > 1:
@@ -329,7 +294,15 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
                 n_neighbors=self.n_neighbors, weights="distance"
             )
 
+    def get_n_neighbors(self, y):
+        if self.n_neighbors == "Adaptive":
+            if len(np.unique(y)) <= 50:
+                self.n_neighbors = 20
+            else:
+                self.n_neighbors = 5
+
     def fit(self, GP_X, y):
+        self.get_n_neighbors(y)
         self.n_features_in_ = GP_X.shape[1]
         self.get_knn_model(self.base_learner, self.distance)
 

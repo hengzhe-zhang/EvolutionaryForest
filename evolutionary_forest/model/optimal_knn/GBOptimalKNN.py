@@ -1,11 +1,11 @@
 import random
 
+import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import make_friedman1
 from sklearn.linear_model import LinearRegression, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
-import numpy as np
 
 from evolutionary_forest.component.stgp.smooth_scaler import NearestValueTransformer
 from evolutionary_forest.model.OptimalKNN import OptimalKNN

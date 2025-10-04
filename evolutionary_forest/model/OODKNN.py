@@ -3,6 +3,13 @@ from sklearn.metrics import r2_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
 
+from scipy.special import softmax
+
+
+def rbf_weights(distances, gamma=1.0):
+    # Equivalent to softmax(-gamma * d^2)
+    return softmax(-gamma * distances**2, axis=1)
+
 
 class SkipKNeighborsRegressor(KNeighborsRegressor):
     def predict(self, X):
