@@ -409,17 +409,13 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
             ),
         )
 
-    def predict(self, x_test):
-        # Transform test data using each weight matrix and concatenate the results
-        test_data_list = [
-            x_test[:, i * self.group_size : (i + 1) * self.group_size] @ weight
-            for i, weight in enumerate(self.weights)
-        ]
-        test_data = np.concatenate(test_data_list, axis=1)
-
+    def predict(self, x_test, return_transformed=False):
+        test_data = self.transform(x_test)
         # Predict using the KNN model
         prediction = self.knn.predict(test_data)
         prediction = np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
+        if return_transformed:
+            return prediction, test_data
         return prediction
 
 

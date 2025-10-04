@@ -250,7 +250,7 @@ class SplitFeatureRidgeKNN(RidgeBoostedKNN):
         return predictions
 
 
-class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
+class OptimalKNNRandomDT(RidgeBoostedKNN):
     def __init__(self, knn_params=None):
         """
         Gradient Boosting Regressor using OptimalKNN and Linear Regression.
@@ -264,17 +264,16 @@ class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
         """Fit the gradient boosting model."""
         self.n_features_in_ = X.shape[1]
         X, y = check_X_y(X, y)
+        self.get_n_neighbors(y)
 
-        # Step 1: Fit the initial model (OptimalKNN)
         self.knn_model_ = OptimalKNN(**self.knn_params)
         self.knn_model_.fit(X, y)
 
-        # Store residuals from the KNN model
-        residuals = y - self.knn_model_.predict(X)
+        predictions, X_t = self.knn_model_.predict(X, return_transformed=True)
+        residuals = y - predictions
 
-        # Step 2: Fit Linear Regression on residuals
-        self.initial_model_ = RidgeCV()
-        self.initial_model_.fit(X, residuals)
+        self.initial_model_ = DecisionTreeRegressor(splitter="random")
+        self.initial_model_.fit(X_t, residuals)
 
         return self
 
@@ -283,12 +282,8 @@ class GradientBoostingWithOptimalKNN(BaseEstimator, RegressorMixin):
         check_is_fitted(self, ["initial_model_", "knn_model_"])
         X = check_array(X)
 
-        # Initial prediction from the KNN model
-        predictions = self.knn_model_.predict(X)
-
-        # Add contributions from the Linear Regression model
-        predictions += self.initial_model_.predict(X)
-
+        predictions, X_t = self.knn_model_.predict(X, return_transformed=True)
+        predictions += self.initial_model_.predict(X_t)
         return predictions
 
 
@@ -318,7 +313,7 @@ if __name__ == "__main__":
     print("KNN R2:", r2_score(y_test, knn_predictions))
 
     # Initialize the gradient boosting model
-    model = GradientBoostingWithOptimalKNN(
+    model = OptimalKNNRandomDT(
         knn_params={"n_neighbors": 5, "distance": "SkipUniform"},
     )
 

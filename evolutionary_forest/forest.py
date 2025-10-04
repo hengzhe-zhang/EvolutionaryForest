@@ -345,6 +345,7 @@ from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
     ConstraintRidgeBoostedKNN,
     RidgeBoostedSimpleKNN,
     RidgeKNNTree,
+    OptimalKNNRandomDT,
 )
 from evolutionary_forest.model.optimal_knn.mixup_regression import data_augmentation
 from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
@@ -1789,6 +1790,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_learner = "RidgeCV-ENet"
         if self.base_learner == "RidgeKNNTree":
             individual.pipe = self.get_base_model(base_model="RidgeKNNTree")
+        if self.base_learner == "OptimalKNN+DT":
+            individual.pipe = self.get_base_model(base_model="OptimalKNN+DT")
         if self.imbalanced_configuration.balanced_final_training:
             individual.pipe = self.get_base_model()
         # avoid re-training
@@ -1888,13 +1891,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner.startswith("SNCA-DT"):
             leaf = int(self.base_learner.split("-")[-1])
-            ridge_model = OptimalKNN(
-                **self.param, base_learner=DecisionTreeRegressor(min_samples_leaf=leaf)
+            ridge_model = RidgeBoostedKNN(
+                {
+                    **self.param,
+                    "base_learner": DecisionTreeRegressor(min_samples_leaf=leaf),
+                }
             )
         elif self.base_learner == "NCA":
             # closer neighbors have more influence on predictions.
             ridge_model = OptimalKNN(**self.param, distance="Softmax")
-        elif self.base_learner == "SNCA-Uniform":
+        elif base_model == "OptimalKNN+DT":
+            ridge_model = OptimalKNNRandomDT(self.param)
+        elif self.base_learner in ["SNCA-Uniform", "OptimalKNN+DT"]:
             ridge_model = OptimalKNN(**self.param, distance="SkipUniform")
         elif self.base_learner == "RidgeBoostedKNN-U":
             ridge_model = RidgeBoostedKNN({**self.param, "distance": "Uniform"})
