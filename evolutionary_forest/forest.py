@@ -346,6 +346,7 @@ from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
     RidgeBoostedSimpleKNN,
     RidgeKNNTree,
     OptimalKNNRandomDT,
+    RidgeBoostedDT,
 )
 from evolutionary_forest.model.optimal_knn.mixup_regression import data_augmentation
 from evolutionary_forest.model.optimal_knn.plot_optimal_distance import (
@@ -380,6 +381,7 @@ from evolutionary_forest.strategies.subset_transfer import (
     train_final_model_on_full_batch,
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
+from evolutionary_forest.utility.adaptive_decision_tree import get_leaf_size_of_dt
 from evolutionary_forest.utility.check_util import filter_unique_case_values
 from evolutionary_forest.utility.eql_hybrid.eql_hybrid_utils import (
     eql_hybrid_on_pareto_front,
@@ -1891,13 +1893,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner.startswith("SNCA-DT"):
             leaf_size = self.base_learner.split("-")[-1]
-            if leaf_size == "Adaptive":
-                if len(np.unique(self.y)) < 20:
-                    leaf = 20
-                else:
-                    leaf = 5
-            else:
-                leaf = int(leaf_size)
+            leaf = get_leaf_size_of_dt(leaf_size, self.y)
             ridge_model = RidgeBoostedKNN(
                 {
                     **self.param,
@@ -1909,6 +1905,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = OptimalKNN(**self.param, distance="Softmax")
         elif base_model == "OptimalKNN+DT":
             ridge_model = OptimalKNNRandomDT(self.param)
+        elif self.base_learner.startswith("Ridge-DT"):
+            leaf_size = self.base_learner.split("-")[-1]
+            leaf = get_leaf_size_of_dt(leaf_size, self.y)
+            ridge_model = RidgeBoostedDT(
+                {
+                    **self.param,
+                    "base_learner": DecisionTreeRegressor(min_samples_leaf=leaf),
+                }
+            )
         elif self.base_learner in ["SNCA-Uniform", "OptimalKNN+DT"]:
             ridge_model = OptimalKNN(**self.param, distance="SkipUniform")
         elif self.base_learner == "RidgeBoostedKNN-U":

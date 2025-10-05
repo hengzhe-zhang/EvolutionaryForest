@@ -65,6 +65,32 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         return predictions
 
 
+from sklearn.base import BaseEstimator, RegressorMixin
+
+
+class RidgeBoostedDT(BaseEstimator, RegressorMixin):
+    def __init__(self, dt_params=None):
+        self.dt_params = dt_params if dt_params is not None else {}
+
+    def fit(self, X, y):
+        X, y = check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]
+
+        self.ridge_model_ = RidgeCV()
+        self.ridge_model_.fit(X, y)
+
+        residuals = y - self.ridge_model_.predict(X)
+        self.dt_model_ = DecisionTreeRegressor(**self.dt_params)
+        self.dt_model_.fit(X, residuals)
+
+        return self
+
+    def predict(self, X):
+        ridge_pred = self.ridge_model_.predict(X)
+        residual_pred = self.dt_model_.predict(X)
+        return ridge_pred + residual_pred
+
+
 class RidgeKNNTree(RidgeBoostedKNN):
     """
     RidgeKNNTree: A three-stage regressor.
