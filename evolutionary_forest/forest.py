@@ -1890,7 +1890,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == "InContextLearner":
             ridge_model = InContextLearnerRegressor(**self.param)
         elif self.base_learner.startswith("SNCA-DT"):
-            leaf = int(self.base_learner.split("-")[-1])
+            leaf_size = self.base_learner.split("-")[-1]
+            if leaf_size == "Adaptive":
+                if len(np.unique(self.y)) < 20:
+                    leaf = 20
+                else:
+                    leaf = 5
+            else:
+                leaf = int(leaf_size)
             ridge_model = RidgeBoostedKNN(
                 {
                     **self.param,
@@ -6224,6 +6231,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             learner = h.pipe["Ridge"]
             if isinstance(learner, DecisionTreeRegressor):
                 count += learner.tree_.node_count
+            elif isinstance(learner, (OptimalKNNRandomDT)):
+                count += learner.initial_model_.tree_.node_count
+                for weight in learner.knn_model_.weights:
+                    count += weight.shape[0]
             elif isinstance(learner, (RidgeBoostedKNN)):
                 count += learner.ridge_model_.coef_.shape[0]
                 for weight in learner.knn_model_.weights:

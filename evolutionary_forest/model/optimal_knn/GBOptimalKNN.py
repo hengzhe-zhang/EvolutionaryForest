@@ -272,7 +272,7 @@ class OptimalKNNRandomDT(RidgeBoostedKNN):
         predictions, X_t = self.knn_model_.predict(X, return_transformed=True)
         residuals = y - predictions
 
-        self.initial_model_ = DecisionTreeRegressor(splitter="random")
+        self.initial_model_ = DecisionTreeRegressor()
         self.initial_model_.fit(X_t, residuals)
 
         return self
