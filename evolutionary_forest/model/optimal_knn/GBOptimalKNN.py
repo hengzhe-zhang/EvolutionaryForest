@@ -1,7 +1,7 @@
 import random
+from sklearn.base import BaseEstimator, RegressorMixin
 
 import numpy as np
-from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import make_friedman1
 from sklearn.linear_model import LinearRegression, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
@@ -65,12 +65,9 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         return predictions
 
 
-from sklearn.base import BaseEstimator, RegressorMixin
-
-
 class RidgeBoostedDT(BaseEstimator, RegressorMixin):
-    def __init__(self, dt_params=None):
-        self.dt_params = dt_params if dt_params is not None else {}
+    def __init__(self, leaf_size):
+        self.leaf_size = leaf_size
 
     def fit(self, X, y):
         X, y = check_X_y(X, y)
@@ -80,7 +77,7 @@ class RidgeBoostedDT(BaseEstimator, RegressorMixin):
         self.ridge_model_.fit(X, y)
 
         residuals = y - self.ridge_model_.predict(X)
-        self.dt_model_ = DecisionTreeRegressor(**self.dt_params)
+        self.dt_model_ = DecisionTreeRegressor(min_samples_leaf=self.leaf_size)
         self.dt_model_.fit(X, residuals)
 
         return self
