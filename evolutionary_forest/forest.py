@@ -3347,6 +3347,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
             if self.categorical_encoding == "Target":
                 self.categorical_encoder = TargetEncoder(cols=categorical_indices)
+            elif self.categorical_encoding == "Binary":
+                self.categorical_encoder = category_encoders.BinaryEncoder(
+                    cols=categorical_indices
+                )
             elif self.categorical_encoding == "OneHot":
                 self.categorical_encoder = category_encoders.OneHotEncoder(
                     cols=categorical_indices
