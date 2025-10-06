@@ -50,6 +50,7 @@ from sklearn.preprocessing import (
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
 
+from evolutionary_forest.component import primitive_functions
 from evolutionary_forest.component.archive import *
 from evolutionary_forest.component.archive import (
     DREPHallOfFame,
@@ -2491,6 +2492,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         #     self.mutation_configuration.pool_addition_mode, self.X, self.y
         # )
 
+        primitive_functions.check_constants = (
+            self.selection_configuration.check_constants
+        )
+
     def tree_initialization_function(self, pset: PrimitiveSet, toolbox: TypedToolbox):
         if self.initial_tree_size is None:
             toolbox.expr = partial(gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
@@ -4238,12 +4243,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         self.append_evaluated_features(population)
         for o in population:
-            self.evaluated_pop.add(
-                individual_to_tuple(
-                    o,
-                    check_constants=self.selection_configuration.check_constants,
-                )
-            )
+            self.evaluated_pop.add(individual_to_tuple(o))
 
         if halloffame is not None:
             halloffame.update(population)
@@ -4509,10 +4509,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
                     if len(new_offspring) < individuals_to_generate:
                         # checking redundant individuals
-                        genotype = individual_to_tuple(  # noqa: F405
-                            o,
-                            check_constants=self.selection_configuration.check_constants,
-                        )
+                        genotype = individual_to_tuple(o)
                         if (
                             self.allow_revisit
                             or (genotype not in self.evaluated_pop)

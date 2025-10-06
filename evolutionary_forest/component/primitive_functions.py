@@ -165,7 +165,10 @@ def analytical_log_torch(x):
     return torch.log(torch.sqrt(1 + x**2))
 
 
-def individual_to_tuple(ind, check_constants=False):
+check_constants = False
+
+
+def individual_to_tuple(ind):
     encoded_ind = []
     for tree in ind.gene:
         encoded_ind.append(tree_to_tuple(tree, check_constants))
