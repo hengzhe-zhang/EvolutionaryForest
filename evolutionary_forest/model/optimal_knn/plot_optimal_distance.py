@@ -5,6 +5,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.metrics import pairwise_distances
 
 
@@ -12,7 +13,17 @@ def pca_plot(transformer_feature, y, figname, n_components=2):
     # Apply PCA to reduce dimensions
     pca = PCA(n_components=n_components)
     space = pca.fit_transform(transformer_feature)
+    make_plot(space, y, figname)
 
+
+def tsne_plot(transformer_feature, y, figname, n_components=2):
+    # Apply PCA to reduce dimensions
+    pca = TSNE(n_components=n_components)
+    space = pca.fit_transform(transformer_feature)
+    make_plot(space, y, figname)
+
+
+def make_plot(x_space, y, figname):
     # Normalize the continuous values for color mapping
     norm = mcolors.Normalize(vmin=min(y), vmax=max(y))
     cmap = cm.viridis
@@ -20,7 +31,7 @@ def pca_plot(transformer_feature, y, figname, n_components=2):
     # Create the scatter plot
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     scatter = plt.scatter(
-        space[:, 0], space[:, 1], c=y, cmap=cmap, norm=norm, alpha=0.7
+        x_space[:, 0], x_space[:, 1], c=y, cmap=cmap, norm=norm, alpha=0.7
     )
 
     # Add a colorbar to show the scale of the continuous values
@@ -28,8 +39,8 @@ def pca_plot(transformer_feature, y, figname, n_components=2):
     cbar.set_label("Continuous Value")
 
     # Set plot titles and labels
-    plt.xlabel("PCA Component 1")
-    plt.ylabel("PCA Component 2")
+    plt.xlabel("Feature 1")
+    plt.ylabel("Feature 2")
     plt.tight_layout()
     plt.savefig(os.path.join("result", figname), format="eps")
     plt.show()

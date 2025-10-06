@@ -3049,10 +3049,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def archive_initialization(self):
         # archive initialization
-        if self.ensemble_size == "auto":
-            # Automatically determine the ensemble size
-            self.hof = LexicaseHOF()
-        elif self.ensemble_selection == "SAM":
+        if self.ensemble_size == "Adaptive":
+            if len(np.unique(self.y)) <= 50:
+                self.ensemble_size = 100
+            else:
+                self.ensemble_size = 30
+
+        if self.ensemble_selection == "SAM":
             # Automatically determine the ensemble size
             def comparison(a, b):
                 return a.sam_loss < b.sam_loss
