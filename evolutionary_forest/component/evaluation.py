@@ -8,7 +8,7 @@ from typing import List, Tuple
 import dill
 import joblib
 import numpy as np
-import shap
+
 import torch
 from cachetools import cached, LRUCache
 from cachetools.keys import hashkey
@@ -57,7 +57,6 @@ from evolutionary_forest.component.generalization.pac_utils.random_node_selectio
 )
 from evolutionary_forest.component.gradient_optimization.gradient_descent import (
     gradient_optimization,
-    contrastive_gradient_optimization,
 )
 from evolutionary_forest.component.post_processing.value_alignment import quick_fill
 from evolutionary_forest.component.stgp.shared_type import (
@@ -132,8 +131,8 @@ class EvaluationResults:
         self.introns_results: list = introns_results
         # semantic of each features
         self.semantic_results: list = semantic_results
-        # in ususal case, it is useless
-        # however, it could [1,1,2] in case has categorical features trnasformed by one-hot encoding
+        # in usual case, it is useless
+        # however, it could [1,1,2] in case has categorical features transformed by one-hot encoding
         self.feature_numbers = feature_numbers
 
         # for contrastive learning
@@ -246,10 +245,7 @@ def calculate_score(args):
     gp_evaluation_time = time.time() - start_time
 
     if configuration.gradient_descent:
-        if isinstance(base_model, OptimalKNN):
-            contrastive_gradient_optimization(Yp, Y, func)
-        else:
-            gradient_optimization(Yp, Y, configuration, func)
+        gradient_optimization(Yp, Y, configuration, func)
         # evaluate again
         Yp = multi_tree_evaluation(
             func,
@@ -385,6 +381,8 @@ def calculate_score(args):
                 print("Cross Validation Time", time.time() - cv_st)
 
             if feature_importance_method == "SHAP" and len(estimators) == cv.n_splits:
+                import shap
+
                 for id, estimator in enumerate(estimators):
                     split_fold = list(cv.split(Yp, Y))
                     train_id, test_id = split_fold[id][0], split_fold[id][1]

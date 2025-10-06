@@ -1377,8 +1377,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         individual.evaluation_time = (
             information.gp_evaluation_time + information.ml_evaluation_time
         )
-        self.time_statistics["GP Evaluation"].append(information.gp_evaluation_time)
-        self.time_statistics["ML Evaluation"].append(information.ml_evaluation_time)
+        if "EvaluationTime" in self.log_item:
+            self.time_statistics["GP Evaluation"].append(information.gp_evaluation_time)
+            self.time_statistics["ML Evaluation"].append(information.ml_evaluation_time)
 
         if information.contrastive_loss is not None:
             individual.contrastive_loss = information.contrastive_loss
@@ -4540,7 +4541,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             self.eql_hybrid_mutation(population, new_offspring)
 
-            self.time_statistics["GP Generation"].append(time.time() - start_time)
+            if "EvaluationTime" in self.log_item:
+                self.time_statistics["GP Generation"].append(time.time() - start_time)
+
             # delete some inherited information
             for ind in new_offspring:
                 # delete fitness values
