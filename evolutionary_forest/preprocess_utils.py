@@ -1,21 +1,6 @@
 import numpy as np
 from category_encoders import OrdinalEncoder, OneHotEncoder
-from category_encoders import (
-    TargetEncoder,
-    LeaveOneOutEncoder,
-    BinaryEncoder,
-    CatBoostEncoder,
-    PolynomialEncoder,
-    BackwardDifferenceEncoder,
-    CountEncoder,
-    HashingEncoder,
-    HelmertEncoder,
-    JamesSteinEncoder,
-    MEstimateEncoder,
-    QuantileEncoder,
-    SumEncoder,
-    SummaryEncoder,
-)
+
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.compose import make_column_selector as selector
@@ -67,18 +52,22 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         self.encoding_scheme = encoding_scheme
 
     def fit(self, X, y=None, **fit_params):
-        # # Feature Transformation based on different types of features
-        # types = type_detection(X)
-        # num_cols = []
-        # bool_cols = []
-        # cat_cols = []
-        # for i, t in enumerate(types):
-        #     if t == NumericalFeature:
-        #         num_cols.append(i)
-        #     elif t == BooleanFeature:
-        #         bool_cols.append(i)
-        #     else:
-        #         cat_cols.append(i)
+        from category_encoders import (
+            TargetEncoder,
+            LeaveOneOutEncoder,
+            BinaryEncoder,
+            CatBoostEncoder,
+            PolynomialEncoder,
+            BackwardDifferenceEncoder,
+            CountEncoder,
+            HashingEncoder,
+            HelmertEncoder,
+            JamesSteinEncoder,
+            MEstimateEncoder,
+            QuantileEncoder,
+            SumEncoder,
+            SummaryEncoder,
+        )
 
         encoder = {
             "TargetEncoder": TargetEncoder(),
@@ -97,7 +86,6 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
             "QuantileEncoder": QuantileEncoder(),
             "SumEncoder": SumEncoder(),
             "SummaryEncoder": SummaryEncoder(),
-            # 'GLMMEncoder': GLMMEncoder(), # Unavailable
         }[self.encoding_scheme]
         num_transformer = Pipeline(
             [

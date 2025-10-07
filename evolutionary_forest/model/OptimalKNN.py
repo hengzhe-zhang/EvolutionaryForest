@@ -1,3 +1,4 @@
+import time
 from functools import lru_cache
 
 import numpy as np
@@ -267,6 +268,8 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.random_knn_subsampling = random_knn_subsampling
         self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
 
+        self.time_information = {}
+
     def get_knn_model(self, base_learner, distance):
         if base_learner is not None:
             self.knn = base_learner
@@ -334,6 +337,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.group_size = group_size
         self.weights = []
 
+        start = time.time()
         for i in range(self.n_groups):
             # Define the group indices
             start_idx = i * group_size
@@ -370,6 +374,8 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
             # self.print_mse(D_group, GP_X_group, weight)
             # pairwise_distances(GP_X_group @ weight, metric="euclidean")
             self.weights.append(weight)
+        end = time.time()
+        self.time_information["Contrastive Learning"] = end - start
 
         # Transform the entire training data using the computed weights and concatenate them
         # each weight transform corresponding group
@@ -381,7 +387,10 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.training_data = training_data
 
         # Fit the KNN model on the concatenated weighted transformed space
+        start = time.time()
         self.knn.fit(training_data, y)
+        end = time.time()
+        self.time_information["KNN Learning"] = end - start
 
         return self
 

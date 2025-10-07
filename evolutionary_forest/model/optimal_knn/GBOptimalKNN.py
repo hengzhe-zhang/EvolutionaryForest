@@ -1,4 +1,6 @@
 import random
+import time
+
 from sklearn.base import BaseEstimator, RegressorMixin
 
 import numpy as np
@@ -25,6 +27,7 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
             Parameters passed to OptimalKNN.
         """
         self.knn_params = knn_params if knn_params is not None else {}
+        self.time_information = {}
 
     def fit(self, X, y):
         """Fit RidgeCV first, then OptimalKNN on residuals."""
@@ -34,8 +37,11 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         self.n_features_in_ = X.shape[1]
 
         # Stage 1: Fit RidgeCV
+        start = time.time()
         self.ridge_model_ = RidgeCV()
         self.ridge_model_.fit(X, y)
+        end = time.time()
+        self.time_information["Ridge"] = end - start
 
         # Stage 2: Fit OptimalKNN on residuals
         residuals = y - self.ridge_model_.predict(X)
