@@ -8,6 +8,7 @@ class BoundedRidgeRegressor(BaseEstimator, RegressorMixin):
         self.ridge = RidgeCV()
         self.ridge.fit(X, y)
         self.y_train_ = y
+        self.coef_ = self.ridge.coef_
         return self
 
     def predict(self, X):
