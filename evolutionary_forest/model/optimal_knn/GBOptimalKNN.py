@@ -14,9 +14,11 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 from sklearn.tree import DecisionTreeRegressor
 
+from evolutionary_forest.model.linear_regression import BoundedRidgeRegressor
+
 
 class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
-    def __init__(self, knn_params=None):
+    def __init__(self, knn_params=None, bounded_ridge=False):
         """
         RidgeBoostedKNN: A two-stage regressor that first fits RidgeCV,
         then fits OptimalKNN on the residuals.
@@ -28,6 +30,7 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         """
         self.knn_params = knn_params if knn_params is not None else {}
         self.time_information = {}
+        self.bounded_ridge = bounded_ridge
 
     def fit(self, X, y):
         """Fit RidgeCV first, then OptimalKNN on residuals."""
@@ -38,7 +41,10 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
 
         # Stage 1: Fit RidgeCV
         start = time.time()
-        self.ridge_model_ = RidgeCV()
+        if self.bounded_ridge:
+            self.ridge_model_ = BoundedRidgeRegressor()
+        else:
+            self.ridge_model_ = RidgeCV()
         self.ridge_model_.fit(X, y)
         end = time.time()
         self.time_information["Ridge"] = end - start

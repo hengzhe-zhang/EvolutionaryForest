@@ -1,6 +1,7 @@
 import numpy as np
 from numba import njit
 from sklearn.base import BaseEstimator, ClusterMixin
+from sklearn.cluster import KMeans
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
@@ -175,10 +176,19 @@ class CosineKMedoids(BaseEstimator, ClusterMixin):
 # Example usage
 if __name__ == "__main__":
     from sklearn.datasets import make_blobs
+    import time
 
-    X, _ = make_blobs(n_samples=300, centers=5, random_state=0)
-
-    # model = CosineKMeans(n_clusters=5, random_state=0)
-    model = CosineKMedoids(n_clusters=5, random_state=0)
+    X, _ = make_blobs(n_samples=3000, centers=5, random_state=0)
+    start = time.time()
+    model = CosineKMeans(n_clusters=5, random_state=0)
     labels = model.fit_predict(X.astype(np.float64))
     print(labels)
+    end = time.time()
+    print("Time taken:", end - start)
+
+    start = time.time()
+    model = KMeans(n_clusters=5, random_state=0)
+    labels = model.fit_predict(X.astype(np.float64))
+    print(labels)
+    end = time.time()
+    print("Time taken:", end - start)

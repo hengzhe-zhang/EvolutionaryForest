@@ -1915,6 +1915,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = OptimalKNN(**self.param, distance="SkipUniform")
         elif self.base_learner == "RidgeBoostedKNN-U":
             ridge_model = RidgeBoostedKNN({**self.param, "distance": "Uniform"})
+        elif self.base_learner == "BoundedRidgeBoostedKNN":
+            ridge_model = RidgeBoostedKNN(self.param, bounded_ridge=True)
         elif base_model == "RidgeKNNTree":
             # This order is quite important
             ridge_model = RidgeKNNTree(self.param)
