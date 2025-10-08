@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.metrics.pairwise import rbf_kernel
 from numpy.linalg import eig
 
 
@@ -22,35 +23,11 @@ def safe_lstsq(A, b, rcond=None):
         return m, residuals, rank, s
 
 
-def compute_lambda_matrix(y, epsilon=1e-5):
-    """
-    Computes the weight matrix lambda_{ij} = 1 / (|y_i - y_j| + epsilon)
-    for a given array of target values y.
-
-    Parameters:
-    ----------
-    y : np.ndarray
-        A 1D array of target values, of shape (n_samples,).
-    epsilon : float, optional
-        A small constant to prevent division by zero (default is 1e-5).
-
-    Returns:
-    -------
-    lambda_matrix : np.ndarray
-        A 2D array (n_samples, n_samples) where each element represents lambda_{ij}.
-    """
-
-    n = len(y)
-
-    # Create an empty (n, n) matrix to store lambda_{ij} values
-    lambda_matrix = np.zeros((n, n))
-
-    # Compute the absolute difference between each pair of target values
-    for i in range(n):
-        for j in range(n):
-            lambda_matrix[i, j] = 1 / (np.abs(y[i] - y[j]) + epsilon)
-
-    return lambda_matrix
+def compute_lambda_matrix(y):
+    """Compute RBF weight matrix for targets Y using γ = 1 / Var(Y)."""
+    y = np.asarray(y).reshape(-1, 1)
+    gamma = 1 / np.var(y)
+    return rbf_kernel(y, gamma=gamma)
 
 
 def solve_transformation_matrix(

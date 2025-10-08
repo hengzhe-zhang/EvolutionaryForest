@@ -17,6 +17,7 @@ from evolutionary_forest.model.optimal_knn.smart_sampling import (
 )
 from evolutionary_forest.model.weight_solver import (
     solve_transformation_matrix,
+    compute_lambda_matrix,
 )
 
 
@@ -361,7 +362,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
                 reduced_dimension = self.reduced_dimension
 
             if self.weighted_instance:
-                weights = np.outer(np.abs(y_group), np.abs(y_group))
+                weights = compute_lambda_matrix(y_group)
             else:
                 weights = None
 
