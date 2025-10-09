@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.metrics.pairwise import rbf_kernel
 from numpy.linalg import eig
+from scipy import linalg
 
 
 def compute_lambda_matrix(y):
@@ -11,23 +12,7 @@ def compute_lambda_matrix(y):
 
 
 def safe_lstsq(A, b, rcond=None):
-    """
-    Safe least squares when A is already regularized/conditioned
-    """
-    try:
-        # Try standard lstsq first
-        result = np.linalg.lstsq(A, b, rcond=rcond)
-        return result
-    except np.linalg.LinAlgError:
-        # Fallback: Use pseudoinverse (no additional regularization)
-        A_pinv = np.linalg.pinv(A, rcond=rcond)
-        m = A_pinv @ b
-        residuals = (
-            np.sum((A @ m - b) ** 2) if A.shape[0] >= A.shape[1] else np.array([])
-        )
-        rank = np.linalg.matrix_rank(A)
-        s = np.array([])  # Skip SVD computation to avoid same convergence issue
-        return m, residuals, rank, s
+    return linalg.lstsq(A, b, cond=rcond, lapack_driver="gelsd")
 
 
 def compute_laplacian_term(phi_X, y, sigma=1.0):
