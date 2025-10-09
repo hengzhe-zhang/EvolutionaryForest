@@ -3,6 +3,13 @@ from sklearn.metrics.pairwise import rbf_kernel
 from numpy.linalg import eig
 
 
+def compute_lambda_matrix(y):
+    """Compute RBF weight matrix for targets Y using γ = 1 / Var(Y)."""
+    y = np.asarray(y).reshape(-1, 1)
+    gamma = 1 / np.var(y)
+    return rbf_kernel(y, gamma=gamma)
+
+
 def safe_lstsq(A, b, rcond=None):
     """
     Safe least squares when A is already regularized/conditioned
@@ -23,19 +30,40 @@ def safe_lstsq(A, b, rcond=None):
         return m, residuals, rank, s
 
 
-def compute_lambda_matrix(y):
-    """Compute RBF weight matrix for targets Y using γ = 1 / Var(Y)."""
-    y = np.asarray(y).reshape(-1, 1)
-    gamma = 1 / np.var(y)
-    return rbf_kernel(y, gamma=gamma)
+def compute_laplacian_term(phi_X, y, sigma=1.0):
+    n = phi_X.shape[0]
+
+    # Compute label-based similarity matrix S
+    # S_ij = exp(-(y_i - y_j)^2 / (2 * sigma^2))
+    y_diff = y[:, np.newaxis] - y[np.newaxis, :]
+    S = np.exp(-(y_diff**2) / (2 * sigma**2))
+
+    # Compute graph Laplacian L = D - S
+    D_degree = np.diag(S.sum(axis=1))  # Degree matrix
+    L = D_degree - S  # Laplacian matrix
+
+    # Compute Phi^T L Phi
+    manifold_matrix = phi_X.T @ L @ phi_X  # Shape: (k, k)
+
+    # Vectorize to get g = vec(Phi^T L Phi)
+    g = manifold_matrix.flatten()  # Shape: (k^2,)
+
+    return g
 
 
 def solve_transformation_matrix(
-    phi_X, D, p=None, weights=None, regularization=1e-5, verbose=False
+    phi_X,
+    D,
+    y=None,
+    p=None,
+    weights=None,
+    regularization=1e-5,
+    laplacian_reg=0.0,
+    laplacian_sigma=0.1,
 ):
     """
     Solves for the transformation matrix W that minimizes the loss ||D - D'||^2,
-    where D' is the distance matrix in the transformed space defined by W.
+    with optional Laplacian regularization.
 
     Parameters:
     ----------
@@ -43,22 +71,24 @@ def solve_transformation_matrix(
         The transformed feature matrix of shape (n_samples, k).
     D : np.ndarray
         The original distance matrix based on labels, of shape (n_samples, n_samples).
+    y : np.ndarray, optional
+        The target labels of shape (n_samples,). Required if laplacian_reg > 0.
     p : int, optional
         The desired dimensionality of the transformed space. If None, p = k.
     weights : np.ndarray, optional
-        A weight matrix of shape (n_samples, n_samples) assigning a weight to each pair of instances.
-        These weights influence the contribution of each pair in the loss function.
+        A weight matrix of shape (n_samples, n_samples) for the contrastive loss.
         If None, all pairs are equally weighted.
     regularization : float, optional
-        Regularization parameter to stabilize the least squares solution.
-    verbose : bool, optional
-        If True, prints detailed debug information.
+        L2 regularization parameter (lambda_1) to stabilize the solution.
+    laplacian_reg : float, optional
+        Laplacian regularization parameter (lambda_2). If 0, no Laplacian regularization is applied.
+    laplacian_sigma : float, optional
+        Bandwidth parameter for the RBF kernel in Laplacian computation.
 
     Returns:
     -------
     W : np.ndarray
-        The transformation matrix of shape (k, p) that maps the original features
-        to the transformed space.
+        The transformation matrix of shape (k, p).
     """
 
     n, k = phi_X.shape
@@ -66,6 +96,11 @@ def solve_transformation_matrix(
     if D.shape != (n, n):
         raise ValueError(
             "The distance matrix D must be of shape (n_samples, n_samples)."
+        )
+
+    if y is None and laplacian_reg > 0:
+        raise ValueError(
+            "Labels y must be provided when using Laplacian regularization."
         )
 
     if p is None:
@@ -81,82 +116,63 @@ def solve_transformation_matrix(
             raise ValueError(
                 "Weights must be a matrix with shape (n_samples, n_samples)."
             )
-        if verbose:
-            print("Weights matrix provided. Each pair will be weighted accordingly.")
     else:
-        # If no weights provided, use ones
         weights = np.ones((n, n))
 
-    # Step 1: Construct matrix B and vector d
-    # Each row of B corresponds to vec( (phi_i - phi_j)(phi_i - phi_j)^T )
-    # and each element of d corresponds to D(i, j)
-
-    # Initialize lists to store B rows and d elements
+    # Step 1: Construct matrix B and vector d for contrastive loss
     B_rows = []
     d_elements = []
     weight_factors = []
 
-    if verbose:
-        print("Constructing matrix B and vector d...")
     for i in range(n):
         for j in range(n):
-            diff = phi_X[i] - phi_X[j]  # Shape: (k,)
-            # Outer product to get (k, k) matrix, then vectorize to (k^2,)
+            diff = phi_X[i] - phi_X[j]
             outer_product = np.outer(diff, diff).reshape(-1)
             B_rows.append(outer_product)
             d_elements.append(D[i, j])
-            # Retrieve the weight for the pair (i, j)
             weight_factors.append(weights[i, j])
 
     B = np.array(B_rows)  # Shape: (n^2, k^2)
     d = np.array(d_elements)  # Shape: (n^2,)
     weight_factors = np.array(weight_factors)  # Shape: (n^2,)
 
-    if verbose:
-        print(f"Matrix B shape: {B.shape}")
-        print(f"Vector d shape: {d.shape}")
-
     # Apply weights to B and d
-    if weights is not None and not np.all(weights == 1):
-        if verbose:
-            print("Applying weights to matrix B and vector d...")
-        # To apply weights in least squares, multiply both B and d by sqrt(weight)
-        # This scales the residuals appropriately
+    if not np.all(weights == 1):
         sqrt_weights = np.sqrt(weight_factors)
-        B = B * sqrt_weights[:, np.newaxis]  # Scale each row of B
-        d = d * sqrt_weights  # Scale each element of d
+        B = B * sqrt_weights[:, np.newaxis]
+        d = d * sqrt_weights
 
-    # Step 2: Solve the least squares problem with regularization
-    # m = (B^T B + reg * I)^(-1) B^T d
-    # To improve numerical stability, add regularization
-    if verbose:
-        print("Solving the least squares problem...")
+    # Step 2: Compute Laplacian regularization term (if enabled)
+    g = None
+    if laplacian_reg > 0:
+        g = compute_laplacian_term(phi_X, y, sigma=laplacian_sigma)
+
+    # Step 3: Solve the regularized least squares problem
     BTB = B.T @ B  # Shape: (k^2, k^2)
     BTd = B.T @ d  # Shape: (k^2,)
 
-    # Add regularization to the diagonal
+    # Add L2 regularization to the diagonal
     BTB += regularization * np.eye(BTB.shape[0])
 
-    # Solve for m
-    # Using numpy.linalg.lstsq for better numerical stability
-    # Alternatively, you can use np.linalg.solve if BTB is guaranteed to be invertible
-    m, residuals, rank, s = safe_lstsq(BTB, BTd, rcond=None)
+    # Construct right-hand side
+    if laplacian_reg > 0 and g is not None:
+        rhs = BTd - (laplacian_reg / 2) * g
+    else:
+        rhs = BTd
 
-    # Step 3: Reshape m to form matrix M
+    # Solve for m
+    m, residuals, rank, s = safe_lstsq(BTB, rhs, rcond=None)
+
+    # Step 4: Reshape m to form matrix M
     M = m.reshape(k, k)
 
     # Ensure M is symmetric
     M = (M + M.T) / 2
 
-    if verbose:
-        print("Matrix M obtained from least squares solution.")
-
-    # Step 4: Eigen-decomposition of M to retrieve W
-    if verbose:
-        print("Performing eigen-decomposition on M...")
+    # Step 5: Eigen-decomposition of M to retrieve W
     eigenvalues, eigenvectors = eig(M)
 
-    # Sort the eigenvalues and eigenvectors in descending order
+    # Sort eigenvalues and eigenvectors in descending order
     sorted_indices = np.argsort(eigenvalues)[::-1]
     eigenvalues = eigenvalues[sorted_indices]
     eigenvectors = eigenvectors[:, sorted_indices]
@@ -169,10 +185,7 @@ def solve_transformation_matrix(
     # Compute W
     W = U_p @ Lambda_p
 
-    if verbose:
-        print(f"Transformation matrix W of shape {W.shape} obtained.")
-
-    return W.real  # Return the real part in case of numerical complex values
+    return W.real
 
 
 # Example Usage

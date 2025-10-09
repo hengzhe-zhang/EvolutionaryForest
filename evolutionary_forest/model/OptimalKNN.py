@@ -251,6 +251,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         base_learner=None,
         informed_optimal_knn_sampling=False,
         random_knn_subsampling=True,
+        laplacian_reg=1,
         **params,
     ):
         self.n_neighbors = n_neighbors
@@ -268,6 +269,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.knn_subsampling = knn_subsampling
         self.random_knn_subsampling = random_knn_subsampling
         self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
+        self.laplacian_reg = laplacian_reg
 
         self.time_information = {}
 
@@ -369,8 +371,10 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
             weight = solve_transformation_matrix(
                 GP_X_group,
                 D_group,
+                y=y_group,
                 weights=weights,
                 p=reduced_dimension,
+                laplacian_reg=self.laplacian_reg,
             )
             # self.print_mse(D_group, GP_X_group, weight)
             # pairwise_distances(GP_X_group @ weight, metric="euclidean")
