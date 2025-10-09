@@ -138,6 +138,7 @@ def get_feature_importance(
     mean_fitness=False,
     ensemble_weighted=True,
     simple_version=None,
+    tree_length_limit=None,
     **params,
 ):
     """
@@ -176,6 +177,8 @@ def get_feature_importance(
 
     for x in regressor_model.hof:
         for o_g, h, c in zip(x.gene, x.hash_result, np.abs(x.coef)):
+            if tree_length_limit is not None and len(o_g) > tree_length_limit:
+                continue
             # Taking the fitness of each model into consideration
             importance_value = c
             if fitness_weighted:
@@ -239,6 +242,7 @@ def plot_feature_importance(
     save_fig=False,
     top_features=10,
     figure_name="feature_importance",
+    palette="bone",
 ):
     names, importance = (
         list(feature_importance_dict.keys()),
@@ -262,7 +266,7 @@ def plot_feature_importance(
     sns.barplot(
         x=fi_df["feature_importance"][:top_features],
         y=fi_df["feature_names"][:top_features],
-        palette="bone",
+        palette=palette,
     )
 
     # Add chart labels

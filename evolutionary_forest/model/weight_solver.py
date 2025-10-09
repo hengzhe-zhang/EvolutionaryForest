@@ -12,8 +12,11 @@ def compute_lambda_matrix(y):
 
 
 def safe_lstsq(A, b, rcond=None):
-    return linalg.lstsq(A, b, cond=rcond, lapack_driver="gelsd")
-
+    try:
+        x, residuals, rank, s = linalg.lstsq(A, b, cond=rcond, lapack_driver="gelsd")
+    except np.linalg.LinAlgError:
+        x, residuals, rank, s = linalg.lstsq(A, b, cond=rcond, lapack_driver="gelsy")
+    return x, residuals, rank, s
 
 def compute_laplacian_term(phi_X, y, sigma=1.0):
     n = phi_X.shape[0]
