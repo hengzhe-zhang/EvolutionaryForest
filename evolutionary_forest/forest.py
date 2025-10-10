@@ -361,6 +361,7 @@ from evolutionary_forest.preprocess_utils import (
     StandardScalerWithMinMaxScaler,
     DummyScaler,
     StandardScalerWithMinMaxScalerAndBounds,
+    RealMLPPreprocessor,
 )
 from evolutionary_forest.preprocessing.SigmoidTransformer import SigmoidTransformer
 from evolutionary_forest.probability_gp import genFull
@@ -825,6 +826,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.y_scaler = YIntScaler(StandardScaler())
         elif normalize == "STD+MinMax+Bound":
             self.x_scaler = StandardScalerWithMinMaxScalerAndBounds()
+            self.y_scaler = StandardScaler()
+        elif normalize == "Robust+Clip":
+            self.x_scaler = RealMLPPreprocessor()
             self.y_scaler = StandardScaler()
         elif normalize == "MinMax":
             self.x_scaler = MinMaxScaler(feature_range=(0, 1))

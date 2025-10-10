@@ -190,5 +190,44 @@ class StandardScalerWithMinMaxScalerAndBounds(StandardScalerWithMinMaxScaler):
         return super().transform(X)
 
 
+class RealMLPPreprocessor(BaseEstimator, TransformerMixin):
+    """
+    RealMLP-style preprocessing for numeric features only.
+    Implements quantile-based scaling and smooth clipping from Holzmüller et al. (2025).
+    """
+
+    def __init__(self):
+        self.medians_ = None
+        self.scales_ = None
+
+    def fit(self, X, y=None):
+        X = np.asarray(X, dtype=float)
+        n_features = X.shape[1]
+        self.medians_ = np.zeros(n_features)
+        self.scales_ = np.zeros(n_features)
+
+        for j in range(n_features):
+            col = X[:, j]
+            q0, q1_4, q1_2, q3_4, q1 = np.percentile(col, [0, 25, 50, 75, 100])
+
+            if q3_4 != q1_4:
+                s = 1.0 / (q3_4 - q1_4)  # RobustScaler-like
+            elif q1 != q0:
+                s = 2.0 / (q1 - q0)  # MinMaxScaler-like
+            else:
+                s = 0.0  # constant column
+
+            self.medians_[j] = q1_2
+            self.scales_[j] = s
+        return self
+
+    def transform(self, X):
+        X = np.asarray(X, dtype=float)
+        X_scaled = (X - self.medians_) * self.scales_
+        # smooth clipping to roughly (-3, 3)
+        X_clipped = X_scaled / np.sqrt(1 + (X_scaled / 3) ** 2)
+        return X_clipped
+
+
 if __name__ == "__main__":
     pass
