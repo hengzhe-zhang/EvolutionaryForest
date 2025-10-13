@@ -368,6 +368,165 @@ def novel_selection_plus(population, k=100, status={}):
     return [ind for pair in zip(parent_a, parent_b) for ind in pair][:k]
 
 
+def novel_selection_flux(population, k=100, status={}):
+    n = len(population)
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    subset_count = k // 2
+    y = population[0].y
+    n_cases = y.size
+
+    # Mixed subsets: half structured, half random for specialization & diversity
+    ssize = max(6, n_cases // (2 * subset_count))
+    half = subset_count // 2
+    structured = [
+        np.arange(i * ssize, min((i + 1) * ssize, n_cases)) for i in range(half)
+    ]
+    random_ = [
+        np.random.choice(n_cases, ssize, replace=False)
+        for _ in range(subset_count - half)
+    ]
+    subsets = structured + random_
+
+    residuals = np.vstack(
+        [ind.y - ind.predicted_values for ind in population]
+    )  # (n, cases)
+    complexity = np.array([len(ind) + ind.height for ind in population], float)
+    complexity /= max(complexity.max(), 1)
+
+    mse_full = (residuals**2).mean(axis=1)
+    subset_mse = np.array(
+        [
+            [(residuals[i, s] ** 2).mean() if len(s) else np.inf for s in subsets]
+            for i in range(n)
+        ]
+    )
+    specialize = subset_mse.min(axis=1) < mse_full
+
+    # Adaptive pressure on mse vs complexity tuned to stage and specialization
+    pressure = 0.5 + 0.5 * stage
+    comp_w = 0.5 + 0.5 * (1 - stage) ** 1.5  # favor complexity early more sharply
+
+    score = np.where(
+        specialize,
+        pressure * 0.65 * mse_full + (1 - pressure) * comp_w * complexity,
+        pressure * mse_full + (1 - pressure) * complexity,
+    )
+
+    # Select parent_a: best individual per subset by lex order (subset mse, complexity)
+    parent_a = [
+        population[np.lexsort((complexity, subset_mse[:, i]))[0]]
+        for i in range(subset_count)
+    ]
+    inds = np.arange(n)
+
+    # Fill parent_a up to subset_count by weighted inverse softmax sampling on score
+    prob = np.exp(-(score - score.min()))
+    prob /= prob.sum()
+    attempts, limit = 0, subset_count * 10
+    while len(parent_a) < subset_count and attempts < limit:
+        chosen = np.random.choice(inds, p=prob)
+        parent_a.append(population[chosen])
+        attempts += 1
+    parent_a = parent_a[:subset_count]
+
+    idx_map = {ind: i for i, ind in enumerate(population)}
+    norms = np.linalg.norm(residuals, axis=1) + 1e-12
+
+    # For each parent_a, find complementary parent_b minimizing abs residual correlation + complexity penalty weighted by stage
+    parent_b = []
+    comp_factor = 0.25 + 0.25 * stage
+    for a in parent_a:
+        i_a = idx_map[a]
+        res_a = residuals[i_a]
+        cors = (residuals @ res_a) / (norms * norms[i_a])
+        cors[i_a] = 1  # exclude self
+        scores_b = np.abs(cors) + comp_factor * complexity
+        b_idx = np.argmin(scores_b)
+        parent_b.append(population[b_idx])
+
+    # Interleave parents to form pairs
+    selected = [ind for pair in zip(parent_a, parent_b) for ind in pair]
+    return selected[:k]
+
+
+def novel_selection_nova(population, k=100, status={}):
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    n = len(population)
+    half_k = k // 2
+    y = population[0].y
+    n_cases = y.size
+
+    # Subset sizing: half structured, half random for diversity & specialization
+    ssize = max(6, n_cases // max(1, 2 * half_k))
+    half_struct = half_k // 2
+    structured = [
+        np.arange(i * ssize, min((i + 1) * ssize, n_cases)) for i in range(half_struct)
+    ]
+    random_ = [
+        np.random.choice(n_cases, ssize, replace=False)
+        for _ in range(half_k - half_struct)
+    ]
+    subsets = structured + random_
+
+    # Residuals and complexity normalized
+    residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
+    complexity = np.array([len(ind) + ind.height for ind in population], float)
+    complexity /= max(1, complexity.max())
+    mse_full = (residuals**2).mean(axis=1)
+    subset_mse = np.array(
+        [
+            [((residuals[i, s]) ** 2).mean() if s.size else np.inf for s in subsets]
+            for i in range(n)
+        ]
+    )
+    specialize = subset_mse.min(axis=1) < mse_full
+
+    # Adaptive weights increasing with stage; blend MSE and complexity
+    pressure = 0.43 + 0.57 * stage
+    spec_w = 0.62 * stage
+    comp_w = 0.4 * stage
+    score = np.where(
+        specialize,
+        pressure * (spec_w * mse_full + (1 - spec_w) * subset_mse.min(axis=1))
+        + (1 - pressure) * comp_w * complexity,
+        pressure * mse_full + (1 - pressure) * complexity,
+    )
+
+    # Select parent_a: best individual per subset by lexsort on subset_mse then complexity
+    parent_a = [
+        population[np.lexsort((complexity, subset_mse[:, i]))[0]]
+        for i in range(len(subsets))
+    ]
+    # Fill parent_a to half_k by inverse-softmax sampling on score (stop after max tries)
+    if len(parent_a) < half_k:
+        inv_score = np.exp(-(score - score.min()))
+        inv_score /= inv_score.sum()
+        tries, max_tries = 0, 10 * half_k
+        while len(parent_a) < half_k and tries < max_tries:
+            chosen = np.random.choice(n, p=inv_score)
+            parent_a.append(population[chosen])
+            tries += 1
+        parent_a = parent_a[:half_k]
+
+    # Correlation and complexity for pairing
+    idx_map = {ind: i for i, ind in enumerate(population)}
+    norms = np.linalg.norm(residuals, axis=1) + 1e-12
+    parent_b = []
+    for a in parent_a:
+        i_a = idx_map[a]
+        res_a = residuals[i_a]
+        cors = (residuals @ res_a) / (norms * norms[i_a])
+        cors[i_a] = 1  # exclude self
+        comp_pen = 0.29 * complexity
+        scores_b = np.abs(cors) + comp_pen
+        b_idx = np.argmin(scores_b)
+        parent_b.append(population[b_idx])
+
+    # Interleave parents for pairs
+    selected = [ind for pair in zip(parent_a, parent_b) for ind in pair]
+    return selected[:k]
+
+
 def novel_selection_aether(population, k=100, status={}):
     n = len(population)
     stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
