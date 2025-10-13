@@ -1917,8 +1917,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             leaf_size = self.base_learner.split("-")[-1]
             leaf = get_leaf_size_of_dt(leaf_size, self.y)
             ridge_model = RidgeBoostedDT(leaf_size=leaf)
-        elif self.base_learner in ["SNCA-Uniform", "OptimalKNN+DT"]:
+        elif self.base_learner in ["OptimalKNN", "OptimalKNN+DT"]:
             ridge_model = OptimalKNN(**self.param, distance="SkipUniform")
+        elif self.base_learner in ["OptimalKNN-U"]:
+            ridge_model = OptimalKNN(**self.param, distance="Uniform")
         elif self.base_learner == "RidgeBoostedKNN-U":
             ridge_model = RidgeBoostedKNN({**self.param, "distance": "Uniform"})
         elif self.base_learner == "BoundedRidgeBoostedKNN":
