@@ -263,6 +263,8 @@ from evolutionary_forest.component.selection_operators.informed_lexicase import 
     novel_selection,
     complementary_tournament,
     select_cps_regression,
+    novel_selection_nexo,
+    novel_selection_aether,
 )
 from evolutionary_forest.component.selection_operators.lexicase_pareto_tournament import (
     sel_lexicase_pareto_tournament_random_subset,
@@ -2641,6 +2643,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 novel_selection_plus,
             )
+        elif self.select == "NovelSelection-Nexo":
+            toolbox.register("select", novel_selection_nexo)
+        elif self.select == "NovelSelection-Aether":
+            toolbox.register("select", novel_selection_aether)
         elif self.select == "NovelSelection-V2":
             from evolutionary_forest.component.selection_operators.informed_lexicase import (
                 novel_selection_v2,

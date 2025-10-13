@@ -368,6 +368,160 @@ def novel_selection_plus(population, k=100, status={}):
     return [ind for pair in zip(parent_a, parent_b) for ind in pair][:k]
 
 
+def novel_selection_aether(population, k=100, status={}):
+    n = len(population)
+    stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
+    half_k = max(1, k // 2)
+    n_cases = len(population[0].case_values)
+    rng = np.random.default_rng(42 + int(stage * 1000))
+
+    # Adaptive subsets: count grows & size shrinks with stage, balancing diversity & specialization
+    subset_count = half_k + int(half_k * stage * 0.7)
+    subset_size = max(5, n_cases // (3 + int(6.5 * stage)))
+    subsets = [
+        rng.choice(n_cases, subset_size, replace=False) for _ in range(subset_count)
+    ]
+
+    # Complexities and normalized complexity for interpretability penalty
+    comps = np.array([len(ind) + ind.height for ind in population], dtype=float)
+    norm_comp = (comps - comps.min()) / (comps.ptp() + 1e-10)
+    penalty_w = 0.018 + 0.09 * stage
+
+    # Residuals for all individuals
+    residuals = np.array([ind.y - ind.predicted_values for ind in population])
+    # Specialized scores: MSE on subsets + complexity penalty
+    mse_sub = np.column_stack([np.mean(residuals[:, s] ** 2, axis=1) for s in subsets])
+    spec_scores = mse_sub + penalty_w * norm_comp[:, None]
+    spec_idx = np.argmin(spec_scores, axis=0).tolist()
+
+    # Generalists based on overall fitness and complexity, count shrinks with stage to favor specialization
+    mse_full = np.mean(residuals**2, axis=1)
+    gen_count = max(1, half_k // (2 + (3 if stage < 0.65 else 5)))
+    gen_candidates = [
+        i for i in np.argsort(mse_full + penalty_w * norm_comp) if i not in spec_idx
+    ]
+    generalists_idx = gen_candidates[:gen_count]
+
+    # Combine and fill up to half_k, allowing repeats from specialists
+    parents_a_idx = (spec_idx + generalists_idx)[:half_k]
+    if len(parents_a_idx) < half_k:
+        fill_order = np.argsort(mse_full + penalty_w * norm_comp)
+        idx_set = set(parents_a_idx)
+        parents_a_idx += [i for i in fill_order if i not in idx_set][
+            : half_k - len(parents_a_idx)
+        ]
+    parents_a = [population[i] for i in parents_a_idx]
+
+    # Normalize residuals centered by mean; handle zero norm safely
+    resid_c = residuals - residuals.mean(axis=1, keepdims=True)
+    norms = np.linalg.norm(resid_c, axis=1)
+    norms_safe = np.where(norms < 1e-8, 1, norms)
+    resid_norm = resid_c / norms_safe[:, None]
+
+    parents_b = []
+    max_trials = 30
+
+    # For each parent_a select complementary parent_b with low residual correlation + complexity penalty
+    for idx_a in parents_a_idx:
+        pa_res_norm = resid_norm[idx_a]
+        pa_norm = norms[idx_a]
+
+        if pa_norm < 1e-8:  # minimal residual variance => pick simplest individuals
+            candidates = np.argsort(comps)[:max_trials]
+        else:
+            corrs = resid_norm @ pa_res_norm
+            corrs[idx_a] = np.inf  # exclude self
+            scores_b = np.abs(corrs) + penalty_w * norm_comp
+            candidates = np.argsort(scores_b)[:max_trials]
+
+        # Select first candidate distinct from parent_a; fallback to first candidate
+        selected = next(
+            (population[c] for c in candidates if c != idx_a),
+            population[candidates[0]],
+        )
+        parents_b.append(selected)
+
+    # Interleave for crossover pairs
+    return [ind for pair in zip(parents_a, parents_b) for ind in pair]
+
+
+def novel_selection_nexo(population, k=100, status={}):
+    evo_stage = status.get("evolutionary_stage", 0)
+    n = len(population)
+    n_instances = population[0].case_values.shape[0]
+    half_k = k // 2
+
+    # Create mixed subsets: structured splits + random subsets to encourage diversity
+    n_subsets = half_k
+    splits = np.array_split(np.arange(n_instances), max(2, min(10, n_subsets // 2)))
+    rng = np.random.default_rng()
+    random_subsets = [
+        rng.choice(n_instances, max(5, n_instances // 10), replace=False)
+        for _ in range(n_subsets - len(splits))
+    ]
+    subsets = splits + random_subsets
+
+    # Precompute complexities normalized [0,1]
+    comps = np.array([(len(ind) + ind.height) for ind in population])
+    comp_norm = (comps - comps.min()) / (comps.ptp() + 1e-8)
+
+    # Precompute full MSE normalized [0,1]
+    mse_all = np.array([np.mean(ind.case_values) for ind in population])
+    mse_norm = (mse_all - mse_all.min()) / (mse_all.ptp() + 1e-8)
+
+    w_acc = 1 - evo_stage  # accuracy pressure early
+    w_comp = evo_stage  # interpretability pressure late
+
+    # Evaluate fitness on subsets balancing mse and complexity
+    def fitness(ind, subset):
+        mse = np.mean(ind.case_values[subset])
+        c = (len(ind) + ind.height) / 200  # rough normalization
+        return w_acc * mse + w_comp * c
+
+    parent_a = []
+    selected_counts = np.zeros(n, int)
+
+    # Select parent_a individs per subset, penalize repeats to promote diversity
+    for subset in subsets:
+        fits = np.array([fitness(ind, subset) for ind in population])
+        penalized = fits + 0.1 * selected_counts
+        idx = np.argmin(penalized)
+        parent_a.append(population[idx])
+        selected_counts[idx] += 1
+        if len(parent_a) == half_k:
+            break
+    # If not enough selected (rare), fill randomly weighted by inverse combined score
+    if len(parent_a) < half_k:
+        combined = w_acc * mse_norm + w_comp * comp_norm
+        weights = 1 / (combined + 1e-8)
+        weights /= weights.sum()
+        chosen = np.random.choice(n, half_k - len(parent_a), p=weights)
+        parent_a += [population[i] for i in chosen]
+
+    # Precompute residuals for correlation-based complementary selection
+    resid_all = np.array([ind.residual for ind in population])  # n x data_len
+    comp_scores = comp_norm.copy()
+
+    parent_b = []
+    for pa in parent_a:
+        res_pa = pa.residual - pa.residual.mean()
+        res_all_cent = resid_all - resid_all.mean(axis=1, keepdims=True)
+        denom = np.linalg.norm(res_pa) * np.linalg.norm(res_all_cent, axis=1)
+        denom = np.where(denom < 1e-8, 1e-8, denom)
+        corr = np.abs(res_all_cent @ res_pa) / denom  # abs Pearson correlation
+
+        # Score favors low correlation complement & complexity penalty weighted by early stage
+        score = corr + comp_scores * 0.5 * (1 - evo_stage)
+        exclude_idx = population.index(pa)
+        score[exclude_idx] = np.inf
+        b_idx = np.argmin(score)
+        parent_b.append(population[b_idx])
+
+    # Interleave to form pairs
+    selected = [ind for pair in zip(parent_a, parent_b) for ind in pair]
+    return selected[:k]
+
+
 def novel_selection_fixed(population, k=100, status={}):
     stage = np.clip(status.get("evolutionary_stage", 0), 0, 1)
     n = len(population)
