@@ -162,6 +162,10 @@ class RidgeBoostedSimpleKNN(RidgeBoostedKNN):
 
         # Stage 2: Fit KNeighborsRegressor on residuals
         residuals = y - self.ridge_model_.predict(X)
+        valid_params = KNeighborsRegressor().get_params().keys()
+        self.knn_params = {
+            k: v for k, v in self.knn_params.items() if k in valid_params
+        }
         self.knn_model_ = KNeighborsRegressor(**self.knn_params)
         self.knn_model_.fit(X, residuals)
 
