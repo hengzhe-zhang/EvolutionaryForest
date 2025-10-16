@@ -256,7 +256,7 @@ from evolutionary_forest.component.selection_operators.curriculum_learning impor
     dynamic_difficulty_lexicase_selection,
     phase_based_curriculum_lexicase,
     adaptive_epsilon_curriculum_lexicase,
-    adaptive_tier_lexicase_selection,
+    debug_selection,
 )
 from evolutionary_forest.component.selection_operators.da_lexicase import selDAlexFast
 from evolutionary_forest.component.selection_operators.informed_lexicase import (
@@ -2584,12 +2584,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", lexicase.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
-        elif self.select == "AdaptiveTierLexicase":
-            toolbox.register(
-                "select",
-                adaptive_tier_lexicase_selection,
-                generation_info=self.generation_info,
-            )
+        elif self.select == "DebugSelection":
+            toolbox.register("select", debug_selection)
         elif self.select == "CompetitiveSelection":
             toolbox.register("select", selCompetitive)
         elif self.select in [
