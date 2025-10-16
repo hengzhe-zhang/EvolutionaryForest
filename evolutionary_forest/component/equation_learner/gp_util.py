@@ -55,6 +55,12 @@ def eql_mutation(gp: MultipleGeneGP, pset, X, y, eql_config: EQLHybridConfigurat
     return offspring, random_idx
 
 
+def pick_first(d, *keys):
+    for k in keys:
+        if k in d:
+            return d[k]
+
+
 def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
     # Convert the resulting expression string to a DEAP GP tree.
     pset_dict = {
@@ -62,8 +68,8 @@ def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
     }
     pset_dict = {
         **pset_dict,
-        "sin": pset_dict["rsin"],
-        "cos": pset_dict["rcos"],
+        "sin": pick_first(pset_dict, "rsin", "sinpi"),
+        "cos": pick_first(pset_dict, "rcos", "cospi"),
     }
     # Use symbolic regression on (X, target) to evolve a new expression.
     # Reshape target to (n_samples, 1) if needed.
@@ -86,7 +92,9 @@ def generate_tree_by_eql(X, target, pset, eql_config: EQLHybridConfiguration):
 
         tree_size = get_tree_size(gp_tree)
         if DEBUG:
-            print(f"Average size: {tree_size},{reg_weight},{eql_config.eql_size_limit}")
+            print(
+                f"Average size: {tree_size},reg_weight: {reg_weight}, eql_size_limit: {eql_config.eql_size_limit}"
+            )
         if tree_size <= eql_config.eql_size_limit:
             break
         else:

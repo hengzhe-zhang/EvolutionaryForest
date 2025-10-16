@@ -151,6 +151,7 @@ from evolutionary_forest.component.environmental_selection import (
 )
 from evolutionary_forest.component.equation_learner.subsample_high_dimensional_dataset import (
     generate_forest_by_eql,
+    generate_forest_by_bootstrap,
 )
 from evolutionary_forest.component.evaluation import (
     calculate_score,
@@ -4818,17 +4819,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         config = self.eql_hybrid_configuration
         hybrid = config.eql_hybrid
         if hybrid > 0 and not isinstance(self, ClassifierMixin):
-            # not support for classification
-            trees = generate_forest_by_eql(self.X, self.y, self.pset, config)
-            if len(trees) == 0:
-                return
-            set_of_inds = population[: len(trees)]
-            for ind, tree in zip(set_of_inds, trees):
-                if len(tree) == 1 and isinstance(
-                    tree[0].value, (int, float, np.float32, np.int32)
-                ):
-                    continue
-                ind.gene = [tree]
+            ind = population[0]
+            if ind.gene_num == 1:
+                # not support for classification
+                trees = generate_forest_by_eql(self.X, self.y, self.pset, config)
+                if len(trees) == 0:
+                    return
+                set_of_inds = population[: len(trees)]
+                for ind, tree in zip(set_of_inds, trees):
+                    if len(tree) == 1 and isinstance(
+                        tree[0].value, (int, float, np.float32, np.int32)
+                    ):
+                        continue
+                    ind.gene = [tree]
+                    del ind.fitness.values
+            else:
+                trees = generate_forest_by_bootstrap(
+                    self.X, self.y, self.pset, config, n_rounds=self.gene_num
+                )
+                ind.gene = trees
                 del ind.fitness.values
 
     def adaptive_operator_selection_update(self, offspring, population):

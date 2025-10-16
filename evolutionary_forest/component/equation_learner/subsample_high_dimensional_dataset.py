@@ -1,7 +1,7 @@
 import random
 
 import numpy as np
-from deap.gp import Terminal, PrimitiveSet
+from deap.gp import PrimitiveSet
 
 from evolutionary_forest.component.equation_learner.gp_util import generate_tree_by_eql
 
@@ -42,54 +42,123 @@ def generate_forest_by_eql(X, target, pset, eql_config):
     # For this implementation, we assume that the dataset's features are identified as "ARG0", "ARG1", etc.
     orig_names = [f"ARG{i}" for i in range(n_features)]
 
+    non_constant_indices = _get_non_constant_indices(X)
+
+    if len(non_constant_indices) == 0:
+        return []
+
+    threshold = 5
+    if n_features <= threshold:
+        # Low-dimensional: use all non-constant features
+        gp_tree = _generate_tree_with_feature_subset(
+            X, target, pset, eql_config, non_constant_indices, orig_names
+        )
+        trees.append(gp_tree)
+    else:
+        # High-dimensional: perform five rounds, each with 5 randomly sampled features.
+        rounds = 5
+        for _ in range(rounds):
+            # Randomly select sample_size feature indices without replacement.
+            sampled_indices = random.sample(non_constant_indices, threshold)
+            gp_tree_mapped = _generate_tree_with_feature_subset(
+                X, target, pset, eql_config, sampled_indices, orig_names
+            )
+            trees.append(gp_tree_mapped)
+
+    return trees
+
+
+def _get_non_constant_indices(X):
     # Identify constant features (features with zero variance)
     variances = np.var(X, axis=0)
     constant_features = np.where(variances == 0)[0]
 
     # Remove constant features from the dataset
-    non_constant_indices = [i for i in range(n_features) if i not in constant_features]
+    non_constant_indices = [i for i in range(X.shape[1]) if i not in constant_features]
+    return non_constant_indices
 
+
+def _generate_tree_with_feature_subset(
+    X, target, pset, eql_config, feature_indices, original_feature_names
+):
     # Build a feature map from DEAP's pset terminals (for object and float types).
     # This creates a dictionary mapping from terminal name (e.g., "ARG0") to the actual terminal object.
-    feature_map = {v.name: v for v in (pset.terminals[object] + pset.terminals[float])}
+    feature_map = {
+        v.name: v
+        for v in (pset.terminals[object] + pset.terminals[float])
+        if not v.name.startswith("rand")
+    }
 
+    no_float = False
+    if len(pset.terminals[float]) == 0:
+        del pset.terminals[float]
+        no_float = True
+
+    # Subset X based on type (DataFrame or numpy array).
+    X_sub = X[:, feature_indices]
+
+    # Run the original EQL procedure on the sampled features.
+    gp_tree_sub = generate_tree_by_eql(X_sub, target, pset, eql_config)
+
+    # Build a mapping from the GP tree's terminal names ("ARG0", "ARG1", ...)
+    # to the corresponding DEAP pset terminal objects.
+    mapping = {
+        pset.arguments[i]: feature_map[original_feature_names[sampled_idx]]
+        for i, sampled_idx in enumerate(feature_indices)
+    }
+
+    # Map the feature names in the gp_tree back to the DEAP pset terminal objects.
+    gp_tree_mapped = map_features_in_tree(gp_tree_sub, mapping)
+
+    if no_float:
+        for node in gp_tree_mapped:
+            if node.ret == float:
+                node.ret = object
+    return gp_tree_mapped
+
+
+def generate_forest_by_bootstrap(X, target, pset, eql_config, n_rounds=10):
+    """
+    New bootstrap strategy: sample both samples and features (if high-dim).
+
+    Parameters:
+    - n_rounds: Number of bootstrap rounds (default: 5)
+    """
+    trees = []
+    n_samples, n_features = X.shape
+
+    # Get non-constant features
+    non_constant_indices = _get_non_constant_indices(X)
     if len(non_constant_indices) == 0:
         return []
 
-    if n_features <= 5:
-        # Low-dimensional: run on the full dataset.
-        terminals_list = pset.terminals[object] + pset.terminals[float]
-        number_of_variables = len([isinstance(t, Terminal) for t in terminals_list])
-        X_sub = X[:, non_constant_indices]
-        assert X_sub.shape[1] == number_of_variables, (
-            "Inconsistent number of variables in the dataset and DEAP pset terminals."
+    original_feature_names = [f"ARG{i}" for i in range(n_features)]
+    threshold = 5
+
+    for _ in range(n_rounds):
+        # Bootstrap sample indices (with replacement)
+        sample_indices = np.random.choice(n_samples, size=n_samples, replace=True)
+        X_boot = X[sample_indices]
+        target_boot = target[sample_indices]
+
+        # Determine feature indices to use
+        if len(non_constant_indices) <= threshold:
+            # Low-dimensional: use all non-constant features
+            feature_indices = non_constant_indices
+        else:
+            # High-dimensional: randomly sample threshold features
+            feature_indices = random.sample(non_constant_indices, threshold)
+
+        # Generate tree with bootstrapped data and selected features
+        tree = _generate_tree_with_feature_subset(
+            X_boot,
+            target_boot,
+            pset,
+            eql_config,
+            feature_indices,
+            original_feature_names,
         )
-        gp_tree = generate_tree_by_eql(X_sub, target, pset, eql_config)
-        trees.append(gp_tree)
-    else:
-        # High-dimensional: perform five rounds, each with 5 randomly sampled features.
-        rounds = 5
-        sample_size = 5
-        for _ in range(rounds):
-            # Randomly select sample_size feature indices without replacement.
-            sampled_indices = random.sample(non_constant_indices, sample_size)
-
-            # Subset X based on type (DataFrame or numpy array).
-            X_sub = X[:, sampled_indices]
-
-            # Run the original EQL procedure on the sampled features.
-            gp_tree_sub = generate_tree_by_eql(X_sub, target, pset, eql_config)
-
-            # Build a mapping from the GP tree's terminal names ("ARG0", "ARG1", ...)
-            # to the corresponding DEAP pset terminal objects.
-            mapping = {
-                pset.arguments[i]: feature_map[orig_names[sampled_idx]]
-                for i, sampled_idx in enumerate(sampled_indices)
-            }
-
-            # Map the feature names in the gp_tree back to the DEAP pset terminal objects.
-            gp_tree_mapped = map_features_in_tree(gp_tree_sub, mapping)
-            trees.append(gp_tree_mapped)
+        trees.append(tree)
 
     return trees
 
@@ -102,8 +171,8 @@ if __name__ == "__main__":
     X, y = make_regression(n_features=5)
     X[:, 2] = np.ones(X.shape[0])  # Add a constant feature
     pset = PrimitiveSet("MAIN", X.shape[1])
-    pset.addPrimitive(np.sin, 1, "rsin")
-    pset.addPrimitive(np.cos, 1, "rcos")
+    pset.addPrimitive(np.sin, 1, "sinpi")
+    pset.addPrimitive(np.cos, 1, "cospi")
     pset.addPrimitive(np.add, 2, "add")
     pset.addPrimitive(np.subtract, 2, "sub")
     pset.addPrimitive(np.multiply, 2, "mul")
@@ -111,4 +180,5 @@ if __name__ == "__main__":
     pset.addPrimitive(np.square, 2, "square")
     pset.addPrimitive(np.negative, 2, "neg")
     remove_constant_variables(pset, X)
-    print(generate_forest_by_eql(X, y, pset, EQLHybridConfiguration()))
+    for tree in generate_forest_by_bootstrap(X, y, pset, EQLHybridConfiguration()):
+        print(tree)
