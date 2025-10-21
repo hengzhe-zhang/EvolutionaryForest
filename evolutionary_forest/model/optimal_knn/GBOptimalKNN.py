@@ -14,11 +14,13 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 from sklearn.tree import DecisionTreeRegressor
 
+from evolutionary_forest.model.knn.LaplacianEigenmapsKNN import LaplacianEigenmapsKNN
+from evolutionary_forest.model.knn.PLSKNN import PLSKNN
 from evolutionary_forest.model.linear_regression import BoundedRidgeRegressor
 
 
 class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
-    def __init__(self, knn_params=None, bounded_ridge=False):
+    def __init__(self, knn_params=None, bounded_ridge=False, knn_model=None):
         """
         RidgeBoostedKNN: A two-stage regressor that first fits RidgeCV,
         then fits OptimalKNN on the residuals.
@@ -31,6 +33,7 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         self.knn_params = knn_params if knn_params is not None else {}
         self.time_information = {}
         self.bounded_ridge = bounded_ridge
+        self.knn_model = knn_model
 
     def fit(self, X, y):
         """Fit RidgeCV first, then OptimalKNN on residuals."""
@@ -51,7 +54,14 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
 
         # Stage 2: Fit OptimalKNN on residuals
         residuals = y - self.ridge_model_.predict(X)
-        self.knn_model_ = OptimalKNN(**self.knn_params)
+        if self.knn_model is None:
+            self.knn_model_ = OptimalKNN(**self.knn_params)
+        elif self.knn_model == "PLSKNN":
+            self.knn_model_ = PLSKNN()
+        elif self.knn_model == "LaplacianEigenmapsKNN":
+            self.knn_model_ = LaplacianEigenmapsKNN()
+        else:
+            self.knn_model_ = self.knn_model
         self.knn_model_.fit(X, residuals)
 
         return self

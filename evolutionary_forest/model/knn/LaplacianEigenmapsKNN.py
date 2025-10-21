@@ -5,30 +5,13 @@ from sklearn.metrics import pairwise_distances
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 
+from sklearn.neighbors import KNeighborsRegressor
+
+
 class LaplacianEigenmapsKNN(OptimalKNN):
     """
-    A simplified KNN model that learns a parametric Laplacian Eigenmaps embedding
-    from label similarity, then runs KNN in that learned manifold space.
-
-    Inherits from OptimalKNN for consistency with API (fit, transform, predict),
-    but overrides the core training routine to:
-        1. Compute label-based similarity S and Laplacian L
-        2. Solve (X^T L X) w = λ (X^T D X) w
-        3. Use eigenvectors to define transformation W
-        4. Fit KNN on XW
-
-    Parameters
-    ----------
-    n_neighbors : int
-        Number of neighbors for KNN.
-    n_components : int or None
-        Dimensionality of the embedding space. Defaults to p-1.
-    sigma : float
-        Bandwidth of the label similarity RBF kernel.
-    distance : str
-        'Uniform' or 'Euclidean' to set KNN weighting.
-    ridge : float
-        Regularization term added to X^T D X for numerical stability.
+    Parametric Laplacian Eigenmaps + KNN
+    Learns a projection W via label-similarity Laplacian, then runs KNN in embedded space.
     """
 
     def __init__(
@@ -38,6 +21,7 @@ class LaplacianEigenmapsKNN(OptimalKNN):
         sigma=1.0,
         distance="Uniform",
         ridge=1e-8,
+        knn_subsampling=100,
         random_seed=0,
         base_learner=None,
     ):
@@ -51,8 +35,7 @@ class LaplacianEigenmapsKNN(OptimalKNN):
         self.n_components = n_components
         self.sigma = sigma
         self.ridge = ridge
-
-        # learned params
+        self.knn_subsampling = knn_subsampling
         self.W_ = None
 
     def fit(self, X, y):
@@ -61,28 +44,38 @@ class LaplacianEigenmapsKNN(OptimalKNN):
         n, p = X.shape
         self.n_features_in_ = p
 
-        # --- Step 1: Label-based similarity and Laplacian ---
-        y = y.reshape(-1, 1)
-        y_dist = pairwise_distances(y, metric="euclidean")
+        # ---- Step 0: Optional subsampling ----
+        if len(y) > self.knn_subsampling:
+            subsample_indices = np.random.choice(
+                len(y), self.knn_subsampling, replace=False
+            )
+            X_sub = X[subsample_indices]
+            y_sub = y[subsample_indices]
+        else:
+            X_sub, y_sub = X, y
+
+        # ---- Step 1: Label-based similarity and Laplacian ----
+        y_sub = y_sub.reshape(-1, 1)
+        y_dist = pairwise_distances(y_sub, metric="euclidean")
         S = np.exp(-(y_dist**2) / (2 * self.sigma**2))
         Dmat = np.diag(S.sum(axis=1))
         L = Dmat - S
 
-        # --- Step 2: Generalized eigenproblem ---
-        A = X.T @ L @ X
-        B = X.T @ Dmat @ X + self.ridge * np.eye(p)
+        # ---- Step 2: Generalized eigenproblem ----
+        A = X_sub.T @ L @ X_sub
+        B = X_sub.T @ Dmat @ X_sub + self.ridge * np.eye(p)
 
-        n_comp = self.n_components or max(1, p - 1)
         vals, vecs = eigh(A, B)
-        idx = np.argsort(vals)  # ascending
+        idx = np.argsort(vals)
         vals, vecs = vals[idx], vecs[:, idx]
 
-        # Skip the trivial eigenvector if eigenvalue ≈ 0
+        # Determine dimensionality (skip trivial eigenvector if necessary)
+        n_comp = self.n_components or max(1, p - 1)
         start = 1 if vals[0] < 1e-12 and p > 1 else 0
         end = min(start + n_comp, p)
         self.W_ = vecs[:, start:end]
 
-        # --- Step 3: Transform and fit KNN ---
+        # ---- Step 3: Transform full training data & fit KNN ----
         transformed_X = X @ self.W_
         self.training_data = transformed_X
         self.get_knn_model(self.base_learner, self.distance)
@@ -100,8 +93,8 @@ class LaplacianEigenmapsKNN(OptimalKNN):
         prediction = self.knn.predict(test_data)
         prediction = np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
         if return_transformed:
-            return prediction, test_data
-        return prediction
+            return prediction.flatten(), test_data
+        return prediction.flatten()
 
 
 if __name__ == "__main__":
