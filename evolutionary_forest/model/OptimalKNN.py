@@ -242,7 +242,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
     def __init__(
         self,
         n_neighbors=5,
-        distance="SkipUniform",
+        distance="Uniform",
         random_seed=0,
         n_groups=1,
         reduced_dimension=None,
@@ -252,6 +252,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         informed_optimal_knn_sampling=False,
         random_knn_subsampling=True,
         laplacian_reg=1,
+        contrastive_l2_regularization=1e-5,
         **params,
     ):
         self.n_neighbors = n_neighbors
@@ -270,6 +271,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.random_knn_subsampling = random_knn_subsampling
         self.informed_optimal_knn_sampling = informed_optimal_knn_sampling
         self.laplacian_reg = laplacian_reg
+        self.contrastive_l2_regularization = contrastive_l2_regularization
 
         self.time_information = {}
 
@@ -374,6 +376,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
                 y=y_group,
                 weights=weights,
                 p=reduced_dimension,
+                regularization=self.contrastive_l2_regularization,
                 laplacian_reg=self.laplacian_reg,
             )
             # self.print_mse(D_group, GP_X_group, weight)
