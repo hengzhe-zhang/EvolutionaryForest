@@ -1,5 +1,6 @@
 from sklearn.cross_decomposition import PLSRegression
 import numpy as np
+from sklearn.feature_selection import VarianceThreshold
 
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
@@ -9,8 +10,9 @@ class PLSKNN(OptimalKNN):
     Simplified OptimalKNN subclass using sklearn's PLSRegression
     for feature transformation.
 
+    - Removes constant features before PLS
     - No subsampling, grouping, or Laplacian regularization
-    - n_components = X.shape[1] (full dimension)
+    - n_components = X.shape[1] after constant-feature removal
     - No timing or logging
     """
 
@@ -29,27 +31,36 @@ class PLSKNN(OptimalKNN):
             base_learner=base_learner,
         )
         self.pls = None
+        self.var_thresh = None
+        self.n_features_in_ = None
 
     def fit(self, X, y):
+        # Remove constant features
+        self.var_thresh = VarianceThreshold(threshold=0.0)
+        X_filtered = self.var_thresh.fit_transform(X)
+        self.n_features_in_ = X_filtered.shape[1]
+
         # Initialize KNN
         self.get_knn_model(self.base_learner, self.distance)
-        self.n_features_in_ = X.shape[1]
 
-        # Use all features as components
-        n_comp = X.shape[1]
+        # Use all remaining features as PLS components
+        n_comp = X_filtered.shape[1]
         self.pls = PLSRegression(n_components=n_comp)
-        self.pls.fit(X, y)
+        self.pls.fit(X_filtered, y)
 
-        # Transform data and fit KNN
-        training_data = self.pls.transform(X)
+        # Transform and fit KNN
+        training_data = self.pls.transform(X_filtered)
         self.knn.fit(training_data, y)
 
         return self
 
     def transform(self, X):
-        if self.pls is None:
-            raise ValueError("PLS model not fitted yet. Call fit() first.")
-        return self.pls.transform(X)
+        if self.pls is None or self.var_thresh is None:
+            raise ValueError("Model not fitted yet. Call fit() first.")
+
+        # Apply same feature mask
+        X_filtered = self.var_thresh.transform(X)
+        return self.pls.transform(X_filtered)
 
     def predict(self, X, return_transformed=False):
         test_data = self.transform(X)
