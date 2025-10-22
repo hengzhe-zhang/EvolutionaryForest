@@ -5,6 +5,8 @@ from sklearn.cluster import KMeans
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
+from sklearn.preprocessing import normalize
+from sklearn.utils.validation import check_array
 
 
 @njit
@@ -49,50 +51,29 @@ def update_centers(X, labels, n_clusters):
     return centers
 
 
-class CosineKMeans(BaseEstimator, ClusterMixin):
-    def __init__(self, n_clusters=8, max_iter=300, tol=1e-4, random_state=None):
-        self.n_clusters = n_clusters
-        self.max_iter = max_iter
-        self.tol = tol
-        self.random_state = random_state
+class CosineKMeans(KMeans):
+    """
+    Cosine-similarity KMeans implemented by subclassing sklearn.KMeans.
 
-    def fit(self, X, y=None):
-        X = check_array(X.astype(np.float64))
-        n_samples, n_features = X.shape
+    This works by L2-normalizing all samples and cluster centers so that
+    cosine similarity == dot product. Otherwise identical to regular KMeans.
+    """
 
-        if self.random_state is not None:
-            np.random.seed(self.random_state)
+    def fit(self, X, y=None, sample_weight=None):
+        X = check_array(X, dtype=np.float64)
+        X = normalize(X, norm="l2")
 
-        # Initialize centers
-        initial_indices = np.random.choice(n_samples, self.n_clusters, replace=False)
-        centers = X[initial_indices]
-
-        for iteration in range(self.max_iter):
-            similarity_matrix = compute_cosine_similarity_matrix(X, centers)
-            labels = np.argmax(similarity_matrix, axis=1)
-
-            new_centers = update_centers(X, labels, self.n_clusters)
-            center_shift = np.sum((centers - new_centers) ** 2)
-
-            centers = new_centers
-
-            if center_shift <= self.tol:
-                break
-
-        self.cluster_centers_ = centers
-        self.labels_ = labels
+        super().fit(X, y, sample_weight)
+        self.cluster_centers_ = normalize(self.cluster_centers_, norm="l2")
         return self
 
     def predict(self, X):
-        check_is_fitted(self, ["cluster_centers_"])
-        X = check_array(X.astype(np.float64))
+        X = check_array(X, dtype=np.float64)
+        X = normalize(X, norm="l2")
 
-        similarity_matrix = compute_cosine_similarity_matrix(X, self.cluster_centers_)
-        return np.argmax(similarity_matrix, axis=1)
-
-    def fit_predict(self, X, y=None):
-        self.fit(X)
-        return self.labels_
+        # Cosine similarity = dot product on L2-normalized vectors
+        similarity = X @ self.cluster_centers_.T
+        return np.argmax(similarity, axis=1)
 
 
 def select_medoid(cluster_semantics):

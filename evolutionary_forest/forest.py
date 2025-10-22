@@ -3169,6 +3169,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = GridMAPElites(self.ensemble_size, y=self.y, **self.param)
         elif self.ensemble_selection == "CVT-MAPElitesHOF":
             self.hof = CVTMAPElitesHOF(self.ensemble_size, y=self.y, **self.param)
+        elif self.ensemble_selection == "CVT-MAPElitesHOF-L2":
+            self.hof = CVTMAPElitesHOF(
+                self.ensemble_size, y=self.y, clustering_method="KMeans", **self.param
+            )
         elif self.ensemble_selection == "CVT-MAPElitesHOF-Free":
             self.hof = CVTMAPElitesHOF(
                 self.ensemble_size, y=self.y, map_elites_hof_mode="Free", **self.param
