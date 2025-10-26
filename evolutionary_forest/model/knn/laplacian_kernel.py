@@ -20,7 +20,7 @@ def topk_binary_laplacian_fast(y, k=5):
 
     D = np.diag(S.sum(axis=1))
     L = D - S
-    return S, L
+    return L
 
 
 if __name__ == "__main__":

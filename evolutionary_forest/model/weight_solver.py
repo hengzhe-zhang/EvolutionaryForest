@@ -3,6 +3,8 @@ from sklearn.metrics.pairwise import rbf_kernel
 from numpy.linalg import eig
 from scipy import linalg
 
+from evolutionary_forest.model.knn.laplacian_kernel import topk_binary_laplacian_fast
+
 
 def compute_lambda_matrix(y):
     """Compute RBF weight matrix for targets Y using γ = 1 / Var(Y)."""
@@ -18,17 +20,9 @@ def safe_lstsq(A, b, rcond=None):
         x, residuals, rank, s = linalg.lstsq(A, b, cond=rcond, lapack_driver="gelsy")
     return x, residuals, rank, s
 
+
 def compute_laplacian_term(phi_X, y, sigma=1.0):
-    n = phi_X.shape[0]
-
-    # Compute label-based similarity matrix S
-    # S_ij = exp(-(y_i - y_j)^2 / (2 * sigma^2))
-    y_diff = y[:, np.newaxis] - y[np.newaxis, :]
-    S = np.exp(-(y_diff**2) / (2 * sigma**2))
-
-    # Compute graph Laplacian L = D - S
-    D_degree = np.diag(S.sum(axis=1))  # Degree matrix
-    L = D_degree - S  # Laplacian matrix
+    L = laplacian_from_labels(y, sigma)
 
     # Compute Phi^T L Phi
     manifold_matrix = phi_X.T @ L @ phi_X  # Shape: (k, k)
@@ -37,6 +31,29 @@ def compute_laplacian_term(phi_X, y, sigma=1.0):
     g = manifold_matrix.flatten()  # Shape: (k^2,)
 
     return g
+
+
+def compute_laplacian_term_knn(phi_X, y, n_neighbors):
+    L = topk_binary_laplacian_fast(y, n_neighbors)
+
+    # Compute Phi^T L Phi
+    manifold_matrix = phi_X.T @ L @ phi_X  # Shape: (k, k)
+
+    # Vectorize to get g = vec(Phi^T L Phi)
+    g = manifold_matrix.flatten()  # Shape: (k^2,)
+
+    return g
+
+
+def laplacian_from_labels(y, sigma):
+    # Compute label-based similarity matrix S
+    y_diff = y[:, np.newaxis] - y[np.newaxis, :]
+    S = np.exp(-(y_diff**2) / (2 * sigma**2))
+
+    # Compute graph Laplacian L = D - S
+    D_degree = np.diag(S.sum(axis=1))  # Degree matrix
+    L = D_degree - S  # Laplacian matrix
+    return L
 
 
 def solve_transformation_matrix(
@@ -48,6 +65,8 @@ def solve_transformation_matrix(
     regularization=1e-5,
     laplacian_reg=0.0,
     laplacian_sigma=0.1,
+    laplacian_kernl="RBF",
+    n_neighbors=None,
 ):
     """
     Solves for the transformation matrix W that minimizes the loss ||D - D'||^2,
@@ -133,7 +152,10 @@ def solve_transformation_matrix(
     # Step 2: Compute Laplacian regularization term (if enabled)
     g = None
     if laplacian_reg > 0:
-        g = compute_laplacian_term(phi_X, y, sigma=laplacian_sigma)
+        if laplacian_kernl == "KNN":
+            g = compute_laplacian_term_knn(phi_X, y, n_neighbors=n_neighbors)
+        else:
+            g = compute_laplacian_term(phi_X, y, sigma=laplacian_sigma)
 
     # Step 3: Solve the regularized least squares problem
     BTB = B.T @ B  # Shape: (k^2, k^2)
