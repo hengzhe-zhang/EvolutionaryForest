@@ -46,7 +46,8 @@ def compute_laplacian_term_knn(phi_X, y, n_neighbors):
 
 
 def laplacian_from_labels(y):
-    sigma = np.median(np.abs(y[:, None] - y[None, :]))  # ~1.0
+    y_diff = np.abs(y[:, None] - y[None, :])
+    sigma = np.median(y_diff[y_diff > 0])
 
     # Compute label-based similarity matrix S
     y_diff = y[:, np.newaxis] - y[np.newaxis, :]
