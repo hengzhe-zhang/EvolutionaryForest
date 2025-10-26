@@ -46,10 +46,18 @@ class PLSKNN(OptimalKNN):
         # Use all remaining features as PLS components
         n_comp = X_filtered.shape[1]
         self.pls = PLSRegression(n_components=n_comp)
-        self.pls.fit(X_filtered, y)
 
-        # Transform and fit KNN
-        training_data = self.pls.transform(X_filtered)
+        try:
+            self.pls.fit(X_filtered, y)
+            training_data = self.pls.transform(X_filtered)
+        except ValueError as e:
+            print(
+                f"[PLSKNN] Warning: PLS failed with error '{e}'. Using identity transform instead."
+            )
+            self.pls = None
+            training_data = X_filtered
+
+        # Fit KNN
         self.knn.fit(training_data, y)
 
         return self
@@ -58,8 +66,9 @@ class PLSKNN(OptimalKNN):
         if self.pls is None or self.var_thresh is None:
             raise ValueError("Model not fitted yet. Call fit() first.")
 
-        # Apply same feature mask
         X_filtered = self.var_thresh.transform(X)
+        if self.pls is None:
+            return X_filtered
         return self.pls.transform(X_filtered)
 
     def predict(self, X, return_transformed=False):
