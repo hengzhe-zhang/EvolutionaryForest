@@ -1929,8 +1929,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = RidgeBoostedKNN(self.param)
         elif self.base_learner == "RidgeBoosted-PLSKNN":
             ridge_model = RidgeBoostedKNN(self.param, knn_model="PLSKNN")
-        elif self.base_learner == "RidgeBoosted-LaplacianEigenmapsKNN":
-            ridge_model = RidgeBoostedKNN(self.param, knn_model="LaplacianEigenmapsKNN")
+        elif self.base_learner == "RidgeBoosted-LPPKNN":
+            ridge_model = RidgeBoostedKNN(self.param, knn_model="LPPKNN")
         elif self.base_learner == "RidgeBoostedSimpleKNN":
             ridge_model = RidgeBoostedSimpleKNN(self.param)
         elif self.base_learner == "ConstraintRidgeBoostedKNN":

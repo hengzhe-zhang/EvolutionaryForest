@@ -14,7 +14,7 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 from sklearn.tree import DecisionTreeRegressor
 
-from evolutionary_forest.model.knn.LaplacianEigenmapsKNN import LaplacianEigenmapsKNN
+from evolutionary_forest.model.knn.LPPKNN import LPPKNN
 from evolutionary_forest.model.knn.PLSKNN import PLSKNN
 from evolutionary_forest.model.linear_regression import BoundedRidgeRegressor
 
@@ -58,8 +58,8 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
             self.knn_model_ = OptimalKNN(**self.knn_params)
         elif self.knn_model == "PLSKNN":
             self.knn_model_ = PLSKNN()
-        elif self.knn_model == "LaplacianEigenmapsKNN":
-            self.knn_model_ = LaplacianEigenmapsKNN()
+        elif self.knn_model == "LPPKNN":
+            self.knn_model_ = LPPKNN()
         else:
             self.knn_model_ = self.knn_model
         self.knn_model_.fit(X, residuals)

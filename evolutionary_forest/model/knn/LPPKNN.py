@@ -8,7 +8,7 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 from sklearn.neighbors import KNeighborsRegressor
 
 
-class LaplacianEigenmapsKNN(OptimalKNN):
+class LPPKNN(OptimalKNN):
     """
     Parametric Laplacian Eigenmaps + KNN
     Learns a projection W via label-similarity Laplacian, then runs KNN in embedded space.
@@ -18,7 +18,7 @@ class LaplacianEigenmapsKNN(OptimalKNN):
         self,
         n_neighbors=5,
         n_components=None,
-        sigma=1.0,
+        sigma=None,
         distance="Uniform",
         ridge=1e-8,
         knn_subsampling=100,
@@ -54,14 +54,20 @@ class LaplacianEigenmapsKNN(OptimalKNN):
         else:
             X_sub, y_sub = X, y
 
-        # ---- Step 1: Label-based similarity and Laplacian ----
+        # ---- Step 1: Determine sigma adaptively if not provided ----
+        if self.sigma is None:
+            # median absolute pairwise label distance
+            y_diff = np.abs(y_sub[:, None] - y_sub[None, :])
+            self.sigma = np.median(y_diff[y_diff > 0])  # ignore zeros
+
+        # ---- Step 2: Label-based similarity and Laplacian ----
         y_sub = y_sub.reshape(-1, 1)
         y_dist = pairwise_distances(y_sub, metric="euclidean")
         S = np.exp(-(y_dist**2) / (2 * self.sigma**2))
         Dmat = np.diag(S.sum(axis=1))
         L = Dmat - S
 
-        # ---- Step 2: Generalized eigenproblem ----
+        # ---- Step 3: Generalized eigenproblem ----
         A = X_sub.T @ L @ X_sub
         B = X_sub.T @ Dmat @ X_sub + self.ridge * np.eye(p)
 
@@ -75,7 +81,7 @@ class LaplacianEigenmapsKNN(OptimalKNN):
         end = min(start + n_comp, p)
         self.W_ = vecs[:, start:end]
 
-        # ---- Step 3: Transform full training data & fit KNN ----
+        # ---- Step 4: Transform full training data & fit KNN ----
         transformed_X = X @ self.W_
         self.training_data = transformed_X
         self.get_knn_model(self.base_learner, self.distance)
@@ -118,12 +124,12 @@ if __name__ == "__main__":
     y_pred_knn = knn.predict(X_test)
     r2_knn = r2_score(y_test, y_pred_knn)
 
-    # ---- LaplacianEigenmapsKNN ----
-    lem_knn = LaplacianEigenmapsKNN(n_neighbors=5)
+    # ---- LPPKNN ----
+    lem_knn = LPPKNN(n_neighbors=5)
     lem_knn.fit(X_train, y_train)
     y_pred_lem = lem_knn.predict(X_test)
     r2_lem = r2_score(y_test, y_pred_lem)
 
     # ---- Print comparison ----
     print("Test R² (Standard KNN):          ", round(r2_knn, 4))
-    print("Test R² (LaplacianEigenmapsKNN): ", round(r2_lem, 4))
+    print("Test R² (LPPKNN): ", round(r2_lem, 4))

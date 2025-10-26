@@ -21,8 +21,8 @@ def safe_lstsq(A, b, rcond=None):
     return x, residuals, rank, s
 
 
-def compute_laplacian_term(phi_X, y, sigma=1.0):
-    L = laplacian_from_labels(y, sigma)
+def compute_laplacian_term(phi_X, y):
+    L = laplacian_from_labels(y)
 
     # Compute Phi^T L Phi
     manifold_matrix = phi_X.T @ L @ phi_X  # Shape: (k, k)
@@ -45,7 +45,9 @@ def compute_laplacian_term_knn(phi_X, y, n_neighbors):
     return g
 
 
-def laplacian_from_labels(y, sigma):
+def laplacian_from_labels(y):
+    sigma = np.median(np.abs(y[:, None] - y[None, :]))  # ~1.0
+
     # Compute label-based similarity matrix S
     y_diff = y[:, np.newaxis] - y[np.newaxis, :]
     S = np.exp(-(y_diff**2) / (2 * sigma**2))
@@ -64,7 +66,6 @@ def solve_transformation_matrix(
     weights=None,
     regularization=1e-5,
     laplacian_reg=0.0,
-    laplacian_sigma=0.1,
     laplacian_kernl="RBF",
     n_neighbors=None,
 ):
@@ -155,7 +156,8 @@ def solve_transformation_matrix(
         if laplacian_kernl == "KNN":
             g = compute_laplacian_term_knn(phi_X, y, n_neighbors=n_neighbors)
         else:
-            g = compute_laplacian_term(phi_X, y, sigma=laplacian_sigma)
+            assert laplacian_kernl == "RBF"
+            g = compute_laplacian_term(phi_X, y)
 
     # Step 3: Solve the regularized least squares problem
     BTB = B.T @ B  # Shape: (k^2, k^2)
