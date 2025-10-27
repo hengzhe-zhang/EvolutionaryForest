@@ -36,30 +36,27 @@ class PLSKNN(OptimalKNN):
 
     def fit(self, X, y):
         # Remove constant features
-        self.var_thresh = VarianceThreshold(threshold=0.0)
-        X_filtered = self.var_thresh.fit_transform(X)
-        self.n_features_in_ = X_filtered.shape[1]
+        self.var_thresh = VarianceThreshold(0.0)
+        try:
+            Xf = self.var_thresh.fit_transform(X)
+        except ValueError:
+            print("[PLSKNN] Warning: all features constant, skipping variance filter.")
+            self.var_thresh = None
+            Xf = X
 
-        # Initialize KNN
+        self.n_features_in_ = Xf.shape[1]
         self.get_knn_model(self.base_learner, self.distance)
 
-        # Use all remaining features as PLS components
-        n_comp = X_filtered.shape[1]
-        self.pls = PLSRegression(n_components=n_comp)
-
+        # PLS or identity
         try:
-            self.pls.fit(X_filtered, y)
-            training_data = self.pls.transform(X_filtered)
-        except ValueError as e:
-            print(
-                f"[PLSKNN] Warning: PLS failed with error '{e}'. Using identity transform instead."
-            )
-            self.pls = None
-            training_data = X_filtered
+            self.pls = PLSRegression(n_components=Xf.shape[1])
+            self.pls.fit(Xf, y)
+            Xt = self.pls.transform(Xf)
+        except Exception as e:
+            print(f"[PLSKNN] Warning: PLS failed ({e}); using identity transform.")
+            self.pls, Xt = None, Xf
 
-        # Fit KNN
-        self.knn.fit(training_data, y)
-
+        self.knn.fit(Xt, y)
         return self
 
     def transform(self, X):

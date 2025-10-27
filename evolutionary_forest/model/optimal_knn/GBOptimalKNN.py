@@ -14,6 +14,7 @@ from evolutionary_forest.model.OptimalKNN import OptimalKNN
 
 from sklearn.tree import DecisionTreeRegressor
 
+from evolutionary_forest.model.knn.FaissKNNRegressor import FaissKNNRegressor
 from evolutionary_forest.model.knn.LPPKNN import LPPKNN
 from evolutionary_forest.model.knn.PLSKNN import PLSKNN
 from evolutionary_forest.model.linear_regression import BoundedRidgeRegressor
@@ -172,11 +173,11 @@ class RidgeBoostedSimpleKNN(RidgeBoostedKNN):
 
         # Stage 2: Fit KNeighborsRegressor on residuals
         residuals = y - self.ridge_model_.predict(X)
-        valid_params = KNeighborsRegressor().get_params().keys()
+        valid_params = FaissKNNRegressor().get_params().keys()
         self.knn_params = {
             k: v for k, v in self.knn_params.items() if k in valid_params
         }
-        self.knn_model_ = KNeighborsRegressor(**self.knn_params)
+        self.knn_model_ = FaissKNNRegressor(**self.knn_params)
         self.knn_model_.fit(X, residuals)
 
         return self

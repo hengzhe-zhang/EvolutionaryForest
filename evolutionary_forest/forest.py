@@ -317,6 +317,7 @@ from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
 from evolutionary_forest.model.OptimalKNN import (
     OptimalKNN,
     WeightedKNNWithGPRidge,
+    adaptive_neighbors,
 )
 from evolutionary_forest.model.PLTree import (
     SoftPLTreeRegressor,
@@ -341,6 +342,7 @@ from evolutionary_forest.model.SafeRidgeCV import (
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
+from evolutionary_forest.model.knn.FaissKNNRegressor import FaissKNNRegressor
 from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
 )
@@ -2129,7 +2131,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == "SVR":
             ridge_model = SVR()
         elif self.base_learner == "KNN" or base_model == "KNN":
-            ridge_model = KNeighborsRegressor(weights="uniform")
+            if self.param.get("n_neighbors") == "Adaptive":
+                n_neighbors = adaptive_neighbors(self.y)
+                ridge_model = FaissKNNRegressor(n_neighbors=n_neighbors)
+            else:
+                ridge_model = FaissKNNRegressor()
         elif self.base_learner == "SkipKNN" or base_model == "SkipKNN":
             ridge_model = SkipKNeighborsRegressor()
         elif self.base_learner.startswith("KNN-"):

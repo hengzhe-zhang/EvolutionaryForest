@@ -12,6 +12,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor, rbf_weights
+from evolutionary_forest.model.knn.FaissKNNRegressor import FaissKNNRegressor
 from evolutionary_forest.model.optimal_knn.smart_sampling import (
     stratified_sampling_indices,
 )
@@ -238,6 +239,14 @@ def random_sampling(knn_subsampling, length):
     return subsample_indices
 
 
+def adaptive_neighbors(y):
+    if len(np.unique(y)) <= 50:
+        n_neighbors = 20
+    else:
+        n_neighbors = 5
+    return n_neighbors
+
+
 class OptimalKNN(BaseEstimator, RegressorMixin):
     def __init__(
         self,
@@ -296,7 +305,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
                 n_neighbors=self.n_neighbors, weights="distance"
             )
         elif distance == "Uniform":
-            self.knn = KNeighborsRegressor(n_neighbors=self.n_neighbors)
+            self.knn = FaissKNNRegressor(n_neighbors=self.n_neighbors)
         else:
             assert distance == "Euclidean"
             self.knn = KNeighborsRegressor(
@@ -305,10 +314,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
 
     def get_n_neighbors(self, y):
         if self.n_neighbors == "Adaptive":
-            if len(np.unique(y)) <= 50:
-                self.n_neighbors = 20
-            else:
-                self.n_neighbors = 5
+            self.n_neighbors = adaptive_neighbors(y)
 
     def fit(self, GP_X, y):
         self.get_n_neighbors(y)
