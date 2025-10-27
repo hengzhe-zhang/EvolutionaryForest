@@ -63,9 +63,8 @@ class PLSKNN(OptimalKNN):
         return self
 
     def transform(self, X):
-        if self.pls is None or self.var_thresh is None:
-            raise ValueError("Model not fitted yet. Call fit() first.")
-
+        if self.var_thresh is None:
+            return X
         X_filtered = self.var_thresh.transform(X)
         if self.pls is None:
             return X_filtered
