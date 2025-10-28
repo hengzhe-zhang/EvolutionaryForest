@@ -124,6 +124,8 @@ class CVTMAPElitesHOF(HallOfFame):
         symmetric_map_archive_mode=False,
         centered_cvt_map_elites=True,
         deep_clustering_parameters=None,
+        verbose=False,
+        adaptive_switch_map_elites="MAP-STD",
         **kwargs,
     ):
         super().__init__(maxsize)
@@ -169,6 +171,8 @@ class CVTMAPElitesHOF(HallOfFame):
             raise ValueError("Unsupported clustering method")
 
         self.clustering = clustering
+        self.verbose = verbose
+        self.adaptive_switch_map_elites = adaptive_switch_map_elites
 
     def update(self, population):
         if self.map_elites_hof_mode == "Free":
@@ -191,19 +195,6 @@ class CVTMAPElitesHOF(HallOfFame):
             return
         # centered
         semantics = np.array([ind.predicted_values for ind in best_candidate]) - self.y
-
-        # semantics_a = np.array([ind.predicted_values for ind in best_candidate])
-        # semantics_a = semantics_a - self.y
-
-        # semantics_b = np.array([ind.predicted_values for ind in best_candidate])
-        # visualize_kmeans_clustering_separately(
-        #     semantics_a[:, :2],
-        #     semantics_b[:, :2],
-        #     fitness=[ind.fitness.wvalues[0] for ind in best_candidate],
-        #     target=[0, 0],
-        #     n_clusters=5,
-        #     use_first_two_dims=True,
-        # )
 
         if self.symmetric_map_archive_mode:
             symmetric_semantics = -semantics
@@ -242,6 +233,27 @@ class CVTMAPElitesHOF(HallOfFame):
                 np.array([ind.predicted_values for ind in new_hof]), self.y
             )
             new_hof = [new_hof[i] for i in index]
+
+        if self.verbose:
+            hof_std = np.std([ind.fitness.wvalues[0] for ind in new_hof])
+            hof_mean = np.mean([ind.fitness.wvalues[0] for ind in new_hof])
+            hof_min = np.min([ind.fitness.wvalues[0] for ind in new_hof])
+            print(f"Mean={hof_mean:.3f}, Std={hof_std:.3f}, Min={hof_min:.3f}")
+            pop_std = np.std([ind.fitness.wvalues[0] for ind in population])
+            pop_mean = np.mean([ind.fitness.wvalues[0] for ind in population])
+            pop_min = np.min([ind.fitness.wvalues[0] for ind in population])
+            print(f"Mean={pop_mean:.3f}, Std={pop_std:.3f}, Min={pop_min:.3f}")
+
+        std_r2 = np.std([ind.fitness.wvalues[0] for ind in new_hof])
+        pop_std_r2 = np.std([ind.fitness.wvalues[0] for ind in population])
+        if (self.adaptive_switch_map_elites == "MAP-STD" and std_r2 <= 0.02) or (
+            self.adaptive_switch_map_elites == "POP-STD" and pop_std_r2 <= 0.1
+        ):
+            if self.verbose:
+                print(
+                    f"[Adaptive switch] Std(R²)={std_r2:.3f} < 0.02 → Using Top selection instead."
+                )
+            new_hof = selBest(population + list(self.items), self.maxsize)
 
         self.clear()
         super().update(new_hof)
