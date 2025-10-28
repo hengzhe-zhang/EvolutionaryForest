@@ -125,7 +125,7 @@ class CVTMAPElitesHOF(HallOfFame):
         centered_cvt_map_elites=True,
         deep_clustering_parameters=None,
         verbose=False,
-        adaptive_switch_map_elites="MAP-STD",
+        adaptive_switch_map_elites=None,
         **kwargs,
     ):
         super().__init__(maxsize)
@@ -245,10 +245,7 @@ class CVTMAPElitesHOF(HallOfFame):
             print(f"Mean={pop_mean:.3f}, Std={pop_std:.3f}, Min={pop_min:.3f}")
 
         std_r2 = np.std([ind.fitness.wvalues[0] for ind in new_hof])
-        pop_std_r2 = np.std([ind.fitness.wvalues[0] for ind in population])
-        if (self.adaptive_switch_map_elites == "MAP-STD" and std_r2 <= 0.02) or (
-            self.adaptive_switch_map_elites == "POP-STD" and pop_std_r2 <= 0.1
-        ):
+        if self.adaptive_switch_map_elites == "MAP-STD" and std_r2 <= 0.02:
             if self.verbose:
                 print(
                     f"[Adaptive switch] Std(R²)={std_r2:.3f} < 0.02 → Using Top selection instead."
