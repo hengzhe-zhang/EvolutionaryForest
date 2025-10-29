@@ -342,6 +342,7 @@ from evolutionary_forest.model.SafeRidgeCV import (
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
+from evolutionary_forest.model.knn.AutoKNN import AutoKNNRegressor
 from evolutionary_forest.model.knn.FaissKNNRegressor import FaissKNNRegressor
 from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
@@ -1805,6 +1806,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual.pipe = self.get_base_model(base_model="RidgeKNNTree")
         if self.base_learner == "OptimalKNN+DT":
             individual.pipe = self.get_base_model(base_model="OptimalKNN+DT")
+        if self.base_learner == "RidgeBoosted-AutoKNN":
+            individual.pipe = self.get_base_model(base_model="RidgeBoosted-AutoKNN")
         if self.imbalanced_configuration.balanced_final_training:
             individual.pipe = self.get_base_model()
         # avoid re-training
@@ -1927,7 +1930,18 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif base_model == "RidgeKNNTree":
             # This order is quite important
             ridge_model = RidgeKNNTree(self.param)
-        elif self.base_learner in ["RidgeBoostedKNN", "RidgeKNNTree"]:
+        elif base_model == "RidgeBoosted-AutoKNN":
+            ridge_model = RidgeBoostedKNN(
+                knn_params={
+                    **self.param,
+                    "base_learner": (lambda: AutoKNNRegressor())(),
+                }
+            )
+        elif self.base_learner in [
+            "RidgeBoostedKNN",
+            "RidgeKNNTree",
+            "RidgeBoosted-AutoKNN",
+        ]:
             ridge_model = RidgeBoostedKNN(self.param)
         elif self.base_learner == "RidgeBoosted-PLSKNN":
             ridge_model = RidgeBoostedKNN(self.param, knn_model="PLSKNN")
