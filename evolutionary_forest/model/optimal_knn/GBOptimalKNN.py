@@ -58,9 +58,9 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         if self.knn_model is None:
             self.knn_model_ = OptimalKNN(**self.knn_params)
         elif self.knn_model == "PLSKNN":
-            self.knn_model_ = PLSKNN()
+            self.knn_model_ = PLSKNN(**self.knn_params)
         elif self.knn_model == "LPPKNN":
-            self.knn_model_ = LPPKNN()
+            self.knn_model_ = LPPKNN(**self.knn_params)
         else:
             self.knn_model_ = self.knn_model
         self.knn_model_.fit(X, residuals)

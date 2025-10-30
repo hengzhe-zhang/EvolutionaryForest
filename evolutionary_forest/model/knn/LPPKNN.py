@@ -24,6 +24,7 @@ class LPPKNN(OptimalKNN):
         knn_subsampling=100,
         random_seed=0,
         base_learner=None,
+        **params,
     ):
         super().__init__(
             n_neighbors=n_neighbors,

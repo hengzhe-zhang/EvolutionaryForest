@@ -1934,7 +1934,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = RidgeBoostedKNN(
                 knn_params={
                     **self.param,
-                    "base_learner": (lambda: RobustFaissKNNRegressor())(),
+                    "base_learner": (lambda: RobustFaissKNNRegressor(**self.param))(),
                 }
             )
         elif self.base_learner in [

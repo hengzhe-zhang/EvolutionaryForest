@@ -22,6 +22,7 @@ class PLSKNN(OptimalKNN):
         distance="Uniform",
         random_seed=0,
         base_learner=None,
+        **params,
     ):
         super().__init__(
             n_neighbors=n_neighbors,

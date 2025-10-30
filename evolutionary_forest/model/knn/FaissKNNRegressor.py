@@ -40,7 +40,7 @@ class FaissKNNRegressor(BaseEstimator, RegressorMixin):
 class RobustFaissKNNRegressor(FaissKNNRegressor):
     """FAISS-based KNN Regressor with leave-one-out R² and constant fallback."""
 
-    def __init__(self, n_neighbors=5, metric="l2", n_threads=1, verbose=True):
+    def __init__(self, n_neighbors=5, metric="l2", n_threads=1, verbose=True, **params):
         super().__init__(n_neighbors=n_neighbors, metric=metric, n_threads=n_threads)
         self.verbose = verbose
 
