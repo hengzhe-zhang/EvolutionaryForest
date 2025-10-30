@@ -5,7 +5,7 @@ from sklearn.cluster import (
     SpectralClustering,
 )
 from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from evolutionary_forest.component.deep_clustering.vae_clustering import DeepClustering
 from evolutionary_forest.model.clustering.shapley_pruning import (
@@ -183,8 +183,16 @@ class CVTMAPElitesHOF(HallOfFame):
                 self.map_archive_candidate_size,
             ) + list(self.items)
         elif self.map_elites_hof_mode == "Combined":
+            pool = population + list(self.items)
+            fitness_values = [ind.fitness.wvalues[0] for ind in pool]
+            q1 = np.percentile(fitness_values, 25)
+            q3 = np.percentile(fitness_values, 75)
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr  # or q1 - 0.5*iqr for milder filtering
+            filtered = [ind for ind in pool if ind.fitness.wvalues[0] >= lower_bound]
+            print("Number of candidates after IQR filtering:", len(filtered))
             best_candidate = selBest(
-                population + list(self.items),
+                filtered,
                 self.map_archive_candidate_size,
             )
         else:
@@ -205,7 +213,15 @@ class CVTMAPElitesHOF(HallOfFame):
             self.clustering.fit(semantics)
             labels = self.clustering.predict(semantics)
         else:
-            labels = self.clustering.fit_predict(semantics)
+            fitness_values = np.array(
+                [ind.fitness.wvalues[0] for ind in best_candidate]
+            )
+            fitness_values = (
+                MinMaxScaler().fit_transform(fitness_values.reshape(-1, 1)).ravel()
+            )
+            labels = self.clustering.fit_predict(
+                semantics, sample_weight=fitness_values
+            )
 
         cluster_individuals = {i: [] for i in range(self.maxsize)}
         original_length = len(best_candidate)

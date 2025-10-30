@@ -324,7 +324,10 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         # Determine if we need to subsample
         knn_subsampling = self.knn_subsampling
         if len(y) > knn_subsampling:
-            if self.random_knn_subsampling:
+            if self.random_knn_subsampling == "TopError":
+                # residual learning
+                subsample_indices = np.argsort(np.abs(y))[-knn_subsampling:]
+            elif self.random_knn_subsampling:
                 subsample_indices = np.random.choice(
                     len(y), knn_subsampling, replace=False
                 )
