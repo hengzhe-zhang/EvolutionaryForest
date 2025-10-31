@@ -5,6 +5,9 @@ from deap.algorithms import varAnd
 from deap.gp import mutUniform
 
 from evolutionary_forest.component.configuration import SelectionMode
+from evolutionary_forest.component.crossover.random_macro_crossover import (
+    randomClusteringCrossover,
+)
 from evolutionary_forest.component.crossover.semantic_crossover import resxo, stagexo
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 from evolutionary_forest.multigene_gp import (
@@ -20,6 +23,12 @@ def perform_semantic_macro_crossover(offspring, config, toolbox, y):
 
     if config.semantic_selection_mode == SelectionMode.AngleDriven:
         offspring = semanticFeatureCrossover(offspring[0], offspring[1], target=y)
+    elif config.semantic_selection_mode == SelectionMode.RandomClustering:
+        offspring = randomClusteringCrossover(
+            offspring[0],
+            offspring[1],
+            target=y,
+        )
     elif config.semantic_selection_mode == SelectionMode.MAPElites:
         offspring = mapElitesCrossover(
             offspring[0],

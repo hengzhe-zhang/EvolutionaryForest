@@ -107,6 +107,7 @@ class SelectionMode(enum.Enum):
     AngleDriven = enum.auto()
     ResXO = enum.auto()
     StageXO = enum.auto()
+    RandomClustering = enum.auto()
 
     @staticmethod
     def from_string(string):
