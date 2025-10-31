@@ -1969,14 +1969,22 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = RidgeBoostedKNN(
                 knn_params={
                     **self.param,
-                    "base_learner": (lambda: FaissKNNRankRegressor())(),
+                    "base_learner": (
+                        lambda: FaissKNNRankRegressor(
+                            n_neighbors=self.param["n_neighbors"]
+                        )
+                    )(),
                 }
             )
         elif self.base_learner == "RidgeBoosted-LinearRankKNN":
             ridge_model = RidgeBoostedKNN(
                 knn_params={
                     **self.param,
-                    "base_learner": (lambda: FaissKNNLinearRankRegressor())(),
+                    "base_learner": (
+                        lambda: FaissKNNLinearRankRegressor(
+                            n_neighbors=self.param["n_neighbors"]
+                        )
+                    )(),
                 }
             )
         elif self.base_learner in [
