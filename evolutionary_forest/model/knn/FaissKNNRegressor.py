@@ -65,15 +65,19 @@ class FaissKNNRegressor(BaseEstimator, RegressorMixin):
 class RobustFaissKNNRegressor(FaissKNNRegressor):
     """FAISS KNN Regressor with LOO-R² K-selection and constant fallback."""
 
-    def __init__(self, n_neighbors=30, metric="l2", n_threads=1, verbose=False):
+    def __init__(
+        self, n_neighbors=30, metric="l2", n_threads=1, verbose=False, min_neighbors=1
+    ):
         super().__init__(n_neighbors, metric, n_threads)
         self.verbose = verbose
+        self.min_neighbors = min_neighbors
 
     def fit(self, X, y):
         super().fit(X, y)
         X = np.asarray(X, np.float32)
         y = np.asarray(y, np.float32)
         Kmax = self.n_neighbors
+        Kmin = self.min_neighbors
 
         # --- Use inherited helper ---
         indices = self._neighbors(X, k=Kmax, include_self=True)
@@ -89,19 +93,21 @@ class RobustFaissKNNRegressor(FaissKNNRegressor):
         y_var = np.var(y)
         r2_per_k = 1 - mse / y_var
 
-        # Pick best K
-        self.k_opt_ = int(np.argmax(r2_per_k) + 1)
-        self.train_score_ = r2_per_k[self.k_opt_ - 1]
+        # --- Pick best K within [Kmin, Kmax] ---
+        valid_range = slice(Kmin - 1, Kmax)
+        best_local = np.argmax(r2_per_k[valid_range])
+        self.k_opt_ = int(Kmin + best_local)
+        self.train_score_ = float(r2_per_k[self.k_opt_ - 1])
 
         if self.verbose:
             print(f"Optimal K={self.k_opt_} with LOO R²={self.train_score_:.4f}")
 
         # Fallback logic
-        if self.train_score_ <= 0:
-            self.constant_ = np.mean(y)
-            self.use_constant_ = True
-        else:
-            self.use_constant_ = False
+        # if self.train_score_ <= 0:
+        #     self.constant_ = np.mean(y)
+        #     self.use_constant_ = True
+        # else:
+        #     self.use_constant_ = False
 
         return self
 

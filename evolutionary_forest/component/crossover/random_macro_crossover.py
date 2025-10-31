@@ -23,7 +23,7 @@ def randomClusteringCrossover(
     kmeans = KMeans(n_clusters=n_clusters)
     labels = kmeans.fit_predict(semantic_result)
 
-    # randomly select one index per cluster (map back to original indices)
+    # randomly select one index per cluster
     selected_unique = [
         np.random.choice(np.where(labels == c)[0])
         for c in range(n_clusters)

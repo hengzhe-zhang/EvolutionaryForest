@@ -1811,8 +1811,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_learner = "RidgeCV-ENet"
         if self.base_learner == "RidgeKNNTree":
             individual.pipe = self.get_base_model(base_model="RidgeKNNTree")
-        if self.base_learner == "OptimalKNN+DT":
-            individual.pipe = self.get_base_model(base_model="OptimalKNN+DT")
+        if self.base_learner in [
+            "OptimalKNN+DT",
+            "RidgeBoosted-SafeKNN",
+            "SafeOptimalKNN",
+        ]:
+            individual.pipe = self.get_base_model(base_model=self.base_learner)
         if self.imbalanced_configuration.balanced_final_training:
             individual.pipe = self.get_base_model()
         # avoid re-training
@@ -1928,18 +1932,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             leaf_size = self.base_learner.split("-")[-1]
             leaf = get_leaf_size_of_dt(leaf_size, self.y)
             ridge_model = RidgeBoostedDT(leaf_size=leaf)
-        elif self.base_learner in ["OptimalKNN", "OptimalKNN+DT"]:
+        elif base_model == "SafeOptimalKNN":
+            ridge_model = OptimalKNN(base_learner=RobustFaissKNNRegressor())
+        elif self.base_learner in ["OptimalKNN", "OptimalKNN+DT", "SafeOptimalKNN"]:
             ridge_model = OptimalKNN(**self.param, distance="Uniform")
         elif self.base_learner == "BoundedRidgeBoostedKNN":
             ridge_model = RidgeBoostedKNN(self.param, bounded_ridge=True)
         elif base_model == "RidgeKNNTree":
             # This order is quite important
             ridge_model = RidgeKNNTree(self.param)
-        elif self.base_learner == "RidgeBoosted-SafeKNN":
+        elif base_model == "RidgeBoosted-SafeKNN":
             ridge_model = RidgeBoostedKNN(
                 knn_params={
                     **self.param,
-                    "base_learner": (lambda: RobustFaissKNNRegressor(**self.param))(),
+                    "base_learner": (lambda: RobustFaissKNNRegressor())(),
                 }
             )
         elif self.base_learner == "RidgeBoosted-RN":
@@ -1954,6 +1960,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner in [
             "RidgeBoostedKNN",
             "RidgeKNNTree",
+            "RidgeBoosted-SafeKNN",
         ]:
             ridge_model = RidgeBoostedKNN(self.param)
         elif self.base_learner == "RidgeBoosted-PLSKNN":
