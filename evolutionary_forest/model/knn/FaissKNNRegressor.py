@@ -103,11 +103,11 @@ class RobustFaissKNNRegressor(FaissKNNRegressor):
             print(f"Optimal K={self.k_opt_} with LOO R²={self.train_score_:.4f}")
 
         # Fallback logic
-        # if self.train_score_ <= 0:
-        #     self.constant_ = np.mean(y)
-        #     self.use_constant_ = True
-        # else:
-        #     self.use_constant_ = False
+        if self.train_score_ <= 0:
+            self.constant_ = np.mean(y)
+            self.use_constant_ = True
+        else:
+            self.use_constant_ = False
 
         return self
 
