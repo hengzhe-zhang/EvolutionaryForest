@@ -142,6 +142,7 @@ from evolutionary_forest.component.ensemble_selection.DSE import (
     DynamicSelectionEnsemble,
 )
 from evolutionary_forest.component.ensemble_selection.RF_DSE import TopKRoutingEnsemble
+from evolutionary_forest.component.ensemble_selection.dns_selection import DNSHOF
 from evolutionary_forest.component.ensemble_selection.dynamic_ensemble_selection.deep_des import (
     DESMetaRegressor,
 )
@@ -3201,21 +3202,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = GridMAPElites(self.ensemble_size, y=self.y, **self.param)
         elif self.ensemble_selection == "CVT-MAPElitesHOF":
             self.hof = CVTMAPElitesHOF(self.ensemble_size, y=self.y, **self.param)
-        elif self.ensemble_selection == "CVT-MAPElitesHOF-Combined":
-            self.hof = CVTMAPElitesHOF(
-                self.ensemble_size,
-                y=self.y,
-                map_elites_hof_mode="Combined",
-                **self.param,
-            )
         elif self.ensemble_selection == "CVT-MAPElitesHOF-L2":
             self.hof = CVTMAPElitesHOF(
                 self.ensemble_size, y=self.y, clustering_method="KMeans", **self.param
             )
-        elif self.ensemble_selection == "CVT-MAPElitesHOF-Free":
-            self.hof = CVTMAPElitesHOF(
-                self.ensemble_size, y=self.y, map_elites_hof_mode="Free", **self.param
-            )
+        elif self.ensemble_selection == "DNSHOF":
+            self.hof = DNSHOF(self.ensemble_size, y=self.y)
+        elif self.ensemble_selection == "DNSHOF-Free":
+            self.hof = DNSHOF(self.ensemble_size, y=self.y, map_elites_hof_mode="Free")
         elif (
             isinstance(self.ensemble_selection, str)
             and "Similar" in self.ensemble_selection

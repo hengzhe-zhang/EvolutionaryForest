@@ -30,10 +30,12 @@ def randomClusteringCrossover(
         if np.any(labels == c)
     ]
     selected = [unique_idx[i] for i in selected_unique]
+    if len(selected) != ind1.gene_num:
+        return []
 
     # rebuild genes
     combined_genes = ind1.gene + ind2.gene
-    ind1.gene = [combined_genes[i] for i in selected[: ind1.gene_num]]
+    ind1.gene = [combined_genes[i] for i in selected]
 
     assert len(ind1.gene) == len(ind2.gene)
     return [ind1]
