@@ -350,6 +350,8 @@ from evolutionary_forest.model.knn.FaissKNNRegressor import (
     FaissKNNRegressor,
     RobustFaissKNNRegressor,
     AdaptiveRNRegressor,
+    FaissKNNRankRegressor,
+    FaissKNNLinearRankRegressor,
 )
 from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
@@ -1815,6 +1817,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "OptimalKNN+DT",
             "RidgeBoosted-SafeKNN",
             "SafeOptimalKNN",
+            "RidgeBoosted-RankKNN",
+            "RidgeBoosted-LinearRankKNN",
         ]:
             individual.pipe = self.get_base_model(base_model=self.base_learner)
         if self.imbalanced_configuration.balanced_final_training:
@@ -1941,7 +1945,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif base_model == "RidgeKNNTree":
             # This order is quite important
             ridge_model = RidgeKNNTree(self.param)
-        elif base_model == "RidgeBoosted-SafeKNN":
+        elif base_model in [
+            "RidgeBoosted-SafeKNN",
+            "RidgeBoosted-RankKNN",
+            "RidgeBoosted-LinearRankKNN",
+        ]:
             ridge_model = RidgeBoostedKNN(
                 knn_params={
                     **self.param,
@@ -1955,6 +1963,20 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     "base_learner": (
                         lambda: AdaptiveRNRegressor(radius=self.param["n_neighbors"])
                     )(),
+                }
+            )
+        elif self.base_learner == "RidgeBoosted-RankKNN":
+            ridge_model = RidgeBoostedKNN(
+                knn_params={
+                    **self.param,
+                    "base_learner": (lambda: FaissKNNRankRegressor())(),
+                }
+            )
+        elif self.base_learner == "RidgeBoosted-LinearRankKNN":
+            ridge_model = RidgeBoostedKNN(
+                knn_params={
+                    **self.param,
+                    "base_learner": (lambda: FaissKNNLinearRankRegressor())(),
                 }
             )
         elif self.base_learner in [

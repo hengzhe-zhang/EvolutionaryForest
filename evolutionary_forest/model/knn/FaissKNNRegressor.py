@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 
 from sklearn.neighbors import RadiusNeighborsRegressor
+import faiss
 
 
 class AdaptiveRNRegressor(RadiusNeighborsRegressor):
@@ -25,8 +26,6 @@ class FaissKNNRegressor(BaseEstimator, RegressorMixin):
         self.n_threads = n_threads
 
     def _build_index(self, X):
-        import faiss
-
         d = X.shape[1]
 
         faiss.omp_set_num_threads(self.n_threads)
@@ -60,6 +59,54 @@ class FaissKNNRegressor(BaseEstimator, RegressorMixin):
     def predict(self, X):
         indices = self._neighbors(X)
         return np.mean(self._y[indices], axis=1)
+
+
+class FaissKNNRankRegressor(FaissKNNRegressor):
+    """FAISS-based KNN Regressor with weighted predictions purely based on rank."""
+
+    def __init__(self, n_neighbors=5, metric="l2", n_threads=1):
+        super().__init__(n_neighbors, metric, n_threads)
+
+    def predict(self, X):
+        indices = self._neighbors(X)
+
+        # Create inverse rank-based weights: rank 1 gets the highest weight (1), rank 2 gets 1/2, etc.
+        ranks = np.arange(
+            1, self.n_neighbors + 1, dtype=np.float32
+        )  # Rank 1, 2, ..., k
+        weights = 1 / ranks  # Inverse of the rank, rank 1 gets the highest weight
+
+        # Normalize the weights so that they sum to 1 for each query point
+        weights /= np.sum(weights)  # Normalize across the ranks
+
+        # Weighted prediction using the neighbors' target values
+        weighted_predictions = np.sum(weights * self._y[indices], axis=1)
+        return weighted_predictions
+
+
+class FaissKNNLinearRankRegressor(FaissKNNRegressor):
+    """FAISS-based KNN Regressor with weighted predictions linearly decreasing based on rank."""
+
+    def __init__(self, n_neighbors=5, metric="l2", n_threads=1):
+        super().__init__(n_neighbors, metric, n_threads)
+
+    def predict(self, X):
+        indices = self._neighbors(X)
+
+        # Create linearly decreasing weights: rank 1 gets n_neighbors, rank 2 gets n_neighbors-1, ..., rank k gets 1
+        ranks = np.arange(
+            self.n_neighbors, 0, -1, dtype=np.float32
+        )  # Rank n_neighbors, n_neighbors-1, ..., 1
+        weights = (
+            ranks  # The weight is the rank, where the first gets the highest weight
+        )
+
+        # Normalize the weights so that they sum to 1 for each query point
+        weights /= np.sum(weights)  # Normalize across the ranks
+
+        # Weighted prediction using the neighbors' target values
+        weighted_predictions = np.sum(weights * self._y[indices], axis=1)
+        return weighted_predictions
 
 
 class RobustFaissKNNRegressor(FaissKNNRegressor):
