@@ -109,6 +109,31 @@ class FaissKNNLinearRankRegressor(FaissKNNRegressor):
         return weighted_predictions
 
 
+class FaissKNNInverseDistanceRegressor(FaissKNNRegressor):
+    """FAISS-based KNN Regressor with weighted predictions inversely based on distance."""
+
+    def __init__(self, n_neighbors=5, metric="l2", n_threads=1):
+        super().__init__(n_neighbors, metric, n_threads)
+
+    def predict(self, X):
+        indices = self._neighbors(X)
+
+        # Calculate the distances from the neighbors
+        distances, _ = self.index_.search(X.astype(np.float32), self.n_neighbors)
+
+        # Inverse of the distance as weight
+        weights = 1 / (
+            distances + 1e-6
+        )  # Adding small epsilon to avoid division by zero
+
+        # Normalize weights to ensure they sum to 1 for each query point
+        weights /= np.sum(weights, axis=1, keepdims=True)
+
+        # Weighted prediction using the neighbors' target values
+        weighted_predictions = np.sum(weights * self._y[indices], axis=1)
+        return weighted_predictions
+
+
 class RobustFaissKNNRegressor(FaissKNNRegressor):
     """FAISS KNN Regressor with LOO-R² K-selection and constant fallback."""
 
