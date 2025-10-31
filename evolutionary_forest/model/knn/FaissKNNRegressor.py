@@ -1,8 +1,8 @@
+import time
+
 import numpy as np
-import faiss
 from sklearn.base import BaseEstimator, RegressorMixin
 
-from sklearn.metrics import r2_score
 from sklearn.neighbors import RadiusNeighborsRegressor
 
 
@@ -17,76 +17,89 @@ class AdaptiveRNRegressor(RadiusNeighborsRegressor):
 
 
 class FaissKNNRegressor(BaseEstimator, RegressorMixin):
-    """Simplest FAISS-based KNN Regressor (sklearn-style)."""
+    """Minimal FAISS-based KNN Regressor."""
 
     def __init__(self, n_neighbors=5, metric="l2", n_threads=1):
         self.n_neighbors = n_neighbors
         self.metric = metric
         self.n_threads = n_threads
 
-    def fit(self, X, y):
-        X = np.asarray(X, dtype=np.float32)
-        y = np.asarray(y, dtype=np.float32)
-        self._y = y
+    def _build_index(self, X):
+        import faiss
+
         d = X.shape[1]
 
         faiss.omp_set_num_threads(self.n_threads)
 
         if self.metric == "l2":
-            self.index_ = faiss.IndexFlatL2(d)
+            index = faiss.IndexFlatL2(d)
         elif self.metric == "ip":
-            self.index_ = faiss.IndexFlatIP(d)
+            index = faiss.IndexFlatIP(d)
         else:
             raise ValueError("metric must be 'l2' or 'ip'")
+        index.add(X)
+        return index
 
-        self.index_.add(X)
+    def fit(self, X, y):
+        X = np.asarray(X, np.float32)
+        y = np.asarray(y, np.float32)
+        self._X = X
+        self._y = y
+        self.index_ = self._build_index(X)
         return self
 
+    def _neighbors(self, X, k=None, include_self=False):
+        """Return neighbor indices for given k."""
+        k = k or self.n_neighbors
+        k_query = k + 1 if include_self else k
+        _, indices = self.index_.search(X.astype(np.float32), k_query)
+        if include_self:
+            indices = indices[:, 1 : k + 1]
+        return indices
+
     def predict(self, X):
-        X = np.asarray(X, dtype=np.float32)
-        _, indices = self.index_.search(X, self.n_neighbors)
+        indices = self._neighbors(X)
         return np.mean(self._y[indices], axis=1)
 
 
 class RobustFaissKNNRegressor(FaissKNNRegressor):
-    """FAISS-based KNN Regressor with leave-one-out R² and constant fallback."""
+    """FAISS KNN Regressor with LOO-R² K-selection and constant fallback."""
 
-    def __init__(
-        self, n_neighbors=5, metric="l2", n_threads=1, verbose=False, **params
-    ):
-        super().__init__(n_neighbors=n_neighbors, metric=metric, n_threads=n_threads)
+    def __init__(self, n_neighbors=30, metric="l2", n_threads=1, verbose=False):
+        super().__init__(n_neighbors, metric, n_threads)
         self.verbose = verbose
 
     def fit(self, X, y):
         super().fit(X, y)
+        X = np.asarray(X, np.float32)
+        y = np.asarray(y, np.float32)
+        Kmax = self.n_neighbors
 
-        X = np.asarray(X, dtype=np.float32)
-        y = np.asarray(y, dtype=np.float32)
+        # --- Use inherited helper ---
+        indices = self._neighbors(X, k=Kmax, include_self=True)
+        Y_nn = self._y[indices]  # (N, Kmax)
 
-        # Query for n_neighbors + 1 to include self
-        _, indices = self.index_.search(X, self.n_neighbors + 1)
+        # --- Vectorized cumulative LOO evaluation ---
+        cumsum = np.cumsum(Y_nn, axis=1)
+        Ks = np.arange(1, Kmax + 1, dtype=np.float32)
+        mean_preds = cumsum / Ks
 
-        # The first neighbor for each sample is itself (distance = 0)
-        # So we remove it in a vectorized way
-        indices = indices[:, 1 : self.n_neighbors + 1]
+        residuals = y[:, None] - mean_preds
+        mse = np.mean(residuals**2, axis=0)
+        y_var = np.var(y)
+        r2_per_k = 1 - mse / y_var
 
-        # Compute mean prediction per sample (vectorized)
-        y_pred_train = np.mean(self._y[indices], axis=1)
-
-        # Compute leave-one-out R²
-        self.train_score_ = r2_score(y, y_pred_train)
+        # Pick best K
+        self.k_opt_ = int(np.argmax(r2_per_k) + 1)
+        self.train_score_ = r2_per_k[self.k_opt_ - 1]
 
         if self.verbose:
-            print(f"Training leave-one-out R² score: {self.train_score_:.4f}")
+            print(f"Optimal K={self.k_opt_} with LOO R²={self.train_score_:.4f}")
 
-        # Fallback if score ≤ 0
+        # Fallback logic
         if self.train_score_ <= 0:
             self.constant_ = np.mean(y)
             self.use_constant_ = True
-            if self.verbose:
-                print(
-                    f"⚠️ Poor performance — using constant fallback: {self.constant_:.4f}"
-                )
         else:
             self.use_constant_ = False
 
@@ -95,4 +108,52 @@ class RobustFaissKNNRegressor(FaissKNNRegressor):
     def predict(self, X):
         if getattr(self, "use_constant_", False):
             return np.full((len(X),), self.constant_, dtype=np.float32)
-        return super().predict(X)
+        indices = self._neighbors(X, k=self.k_opt_)
+        return np.mean(self._y[indices], axis=1)
+
+
+if __name__ == "__main__":
+    from sklearn.datasets import load_diabetes
+    from sklearn.model_selection import train_test_split, GridSearchCV
+    from sklearn.metrics import r2_score
+    from sklearn.neighbors import KNeighborsRegressor
+
+    # Load data
+    X, y = load_diabetes(return_X_y=True)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=1
+    )
+
+    # ---- (1) Naive KNN ----
+    t0 = time.time()
+    knn_naive = KNeighborsRegressor(n_neighbors=5)
+    knn_naive.fit(X_train, y_train)
+    t1 = time.time()
+    r2_naive = r2_score(y_test, knn_naive.predict(X_test))
+
+    print(f"[Naive KNN] K=5 | R²(test)={r2_naive:.4f} | Fit time={t1 - t0:.3f}s")
+
+    # ---- (2) GridSearchCV KNN ----
+    t0 = time.time()
+    param_grid = {"n_neighbors": range(1, 41)}
+    knn_cv = GridSearchCV(
+        KNeighborsRegressor(), param_grid, scoring="r2", cv=5, n_jobs=1
+    )
+    knn_cv.fit(X_train, y_train)
+    t1 = time.time()
+    r2_cv = r2_score(y_test, knn_cv.predict(X_test))
+    best_k_cv = knn_cv.best_params_["n_neighbors"]
+
+    print(
+        f"[CV KNN] Best K={best_k_cv} | R²(test)={r2_cv:.4f} | Fit time={t1 - t0:.3f}s"
+    )
+
+    # ---- (3) RobustFaissKNNRegressor ----
+    t0 = time.time()
+    robust_knn = RobustFaissKNNRegressor(n_neighbors=30, verbose=False)
+    robust_knn.fit(X_train, y_train)
+    t1 = time.time()
+    r2_robust = r2_score(y_test, robust_knn.predict(X_test))
+    print(
+        f"[LOO KNN] Best K={robust_knn.k_opt_} | R²(test)={r2_robust:.4f} | Fit time={t1 - t0:.3f}s"
+    )
