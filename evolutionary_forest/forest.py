@@ -40,7 +40,10 @@ from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.neighbors import KNeighborsRegressor, KDTree
+from sklearn.neighbors import (
+    KNeighborsRegressor,
+    KDTree,
+)
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import (
     MaxAbsScaler,
@@ -345,6 +348,7 @@ from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
 from evolutionary_forest.model.knn.FaissKNNRegressor import (
     FaissKNNRegressor,
     RobustFaissKNNRegressor,
+    AdaptiveRNRegressor,
 )
 from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
@@ -1935,6 +1939,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 knn_params={
                     **self.param,
                     "base_learner": (lambda: RobustFaissKNNRegressor(**self.param))(),
+                }
+            )
+        elif self.base_learner == "RidgeBoosted-RN":
+            ridge_model = RidgeBoostedKNN(
+                knn_params={
+                    **self.param,
+                    "base_learner": (
+                        lambda: AdaptiveRNRegressor(radius=self.param["n_neighbors"])
+                    )(),
                 }
             )
         elif self.base_learner in [

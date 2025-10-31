@@ -3,6 +3,17 @@ import faiss
 from sklearn.base import BaseEstimator, RegressorMixin
 
 from sklearn.metrics import r2_score
+from sklearn.neighbors import RadiusNeighborsRegressor
+
+
+class AdaptiveRNRegressor(RadiusNeighborsRegressor):
+    def __init__(self, radius=1.0, **kwargs):
+        super().__init__(radius=radius, **kwargs)
+        self.baseline_radius = radius
+
+    def fit(self, X, y):
+        self.radius = self.baseline_radius * np.sqrt(np.mean(X.var(axis=0)))
+        return super().fit(X, y)
 
 
 class FaissKNNRegressor(BaseEstimator, RegressorMixin):
