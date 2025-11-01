@@ -8,7 +8,10 @@ from evolutionary_forest.model.optimal_knn.GBOptimalKNN import RidgeBoostedKNN
 
 
 def adaptive_neighbors(base_learner, params, X, y):
-    if base_learner == "RidgeBoosted-RankKNN" and params["n_neighbors"] == "Adaptive":
+    if (
+        base_learner == "RidgeBoosted-LinearRankKNN"
+        and params["n_neighbors"] == "Adaptive"
+    ):
         # only need to check once
         r = RobustFaissKNNRegressor()
         r.fit(X, y)

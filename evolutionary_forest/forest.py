@@ -321,7 +321,6 @@ from evolutionary_forest.model.OODKNN import SkipKNeighborsRegressor
 from evolutionary_forest.model.OptimalKNN import (
     OptimalKNN,
     WeightedKNNWithGPRidge,
-    adaptive_neighbors,
 )
 from evolutionary_forest.model.PLTree import (
     SoftPLTreeRegressor,
@@ -350,7 +349,11 @@ from evolutionary_forest.model.knn.FaissKNNRegressor import (
     FaissKNNRegressor,
     RobustFaissKNNRegressor,
 )
-from evolutionary_forest.model.knn.knn_controller import get_knn_model, get_final_model
+from evolutionary_forest.model.knn.knn_controller import (
+    get_knn_model,
+    get_final_model,
+    adaptive_neighbors,
+)
 from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
 )
@@ -1954,7 +1957,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
         ]:
-            adaptive_neighbors()
+            adaptive_neighbors(self.base_learner, self.param, self.X, self.y)
             ridge_model = get_knn_model(self.base_learner, self.param)
         elif self.base_learner in [
             "RidgeBoostedKNN",
