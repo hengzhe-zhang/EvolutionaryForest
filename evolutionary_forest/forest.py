@@ -349,10 +349,8 @@ from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
 from evolutionary_forest.model.knn.FaissKNNRegressor import (
     FaissKNNRegressor,
     RobustFaissKNNRegressor,
-    AdaptiveRNRegressor,
-    FaissKNNRankRegressor,
-    FaissKNNLinearRankRegressor,
 )
+from evolutionary_forest.model.knn.knn_controller import get_knn_model, get_final_model
 from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
 )
@@ -1950,43 +1948,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
         ]:
-            ridge_model = RidgeBoostedKNN(
-                knn_params={
-                    **self.param,
-                    "base_learner": (lambda: RobustFaissKNNRegressor())(),
-                }
-            )
-        elif self.base_learner == "RidgeBoosted-RN":
-            ridge_model = RidgeBoostedKNN(
-                knn_params={
-                    **self.param,
-                    "base_learner": (
-                        lambda: AdaptiveRNRegressor(radius=self.param["n_neighbors"])
-                    )(),
-                }
-            )
-        elif self.base_learner == "RidgeBoosted-RankKNN":
-            ridge_model = RidgeBoostedKNN(
-                knn_params={
-                    **self.param,
-                    "base_learner": (
-                        lambda: FaissKNNRankRegressor(
-                            n_neighbors=self.param["n_neighbors"]
-                        )
-                    )(),
-                }
-            )
-        elif self.base_learner == "RidgeBoosted-LinearRankKNN":
-            ridge_model = RidgeBoostedKNN(
-                knn_params={
-                    **self.param,
-                    "base_learner": (
-                        lambda: FaissKNNLinearRankRegressor(
-                            n_neighbors=self.param["n_neighbors"]
-                        )
-                    )(),
-                }
-            )
+            ridge_model = get_final_model(base_model, self.param)
+        elif self.base_learner in [
+            "RidgeBoosted-RN",
+            "RidgeBoosted-RankKNN",
+            "RidgeBoosted-LinearRankKNN",
+        ]:
+            adaptive_neighbors()
+            ridge_model = get_knn_model(self.base_learner, self.param)
         elif self.base_learner in [
             "RidgeBoostedKNN",
             "RidgeKNNTree",
@@ -2195,11 +2164,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner == "SVR":
             ridge_model = SVR()
         elif self.base_learner == "KNN" or base_model == "KNN":
-            if self.param.get("n_neighbors") == "Adaptive":
-                n_neighbors = adaptive_neighbors(self.y)
-                ridge_model = FaissKNNRegressor(n_neighbors=n_neighbors)
-            else:
-                ridge_model = FaissKNNRegressor()
+            ridge_model = FaissKNNRegressor()
         elif self.base_learner == "SkipKNN" or base_model == "SkipKNN":
             ridge_model = SkipKNeighborsRegressor()
         elif self.base_learner.startswith("KNN-"):
