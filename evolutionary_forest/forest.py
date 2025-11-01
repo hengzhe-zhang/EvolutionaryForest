@@ -143,6 +143,9 @@ from evolutionary_forest.component.ensemble_selection.DSE import (
 )
 from evolutionary_forest.component.ensemble_selection.RF_DSE import TopKRoutingEnsemble
 from evolutionary_forest.component.ensemble_selection.dns_selection import DNSHOF
+from evolutionary_forest.component.ensemble_selection.dpp_selection import (
+    DPPEnsembleHOF,
+)
 from evolutionary_forest.component.ensemble_selection.dynamic_ensemble_selection.deep_des import (
     DESMetaRegressor,
 )
@@ -3213,8 +3216,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             )
         elif self.ensemble_selection == "DNSHOF":
             self.hof = DNSHOF(self.ensemble_size, y=self.y)
-        elif self.ensemble_selection == "DNSHOF-Free":
-            self.hof = DNSHOF(self.ensemble_size, y=self.y, map_elites_hof_mode="Free")
+        elif self.ensemble_selection == "DPPHOF":
+            self.hof = DPPEnsembleHOF(self.ensemble_size, y=self.y)
         elif (
             isinstance(self.ensemble_selection, str)
             and "Similar" in self.ensemble_selection
