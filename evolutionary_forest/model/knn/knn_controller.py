@@ -12,11 +12,8 @@ def adaptive_neighbors(base_learner, params, X, y):
         base_learner == "RidgeBoosted-LinearRankKNN"
         and params["n_neighbors"] == "Adaptive"
     ):
-        # only need to check once
-        r = RobustFaissKNNRegressor()
-        r.fit(X, y)
-        if r.k_opt_ < 5:
-            params["n_neighbors"] = 10
+        if X.shape[0] <= 200:
+            params["n_neighbors"] = 5
         else:
             params["n_neighbors"] = 30
 
