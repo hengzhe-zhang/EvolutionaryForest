@@ -3220,6 +3220,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = DNSHOF(self.ensemble_size, y=self.y)
         elif self.ensemble_selection == "DPPHOF":
             self.hof = DPPEnsembleHOF(self.ensemble_size, y=self.y)
+        elif self.ensemble_selection == "DPPHOF-RBF":
+            self.hof = DPPEnsembleHOF(self.ensemble_size, y=self.y, gamma="RBF")
         elif (
             isinstance(self.ensemble_selection, str)
             and "Similar" in self.ensemble_selection
