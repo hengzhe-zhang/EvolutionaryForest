@@ -29,6 +29,8 @@ class DPPEnsembleHOF(HallOfFame):
                 scores = np.diag(L) - np.sum(
                     (vi @ np.linalg.pinv(Li + 1e-8 * np.eye(len(Li)))) * vi, axis=1
                 )
+                # mask already selected indices to prevent repeats
+                scores[selected] = -np.inf
                 i = np.argmax(scores)
             selected.append(i)
 
