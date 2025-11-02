@@ -1953,12 +1953,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-SafeKNN",
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
+            "OptimalLinearRankKNN",
         ]:
             ridge_model = get_final_model(base_model, self.param)
         elif self.base_learner in [
             "RidgeBoosted-RN",
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
+            "OptimalLinearRankKNN",
         ]:
             adaptive_neighbors(self.base_learner, self.param, self.X, self.y)
             ridge_model = get_knn_model(self.base_learner, self.param)
