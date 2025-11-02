@@ -363,7 +363,7 @@ from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
 from evolutionary_forest.model.optimal_knn.GBOptimalKNN import (
     RidgeBoostedKNN,
     ConstraintRidgeBoostedKNN,
-    RidgeBoostedSimpleKNN,
+    RidgeBoostedNaiveKNN,
     RidgeKNNTree,
     OptimalKNNRandomDT,
     RidgeBoostedDT,
@@ -1974,8 +1974,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = RidgeBoostedKNN(self.param, knn_model="PLSKNN")
         elif self.base_learner == "RidgeBoosted-LPPKNN":
             ridge_model = RidgeBoostedKNN(self.param, knn_model="LPPKNN")
-        elif self.base_learner == "RidgeBoostedSimpleKNN":
-            ridge_model = RidgeBoostedSimpleKNN(self.param)
+        elif self.base_learner == "RidgeBoostedNaiveKNN":
+            ridge_model = RidgeBoostedNaiveKNN(self.param)
         elif self.base_learner == "ConstraintRidgeBoostedKNN":
             ridge_model = ConstraintRidgeBoostedKNN(self.param)
         elif self.base_learner == "RidgeBoostedKNN-RBF":

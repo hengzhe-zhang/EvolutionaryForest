@@ -154,7 +154,7 @@ class RidgeKNNTree(RidgeBoostedKNN):
         return ridge_pred + knn_pred + tree_pred
 
 
-class RidgeBoostedSimpleKNN(RidgeBoostedKNN):
+class RidgeBoostedNaiveKNN(RidgeBoostedKNN):
     """
     Variant of RidgeBoostedKNN that uses scikit-learn's
     KNeighborsRegressor instead of OptimalKNN.

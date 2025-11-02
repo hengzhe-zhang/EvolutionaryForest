@@ -47,12 +47,12 @@ class FaissKNNRegressor(BaseEstimator, RegressorMixin):
         self.index_ = self._build_index(X)
         return self
 
-    def _neighbors(self, X, k=None, include_self=False):
+    def _neighbors(self, X, k=None, exclude_self=False):
         """Return neighbor indices for given k."""
         k = k or self.n_neighbors
-        k_query = k + 1 if include_self else k
+        k_query = k + 1 if exclude_self else k
         _, indices = self.index_.search(X.astype(np.float32), k_query)
-        if include_self:
+        if exclude_self:
             indices = indices[:, 1 : k + 1]
         return indices
 
@@ -152,7 +152,7 @@ class RobustFaissKNNRegressor(FaissKNNRegressor):
         Kmin = self.min_neighbors
 
         # --- Use inherited helper ---
-        indices = self._neighbors(X, k=Kmax, include_self=True)
+        indices = self._neighbors(X, k=Kmax, exclude_self=True)
         Y_nn = self._y[indices]  # (N, Kmax)
 
         # --- Vectorized cumulative LOO evaluation ---
