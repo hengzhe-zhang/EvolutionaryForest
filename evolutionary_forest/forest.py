@@ -1819,7 +1819,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual.pipe = self.get_base_model(base_model="RidgeKNNTree")
         if self.base_learner in [
             "OptimalKNN+DT",
-            "RidgeBoosted-SafeKNN",
+            "RidgeBoosted-AutoKNN",
             "SafeOptimalKNN",
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
@@ -1950,7 +1950,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             # This order is quite important
             ridge_model = RidgeKNNTree(self.param)
         elif base_model in [
-            "RidgeBoosted-SafeKNN",
+            "RidgeBoosted-AutoKNN",
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
             "OptimalLinearRankKNN",
@@ -1967,7 +1967,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.base_learner in [
             "RidgeBoostedKNN",
             "RidgeKNNTree",
-            "RidgeBoosted-SafeKNN",
+            "RidgeBoosted-AutoKNN",
         ]:
             ridge_model = RidgeBoostedKNN(self.param)
         elif self.base_learner == "RidgeBoosted-PLSKNN":

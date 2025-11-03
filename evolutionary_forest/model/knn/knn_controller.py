@@ -62,7 +62,7 @@ def get_knn_model(base_learner, params):
 
 def get_final_model(base_learner, params):
     if base_learner in [
-        "RidgeBoosted-SafeKNN",
+        "RidgeBoosted-AutoKNN",
         "RidgeBoosted-RankKNN",
         "RidgeBoosted-LinearRankKNN",
     ]:
