@@ -20,6 +20,18 @@ from evolutionary_forest.model.knn.PLSKNN import PLSKNN
 from evolutionary_forest.model.linear_regression import BoundedRidgeRegressor
 
 
+def combine_importance_adaptive(beta, imp):
+    b = np.abs(beta)
+    w = np.array(imp)
+
+    lam = np.std(b) / (np.std(b) + np.std(w) + 1e-12)
+
+    b /= b.sum() + 1e-12
+    w /= w.sum() + 1e-12
+
+    return lam * b + (1 - lam) * w
+
+
 class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
     def __init__(self, knn_params=None, bounded_ridge=False, knn_model=None):
         """
@@ -86,6 +98,11 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
         predictions += self.knn_model_.predict(X)
 
         return predictions
+
+    def get_feature_importance(self):
+        beta = self.ridge_model_.coef_
+        imp = self.knn_model_.get_feature_importance()
+        return combine_importance_adaptive(beta, imp)
 
 
 class RidgeBoostedDT(BaseEstimator, RegressorMixin):
@@ -344,7 +361,7 @@ if __name__ == "__main__":
 
     # Generate synthetic data
     # X, y = load_diabetes(return_X_y=True)
-    X, y = make_friedman1(n_samples=1000, n_features=10, noise=0.1, random_state=0)
+    X, y = make_friedman1(n_samples=1000, n_features=10, noise=0.01, random_state=0)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=0
     )
@@ -363,12 +380,11 @@ if __name__ == "__main__":
     print("KNN R2:", r2_score(y_test, knn_predictions))
 
     # Initialize the gradient boosting model
-    model = OptimalKNNRandomDT(
-        knn_params={"n_neighbors": 5, "distance": "SkipUniform"},
-    )
+    model = RidgeBoostedKNN()
 
     # Fit and evaluate
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
     print("Train R2:", r2_score(y_train, model.predict(X_train)))
     print("R2:", r2_score(y_test, predictions))
+    print("Feature Importance:", model.get_feature_importance())

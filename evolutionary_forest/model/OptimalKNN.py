@@ -260,7 +260,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         base_learner=None,
         informed_optimal_knn_sampling=False,
         random_knn_subsampling=True,
-        laplacian_reg=1,
+        laplacian_reg=0,
         laplacian_reg_kernel="RBF",
         contrastive_l2_regularization=1e-5,
         **params,
@@ -446,6 +446,16 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         if return_transformed:
             return prediction, test_data
         return prediction
+
+    def get_feature_importance(self, normalize=True):
+        assert self.n_groups == 1, (
+            "Importance can only be computed for single group models."
+        )
+        W = self.weights[0]
+        imp = np.sum(W**2, axis=1)
+        if normalize:
+            imp /= np.sum(imp)
+        return imp
 
 
 if __name__ == "__main__":
