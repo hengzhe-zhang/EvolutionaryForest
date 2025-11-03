@@ -3,6 +3,9 @@ from sklearn.metrics.pairwise import rbf_kernel
 from numpy.linalg import eig
 from scipy import linalg
 
+from evolutionary_forest.component.ensemble_selection.dpp_selection import (
+    compute_similarity,
+)
 from evolutionary_forest.model.knn.laplacian_kernel import topk_binary_laplacian_fast
 
 
@@ -45,17 +48,17 @@ def compute_laplacian_term_knn(phi_X, y, n_neighbors):
     return g
 
 
-def laplacian_from_labels(y):
-    y_diff = np.abs(y[:, None] - y[None, :])
-    sigma = np.median(y_diff[y_diff > 0])
+def laplacian_from_labels(y, gamma=None):
+    """Compute the label-based graph Laplacian using an RBF kernel."""
+    y = np.asarray(y).reshape(-1, 1)
 
-    # Compute label-based similarity matrix S
-    y_diff = y[:, np.newaxis] - y[np.newaxis, :]
-    S = np.exp(-(y_diff**2) / (2 * sigma**2))
+    # Label-based similarity via RBF kernel
+    S = compute_similarity(y, metric="rbf", gamma=gamma)
 
-    # Compute graph Laplacian L = D - S
-    D_degree = np.diag(S.sum(axis=1))  # Degree matrix
-    L = D_degree - S  # Laplacian matrix
+    # Degree matrix and Laplacian
+    D_degree = np.diag(S.sum(axis=1))
+    L = D_degree - S
+
     return L
 
 

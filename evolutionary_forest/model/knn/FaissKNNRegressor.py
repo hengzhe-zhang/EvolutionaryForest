@@ -42,6 +42,7 @@ class FaissKNNRegressor(BaseEstimator, RegressorMixin):
     def fit(self, X, y):
         X = np.asarray(X, np.float32)
         y = np.asarray(y, np.float32)
+        self.n_features_in_ = X.shape[1]
         self._X = X
         self._y = y
         self.index_ = self._build_index(X)

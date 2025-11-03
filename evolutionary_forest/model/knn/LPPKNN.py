@@ -1,11 +1,10 @@
 import numpy as np
 from scipy.linalg import eigh
-from sklearn.metrics import pairwise_distances
 
+from evolutionary_forest.component.ensemble_selection.dpp_selection import (
+    compute_similarity,
+)
 from evolutionary_forest.model.OptimalKNN import OptimalKNN
-
-
-from sklearn.neighbors import KNeighborsRegressor
 
 
 class LPPKNN(OptimalKNN):
@@ -18,7 +17,7 @@ class LPPKNN(OptimalKNN):
         self,
         n_neighbors=5,
         n_components=None,
-        sigma=None,
+        gamma=None,
         distance="Uniform",
         ridge=1e-8,
         knn_subsampling=100,
@@ -34,7 +33,7 @@ class LPPKNN(OptimalKNN):
             base_learner=base_learner,
         )
         self.n_components = n_components
-        self.sigma = sigma
+        self.gamma = gamma
         self.ridge = ridge
         self.knn_subsampling = knn_subsampling
         self.W_ = None
@@ -55,16 +54,10 @@ class LPPKNN(OptimalKNN):
         else:
             X_sub, y_sub = X, y
 
-        # ---- Step 1: Determine sigma adaptively if not provided ----
-        if self.sigma is None:
-            # median absolute pairwise label distance
-            y_diff = np.abs(y_sub[:, None] - y_sub[None, :])
-            self.sigma = np.median(y_diff[y_diff > 0])  # ignore zeros
-
         # ---- Step 2: Label-based similarity and Laplacian ----
         y_sub = y_sub.reshape(-1, 1)
-        y_dist = pairwise_distances(y_sub, metric="euclidean")
-        S = np.exp(-(y_dist**2) / (2 * self.sigma**2))
+        S = compute_similarity(y_sub, metric="rbf", gamma=self.gamma)
+
         Dmat = np.diag(S.sum(axis=1))
         L = Dmat - S
 
@@ -109,7 +102,6 @@ if __name__ == "__main__":
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import r2_score
     from sklearn.neighbors import KNeighborsRegressor
-    import numpy as np
 
     # Load dataset
     X, y = load_diabetes(return_X_y=True)
