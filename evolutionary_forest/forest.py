@@ -356,6 +356,7 @@ from evolutionary_forest.model.knn.knn_controller import (
     get_knn_model,
     get_final_model,
     adaptive_neighbors,
+    auto_knn_list,
 )
 from evolutionary_forest.model.optimal_knn.DSOptimalKNN import (
     DynamicSelectionOptimalKNN,
@@ -1817,13 +1818,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.base_learner = "RidgeCV-ENet"
         if self.base_learner == "RidgeKNNTree":
             individual.pipe = self.get_base_model(base_model="RidgeKNNTree")
-        if self.base_learner in [
-            "OptimalKNN+DT",
-            "RidgeBoosted-AutoKNN",
-            "SafeOptimalKNN",
-            "RidgeBoosted-RankKNN",
-            "RidgeBoosted-LinearRankKNN",
-        ]:
+        if self.base_learner in auto_knn_list():
             individual.pipe = self.get_base_model(base_model=self.base_learner)
         if self.imbalanced_configuration.balanced_final_training:
             individual.pipe = self.get_base_model()

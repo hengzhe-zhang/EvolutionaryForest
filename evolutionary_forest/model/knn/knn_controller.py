@@ -61,13 +61,7 @@ def get_knn_model(base_learner, params):
 
 
 def get_final_model(base_learner, params):
-    if base_learner in [
-        "RidgeBoosted-AutoKNN",
-        "RidgeBoosted-RankKNN",
-        "RidgeBoosted-LinearRankKNN",
-        "RidgeBoosted-PLSAutoKNN",
-        "RidgeBoosted-LPPAutoKNN",
-    ]:
+    if base_learner in auto_knn_list():
         ridge_model = RidgeBoostedKNN(
             knn_params={
                 **params,
@@ -79,3 +73,13 @@ def get_final_model(base_learner, params):
         ridge_model = OptimalKNN(base_learner=RobustFaissKNNRegressor())
         return ridge_model
     raise ValueError(f"Unknown base learner: {base_learner}")
+
+
+def auto_knn_list():
+    return [
+        "RidgeBoosted-AutoKNN",
+        "RidgeBoosted-RankKNN",
+        "RidgeBoosted-LinearRankKNN",
+        "RidgeBoosted-PLSAutoKNN",
+        "RidgeBoosted-LPPAutoKNN",
+    ]
