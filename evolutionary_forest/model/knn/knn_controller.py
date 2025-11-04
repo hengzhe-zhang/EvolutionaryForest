@@ -65,6 +65,8 @@ def get_final_model(base_learner, params):
         "RidgeBoosted-AutoKNN",
         "RidgeBoosted-RankKNN",
         "RidgeBoosted-LinearRankKNN",
+        "RidgeBoosted-PLSAutoKNN",
+        "RidgeBoosted-LPPAutoKNN",
     ]:
         ridge_model = RidgeBoostedKNN(
             knn_params={

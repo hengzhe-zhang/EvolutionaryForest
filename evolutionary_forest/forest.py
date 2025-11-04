@@ -1954,6 +1954,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
             "OptimalLinearRankKNN",
+            "RidgeBoosted-PLSAutoKNN",
+            "RidgeBoosted-LPPAutoKNN",
         ]:
             ridge_model = get_final_model(base_model, self.param)
         elif self.base_learner in [
@@ -1970,9 +1972,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-AutoKNN",
         ]:
             ridge_model = RidgeBoostedKNN(self.param)
-        elif self.base_learner == "RidgeBoosted-PLSKNN":
+        elif self.base_learner in ["RidgeBoosted-PLSKNN", "RidgeBoosted-PLSAutoKNN"]:
             ridge_model = RidgeBoostedKNN(self.param, knn_model="PLSKNN")
-        elif self.base_learner == "RidgeBoosted-LPPKNN":
+        elif self.base_learner in ["RidgeBoosted-LPPKNN", "RidgeBoosted-LPPAutoKNN"]:
             ridge_model = RidgeBoostedKNN(self.param, knn_model="LPPKNN")
         elif self.base_learner == "RidgeBoostedNaiveKNN":
             ridge_model = RidgeBoostedNaiveKNN(self.param)
