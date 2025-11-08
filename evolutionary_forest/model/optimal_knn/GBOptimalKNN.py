@@ -99,6 +99,9 @@ class RidgeBoostedKNN(BaseEstimator, RegressorMixin):
 
         return predictions
 
+    def transform(self, X):
+        return self.knn_model_.transform(X)
+
     def get_feature_importance(self):
         beta = self.ridge_model_.coef_
         imp = self.knn_model_.get_feature_importance()

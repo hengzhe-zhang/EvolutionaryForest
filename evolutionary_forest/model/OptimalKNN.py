@@ -411,8 +411,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         start = time.time()
         self.knn.fit(training_data, y)
         end = time.time()
-        self.time_information["KNN Learning"] = end - start
-
+        self.time_information["KNN"] = end - start
         return self
 
     def transform(self, GP_X):
@@ -441,7 +440,10 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
     def predict(self, x_test, return_transformed=False):
         test_data = self.transform(x_test)
         # Predict using the KNN model
+        start = time.time()
         prediction = self.knn.predict(test_data)
+        end = time.time()
+        self.time_information["KNN"] += end - start
         prediction = np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
         if return_transformed:
             return prediction, test_data

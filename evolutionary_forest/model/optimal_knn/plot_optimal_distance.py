@@ -59,9 +59,24 @@ def plot_pairwise_distances(
     dist_transformed = pairwise_distances(transformed_feature, metric="euclidean")
     dist_y = pairwise_distances(y.reshape(-1, 1), metric="euclidean")
 
+    get_rank = True
+    if get_rank:
+        # Rank distances (lower rank = closer neighbor)
+        dist_original = np.argsort(np.argsort(dist_original, axis=1), axis=1)
+        dist_constructed = np.argsort(np.argsort(dist_constructed, axis=1), axis=1)
+        dist_transformed = np.argsort(np.argsort(dist_transformed, axis=1), axis=1)
+        dist_y = np.argsort(np.argsort(dist_y, axis=1), axis=1)
+
+        print(
+            "Squared error of distances:",
+            np.mean((dist_original - dist_y) ** 2),
+            np.mean((dist_constructed - dist_y) ** 2),
+            np.mean((dist_transformed - dist_y) ** 2),
+        )
+
     # Plot and save Original Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_original, aspect="auto", cmap="viridis")
+    plt.imshow(dist_original, aspect="auto", cmap="viridis_r")
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -69,11 +84,10 @@ def plot_pairwise_distances(
     plt.savefig(
         os.path.join(result_folder, "original_feature_distances.eps"), format="eps"
     )
-    plt.close()
 
     # Plot and save Constructed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_constructed, aspect="auto", cmap="viridis")
+    plt.imshow(dist_constructed, aspect="auto", cmap="viridis_r")
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -81,11 +95,10 @@ def plot_pairwise_distances(
     plt.savefig(
         os.path.join(result_folder, "constructed_feature_distances.eps"), format="eps"
     )
-    plt.close()
 
     # Plot and save Transformed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_transformed, aspect="auto", cmap="viridis")
+    plt.imshow(dist_transformed, aspect="auto", cmap="viridis_r")
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -93,11 +106,10 @@ def plot_pairwise_distances(
     plt.savefig(
         os.path.join(result_folder, "transformed_feature_distances.eps"), format="eps"
     )
-    plt.close()
 
     # Plot and save Target Pairwise Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_y, aspect="auto", cmap="viridis")
+    plt.imshow(dist_y, aspect="auto", cmap="viridis_r")
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -105,7 +117,6 @@ def plot_pairwise_distances(
     plt.savefig(
         os.path.join(result_folder, "target_pairwise_distances.eps"), format="eps"
     )
-    plt.close()
 
 
 def pairwise_distance_plot():

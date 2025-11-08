@@ -1306,6 +1306,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             coef = base_learner.feature_importance
         elif hasattr(base_learner, "feature_importances_"):
             coef = base_learner.feature_importances_
+        elif isinstance(base_learner, RidgeBoostedKNN):
+            coef = base_learner.get_feature_importance()
         elif isinstance(
             base_learner,
             (KNeighborsRegressor, MeanRegressor, MedianRegressor, BaseEstimator),

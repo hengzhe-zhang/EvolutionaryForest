@@ -90,6 +90,7 @@ from evolutionary_forest.utility.ood_split import OutOfDistributionSplit
 from evolutionary_forest.utility.sampling_utils import (
     sample_according_to_distance,
 )
+from evolutionary_forest.utility.visualization.lsh import numpy_to_lsh
 from evolutionary_forest.utils import (
     reset_random,
     cv_prediction_from_ridge,
@@ -779,12 +780,17 @@ def get_hash_value(quick_result):
     return hash_value
 
 
+use_local_sensitive_hash = False
+
+
 def add_hash_value(quick_result, hash_result):
     if quick_result.var() != 0:
-        hash_value = quick_result - quick_result.mean() / quick_result.var()
+        hash_value = (quick_result - quick_result.mean()) / quick_result.var()
     else:
         hash_value = quick_result - quick_result.mean()
-    if isinstance(quick_result, np.ndarray):
+    if use_local_sensitive_hash:
+        hash_result.append(numpy_to_lsh(hash_value))
+    elif isinstance(quick_result, np.ndarray):
         hash_result.append(joblib.hash(hash_value))
     else:
         hash_result.append(hash(str(hash_value)))
