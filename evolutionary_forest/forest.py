@@ -347,6 +347,7 @@ from evolutionary_forest.model.SafeRidgeCV import (
 )
 from evolutionary_forest.model.SafetyScaler import SafetyScaler
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
+from evolutionary_forest.model.WeightedRidgeCV import WeightedRidgeCV
 from evolutionary_forest.model.gp_tree_wrapper import GPWrapper
 from evolutionary_forest.model.knn.FaissKNNRegressor import (
     FaissKNNRegressor,
@@ -438,6 +439,9 @@ from evolutionary_forest.utility.statistics.feature_count import number_of_used_
 from evolutionary_forest.utility.statistics.negative_slope import nsc_log
 from evolutionary_forest.utility.tree_pool import SemanticLibrary
 from evolutionary_forest.utility.tree_size_counter import get_tree_size
+from evolutionary_forest.utility.weighted_regression import (
+    vectorized_nonlinearity_local,
+)
 from evolutionary_forest.utils import *
 from evolutionary_forest.utils import model_to_string
 
@@ -1740,6 +1744,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     individual.individual_configuration.sample_weight
                 )
 
+            if self.base_learner == "WeightedRidgeCV":
+                individual.case_values = individual.case_values * self.instance_weights
+
             if self.evaluation_configuration.loss_discretization != None:
                 bin, strategy = self.evaluation_configuration.loss_discretization.split(
                     "-"
@@ -2097,6 +2104,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             ridge_model = SmoothRidgeCV(
                 store_cv_results=True, scoring=make_scorer(r2_score)
             )
+        elif self.base_learner == "WeightedRidgeCV":
+            ridge_model = WeightedRidgeCV(
+                store_cv_results=True, scoring=make_scorer(r2_score)
+            )
+            ridge_model.set_instance_weights(self.instance_weights)
         elif self.base_learner == "ElasticNetCV":
             ridge_model = ElasticNetCV(
                 l1_ratio=[0.1, 0.5, 0.7, 0.9, 0.95, 0.99, 1], n_alphas=10
@@ -2305,6 +2317,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.semantic_repair_target = self.y[id]
         else:
             self.semantic_repair_input = None
+
+        if self.base_learner == "WeightedRidgeCV":
+            self.instance_weights = vectorized_nonlinearity_local(self.X, self.y)
 
         if self.gene_num == "Adaptive":
             self.gene_num = min(x.shape[1], 20)
