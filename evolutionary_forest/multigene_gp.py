@@ -161,7 +161,7 @@ class MultipleGeneGP:
         self,
         content,
         gene_num,
-        tpot_model: TPOTBase = None,
+        tpot_model: "TPOTBase" = None,
         base_model_list=None,
         number_of_register=0,
         num_of_active_trees=0,
