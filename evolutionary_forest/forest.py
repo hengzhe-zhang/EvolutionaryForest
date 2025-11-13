@@ -2,6 +2,7 @@ import copy
 import gc
 import inspect
 import time
+import warnings
 from typing import Optional
 
 from joblib import Parallel, delayed
@@ -54,6 +55,14 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
+
+# Suppress sklearn FutureWarning about unfitted Pipeline instances
+# This is expected behavior in lazy fitting scenarios where we check if fitted
+warnings.filterwarnings(
+    "ignore",
+    message=".*Pipeline instance is not fitted yet.*",
+    category=FutureWarning,
+)
 
 from evolutionary_forest.component import primitive_functions
 from evolutionary_forest.component.archive import *
