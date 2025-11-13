@@ -1,4 +1,4 @@
-from sklearn.datasets import load_diabetes
+from sklearn.datasets import make_friedman1
 from sklearn.model_selection import train_test_split
 
 from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -111,11 +111,12 @@ class EnsembleLearner(RidgeEvolutionaryFeatureLearner):
 
 
 if __name__ == "__main__":
-    X, y = load_diabetes(return_X_y=True)
+    X, y = make_friedman1(n_samples=1000, n_features=10, noise=0.0, random_state=0)
     train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.2)
-    est = RidgeEvolutionaryFeatureLearner(early_stop=5, verbose=True)
+    est = RidgeEvolutionaryFeatureLearner(early_stop=5, verbose=True, n_process=5)
     est.fit(train_X, train_y)
     print(est.score(test_X, test_y))
-    est = RidgeEvolutionaryFeatureLearner(early_stop=10, verbose=True)
+
+    est = RidgeEvolutionaryFeatureLearner(early_stop=5, verbose=True)
     est.fit(train_X, train_y)
     print(est.score(test_X, test_y))

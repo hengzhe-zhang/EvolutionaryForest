@@ -406,6 +406,10 @@ from evolutionary_forest.strategies.subset_transfer import (
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.adaptive_decision_tree import get_leaf_size_of_dt
 from evolutionary_forest.utility.check_util import filter_unique_case_values
+from evolutionary_forest.utility.compression_utils import (
+    compress_result,
+    decompress_result,
+)
 from evolutionary_forest.utility.eql_hybrid.eql_hybrid_utils import (
     eql_hybrid_on_pareto_front,
     eql_hybrid_on_best,
@@ -6285,9 +6289,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             def calculate_score_wrapper(task):
                 # Initialize worker data on first call in each worker process
                 if not hasattr(calculate_score, "data"):
-                    print("Initializing worker data")
                     init_worker(calculate_score, evaluation_data)
-                return calculate_score(task)
+                result = calculate_score(task)
+                # Compress large arrays to reduce transmission overhead
+                return compress_result(result)
 
             # Use loky backend (optimized for Windows) with reusable executor
             evaluation_results = Parallel(
@@ -6295,6 +6300,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 backend="loky",  # Optimized for Windows, handles imports better
                 prefer="processes",
             )(delayed(calculate_score_wrapper)(task) for task in evaluation_tasks)
+
+            # Decompress results after receiving them
+            evaluation_results = [decompress_result(r) for r in evaluation_results]
         else:
             evaluation_results = list(map(calculate_score, evaluation_tasks))
 
