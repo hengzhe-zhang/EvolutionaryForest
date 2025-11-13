@@ -3,7 +3,7 @@ import json
 from deap import gp
 from deap.gp import PrimitiveSet
 
-from llm_selection.chatgpt import GPT
+from evolutionary_forest.component.llm.llm_crossover import GPT
 from evolutionary_forest.utils import efficient_deepcopy
 
 

@@ -19,7 +19,6 @@ from sklearn.preprocessing import (
 )
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils import compute_sample_weight
-from tpot import TPOTClassifier
 
 from evolutionary_forest.component.archive import EnsembleSelectionHallOfFame
 from evolutionary_forest.component.evaluation import multi_tree_evaluation
@@ -54,6 +53,8 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         self.class_weight = class_weight
 
         if self.base_learner == "Hybrid":
+            from tpot import TPOTClassifier
+
             config_dict = {
                 "sklearn.linear_model.LogisticRegression": {
                     "penalty": ["l2"],

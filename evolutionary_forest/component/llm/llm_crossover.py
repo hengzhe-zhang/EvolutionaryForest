@@ -2,6 +2,8 @@ import json
 import re
 from functools import lru_cache
 
+from openai import OpenAI
+
 from evolutionary_forest.component.llm.gp_tree_converter import (
     population_to_json,
     generate_pattern,
@@ -9,7 +11,27 @@ from evolutionary_forest.component.llm.gp_tree_converter import (
     generate_trees,
     json_to_individual,
 )
-from llm_selection.chatgpt import GPT
+
+
+class GPT:
+    def __init__(self, service):
+        self.client: OpenAI = None
+        self.service = service
+
+    def lazy_load(self):
+        from llm_selection.chatgpt import (
+            initialize_openai,
+            load_api_key,
+        )
+
+        if self.client is not None:
+            return
+
+        config_file = "config.yaml"
+        api_key = load_api_key(config_file, self.service)
+
+        # Initialize OpenAI client
+        self.client = initialize_openai(api_key, self.service)
 
 
 @lru_cache(maxsize=None)

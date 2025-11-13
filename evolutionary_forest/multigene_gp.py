@@ -25,7 +25,6 @@ from sklearn.decomposition import KernelPCA
 from sklearn.metrics import pairwise_distances
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-from tpot.base import TPOTBase
 
 from evolutionary_forest.component.bloat_control.depth_limit import (
     get_replacement_tree,
@@ -53,6 +52,7 @@ from evolutionary_forest.utility.pseduo_random import PseudoRandom
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
+    from tpot.base import TPOTBase
 
 
 def is_number(string):

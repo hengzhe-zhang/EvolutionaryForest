@@ -194,13 +194,6 @@ from evolutionary_forest.component.initialization import (
     initialize_crossover_operator,
     unique_initialization,
 )
-from evolutionary_forest.component.llm.llm_crossover import (
-    llm_pattern_extraction,
-)
-from evolutionary_forest.component.llm.llm_tools import (
-    add_generated_function_to_pset,
-    add_function_to_pset,
-)
 from evolutionary_forest.component.log_tool.semantic_lib_log import SemanticLibLog
 from evolutionary_forest.component.mutation.common import MutationOperator
 
@@ -3041,6 +3034,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.add_primitives_to_pset(pset)
 
         if self.llm_functions is not None:
+            from evolutionary_forest.component.llm.llm_tools import (
+                add_generated_function_to_pset,
+                add_function_to_pset,
+            )
+
             llm_functions = add_function_to_pset(self.llm_functions)
             add_generated_function_to_pset(llm_functions[0], llm_functions[1], pset)
 
@@ -4133,6 +4131,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             and self.crossover_configuration.llm_pattern_extraction
             and self.current_gen % 10 == 0
         ):
+            from evolutionary_forest.component.llm.llm_crossover import (
+                llm_pattern_extraction,
+            )
+
             pattern = llm_pattern_extraction(self.pop)
             self.crossover_configuration.llm_pattern = pattern
 
