@@ -575,6 +575,7 @@ def single_fold_validation(model, x_data, y_data, index):
 
 
 def get_cv_splitter(base_model, cv, random_state=0):
+    assert cv is not None, "cv must be an integer, not None"
     if isinstance(base_model, ClassifierMixin):
         cv = StratifiedKFold(n_splits=cv, shuffle=True, random_state=random_state)
     else:

@@ -18,3 +18,8 @@ def scaled_random_constant(biggest_val):
 
 def random_int():
     return random.randint(-1, 1)
+
+
+def random_float():
+    """Generate a random float between -1 and 1 for ephemeral constants."""
+    return random.uniform(-1, 1)

@@ -35,6 +35,7 @@ from sklearn.ensemble import (
     RandomForestRegressor,
 )
 from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_is_fitted
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.linear_model import Ridge, HuberRegressor, Lasso, LassoCV, ElasticNetCV
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
@@ -1901,7 +1902,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 if self.mgp_mode == "Register":
                     input_size = self.number_of_register
                 input_size = len(individual.pipe["Scaler"].scale_)
-                model.predict(np.ones((1, input_size)))
+                # Use check_is_fitted instead of calling predict() to avoid warnings
+                check_is_fitted(model)
                 return None
             except (NotFittedError, AttributeError):
                 pass
@@ -3060,16 +3062,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.constant_type is None:
             pass
         elif self.basic_primitives == False:
-            pset.addEphemeralConstant(
-                "rand101", lambda: random.randint(-1, 1), NumericalFeature
-            )
+            pset.addEphemeralConstant("rand101", random_int, NumericalFeature)
         elif self.constant_type == "Float":
             if self.basic_primitives.startswith("Pipeline"):
-                pset.addEphemeralConstant(
-                    "rand101", lambda: random.uniform(-1, 1), float
-                )
+                pset.addEphemeralConstant("rand101", random_float, float)
             else:
-                pset.addEphemeralConstant("rand101", lambda: random.uniform(-1, 1))
+                pset.addEphemeralConstant("rand101", random_float)
         elif self.constant_type in ["GD", "GD+", "GD-", "GD--"]:
 
             def random_variable():
