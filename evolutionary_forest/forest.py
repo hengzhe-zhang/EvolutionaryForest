@@ -2,8 +2,9 @@ import copy
 import gc
 import inspect
 import time
-from multiprocessing import Pool
 from typing import Optional
+
+from joblib import Parallel, delayed
 
 import category_encoders
 import dill
@@ -163,7 +164,6 @@ from evolutionary_forest.component.equation_learner.subsample_high_dimensional_d
 from evolutionary_forest.component.evaluation import (
     calculate_score,
     single_tree_evaluation,
-    EvaluationResults,
     select_from_array,
     get_sample_weight,
     split_and_combine_data_decorator,
@@ -437,6 +437,7 @@ from evolutionary_forest.utility.skew_transformer import (
 )
 from evolutionary_forest.utility.statistics.feature_count import number_of_used_features
 from evolutionary_forest.utility.statistics.negative_slope import nsc_log
+from evolutionary_forest.utility.timing import time_it
 from evolutionary_forest.utility.tree_pool import SemanticLibrary
 from evolutionary_forest.utility.tree_size_counter import get_tree_size
 from evolutionary_forest.utility.weighted_regression import (
@@ -1322,8 +1323,35 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             raise Exception
         return coef
 
-    def fitness_evaluation(self, individual: MultipleGeneGP):
-        # single individual evaluation
+    def _prepare_evaluation_task(self, individual: MultipleGeneGP, pipe):
+        """Prepare evaluation task for multiprocessing pool.
+
+        Returns a tuple that can be sent to calculate_score function.
+        """
+        if individual.num_of_active_trees > 0:
+            genes = individual.gene[: individual.num_of_active_trees]
+        else:
+            genes = individual.gene
+
+        if self.n_process > 1:
+            return (
+                pipe,
+                dill.dumps(genes, protocol=-1),
+                individual.individual_configuration,
+            )
+        else:
+            return (
+                pipe,
+                genes,
+                individual.individual_configuration,
+            )
+
+    def fitness_evaluation_prepare(self, individual: MultipleGeneGP):
+        """Prepare evaluation task and state for processing.
+
+        Returns (evaluation_task, state_dict) where state_dict contains
+        information needed to process the result later.
+        """
         X, Y = self.X, self.y
         if len(Y.shape) > 1 and Y.shape[1] == 1:
             Y = Y.flatten()
@@ -1368,26 +1396,40 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.intron_probability > 0:
             pipe.active_gene = individual.active_gene
 
-        # send task to the job pool and waiting results
+        # Prepare task and store state for later processing
+        evaluation_task = self._prepare_evaluation_task(individual, pipe)
+
+        # Store genes for later use in processing
         if individual.num_of_active_trees > 0:
             genes = individual.gene[: individual.num_of_active_trees]
         else:
             genes = individual.gene
 
-        information: EvaluationResults
-        y_pred: np.ndarray
-        if self.n_process > 1:
-            y_pred, estimators, information = yield (
-                pipe,
-                dill.dumps(genes, protocol=-1),
-                individual.individual_configuration,
-            )
-        else:
-            y_pred, estimators, information = yield (
-                pipe,
-                genes,
-                individual.individual_configuration,
-            )
+        state = {
+            "pipe": pipe,
+            "genes": genes,
+            "X": X,
+            "Y": Y,
+        }
+
+        return evaluation_task, state
+
+    def fitness_evaluation_process(self, individual: MultipleGeneGP, result, state):
+        """Process evaluation result and return fitness value.
+
+        Args:
+            individual: The GP individual being evaluated
+            result: Result from calculate_score (y_pred, estimators, information)
+            state: State dictionary from fitness_evaluation_prepare
+
+        Returns:
+            Fitness value tuple
+        """
+        y_pred, estimators, information = result
+        pipe = state["pipe"]
+        genes = state["genes"]
+        X = state["X"]
+        Y = state["Y"]
 
         if self.cv == 1:
             (
@@ -1587,11 +1629,21 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         # final score
         if self.evaluation_configuration.mini_batch:
             mini_batch_y = self.get_mini_batch_y()
-            yield self.calculate_fitness_value(
+            return self.calculate_fitness_value(
                 individual, estimators, mini_batch_y, y_pred
             )
         else:
-            yield self.calculate_fitness_value(individual, estimators, Y, y_pred)
+            return self.calculate_fitness_value(individual, estimators, Y, y_pred)
+
+    def fitness_evaluation(self, individual: MultipleGeneGP):
+        """Wrapper for backward compatibility - delegates to prepare/process methods."""
+        # This method is kept for backward compatibility but is no longer a generator
+        # The actual work is done by fitness_evaluation_prepare and fitness_evaluation_process
+        # which are called from population_evaluation
+        evaluation_task, state = self.fitness_evaluation_prepare(individual)
+        # For single-process synchronous evaluation
+        result = calculate_score(evaluation_task)
+        return self.fitness_evaluation_process(individual, result, state)
 
     def get_mini_batch_y(self):
         configuration = self.evaluation_configuration
@@ -4832,8 +4884,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 print("Final Generation", self.current_gen)
             print("Final Ensemble Size", len(self.hof))
 
-        if self.n_process > 1:
-            self.pool.close()
+        # No need to close pool with joblib Parallel - it handles cleanup automatically
         if self.force_sr_tree:
             self.base_learner = self.base_learner.replace("Fast-", "")
             for g in self.hof:
@@ -5424,13 +5475,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
     def thread_pool_initialization(self):
         arg = (self.X, self.y, self.score_func, self.cv, self.evaluation_configuration)
-        # pool initialization
-        if self.n_process > 1:
-            self.pool = Pool(
-                self.n_process, initializer=init_worker, initargs=(calculate_score, arg)
-            )
-        else:
+        # Store evaluation data for parallel processing
+        self.evaluation_data = arg
+        # Initialize worker data - pool will be created lazily on first use
+        if self.n_process == 1:
+            # Single process: initialize worker data directly
             init_worker(calculate_score, arg)
+        # For multiprocessing, we'll use lazy initialization to avoid slow startup on Windows
 
     def semantic_repair_features(self, offspring, external_archive):
         # semantic repair means to replace one gene with another better gene
@@ -6210,6 +6261,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         assert len(trees) == features.shape[1]
         return trees
 
+    @time_it
     def population_evaluation(self, toolbox, population):
         """
         :param population: a population of GP individuals
@@ -6217,21 +6269,43 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         """
         # individual evaluation tasks distribution
         invalid_ind = [ind for ind in population if not ind.fitness.valid]
-        fitness_values = list(toolbox.map(toolbox.evaluate, invalid_ind))
 
-        # distribute tasks
+        # Prepare all evaluation tasks and store state
+        prepared_data = [self.fitness_evaluation_prepare(ind) for ind in invalid_ind]
+        evaluation_tasks = [task for task, _ in prepared_data]
+        evaluation_states = [state for _, state in prepared_data]
+
+        # Process tasks in parallel or sequentially
         if self.n_process > 1:
-            data = [next(f) for f in fitness_values]
-            results = list(self.pool.map(calculate_score, data))
-        else:
-            results = list(map(lambda f: calculate_score(next(f)), fitness_values))
+            # Use joblib with loky backend for better Windows performance
+            # Loky handles worker initialization more efficiently than raw multiprocessing
+            # Create wrapper that initializes worker data on first call
+            evaluation_data = self.evaluation_data
 
-        # aggregate results
-        for ind, fitness_function, result in zip(invalid_ind, fitness_values, results):
-            value = fitness_function.send(result)
+            def calculate_score_wrapper(task):
+                # Initialize worker data on first call in each worker process
+                if not hasattr(calculate_score, "data"):
+                    print("Initializing worker data")
+                    init_worker(calculate_score, evaluation_data)
+                return calculate_score(task)
+
+            # Use loky backend (optimized for Windows) with reusable executor
+            evaluation_results = Parallel(
+                n_jobs=self.n_process,
+                backend="loky",  # Optimized for Windows, handles imports better
+                prefer="processes",
+            )(delayed(calculate_score_wrapper)(task) for task in evaluation_tasks)
+        else:
+            evaluation_results = list(map(calculate_score, evaluation_tasks))
+
+        # Process results and collect fitness values
+        for ind, state, result in zip(
+            invalid_ind, evaluation_states, evaluation_results
+        ):
+            fitness_value = self.fitness_evaluation_process(ind, result, state)
             # automatically determine the weight length
-            ind.fitness.weights = tuple(-1 for _ in range(len(value)))
-            ind.fitness.values = value
+            ind.fitness.weights = tuple(-1 for _ in range(len(fitness_value)))
+            ind.fitness.values = fitness_value
 
         self.update_instance_weights()
         return invalid_ind
