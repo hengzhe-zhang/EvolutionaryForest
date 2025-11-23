@@ -22,7 +22,7 @@ from evolutionary_forest.component.primitive_functions import individual_to_tupl
 
 
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
-from experiment.oil_prediction.analysis_util import model_simplification
+from evolutionary_forest.utility.model_analysis_util import model_simplification
 
 if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
@@ -258,8 +258,10 @@ def plot_feature_importance(
     # Sort the DataFrame in order decreasing feature importance
     fi_df.sort_values(by=["feature_importance"], ascending=False, inplace=True)
 
-    # Define size of bar plot
-    plt.figure(figsize=(16 * 0.65, 10 * 0.65))
+    # Define size of bar plot - scale height proportionally with number of features
+    base_height = 10 * 0.65
+    height_scale = top_features / 10.0  # Scale relative to default of 10 features
+    plt.figure(figsize=(16 * 0.65, base_height * height_scale))
     sns.set(style="whitegrid", font_scale=1.5)
     # Plot Seaborn bar chart
     sns.barplot(
