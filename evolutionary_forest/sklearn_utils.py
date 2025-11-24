@@ -14,6 +14,40 @@ from sklearn.utils.validation import _deprecate_positional_args
 from sklearn.utils.validation import _num_samples
 
 
+def _sanitize_data(X):
+    """Sanitize data by replacing infinity and clipping large values.
+
+    This function handles:
+    - Infinity values (replaced with 0)
+    - NaN values (replaced with 0)
+    - Values too large for float32 (clipped to float32 range)
+
+    Parameters
+    ----------
+    X : array-like
+        Input data that may contain infinity or large values
+
+    Returns
+    -------
+    X_sanitized : array-like
+        Sanitized data safe for sklearn operations
+    """
+    X = np.asarray(X)
+    if not np.issubdtype(X.dtype, np.floating):
+        return X
+
+    # Replace infinity with 0
+    X = np.nan_to_num(X, posinf=0, neginf=0, nan=0)
+
+    # Clip values to float32 range to avoid overflow
+    # float32 max value is approximately 3.4e38
+    max_float32 = np.finfo(np.float32).max
+    min_float32 = np.finfo(np.float32).min
+    X = np.clip(X, min_float32, max_float32)
+
+    return X
+
+
 @_deprecate_positional_args
 def cross_val_predict(
     estimator,
@@ -255,13 +289,15 @@ def _fit_and_predict(estimator, X, y, train, test, verbose, fit_params, method):
     X_train, y_train = _safe_split(estimator, X, y, train)
     X_test, _ = _safe_split(estimator, X, y, test, train)
 
+    # Sanitize data to handle infinity and large values
+    X_train = _sanitize_data(X_train)
+    X_test = _sanitize_data(X_test)
+
     if y_train is None:
         estimator.fit(X_train, **fit_params)
     else:
         estimator.fit(X_train, y_train, **fit_params)
     func = getattr(estimator, method)
-    assert not np.any(np.isinf(X_test)), X_test
-    assert not np.any(np.isnan(X_test)), X_test
     predictions = func(X_test)
 
     encode = (
