@@ -248,12 +248,18 @@ def adaptive_neighbors(y):
 
 
 class OptimalKNN(BaseEstimator, RegressorMixin):
+    """
+    OptimalKNN: A KNN regressor with learned feature transformation.
+
+    Learns a transformation matrix W that maps features to a space where
+    distances better correlate with target differences.
+    """
+
     def __init__(
         self,
         n_neighbors=5,
         distance="Uniform",
         random_seed=0,
-        n_groups=1,
         reduced_dimension=None,
         weighted_instance=False,
         knn_subsampling=100,
@@ -268,14 +274,13 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         self.n_neighbors = n_neighbors
         self.distance = distance
         self.random_seed = random_seed
-        self.n_groups = n_groups  # Number of groups for the ensemble
         self.random_state = np.random.RandomState(self.random_seed)
         self.reduced_dimension = reduced_dimension
 
         # Initialize KNN regressor based on distance type
         self.base_learner = base_learner
 
-        self.weights = []  # List to store transformation matrices for each group
+        self.weight = None  # Transformation matrix
         self.weighted_instance = weighted_instance
         self.knn_subsampling = knn_subsampling
         self.random_knn_subsampling = random_knn_subsampling
@@ -294,12 +299,7 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
                 n_neighbors=self.n_neighbors, weights=rbf_weights
             )
         elif distance == "SkipUniform":
-            if self.n_groups > 1:
-                self.knn = EnsembleUniformKNNRegressor(
-                    n_neighbors=self.n_neighbors, n_groups=self.n_groups
-                )
-            else:
-                self.knn = SkipKNeighborsRegressor(n_neighbors=self.n_neighbors)
+            self.knn = SkipKNeighborsRegressor(n_neighbors=self.n_neighbors)
         elif distance == "SkipDistance":
             self.knn = SkipKNeighborsRegressor(
                 n_neighbors=self.n_neighbors, weights="distance"
@@ -316,16 +316,11 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         if self.n_neighbors == "Adaptive":
             self.n_neighbors = adaptive_neighbors(y)
 
-    def fit(self, GP_X, y):
-        self.get_n_neighbors(y)
-        self.n_features_in_ = GP_X.shape[1]
-        self.get_knn_model(self.base_learner, self.distance)
-
-        # Determine if we need to subsample
+    def _subsample(self, GP_X, y):
+        """Subsample data for efficient contrastive learning."""
         knn_subsampling = self.knn_subsampling
         if len(y) > knn_subsampling:
             if self.random_knn_subsampling == "TopError":
-                # residual learning
                 subsample_indices = np.argsort(np.abs(y))[-knn_subsampling:]
             elif self.random_knn_subsampling:
                 subsample_indices = np.random.choice(
@@ -344,47 +339,27 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
             GP_X_subsample = GP_X[subsample_indices]
             y_subsample = y[subsample_indices]
 
-        # Initialize the coefficient vector
-        self.coef_ = np.ones(GP_X_subsample.shape[1])
+        return GP_X_subsample, y_subsample
 
-        # revise: divide feature to several groups
-        # learn weight to each group
-        group_size = GP_X_subsample.shape[1] // self.n_groups
-        self.group_size = group_size
-        self.weights = []
+    def _compute_weight(self, GP_X, y):
+        """Compute the transformation weight matrix."""
+        D = pairwise_distances(y.reshape(-1, 1), metric="euclidean")
 
-        start = time.time()
-        for i in range(self.n_groups):
-            # Define the group indices
-            start_idx = i * group_size
-            end_idx = (
-                (i + 1) * group_size
-                if i < self.n_groups - 1
-                else GP_X_subsample.shape[1]
-            )
+        if self.reduced_dimension is None:
+            reduced_dimension = GP_X.shape[1]
+        else:
+            reduced_dimension = self.reduced_dimension
 
-            GP_X_group = GP_X_subsample[:, start_idx:end_idx]
-            y_group = y_subsample
+        if self.weighted_instance:
+            weights = compute_lambda_matrix(y)
+        else:
+            weights = None
 
-            # Compute the distance matrix D for this subset
-            D_group = pairwise_distances(y_group.reshape(-1, 1), metric="euclidean")
-
-            # Compute the transformation matrix for this group
-            # reduced_dimension = GP_X_group.shape[1]
-            if self.reduced_dimension is None:
-                reduced_dimension = GP_X_group.shape[1]
-            else:
-                reduced_dimension = self.reduced_dimension
-
-            if self.weighted_instance:
-                weights = compute_lambda_matrix(y_group)
-            else:
-                weights = None
-
+        try:
             weight = solve_transformation_matrix(
-                GP_X_group,
-                D_group,
-                y=y_group,
+                GP_X,
+                D,
+                y=y,
                 weights=weights,
                 p=reduced_dimension,
                 regularization=self.contrastive_l2_regularization,
@@ -392,22 +367,34 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
                 laplacian_kernl=self.laplacian_reg_kernel,
                 n_neighbors=self.n_neighbors,
             )
-            # self.print_mse(D_group, GP_X_group, weight)
-            # pairwise_distances(GP_X_group @ weight, metric="euclidean")
-            self.weights.append(weight)
+        except Exception:
+            # Fallback: use identity-like transformation if solver fails
+            n_features = GP_X.shape[1]
+            weight = np.eye(n_features, reduced_dimension)
+
+        return weight
+
+    def fit(self, GP_X, y):
+        self.get_n_neighbors(y)
+        self.n_features_in_ = GP_X.shape[1]
+        self.get_knn_model(self.base_learner, self.distance)
+
+        # Subsample for efficient learning
+        GP_X_subsample, y_subsample = self._subsample(GP_X, y)
+
+        # Initialize the coefficient vector
+        self.coef_ = np.ones(GP_X_subsample.shape[1])
+
+        # Compute transformation weight
+        start = time.time()
+        self.weight = self._compute_weight(GP_X_subsample, y_subsample)
         end = time.time()
         self.time_information["Contrastive Learning"] = end - start
 
-        # Transform the entire training data using the computed weights and concatenate them
-        # each weight transform corresponding group
-        transformed_data_list = [
-            GP_X[:, i * group_size : (i + 1) * group_size] @ weight
-            for i, weight in enumerate(self.weights)
-        ]
-        training_data = np.concatenate(transformed_data_list, axis=1)
+        # Transform and fit KNN
+        training_data = self.transform(GP_X)
         self.training_data = training_data
 
-        # Fit the KNN model on the concatenated weighted transformed space
         start = time.time()
         self.knn.fit(training_data, y)
         end = time.time()
@@ -415,45 +402,28 @@ class OptimalKNN(BaseEstimator, RegressorMixin):
         return self
 
     def transform(self, GP_X):
-        # Transform the input data using the computed weights and concatenate the results
-        transformed_data_list = [
-            GP_X[:, i * self.group_size : (i + 1) * self.group_size] @ weight
-            for i, weight in enumerate(self.weights)
-        ]
-        transformed_data = np.concatenate(transformed_data_list, axis=1)
-        return transformed_data
-
-    def print_mse(self, D_group, GP_X_group, weight):
-        print(
-            "Original R2",
-            r2_score(
-                D_group.flatten(),
-                pairwise_distances(GP_X_group, metric="euclidean").flatten(),
-            ),
-            "R2",
-            r2_score(
-                D_group.flatten(),
-                pairwise_distances(GP_X_group @ weight, metric="euclidean").flatten(),
-            ),
-        )
+        if self.weight is None:
+            return GP_X
+        return GP_X @ self.weight
 
     def predict(self, x_test, return_transformed=False):
         test_data = self.transform(x_test)
-        # Predict using the KNN model
         start = time.time()
         prediction = self.knn.predict(test_data)
         end = time.time()
-        self.time_information["KNN"] += end - start
+        self.time_information["KNN"] = self.time_information.get("KNN", 0) + (
+            end - start
+        )
         prediction = np.nan_to_num(prediction, nan=0.0, posinf=0.0, neginf=0.0)
         if return_transformed:
             return prediction, test_data
         return prediction
 
     def get_feature_importance(self, normalize=True):
-        assert self.n_groups == 1, (
-            "Importance can only be computed for single group models."
-        )
-        W = self.weights[0]
+        if self.weight is None:
+            n_features = getattr(self, "n_features_in_", 1)
+            return np.ones(n_features) / n_features
+        W = self.weight
         imp = np.sum(W**2, axis=1)
         if normalize:
             imp /= np.sum(imp)

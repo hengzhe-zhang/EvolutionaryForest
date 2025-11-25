@@ -29,7 +29,6 @@ class LPPKNN(OptimalKNN):
             n_neighbors=n_neighbors,
             distance=distance,
             random_seed=random_seed,
-            n_groups=1,
             base_learner=base_learner,
         )
         self.n_components = n_components

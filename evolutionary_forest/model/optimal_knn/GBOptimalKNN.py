@@ -202,6 +202,16 @@ class RidgeBoostedNaiveKNN(RidgeBoostedKNN):
 
         return self
 
+    def get_feature_importance(self):
+        """Return feature importance based only on Ridge coefficients.
+
+        FaissKNNRegressor does not learn feature weights, so we use
+        only the Ridge coefficients for importance.
+        """
+        beta = np.abs(self.ridge_model_.coef_)
+        beta /= beta.sum() + 1e-12
+        return beta
+
 
 class ConstraintRidgeBoostedKNN(RidgeBoostedKNN):
     def fit(self, X, y):
