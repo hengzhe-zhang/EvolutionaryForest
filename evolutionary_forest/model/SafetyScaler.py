@@ -1,6 +1,8 @@
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
+FLOAT32_MAX = np.finfo(np.float32).max
+
 
 def _handle_zeros_in_scale(scale, copy=True):
     """Makes sure that whenever scale is zero, we handle it correctly.
@@ -37,7 +39,11 @@ class SafetyScaler(StandardScaler):
         return self
 
     def transform(self, X, copy=None):
-        return np.nan_to_num(super().transform(X, copy), posinf=0, neginf=0)
+        X_scaled = np.nan_to_num(super().transform(X, copy), posinf=0, neginf=0)
+        if np.any(np.abs(X_scaled) > FLOAT32_MAX):
+            centered = np.nan_to_num(X - getattr(self, "mean_", 0), posinf=0, neginf=0)
+            return centered
+        return X_scaled
 
 
 if __name__ == "__main__":

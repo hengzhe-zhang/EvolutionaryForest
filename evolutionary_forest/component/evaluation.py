@@ -256,6 +256,9 @@ def calculate_score(args):
             configuration=configuration,
             individual_configuration=individual_configuration,
         )
+        if isinstance(Yp, np.ndarray):
+            assert not np.any(np.isnan(Yp)), f"Type: {Yp.dtype}, Yp"
+            assert not np.any(np.isinf(Yp))
 
     if configuration.constant_type is None:
         gradient_operators = False
@@ -266,6 +269,8 @@ def calculate_score(args):
         )
     if gradient_operators:
         Yp = Yp.detach().numpy()
+        assert not np.any(np.isnan(Yp)), f"Type: {Yp.dtype}, Yp"
+        assert not np.any(np.isinf(Yp))
 
     # ML evaluation
     start_time = time.time()
