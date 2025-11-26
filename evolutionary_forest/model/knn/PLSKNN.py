@@ -33,8 +33,12 @@ class PLSKNN(OptimalKNN):
         self.pls = None
         self.var_thresh = None
         self.n_features_in_ = None
+        self._original_n_features = None  # Track original feature count
 
     def fit(self, X, y):
+        # Store original number of features before any filtering
+        self._original_n_features = X.shape[1]
+        
         # Remove constant features
         self.var_thresh = VarianceThreshold(0.0)
         try:
@@ -74,6 +78,34 @@ class PLSKNN(OptimalKNN):
         if return_transformed:
             return prediction, test_data
         return prediction
+
+    def get_feature_importance(self, normalize=True):
+        """Return feature importance based on original number of features.
+        
+        Uses PLS loadings to compute importance when available, mapping back
+        to the original feature space (before variance filtering).
+        """
+        n_features = self._original_n_features or self.n_features_in_
+        
+        if self.pls is not None and hasattr(self.pls, 'x_loadings_'):
+            # Compute importance from PLS loadings
+            loadings = self.pls.x_loadings_
+            imp_filtered = np.sum(loadings**2, axis=1)
+            
+            # Map back to original feature space
+            if self.var_thresh is not None and n_features != len(imp_filtered):
+                imp = np.zeros(n_features)
+                mask = self.var_thresh.get_support()
+                imp[mask] = imp_filtered
+            else:
+                imp = imp_filtered
+        else:
+            # Fallback to uniform importance
+            imp = np.ones(n_features)
+        
+        if normalize:
+            imp = imp / (np.sum(imp) + 1e-12)
+        return imp
 
 
 if __name__ == "__main__":

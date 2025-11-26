@@ -95,6 +95,19 @@ class LPPKNN(OptimalKNN):
             return prediction.flatten(), test_data
         return prediction.flatten()
 
+    def get_feature_importance(self, normalize=True):
+        """Return feature importance based on the learned projection matrix W_."""
+        if self.W_ is None:
+            n_features = getattr(self, "n_features_in_", 1)
+            return np.ones(n_features) / n_features
+        
+        # Compute importance as sum of squared weights per input feature
+        imp = np.sum(self.W_**2, axis=1)
+        
+        if normalize:
+            imp = imp / (np.sum(imp) + 1e-12)
+        return imp
+
 
 if __name__ == "__main__":
     from sklearn.datasets import load_diabetes
