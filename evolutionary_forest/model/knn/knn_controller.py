@@ -3,6 +3,7 @@ from evolutionary_forest.model.knn.FaissKNNRegressor import (
     FaissKNNLinearRankRegressor,
     FaissKNNRankRegressor,
     RobustFaissKNNRegressor,
+    RobustFaissKNNLinearRankRegressor,
     AdaptiveRNRegressor,
 )
 from evolutionary_forest.model.optimal_knn.GBOptimalKNN import RidgeBoostedKNN
@@ -10,7 +11,12 @@ from evolutionary_forest.model.optimal_knn.GBOptimalKNN import RidgeBoostedKNN
 
 def adaptive_neighbors(base_learner, params, X, y):
     if (
-        base_learner in ["RidgeBoosted-LinearRankKNN", "OptimalLinearRankKNN"]
+        base_learner
+        in [
+            "RidgeBoosted-LinearRankKNN",
+            "RidgeBoosted-RobustLinearRankKNN",
+            "OptimalLinearRankKNN",
+        ]
         and params["n_neighbors"] == "Adaptive"
     ):
         if X.shape[0] <= 200:
@@ -61,6 +67,21 @@ def get_knn_model(base_learner, params):
 
 
 def get_final_model(base_learner, params):
+    if base_learner == "RidgeBoosted-RobustLinearRankKNN":
+        # Handle "Adaptive" n_neighbors - convert to fixed value if needed
+        n_neighbors = params.get("n_neighbors", 30)
+        if n_neighbors == "Adaptive":
+            # Use default max_k for LOOCV (RobustFaissKNNLinearRankRegressor will select optimal k)
+            n_neighbors = 30
+        ridge_model = RidgeBoostedKNN(
+            knn_params={
+                **params,
+                "base_learner": (
+                    lambda: RobustFaissKNNLinearRankRegressor(n_neighbors=n_neighbors)
+                )(),
+            }
+        )
+        return ridge_model
     if base_learner in auto_knn_list():
         ridge_model = RidgeBoostedKNN(
             knn_params={

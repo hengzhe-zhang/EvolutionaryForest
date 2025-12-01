@@ -191,6 +191,104 @@ class RobustFaissKNNRegressor(FaissKNNRegressor):
         return np.mean(self._y[indices], axis=1)
 
 
+class RobustFaissKNNLinearRankRegressor(RobustFaissKNNRegressor):
+    """FAISS KNN Regressor with efficient LOOCV K-selection and linear rank weighting.
+
+    This class combines:
+    - Efficient LOOCV-based optimal k selection with linear rank weighting
+    - Linear rank-based weighting for predictions
+
+    Both k-selection and predictions use linearly decreasing weights based on neighbor rank.
+    """
+
+    def __init__(
+        self, n_neighbors=30, metric="l2", n_threads=1, verbose=False, min_neighbors=1
+    ):
+        super().__init__(n_neighbors, metric, n_threads, verbose, min_neighbors)
+
+    def fit(self, X, y):
+        """Fit with LOOCV evaluation using linear rank weighting."""
+        # Call base FaissKNNRegressor.fit to set up index and data
+        FaissKNNRegressor.fit(self, X, y)
+        X = np.asarray(X, np.float32)
+        y = np.asarray(y, np.float32)
+        Kmax = self.n_neighbors
+        Kmin = self.min_neighbors
+
+        # --- Use inherited helper ---
+        indices = self._neighbors(X, k=Kmax, exclude_self=True)
+        Y_nn = self._y[indices]  # (N, Kmax)
+
+        # --- Fully vectorized LOO evaluation with linear rank weighting ---
+        # Create weight matrix: W[k-1, j] = weight for neighbor j when using k neighbors
+        # Shape: (Kmax, Kmax)
+        k_values = np.arange(1, Kmax + 1, dtype=np.float32)  # [1, 2, ..., Kmax]
+        j_values = np.arange(Kmax, dtype=np.float32)  # [0, 1, ..., Kmax-1]
+
+        # Create mask: True where j < k (i.e., neighbor j is used when k >= j+1)
+        # Shape: (Kmax, Kmax)
+        k_grid, j_grid = np.meshgrid(k_values, j_values, indexing="ij")
+        mask = j_grid < k_grid  # (Kmax, Kmax)
+
+        # Compute weights: for k neighbors, neighbor j gets weight (k - j) / (k*(k+1)/2)
+        # where j is 0-indexed, so rank is (k - j)
+        weights_matrix = np.where(
+            mask, (k_grid - j_grid) / (k_grid * (k_grid + 1) / 2), 0.0
+        ).astype(np.float32)  # (Kmax, Kmax)
+
+        # Compute weighted predictions for all k simultaneously
+        # Y_nn: (N, Kmax), weights_matrix: (Kmax, Kmax)
+        # Broadcast: (N, 1, Kmax) * (1, Kmax, Kmax) -> (N, Kmax, Kmax)
+        # Then sum over last axis: (N, Kmax)
+        weighted_preds = np.sum(
+            Y_nn[:, None, :] * weights_matrix[None, :, :], axis=2
+        )  # (N, Kmax)
+
+        residuals = y[:, None] - weighted_preds
+        mse = np.mean(residuals**2, axis=0)
+        y_var = np.var(y)
+        r2_per_k = 1 - mse / y_var
+
+        # --- Pick best K within [Kmin, Kmax] ---
+        valid_range = slice(Kmin - 1, Kmax)
+        best_local = np.argmax(r2_per_k[valid_range])
+        self.k_opt_ = int(Kmin + best_local)
+        self.train_score_ = float(r2_per_k[self.k_opt_ - 1])
+
+        if self.verbose:
+            print(f"Optimal K={self.k_opt_} with LOO R²={self.train_score_:.4f}")
+
+        # Fallback logic
+        if self.train_score_ <= 0:
+            self.constant_ = np.mean(y)
+            self.use_constant_ = True
+        else:
+            self.use_constant_ = False
+
+        return self
+
+    def predict(self, X):
+        if getattr(self, "use_constant_", False):
+            return np.full((len(X),), self.constant_, dtype=np.float32)
+
+        indices = self._neighbors(X, k=self.k_opt_)
+
+        # Create linearly decreasing weights: rank 1 gets k_opt_, rank 2 gets k_opt_-1, ..., rank k gets 1
+        ranks = np.arange(
+            self.k_opt_, 0, -1, dtype=np.float32
+        )  # Rank k_opt_, k_opt_-1, ..., 1
+        weights = (
+            ranks  # The weight is the rank, where the first gets the highest weight
+        )
+
+        # Normalize the weights so that they sum to 1 for each query point
+        weights /= np.sum(weights)  # Normalize across the ranks
+
+        # Weighted prediction using the neighbors' target values
+        weighted_predictions = np.sum(weights * self._y[indices], axis=1)
+        return weighted_predictions
+
+
 if __name__ == "__main__":
     from sklearn.datasets import load_diabetes
     from sklearn.model_selection import train_test_split, GridSearchCV

@@ -2017,6 +2017,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-AutoKNN",
             "RidgeBoosted-RankKNN",
             "RidgeBoosted-LinearRankKNN",
+            "RidgeBoosted-RobustLinearRankKNN",
             "OptimalLinearRankKNN",
             "RidgeBoosted-PLSAutoKNN",
             "RidgeBoosted-LPPAutoKNN",
