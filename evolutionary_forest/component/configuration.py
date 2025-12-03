@@ -432,10 +432,11 @@ class EvaluationConfiguration(Configuration):
         self.basic_primitives = basic_primitives
         # using 5-fold CV
         self.cross_validation = cross_validation
-        # feature importance method: "Built-In" (default), "SHAP", "PermutationImportance"
+        # feature importance method: "Built-In" (default), "SHAP", "PermutationImportance", "R2Drop"
         # "Built-In": use built-in model coefficients (Ridge coef_, feature_importances_, etc.)
         # "SHAP": use Shapley values for feature importance
         # "PermutationImportance": use permutation importance
+        # "R2Drop": use closed-form R² drop importance (ΔR²_j = (1-R²)·(t_j²/(t_j²+(n-p-1))))
         self.feature_importance_method = feature_importance_method
         # pre-elimination based on filter
         self.filter_elimination = filter_elimination

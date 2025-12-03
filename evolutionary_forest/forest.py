@@ -1306,6 +1306,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             base_learner, "permutation_importance_values"
         ):
             coef = base_learner.permutation_importance_values
+        elif importance_method == "R2Drop" and hasattr(
+            base_learner, "r2_drop_importance_values"
+        ):
+            coef = base_learner.r2_drop_importance_values
         # Fall back to default coef-based methods
         elif isinstance(base_learner, (LinearModel, LinearClassifierMixin)):
             if len(base_learner.coef_.shape) == 2:

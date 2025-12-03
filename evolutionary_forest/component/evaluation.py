@@ -423,6 +423,22 @@ def calculate_score(args):
         )
         calculate_permutation_importance_from_estimators(estimators, Yp, Y, cv_for_pi)
 
+    if feature_importance_method == "R2Drop":
+        from evolutionary_forest.utility.r2_drop_importance import (
+            calculate_r2_drop_importance_from_estimators,
+        )
+
+        cv_for_r2 = (
+            cv
+            if (
+                cv is not None
+                and hasattr(cv, "n_splits")
+                and len(estimators) == cv.n_splits
+            )
+            else None
+        )
+        calculate_r2_drop_importance_from_estimators(estimators, Yp, Y, cv_for_r2)
+
     ml_evaluation_time = time.time() - start_time
     configuration.enable_library = False
 
