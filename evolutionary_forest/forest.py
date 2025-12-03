@@ -2551,13 +2551,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         revert_probability = getattr(
             self.crossover_configuration, "revert_probability", 0.0
         )
+        feature_importance_power = getattr(
+            self.crossover_configuration, "feature_importance_power", 1.0
+        )
         if revert_probability > 0:
             from evolutionary_forest.component.crossover.adaptive_feature_importance import (
                 with_revert_probability,
             )
 
-            toolbox.decorate("mate", with_revert_probability(revert_probability))
-            toolbox.decorate("mutate", with_revert_probability(revert_probability))
+            toolbox.decorate("mate", with_revert_probability(revert_probability, feature_importance_power))
+            toolbox.decorate("mutate", with_revert_probability(revert_probability, feature_importance_power))
 
         if not self.multi_tree_mutation():
             toolbox.decorate("mate", self.static_limit_function)

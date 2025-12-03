@@ -156,6 +156,7 @@ class CrossoverConfiguration(Configuration):
         llm_pattern_extraction=False,
         record_parent_expressions=False,
         revert_probability=0.0,
+        feature_importance_power=1.0,
         **params,
     ):
         # max height after crossover
@@ -209,6 +210,7 @@ class CrossoverConfiguration(Configuration):
 
         # revert probability based on feature importance
         self.revert_probability = revert_probability
+        self.feature_importance_power = feature_importance_power
 
 
 class MAPElitesConfiguration(Configuration):
