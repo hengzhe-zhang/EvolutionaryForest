@@ -1296,11 +1296,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         else:
             base_learner = ridge_
 
-        if hasattr(base_learner, "shap_values"):
+        # Get feature importance method from configuration
+        importance_method = self.evaluation_configuration.feature_importance_method
+
+        # Check for pre-calculated importance values first (from evaluation.py)
+        if importance_method == "SHAP" and hasattr(base_learner, "shap_values"):
             coef = base_learner.shap_values
-        elif hasattr(base_learner, "pi_values"):
-            # permutation importance
-            coef = base_learner.pi_values
+        elif importance_method == "PermutationImportance" and hasattr(
+            base_learner, "permutation_importance_values"
+        ):
+            coef = base_learner.permutation_importance_values
+        # Fall back to default coef-based methods
         elif isinstance(base_learner, (LinearModel, LinearClassifierMixin)):
             if len(base_learner.coef_.shape) == 2:
                 coef = np.max(np.abs(base_learner.coef_), axis=0)
@@ -2505,7 +2511,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 toolbox.expr_mut = partial(partial_func, min_=0, max_=2)
 
-            # Register mutation operator using random tree mutation
             toolbox.register(
                 "mutate",
                 mutUniform_multiple_tree,
@@ -2538,6 +2543,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             failure_counter=self.size_failure_counter,
             random_replace=random_replace,
         )
+
+        revert_probability = getattr(
+            self.crossover_configuration, "revert_probability", 0.0
+        )
+        if revert_probability > 0:
+            from evolutionary_forest.component.crossover.adaptive_feature_importance import (
+                with_revert_probability,
+            )
+
+            toolbox.decorate("mate", with_revert_probability(revert_probability))
+            toolbox.decorate("mutate", with_revert_probability(revert_probability))
 
         if not self.multi_tree_mutation():
             toolbox.decorate("mate", self.static_limit_function)

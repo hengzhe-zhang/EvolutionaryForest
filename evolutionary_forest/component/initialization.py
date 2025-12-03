@@ -1,4 +1,5 @@
 import string
+from functools import partial
 
 from evolutionary_forest.component.adaptive_crossover import cxOnePointAdaptive
 from evolutionary_forest.component.toolbox import TypedToolbox

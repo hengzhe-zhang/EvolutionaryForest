@@ -155,6 +155,7 @@ class CrossoverConfiguration(Configuration):
         llm_crossover=False,
         llm_pattern_extraction=False,
         record_parent_expressions=False,
+        revert_probability=0.0,
         **params,
     ):
         # max height after crossover
@@ -205,6 +206,9 @@ class CrossoverConfiguration(Configuration):
 
         # only use for analysis
         self.record_parent_expressions = record_parent_expressions
+
+        # revert probability based on feature importance
+        self.revert_probability = revert_probability
 
 
 class MAPElitesConfiguration(Configuration):
@@ -291,6 +295,7 @@ class MutationConfiguration(Configuration):
         selective_retrain=True,
         retrieval_augmented_generation=True,
         pool_base_feature_selection=False,
+        revert_probability=0.0,
         **params,
     ):
         self.pool_hard_instance_interval = pool_hard_instance_interval
@@ -341,6 +346,10 @@ class MutationConfiguration(Configuration):
         self.include_subtree_to_lib = include_subtree_to_lib
         self.trial_check = trial_check
         self.trial_check_ratio = trial_check_ratio
+
+        # revert probability based on feature importance
+        self.revert_probability = revert_probability
+
         # negative data augmentation
         self.negative_data_augmentation = negative_data_augmentation
         self.negative_local_search = negative_local_search
@@ -388,7 +397,7 @@ class EvaluationConfiguration(Configuration):
         pset=None,
         basic_primitives=True,
         cross_validation=True,
-        feature_importance_method=False,
+        feature_importance_method="Built-In",
         filter_elimination=False,
         intron_gp=False,
         bloat_control=None,
@@ -423,7 +432,10 @@ class EvaluationConfiguration(Configuration):
         self.basic_primitives = basic_primitives
         # using 5-fold CV
         self.cross_validation = cross_validation
-        # feature importance method (Internal, SHAP, Permutation Importance)
+        # feature importance method: "Built-In" (default), "SHAP", "PermutationImportance"
+        # "Built-In": use built-in model coefficients (Ridge coef_, feature_importances_, etc.)
+        # "SHAP": use Shapley values for feature importance
+        # "PermutationImportance": use permutation importance
         self.feature_importance_method = feature_importance_method
         # pre-elimination based on filter
         self.filter_elimination = filter_elimination

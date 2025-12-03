@@ -386,51 +386,43 @@ def calculate_score(args):
             if time_flag:
                 print("Cross Validation Time", time.time() - cv_st)
 
-            if feature_importance_method == "SHAP" and len(estimators) == cv.n_splits:
-                import shap
-
-                for id, estimator in enumerate(estimators):
-                    split_fold = list(cv.split(Yp, Y))
-                    train_id, test_id = split_fold[id][0], split_fold[id][1]
-                    if isinstance(
-                        estimator["Ridge"], (LinearModel, LogisticRegression)
-                    ):
-                        explainer = shap.LinearExplainer(
-                            estimator["Ridge"], Yp[train_id]
-                        )
-                    elif isinstance(estimator["Ridge"], BaseDecisionTree):
-                        explainer = shap.TreeExplainer(estimator["Ridge"], Yp[train_id])
-                    else:
-                        raise Exception
-                    if isinstance(estimator["Ridge"], BaseDecisionTree):
-                        feature_importance = explainer.shap_values(Yp[test_id])[0]
-                    else:
-                        feature_importance = explainer.shap_values(Yp[test_id])
-                    estimator["Ridge"].shap_values = np.abs(feature_importance).mean(
-                        axis=0
-                    )
-
-            if (
-                feature_importance_method == "PermutationImportance"
-                and len(estimators) == cv.n_splits
-            ):
-                # Don't need to calculate the mean value here
-                for id, estimator in enumerate(estimators):
-                    split_fold = list(cv.split(Yp, Y))
-                    train_id, test_id = split_fold[id][0], split_fold[id][1]
-                    r = permutation_importance(
-                        estimator["Ridge"],
-                        Yp[test_id],
-                        Y[test_id],
-                        n_jobs=1,
-                        n_repeats=1,
-                    )
-                    estimator["Ridge"].pi_values = np.abs(r.importances_mean)
-
             if np.any(np.isnan(y_pred)):
                 np.save("error_data_x.npy", Yp)
                 np.save("error_data_y.npy", Y)
                 raise Exception
+
+    if feature_importance_method == "SHAP":
+        from evolutionary_forest.utility.estimator_feature_importance import (
+            calculate_shap_importance,
+        )
+
+        cv_for_shap = (
+            cv
+            if (
+                cv is not None
+                and hasattr(cv, "n_splits")
+                and len(estimators) == cv.n_splits
+            )
+            else None
+        )
+        calculate_shap_importance(estimators, Yp, Y, cv_for_shap)
+
+    if feature_importance_method == "PermutationImportance":
+        from evolutionary_forest.utility.estimator_feature_importance import (
+            calculate_permutation_importance_from_estimators,
+        )
+
+        cv_for_pi = (
+            cv
+            if (
+                cv is not None
+                and hasattr(cv, "n_splits")
+                and len(estimators) == cv.n_splits
+            )
+            else None
+        )
+        calculate_permutation_importance_from_estimators(estimators, Yp, Y, cv_for_pi)
+
     ml_evaluation_time = time.time() - start_time
     configuration.enable_library = False
 
