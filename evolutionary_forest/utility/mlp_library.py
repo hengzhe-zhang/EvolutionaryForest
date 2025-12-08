@@ -297,73 +297,92 @@ class PrimitiveSetUtils:
 
     def convert_node_names_to_gp_tree(self, node_names):
         """
-        Convert a list of node names into a DEAP GP tree.
+        Convert a list of node names (in level-order) into a DEAP GP tree.
+        Uses a simple queue-based algorithm to reconstruct the tree.
 
-        :param node_names: List of node names corresponding to functions and terminals.
+        :param node_names: List of node names corresponding to functions and terminals (in level-order).
         :return: DEAP GP tree constructed from the node names.
         """
+        if not node_names:
+            return []
+
         # Create a dictionary to map function names to their DEAP functions
         func_dict = {func.name: func for func in self.pset.primitives[object]}
         term_dict = {term.name: term for term in self.pset.terminals[object]}
 
-        def build_tree(node_names):
-            track = 0
-            if not node_names:
-                return None
+        # Convert node names to actual nodes and track their arity
+        nodes = []
+        for name in node_names:
+            if name in func_dict:
+                func = func_dict[name]
+                nodes.append((func, func.arity))
+            elif name in term_dict:
+                terminal = term_dict[name]
+                if callable(terminal):
+                    terminal = terminal()
+                nodes.append((terminal, 0))
+            else:
+                raise ValueError(f"Node name '{name}' not found in PrimitiveSet")
 
-            stack = []
-            for idx, name in enumerate(node_names):
-                if idx > 0 and track == 0:
-                    break
-                if name in func_dict:
-                    func = func_dict[name]
-                    arity = func.arity
-                    if track != 0:
-                        track -= 1
-                    track += arity
-                    stack.append(func_dict[name])
-                elif name in term_dict:
-                    track -= 1
-                    terminal = term_dict[name]
-                    if callable(terminal):
-                        terminal = terminal()
-                    stack.append(terminal)
-                else:
-                    raise ValueError(f"Node name '{name}' not found in PrimitiveSet")
-            return stack
+        # Simple approach: build tree structure using indices
+        # Each entry: [node, list of child indices]
+        tree = []  # List of [node, list of child indices]
+        node_idx = 0
 
-        def reorder_node_names(node_names):
-            """
-            Reorder a list of node names such that each function is followed by its arguments using recursion.
+        # Process level by level using a queue
+        from collections import deque
 
-            :param node_names: List of node names corresponding to functions and terminals.
-            :return: Reordered list of node names.
-            """
-            if not node_names:
+        queue = deque()  # Queue of (parent_index, remaining_arity)
+
+        if not nodes:
+            return []
+
+        # Add root
+        root_node, root_arity = nodes[node_idx]
+        node_idx += 1
+        root_idx = len(tree)
+        tree.append([root_node, []])
+        queue.append((root_idx, root_arity))
+
+        # Process remaining nodes level by level
+        while node_idx < len(nodes) and queue:
+            # Process all parents at current level
+            current_level = list(queue)
+            queue.clear()
+
+            for parent_idx, remaining_arity in current_level:
+                # Assign next 'remaining_arity' nodes as children
+                for _ in range(remaining_arity):
+                    if node_idx >= len(nodes):
+                        break
+
+                    child_node, child_arity = nodes[node_idx]
+                    node_idx += 1
+
+                    # Add child to tree
+                    child_idx = len(tree)
+                    tree.append([child_node, []])
+
+                    # Add child index to parent
+                    tree[parent_idx][1].append(child_idx)
+
+                    # If child is a function, add to queue for next level
+                    if child_arity > 0:
+                        queue.append((child_idx, child_arity))
+
+        # Build prefix-order list recursively
+        def build_tree_list(idx):
+            """Recursively build prefix-order list from tree structure."""
+            if idx >= len(tree):
                 return []
 
-            first = node_names.pop(0)
+            node, child_indices = tree[idx]
+            result = [node]
+            for child_idx in child_indices:
+                result.extend(build_tree_list(child_idx))
+            return result
 
-            # If it's a function (Primitive), it will have arguments
-            if isinstance(first, Primitive):
-                args = []
-                root_args = []
-                for _ in range(first.arity):
-                    a = node_names.pop(0)
-                    root_args.append(a)
-
-                for a in root_args:
-                    nodes = reorder_node_names([a] + node_names)
-                    args.extend(nodes)
-
-                # Return the function followed by its arguments
-                return [first] + args
-            else:
-                # If it's a terminal, just return it
-                return [first]
-
-        return reorder_node_names(build_tree(node_names))
-        # [x.name for x in build_tree(node_names)]
+        return build_tree_list(root_idx)
 
     def convert_gp_tree_to_node_names(self, gp_tree):
         level, _ = mark_node_levels_recursive(gp_tree, original_primitive=True)
