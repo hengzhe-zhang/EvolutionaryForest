@@ -438,6 +438,7 @@ from evolutionary_forest.utility.population_analysis import (
 from evolutionary_forest.utility.scaler.OneHotStandardScaler import OneHotStandardScaler
 from evolutionary_forest.utility.scaler.StandardPCA import StandardScalerPCA
 from evolutionary_forest.utility.selection_util import has_status_arg
+from evolutionary_forest.utility.fix_rare_variables import fix_rare_variables_in_hof
 from evolutionary_forest.utility.skew_transformer import (
     SkewnessCorrector,
     CubeSkewnessCorrector,
@@ -641,6 +642,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         time_limit=None,
         subset_transfer=None,
         llm_functions=None,
+        fix_rare_variables=False,
         **params,
     ):
         """
@@ -1054,6 +1056,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.time_limit = time_limit
         self.subset_transfer = subset_transfer
         self.llm_functions = llm_functions
+        self.fix_rare_variables = fix_rare_variables
         self.evolution_status = {}
 
     def automatic_operator_selection_initialization(self):
@@ -2559,8 +2562,14 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 with_revert_probability,
             )
 
-            toolbox.decorate("mate", with_revert_probability(revert_probability, feature_importance_power))
-            toolbox.decorate("mutate", with_revert_probability(revert_probability, feature_importance_power))
+            toolbox.decorate(
+                "mate",
+                with_revert_probability(revert_probability, feature_importance_power),
+            )
+            toolbox.decorate(
+                "mutate",
+                with_revert_probability(revert_probability, feature_importance_power),
+            )
 
         if not self.multi_tree_mutation():
             toolbox.decorate("mate", self.static_limit_function)
@@ -3812,6 +3821,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             X = self.X
         if y is None:
             y = self.y
+        if self.fix_rare_variables:
+            fix_rare_variables_in_hof(pop, self.pop, self.pset)
+            force_training = True
         for p in pop:
             if self.test_data is not None:
                 X = X[: -len(self.test_data)]

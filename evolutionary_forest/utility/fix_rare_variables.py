@@ -1,3 +1,4 @@
+import platform
 from collections import Counter
 from deap import gp
 
@@ -50,13 +51,16 @@ def fix_rare_variables_in_tree(tree, var_frequency, pop_size, pset, rare_thresho
     return modified
 
 
-def fix_rare_variables_in_hof(hof, population, pset, rare_threshold=0.1):
+def fix_rare_variables_in_hof(hof, population, pset, rare_threshold=0.5):
     """Fix rare variables in Hall of Fame individuals."""
     if not hof or not population:
         return
 
     var_frequency = get_variable_frequency(population, pset)
     pop_size = len(population)
+
+    if platform.system() == "Windows":
+        print(f"Variable frequency counter: {dict(var_frequency)}")
 
     for ind in hof:
         for tree in ind.gene:
