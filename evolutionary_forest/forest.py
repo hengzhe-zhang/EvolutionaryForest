@@ -38,7 +38,7 @@ from sklearn.linear_model import Ridge, HuberRegressor, Lasso, LassoCV, ElasticN
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
 from sklearn.neighbors import (
     KNeighborsRegressor,
     KDTree,
@@ -405,6 +405,9 @@ from evolutionary_forest.strategies.subset_transfer import (
 )
 from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.adaptive_decision_tree import get_leaf_size_of_dt
+from evolutionary_forest.utility.adaptive_parameter_selection import (
+    compute_adaptive_gene_num_cv,
+)
 from evolutionary_forest.utility.check_util import filter_unique_case_values
 from evolutionary_forest.utility.compression_utils import (
     compress_result,
@@ -2399,6 +2402,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.base_learner == "WeightedRidgeCV":
             self.instance_weights = vectorized_nonlinearity_local(self.X, self.y)
+
+        if self.gene_num == "Adaptive-CV":
+            self.gene_num = compute_adaptive_gene_num_cv(
+                x, self.y, random_state=self.random_state, threshold=0.8, cv=5
+            )
 
         if self.gene_num == "Adaptive":
             self.gene_num = np.clip(x.shape[1], 10, 20)
