@@ -2394,7 +2394,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.instance_weights = vectorized_nonlinearity_local(self.X, self.y)
 
         if self.gene_num == "Adaptive":
-            self.gene_num = min(max(10, x.shape[1]), 20)
+            self.gene_num = np.clip(x.shape[1], 10, 20)
         if isinstance(self.gene_num, str):
             self.gene_num = min(
                 int(self.gene_num.replace("X", "")) * self.X.shape[1], 30
