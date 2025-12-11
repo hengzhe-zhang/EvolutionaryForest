@@ -1,11 +1,7 @@
-import copy
 import gc
 import inspect
-import time
 import warnings
 from typing import Optional
-
-from joblib import Parallel, delayed
 
 import category_encoders
 import dill
@@ -24,6 +20,7 @@ from deap.tools import (
     selSPEA2,
     selTournamentDCD,
 )
+from joblib import Parallel, delayed
 from lightgbm import LGBMRegressor, LGBMModel
 from lineartree import LinearTreeRegressor
 from numpy.linalg import norm
@@ -36,7 +33,6 @@ from sklearn.ensemble import (
     RandomForestRegressor,
 )
 from sklearn.exceptions import NotFittedError
-from sklearn.utils.validation import check_is_fitted
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.linear_model import Ridge, HuberRegressor, Lasso, LassoCV, ElasticNetCV
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
@@ -55,6 +51,7 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVR
 from sklearn.tree import BaseDecisionTree
+from sklearn.utils.validation import check_is_fitted
 
 # Suppress sklearn FutureWarning about unfitted Pipeline instances
 # This is expected behavior in lazy fitting scenarios where we check if fitted
@@ -2397,7 +2394,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.instance_weights = vectorized_nonlinearity_local(self.X, self.y)
 
         if self.gene_num == "Adaptive":
-            self.gene_num = min(x.shape[1], 20)
+            self.gene_num = min(max(10, x.shape[1]), 20)
         if isinstance(self.gene_num, str):
             self.gene_num = min(
                 int(self.gene_num.replace("X", "")) * self.X.shape[1], 30
@@ -4489,10 +4486,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.dynamic_reduction > 0
                 and (gen > 1)
                 and (
-                    (number_of_evaluations - self.n_pop)
-                    % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
-                    == 0
-                )
+                (number_of_evaluations - self.n_pop)
+                % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
+                == 0
+            )
             ):
                 pop_size //= 2
                 assert self.pre_selection == None
@@ -4520,7 +4517,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ensemble_value = np.mean([x.predicted_values for x in self.hof], axis=0)
                 for x in self.hof:
                     ambiguity = (x.predicted_values - ensemble_value) ** 2
-                    x.case_values[len(x.predicted_values) :] = -1 * ambiguity
+                    x.case_values[len(x.predicted_values):] = -1 * ambiguity
 
             cxpb, mutpb = self.linear_adaptive_rate(gen, cxpb, mutpb)
             cxpb, mutpb = self.get_adaptive_mutation_rate(cxpb, mutpb)
@@ -4567,9 +4564,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if (
                 self.current_gen == (self.n_gen // 2) + 1
                 and (
-                    self.evaluation_configuration.two_stage_feature_selection
-                    is not None
-                )
+                self.evaluation_configuration.two_stage_feature_selection
+                is not None
+            )
                 and all([not hasattr(ind, "case_values") for ind in population])
             ):
                 # Re-initialization
@@ -4973,7 +4970,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # in place
             if len(new_list) > 0:
-                offspring[-len(new_list) :] = new_list
+                offspring[-len(new_list):] = new_list
 
     def eql_hybrid_initialization(self, population):
         config = self.eql_hybrid_configuration
@@ -5317,7 +5314,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.cross_pb == "Linear":
             cxpb = np.interp(np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.9, 0.5])[
                 gen - 1
-            ]
+                ]
         if self.mutation_pb == "Linear":
             mutpb = np.interp(
                 np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.1, 0.5]
@@ -6438,7 +6435,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if len(ind.case_values) == len(self.y):
                 ind.case_values = np.concatenate([ind.case_values, distance], axis=0)
             else:
-                ind.case_values[len(self.y) :] = distance
+                ind.case_values[len(self.y):] = distance
 
     def complexity(self):
         count = 0
