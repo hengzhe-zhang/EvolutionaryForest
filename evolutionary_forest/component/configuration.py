@@ -157,6 +157,7 @@ class CrossoverConfiguration(Configuration):
         record_parent_expressions=False,
         revert_probability=0.0,
         feature_importance_power=1.0,
+        revert_postpone_to_after_evaluation=False,
         **params,
     ):
         # max height after crossover
@@ -211,6 +212,7 @@ class CrossoverConfiguration(Configuration):
         # revert probability based on feature importance
         self.revert_probability = revert_probability
         self.feature_importance_power = feature_importance_power
+        self.revert_postpone_to_after_evaluation = revert_postpone_to_after_evaluation
 
 
 class MAPElitesConfiguration(Configuration):
