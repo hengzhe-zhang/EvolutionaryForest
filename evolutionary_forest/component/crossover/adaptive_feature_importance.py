@@ -44,6 +44,13 @@ def revert_after_evaluation_by_importance(
     revert_probability: float,
     feature_importance_power: float = 1.0,
 ):
+    # Only process individuals that have the revert attributes set
+    # (i.e., those that went through crossover/mutation with the decorator)
+    if not hasattr(individual, "parent_genes_for_revert") or not hasattr(
+        individual, "parent_coef_for_revert"
+    ):
+        return
+
     parent_genes = individual.parent_genes_for_revert
     parent_coef = individual.parent_coef_for_revert
 
