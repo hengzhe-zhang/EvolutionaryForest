@@ -2410,6 +2410,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.gene_num == "Adaptive":
             self.gene_num = np.clip(x.shape[1], 10, 20)
+
+        if isinstance(self.gene_num, str) and self.gene_num.startswith("Adaptive-Clip"):
+            # Parse "Adaptive-Clip(5,20)" format
+            import re
+
+            match = re.search(r"Adaptive-Clip\((\d+),(\d+)\)", self.gene_num)
+            if match:
+                min_val = int(match.group(1))
+                max_val = int(match.group(2))
+                self.gene_num = int(np.clip(x.shape[1], min_val, max_val))
         if isinstance(self.gene_num, str):
             self.gene_num = min(
                 int(self.gene_num.replace("X", "")) * self.X.shape[1], 30
