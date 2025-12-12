@@ -2416,10 +2416,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             import re
 
             match = re.search(r"Adaptive-Clip\((\d+),(\d+)\)", self.gene_num)
-            if match:
-                min_val = int(match.group(1))
-                max_val = int(match.group(2))
-                self.gene_num = int(np.clip(x.shape[1], min_val, max_val))
+            assert match, f"Failed to parse Adaptive-Clip format from: {self.gene_num}"
+            min_val = int(match.group(1))
+            max_val = int(match.group(2))
+            self.gene_num = int(np.clip(x.shape[1], min_val, max_val))
         if isinstance(self.gene_num, str):
             self.gene_num = min(
                 int(self.gene_num.replace("X", "")) * self.X.shape[1], 30
