@@ -407,6 +407,7 @@ from evolutionary_forest.strategies.surrogate_model import SurrogateModel
 from evolutionary_forest.utility.adaptive_decision_tree import get_leaf_size_of_dt
 from evolutionary_forest.utility.adaptive_parameter_selection import (
     compute_adaptive_gene_num_cv,
+    compute_adaptive_gene_num_data_aware,
 )
 from evolutionary_forest.utility.check_util import filter_unique_case_values
 from evolutionary_forest.utility.compression_utils import (
@@ -2405,6 +2406,11 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         if self.gene_num == "Adaptive-CV":
             self.gene_num = compute_adaptive_gene_num_cv(
+                x, self.y, random_state=self.random_state, threshold=0.8, cv=5
+            )
+
+        if self.gene_num == "Adaptive-DataAware":
+            self.gene_num = compute_adaptive_gene_num_data_aware(
                 x, self.y, random_state=self.random_state, threshold=0.8, cv=5
             )
 
