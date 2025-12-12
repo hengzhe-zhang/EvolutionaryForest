@@ -1,7 +1,7 @@
 import copy
 import random
 from functools import wraps
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -13,46 +13,64 @@ def save_original_genes(*individuals: MultipleGeneGP) -> List[List]:
 
 
 def normalize_importance(coef: np.ndarray, power: float = 1.0) -> np.ndarray:
-    """
-    Normalize feature importance with power parameter.
-    
-    Formula: p_i = f_i^α / Σ_j f_j^α, where α > 0
-    
-    Args:
-        coef: Feature importance coefficients
-        power: Power parameter α (default: 1.0, which gives standard normalization)
-    
-    Returns:
-        Normalized importance values
-    """
     coef_abs = np.abs(coef)
     if coef_abs.sum() == 0:
         return np.ones_like(coef) / len(coef)
-    
-    # Apply power transformation: f_i^α
     coef_powered = np.power(coef_abs, power)
-    # Normalize: p_i = f_i^α / Σ_j f_j^α
     return coef_powered / coef_powered.sum()
 
 
 def revert_genes_by_importance(
-    individual: MultipleGeneGP, original_genes: List, revert_probability: float, feature_importance_power: float = 1.0
+    individual: MultipleGeneGP,
+    original_genes: List,
+    revert_probability: float,
+    feature_importance_power: float = 1.0,
 ):
-    if len(original_genes) != len(individual.gene):
+    if len(original_genes) != len(individual.gene) or individual.coef is None:
         return
 
-    if not hasattr(individual, "coef") or individual.coef is None:
-        return
+    normalized_importance = normalize_importance(
+        individual.coef, power=feature_importance_power
+    )
+    for i, (orig_gene, norm_imp) in enumerate(
+        zip(original_genes, normalized_importance)
+    ):
+        if random.random() < revert_probability * norm_imp:
+            individual.gene[i] = copy.deepcopy(orig_gene)
 
-    normalized_importance = normalize_importance(individual.coef, power=feature_importance_power)
-    for i, (orig_gene, curr_gene) in enumerate(zip(original_genes, individual.gene)):
-        if i < len(normalized_importance):
-            gene_revert_prob = revert_probability * normalized_importance[i]
-            if random.random() < gene_revert_prob:
-                individual.gene[i] = copy.deepcopy(orig_gene)
+
+def revert_after_evaluation_by_importance(
+    individual: MultipleGeneGP,
+    revert_probability: float,
+    feature_importance_power: float = 1.0,
+):
+    parent_genes = individual.parent_genes_for_revert
+    parent_coef = individual.parent_coef_for_revert
+
+    assert individual.coef is not None
+    assert len(parent_genes) == len(individual.gene)
+    assert len(parent_coef) == len(individual.coef)
+
+    normalized_importance = normalize_importance(
+        individual.coef, power=feature_importance_power
+    )
+
+    for i, (curr_coef, parent_c, norm_imp, parent_gene) in enumerate(
+        zip(individual.coef, parent_coef, normalized_importance, parent_genes)
+    ):
+        if abs(curr_coef) < abs(parent_c):
+            if random.random() < revert_probability * norm_imp:
+                individual.gene[i] = copy.deepcopy(parent_gene)
+
+    delattr(individual, "parent_genes_for_revert")
+    delattr(individual, "parent_coef_for_revert")
 
 
-def with_revert_probability(revert_probability: float = 0.0, feature_importance_power: float = 1.0):
+def with_revert_probability(
+    revert_probability: float = 0.0,
+    feature_importance_power: float = 1.0,
+    postpone_to_after_evaluation: bool = False,
+):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -61,16 +79,38 @@ def with_revert_probability(revert_probability: float = 0.0, feature_importance_
                 return func(*args, **kwargs)
 
             original_genes = save_original_genes(*individuals)
+            original_coefs = (
+                [
+                    copy.deepcopy(ind.coef) if ind.coef is not None else None
+                    for ind in individuals
+                ]
+                if postpone_to_after_evaluation and revert_probability > 0
+                else []
+            )
+
             result = func(*args, **kwargs)
 
             if revert_probability > 0:
-                result_individuals = result if isinstance(result, tuple) else [result]
+                result_list = result if isinstance(result, tuple) else [result]
                 result_individuals = [
-                    ind for ind in result_individuals if isinstance(ind, MultipleGeneGP)
+                    ind for ind in result_list if isinstance(ind, MultipleGeneGP)
                 ]
                 if len(result_individuals) == len(original_genes):
-                    for ind, orig_genes in zip(result_individuals, original_genes):
-                        revert_genes_by_importance(ind, orig_genes, revert_probability, feature_importance_power)
+                    if postpone_to_after_evaluation:
+                        for ind, orig_genes, orig_coef in zip(
+                            result_individuals, original_genes, original_coefs
+                        ):
+                            ind.parent_genes_for_revert = copy.deepcopy(orig_genes)
+                            if orig_coef is not None:
+                                ind.parent_coef_for_revert = orig_coef
+                    else:
+                        for ind, orig_genes in zip(result_individuals, original_genes):
+                            revert_genes_by_importance(
+                                ind,
+                                orig_genes,
+                                revert_probability,
+                                feature_importance_power,
+                            )
 
             return result
 
