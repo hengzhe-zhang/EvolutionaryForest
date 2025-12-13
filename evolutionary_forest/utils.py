@@ -481,25 +481,6 @@ def pickle_deepcopy(a):
     return cPickle.loads(cPickle.dumps(a, -1))
 
 
-def cv_prediction_from_ridge(Y, base_model: (RidgeCV, RidgeGCV)):
-    """
-    Scikit-learn _preprocess_data function will center Y, so we need to add the mean back
-    """
-    # all_y_pred = base_model.cv_results_ + Y.mean()
-    # errors = (Y.reshape(-1, 1) - all_y_pred) ** 2
-    # assert errors.size == Y.size * len(base_model.alphas)
-    # error_list = errors.sum(axis=0)
-    # new_best_index = np.argmin(error_list)
-
-    # get optimal alpha
-    new_best_index = tuple(base_model.alphas).index(base_model.alpha_)
-    # get cv_values
-    real_prediction = base_model.cv_results_[:, new_best_index]
-    # restore to correct scale
-    real_prediction = real_prediction + Y.mean()
-    return real_prediction
-
-
 def pareto_front_2d(points, mode="min") -> [np.ndarray, float]:
     from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 

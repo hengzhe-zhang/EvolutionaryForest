@@ -1,17 +1,14 @@
 import numpy as np
 from sklearn.linear_model import RidgeCV, LassoCV, Lasso
-from sklearn.metrics import r2_score, make_scorer
 from sklearn.multioutput import MultiOutputRegressor
 
-from evolutionary_forest.utils import cv_prediction_from_ridge
+from evolutionary_forest.model.RidgeGCV import RidgeGCV
 
 
 class MTLRidgeCV(RidgeCV):
     def __init__(self):
         super().__init__()
-        self.mtl_ridge = MultiOutputRegressor(
-            RidgeCV(store_cv_results=True, scoring=make_scorer(r2_score))
-        )
+        self.mtl_ridge = MultiOutputRegressor(RidgeGCV(store_cv_results=True))
         self.coef_ = None
 
     def fit(self, X, y=None):
@@ -31,7 +28,13 @@ class MTLRidgeCV(RidgeCV):
         tasks = len(self.mtl_ridge.estimators_)
         predictions = []
         for y_true, model in zip(y.reshape((-1, tasks)).T, self.mtl_ridge.estimators_):
-            real_p = cv_prediction_from_ridge(y_true, model)
+            # RidgeGCV stores predictions directly in cv_predictions_
+            if hasattr(model, "cv_predictions_"):
+                real_p = model.cv_predictions_
+            else:
+                # Fallback: extract from cv_results_ for best alpha
+                best_alpha_idx = tuple(model.alphas).index(model.alpha_)
+                real_p = model.cv_results_[:, best_alpha_idx]
             predictions.append(real_p)
         return np.array(predictions).T
 
