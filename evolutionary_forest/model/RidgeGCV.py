@@ -109,36 +109,21 @@ class RidgeGCV(_RidgeGCV):
 
         # Compute LOO predictions for each alpha
         for alpha_idx, alpha in enumerate(self.alphas):
-            if n_samples >= n_features:
-                # Tall case: use X^T X formulation
-                XtX = X_centered.T @ X_centered
-                reg_matrix = XtX + alpha * np.eye(n_features)
-                try:
-                    inv_XtX = np.linalg.solve(reg_matrix, np.eye(n_features))
-                except np.linalg.LinAlgError:
-                    inv_XtX = np.linalg.pinv(reg_matrix)
+            # Tall case: use X^T X formulation
+            XtX = X_centered.T @ X_centered
+            reg_matrix = XtX + alpha * np.eye(n_features)
+            try:
+                inv_XtX = np.linalg.solve(reg_matrix, np.eye(n_features))
+            except np.linalg.LinAlgError:
+                inv_XtX = np.linalg.pinv(reg_matrix)
 
-                # Hat matrix: H = X @ inv_XtX @ X^T
-                # Diagonal: h[i,i] = X[i] @ inv_XtX @ X[i]^T
-                hat_diag = np.sum((X_centered @ inv_XtX) * X_centered, axis=1)
+            # Hat matrix: H = X @ inv_XtX @ X^T
+            # Diagonal: h[i,i] = X[i] @ inv_XtX @ X[i]^T
+            hat_diag = np.sum((X_centered @ inv_XtX) * X_centered, axis=1)
 
-                # Full model predictions
-                coef = inv_XtX @ X_centered.T @ y_centered
-                y_pred = X_centered @ coef
-            else:
-                # Fat case: use X X^T formulation (more efficient)
-                XXt = X_centered @ X_centered.T
-                reg_matrix = XXt + alpha * np.eye(n_samples)
-                try:
-                    inv_XXt = np.linalg.solve(reg_matrix, np.eye(n_samples))
-                except np.linalg.LinAlgError:
-                    inv_XXt = np.linalg.pinv(reg_matrix)
-
-                # Hat matrix diagonal for fat case: H = XX^T @ inv_XXt
-                hat_diag = np.diag(XXt @ inv_XXt)
-
-                # Full model predictions
-                y_pred = XXt @ inv_XXt @ y_centered
+            # Full model predictions
+            coef = inv_XtX @ X_centered.T @ y_centered
+            y_pred = X_centered @ coef
 
             # Compute LOO predictions using efficient formula
             # y_loo[i] = (y_pred[i] - y[i]*h[i,i]) / (1 - h[i,i])
