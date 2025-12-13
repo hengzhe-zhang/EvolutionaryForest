@@ -567,10 +567,10 @@ def get_cv_predictions(estimator, X, y, direct_prediction=True):
     if (
         isinstance(base_model, RidgeGCV)
         and not direct_prediction
-        and hasattr(base_model, "cv_predictions_")
+        and hasattr(base_model, "loocv_predictions_")
     ):
-        # RidgeGCV stores CV predictions directly in cv_predictions_
-        y_pred = base_model.cv_predictions_
+        # RidgeGCV stores CV predictions directly in loocv_predictions_
+        y_pred = base_model.get_loocv_predictions()
     else:
         if isinstance(base_model, ClassifierMixin):
             y_pred = base_model.predict_proba(X)

@@ -50,6 +50,6 @@ class RidgeGCV(RidgeCV):
             self.store_cv_results, self.scoring = orig_store, orig_scoring
         return self
 
-    def predict_loocv(self):
+    def get_loocv_predictions(self):
         check_is_fitted(self, attributes=["loocv_predictions_"])
         return self.loocv_predictions_

@@ -8,7 +8,7 @@ from evolutionary_forest.model.RidgeGCV import RidgeGCV
 class MTLRidgeCV(RidgeCV):
     def __init__(self):
         super().__init__()
-        self.mtl_ridge = MultiOutputRegressor(RidgeGCV(store_cv_results=True))
+        self.mtl_ridge = MultiOutputRegressor(RidgeGCV())
         self.coef_ = None
 
     def fit(self, X, y=None):
@@ -28,9 +28,9 @@ class MTLRidgeCV(RidgeCV):
         tasks = len(self.mtl_ridge.estimators_)
         predictions = []
         for y_true, model in zip(y.reshape((-1, tasks)).T, self.mtl_ridge.estimators_):
-            # RidgeGCV stores predictions directly in cv_predictions_
-            if hasattr(model, "cv_predictions_"):
-                real_p = model.cv_predictions_
+            # RidgeGCV stores predictions directly in loocv_predictions_
+            if hasattr(model, "loocv_predictions_"):
+                real_p = model.get_loocv_predictions()
             else:
                 # Fallback: extract from cv_results_ for best alpha
                 best_alpha_idx = tuple(model.alphas).index(model.alpha_)

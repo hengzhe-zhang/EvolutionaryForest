@@ -20,7 +20,6 @@ from sympy import latex, parse_expr
 
 from evolutionary_forest.component.primitive_functions import individual_to_tuple
 
-
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
 from evolutionary_forest.utility.model_analysis_util import model_simplification
 

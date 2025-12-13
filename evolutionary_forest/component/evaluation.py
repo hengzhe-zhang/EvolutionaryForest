@@ -328,10 +328,10 @@ def calculate_score(args):
                 y_pred = base_model.cv_prediction(Y)
                 estimators = [pipe]
             elif isinstance(base_model, RidgeGCV) and hasattr(
-                base_model, "cv_predictions_"
+                base_model, "loocv_predictions_"
             ):
-                # RidgeGCV stores predictions directly in cv_predictions_
-                y_pred = base_model.cv_predictions_
+                # RidgeGCV stores predictions directly in loocv_predictions_
+                y_pred = base_model.get_loocv_predictions()
                 estimators = [pipe]
             else:
                 # Only RidgeGCV is supported for CV predictions
