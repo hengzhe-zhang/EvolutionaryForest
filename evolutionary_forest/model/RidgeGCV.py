@@ -2,9 +2,18 @@ import numpy as np
 from sklearn.linear_model._ridge import _RidgeGCV, RidgeCV
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+from sklearn.utils.validation import check_X_y
 
 
 class RidgeGCV(_RidgeGCV):
+    """
+    Efficient Ridge regression with Leave-One-Out Cross-Validation.
+
+    This implementation stores actual LOO CV predictions in cv_results_
+    (not MSE values). After fitting, cv_predictions_ contains the LOO CV
+    predictions for the optimal alpha, which can be accessed directly.
+    """
+
     def _validate_data(
         self,
         X="no_validation",
@@ -20,12 +29,126 @@ class RidgeGCV(_RidgeGCV):
         )
 
     def fit(self, X, y, sample_weight=None):
+        # Store X and y for efficient LOO CV computation
+        X, y = check_X_y(X, y, multi_output=True, y_numeric=True)
+        self._X_fit = X
+        self._y_fit = y.copy()
+
+        # Fit using parent class
         super().fit(X, y, sample_weight)
+
+        # If store_cv_results, compute and store actual LOO predictions
         if self.store_cv_results:
+            self._compute_loo_predictions()
             self.cv_results_ = np.nan_to_num(
                 self.cv_results_, nan=0.0, posinf=0.0, neginf=0.0
             )
+            # Store best alpha's predictions for easy access
+            self._store_best_cv_predictions()
         return self
+
+    def _store_best_cv_predictions(self):
+        """
+        Store CV predictions for the best alpha in cv_predictions_ attribute.
+
+        The predictions are stored automatically when store_cv_results=True,
+        allowing direct access via the cv_predictions_ attribute.
+        """
+        if self.cv_results_ is None:
+            return
+
+        # Get optimal alpha index
+        best_alpha_idx = tuple(self.alphas).index(self.alpha_)
+
+        # Extract predictions for best alpha
+        if self.cv_results_.ndim == 2:
+            # Single output case: (n_samples, n_alphas)
+            self.cv_predictions_ = self.cv_results_[:, best_alpha_idx]
+        else:
+            # Multi-output case: (n_samples, n_targets, n_alphas)
+            self.cv_predictions_ = self.cv_results_[:, :, best_alpha_idx]
+
+    def _compute_loo_predictions(self):
+        """
+        Efficiently compute Leave-One-Out CV predictions for all alphas.
+        Uses the hat matrix formula: y_loo[i] = (y_pred[i] - y[i]*h[i,i]) / (1 - h[i,i])
+        This is O(n*p^2) instead of O(n^2*p) for naive LOO CV.
+        """
+        X = self._X_fit
+        y = self._y_fit
+
+        # Center X and y if fit_intercept
+        if self.fit_intercept:
+            X_mean = X.mean(axis=0)
+            y_mean = y.mean()
+            X_centered = X - X_mean
+            y_centered = y - y_mean
+        else:
+            X_centered = X
+            y_centered = y
+            y_mean = 0.0
+
+        n_samples, n_features = X_centered.shape
+        n_alphas = len(self.alphas)
+
+        # Initialize cv_results_ to store predictions (not MSE)
+        if y.ndim == 1:
+            self.cv_results_ = np.zeros((n_samples, n_alphas))
+        else:
+            n_targets = y.shape[1]
+            self.cv_results_ = np.zeros((n_samples, n_targets, n_alphas))
+
+        # Compute LOO predictions for each alpha
+        for alpha_idx, alpha in enumerate(self.alphas):
+            if n_samples >= n_features:
+                # Tall case: use X^T X formulation
+                XtX = X_centered.T @ X_centered
+                reg_matrix = XtX + alpha * np.eye(n_features)
+                try:
+                    inv_XtX = np.linalg.solve(reg_matrix, np.eye(n_features))
+                except np.linalg.LinAlgError:
+                    inv_XtX = np.linalg.pinv(reg_matrix)
+
+                # Hat matrix: H = X @ inv_XtX @ X^T
+                # Diagonal: h[i,i] = X[i] @ inv_XtX @ X[i]^T
+                hat_diag = np.sum((X_centered @ inv_XtX) * X_centered, axis=1)
+
+                # Full model predictions
+                coef = inv_XtX @ X_centered.T @ y_centered
+                y_pred = X_centered @ coef
+            else:
+                # Fat case: use X X^T formulation (more efficient)
+                XXt = X_centered @ X_centered.T
+                reg_matrix = XXt + alpha * np.eye(n_samples)
+                try:
+                    inv_XXt = np.linalg.solve(reg_matrix, np.eye(n_samples))
+                except np.linalg.LinAlgError:
+                    inv_XXt = np.linalg.pinv(reg_matrix)
+
+                # Hat matrix diagonal for fat case: H = XX^T @ inv_XXt
+                hat_diag = np.diag(XXt @ inv_XXt)
+
+                # Full model predictions
+                y_pred = XXt @ inv_XXt @ y_centered
+
+            # Compute LOO predictions using efficient formula
+            # y_loo[i] = (y_pred[i] - y[i]*h[i,i]) / (1 - h[i,i])
+            # Avoid division by zero when h[i,i] is close to 1
+            hat_diag = np.clip(hat_diag, -np.inf, 1 - 1e-12)
+            denominator = 1.0 - hat_diag
+
+            if y.ndim == 1:
+                y_pred_loo = (y_pred - y_centered * hat_diag) / denominator
+                y_pred_loo = y_pred_loo + y_mean
+                self.cv_results_[:, alpha_idx] = y_pred_loo
+            else:
+                hat_diag_expanded = hat_diag[:, np.newaxis]
+                denominator_expanded = denominator[:, np.newaxis]
+                y_pred_loo = (
+                    y_pred - y_centered * hat_diag_expanded
+                ) / denominator_expanded
+                y_pred_loo = y_pred_loo + y_mean
+                self.cv_results_[:, :, alpha_idx] = y_pred_loo
 
     def predict(self, X):
         prediction = super().predict(X)
