@@ -93,7 +93,6 @@ from evolutionary_forest.utility.sampling_utils import (
 from evolutionary_forest.utility.visualization.lsh import numpy_to_lsh
 from evolutionary_forest.utils import (
     reset_random,
-    cv_prediction_from_ridge,
     one_hot_encode,
 )
 
@@ -328,9 +327,18 @@ def calculate_score(args):
             if isinstance(base_model, MTLRidgeCV):
                 y_pred = base_model.cv_prediction(Y)
                 estimators = [pipe]
+            elif isinstance(base_model, RidgeGCV) and hasattr(
+                base_model, "cv_predictions_"
+            ):
+                # RidgeGCV stores predictions directly in cv_predictions_
+                y_pred = base_model.cv_predictions_
+                estimators = [pipe]
             else:
-                real_prediction = cv_prediction_from_ridge(Y, base_model)
-                y_pred, estimators = real_prediction, [pipe]
+                # Only RidgeGCV is supported for CV predictions
+                raise ValueError(
+                    f"CV predictions are only supported for RidgeGCV, not {type(base_model).__name__}. "
+                    "Please use RidgeGCV instead, or disable cross_validation."
+                )
         elif cv == 1:
             # single fold training (very fast)
             indices = np.arange(len(Y))

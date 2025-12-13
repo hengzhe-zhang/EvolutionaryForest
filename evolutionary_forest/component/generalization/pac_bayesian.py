@@ -15,6 +15,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
+from evolutionary_forest.model.RidgeGCV import RidgeGCV
+
 from analysis.pac_bayesian.evaluation.dropout import dropout_features
 from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
@@ -32,7 +34,6 @@ from evolutionary_forest.utility.classification_utils import (
     calculate_cross_entropy,
     calculate_zero_one_loss,
 )
-from evolutionary_forest.utils import cv_prediction_from_ridge
 
 
 @njit(cache=True)
@@ -563,8 +564,13 @@ def check_format(input_string):
 
 def get_cv_predictions(estimator, X, y, direct_prediction=True):
     base_model = estimator["Ridge"]
-    if isinstance(base_model, RidgeCV) and not direct_prediction:
-        y_pred = cv_prediction_from_ridge(y, base_model)
+    if (
+        isinstance(base_model, RidgeGCV)
+        and not direct_prediction
+        and hasattr(base_model, "cv_predictions_")
+    ):
+        # RidgeGCV stores CV predictions directly in cv_predictions_
+        y_pred = base_model.cv_predictions_
     else:
         if isinstance(base_model, ClassifierMixin):
             y_pred = base_model.predict_proba(X)
