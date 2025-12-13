@@ -8,10 +8,6 @@ import numpy as np
 from evolutionary_forest.multigene_gp import MultipleGeneGP
 
 
-def save_original_genes(*individuals: MultipleGeneGP) -> List[List]:
-    return [copy.deepcopy(ind.gene) for ind in individuals]
-
-
 def normalize_importance(coef: np.ndarray, power: float = 1.0) -> np.ndarray:
     coef_abs = np.abs(coef)
     if coef_abs.sum() == 0:
@@ -20,22 +16,28 @@ def normalize_importance(coef: np.ndarray, power: float = 1.0) -> np.ndarray:
     return coef_powered / coef_powered.sum()
 
 
+def _is_fitness_degraded(individual: MultipleGeneGP, original_fitness: Optional[float]) -> bool:
+    """Check if fitness has degraded. Returns True if check unavailable (backward compatibility)."""
+    if original_fitness is None or not individual.fitness.valid or len(individual.fitness.wvalues) == 0:
+        return True
+    return individual.fitness.wvalues[0] < original_fitness
+
+
 def revert_genes_by_importance(
     individual: MultipleGeneGP,
     original_genes: List,
     revert_probability: float,
     feature_importance_power: float = 1.0,
+    original_fitness: Optional[float] = None,
 ):
     if len(original_genes) != len(individual.gene) or individual.coef is None:
         return
+    if not _is_fitness_degraded(individual, original_fitness):
+        return
 
-    normalized_importance = normalize_importance(
-        individual.coef, power=feature_importance_power
-    )
-    for i, (orig_gene, norm_imp) in enumerate(
-        zip(original_genes, normalized_importance)
-    ):
-        if random.random() < revert_probability * norm_imp:
+    norm_imp = normalize_importance(individual.coef, power=feature_importance_power)
+    for i, (orig_gene, imp) in enumerate(zip(original_genes, norm_imp)):
+        if random.random() < revert_probability * imp:
             individual.gene[i] = copy.deepcopy(orig_gene)
 
 
@@ -44,33 +46,27 @@ def revert_after_evaluation_by_importance(
     revert_probability: float,
     feature_importance_power: float = 1.0,
 ):
-    # Only process individuals that have the revert attributes set
-    # (i.e., those that went through crossover/mutation with the decorator)
-    if not hasattr(individual, "parent_genes_for_revert") or not hasattr(
-        individual, "parent_coef_for_revert"
-    ):
+    if not hasattr(individual, "parent_genes_for_revert"):
         return
 
     parent_genes = individual.parent_genes_for_revert
-    parent_coef = individual.parent_coef_for_revert
+    parent_fitness = getattr(individual, "parent_fitness_for_revert", None)
 
-    assert individual.coef is not None
-    assert len(parent_genes) == len(individual.gene)
-    assert len(parent_coef) == len(individual.coef)
+    if not _is_fitness_degraded(individual, parent_fitness):
+        for attr in ["parent_genes_for_revert", "parent_coef_for_revert", "parent_fitness_for_revert"]:
+            if hasattr(individual, attr):
+                delattr(individual, attr)
+        return
 
-    normalized_importance = normalize_importance(
-        individual.coef, power=feature_importance_power
-    )
+    assert individual.coef is not None and len(parent_genes) == len(individual.gene)
+    norm_imp = normalize_importance(individual.coef, power=feature_importance_power)
+    for i, (imp, parent_gene) in enumerate(zip(norm_imp, parent_genes)):
+        if random.random() < revert_probability * imp:
+            individual.gene[i] = copy.deepcopy(parent_gene)
 
-    for i, (curr_coef, parent_c, norm_imp, parent_gene) in enumerate(
-        zip(individual.coef, parent_coef, normalized_importance, parent_genes)
-    ):
-        if abs(curr_coef) < abs(parent_c):
-            if random.random() < revert_probability * norm_imp:
-                individual.gene[i] = copy.deepcopy(parent_gene)
-
-    delattr(individual, "parent_genes_for_revert")
-    delattr(individual, "parent_coef_for_revert")
+    for attr in ["parent_genes_for_revert", "parent_coef_for_revert", "parent_fitness_for_revert"]:
+        if hasattr(individual, attr):
+            delattr(individual, attr)
 
 
 def with_revert_probability(
@@ -82,42 +78,39 @@ def with_revert_probability(
         @wraps(func)
         def wrapper(*args, **kwargs):
             individuals = [arg for arg in args if isinstance(arg, MultipleGeneGP)]
-            if not individuals:
+            if not individuals or revert_probability == 0:
                 return func(*args, **kwargs)
 
-            original_genes = save_original_genes(*individuals)
+            original_genes = [copy.deepcopy(ind.gene) for ind in individuals]
+            original_fitnesses = [
+                ind.fitness.wvalues[0] if ind.fitness.valid and len(ind.fitness.wvalues) > 0 else None
+                for ind in individuals
+            ]
             original_coefs = (
-                [
-                    copy.deepcopy(ind.coef) if ind.coef is not None else None
-                    for ind in individuals
-                ]
-                if postpone_to_after_evaluation and revert_probability > 0
+                [copy.deepcopy(ind.coef) if ind.coef is not None else None for ind in individuals]
+                if postpone_to_after_evaluation
                 else []
             )
 
             result = func(*args, **kwargs)
+            result_list = result if isinstance(result, tuple) else [result]
+            result_individuals = [ind for ind in result_list if isinstance(ind, MultipleGeneGP)]
 
-            if revert_probability > 0:
-                result_list = result if isinstance(result, tuple) else [result]
-                result_individuals = [
-                    ind for ind in result_list if isinstance(ind, MultipleGeneGP)
-                ]
-                if len(result_individuals) == len(original_genes):
-                    if postpone_to_after_evaluation:
-                        for ind, orig_genes, orig_coef in zip(
-                            result_individuals, original_genes, original_coefs
-                        ):
-                            ind.parent_genes_for_revert = copy.deepcopy(orig_genes)
-                            if orig_coef is not None:
-                                ind.parent_coef_for_revert = orig_coef
-                    else:
-                        for ind, orig_genes in zip(result_individuals, original_genes):
-                            revert_genes_by_importance(
-                                ind,
-                                orig_genes,
-                                revert_probability,
-                                feature_importance_power,
-                            )
+            if len(result_individuals) != len(original_genes):
+                return result
+
+            if postpone_to_after_evaluation:
+                for ind, orig_genes, orig_coef, orig_fitness in zip(
+                    result_individuals, original_genes, original_coefs, original_fitnesses
+                ):
+                    ind.parent_genes_for_revert = copy.deepcopy(orig_genes)
+                    if orig_coef is not None:
+                        ind.parent_coef_for_revert = orig_coef
+                    if orig_fitness is not None:
+                        ind.parent_fitness_for_revert = orig_fitness
+            else:
+                for ind, orig_genes, orig_fitness in zip(result_individuals, original_genes, original_fitnesses):
+                    revert_genes_by_importance(ind, orig_genes, revert_probability, feature_importance_power, orig_fitness)
 
             return result
 
