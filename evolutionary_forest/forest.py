@@ -34,7 +34,14 @@ from sklearn.ensemble import (
 )
 from sklearn.exceptions import NotFittedError
 from sklearn.kernel_ridge import KernelRidge
-from sklearn.linear_model import Ridge, HuberRegressor, Lasso, LassoCV, ElasticNetCV
+from sklearn.linear_model import (
+    Ridge,
+    HuberRegressor,
+    Lasso,
+    LassoCV,
+    ElasticNetCV,
+    RidgeCV,
+)
 from sklearn.linear_model._base import LinearModel, LinearClassifierMixin
 from sklearn.metrics import *
 from sklearn.metrics.pairwise import cosine_similarity
@@ -2157,9 +2164,17 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     ridge = [self.ridge_alphas]
                 else:
                     ridge = eval(self.ridge_alphas)
-            ridge_model = RidgeGCV(
-                alphas=ridge, store_cv_results=True, scoring=make_scorer(safe_r2_score)
-            )
+            if self.evaluation_configuration.cross_validation:
+                ridge_model = RidgeGCV(
+                    alphas=ridge,
+                    store_cv_results=True,
+                    scoring=make_scorer(safe_r2_score),
+                )
+            else:
+                ridge_model = RidgeCV(
+                    alphas=ridge,
+                    scoring=make_scorer(safe_r2_score),
+                )
         elif self.base_learner == "RidgeCV-Mixup":
             ridge_model = MixupRegressor(
                 RidgeGCV(
