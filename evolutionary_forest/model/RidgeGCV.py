@@ -57,8 +57,9 @@ class RidgeGCV(_RidgeGCV):
         if self.cv_results_ is None:
             return
 
-        # Get optimal alpha index
-        best_alpha_idx = tuple(self.alphas).index(self.alpha_)
+        # Get optimal alpha index - use argmin to handle floating point precision
+        alphas_array = np.asarray(self.alphas)
+        best_alpha_idx = np.argmin(np.abs(alphas_array - self.alpha_))
 
         # Extract predictions for best alpha
         if self.cv_results_.ndim == 2:
@@ -80,13 +81,21 @@ class RidgeGCV(_RidgeGCV):
         # Center X and y if fit_intercept
         if self.fit_intercept:
             X_mean = X.mean(axis=0)
-            y_mean = y.mean()
+            # Handle both single and multi-output cases
+            if y.ndim == 1:
+                y_mean = y.mean()
+            else:
+                y_mean = y.mean(axis=0)
             X_centered = X - X_mean
             y_centered = y - y_mean
         else:
             X_centered = X
             y_centered = y
-            y_mean = 0.0
+            # Initialize y_mean with correct shape for broadcasting
+            if y.ndim == 1:
+                y_mean = 0.0
+            else:
+                y_mean = np.zeros(y.shape[1])
 
         n_samples, n_features = X_centered.shape
         n_alphas = len(self.alphas)
@@ -147,6 +156,17 @@ class RidgeGCV(_RidgeGCV):
                 y_pred_loo = (
                     y_pred - y_centered * hat_diag_expanded
                 ) / denominator_expanded
+                # Check shape compatibility for multi-output case
+                y_mean_array = np.asarray(y_mean)
+                if (
+                    y_mean_array.ndim > 0
+                    and y_mean_array.shape[0] != y_pred_loo.shape[1]
+                ):
+                    raise ValueError(
+                        f"Shape mismatch for multi-output: y_mean has shape {y_mean_array.shape}, "
+                        f"but y_pred_loo has shape {y_pred_loo.shape}. "
+                        f"Expected y_mean.shape[0] == {y_pred_loo.shape[1]}"
+                    )
                 y_pred_loo = y_pred_loo + y_mean
                 self.cv_results_[:, :, alpha_idx] = y_pred_loo
 
