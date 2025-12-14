@@ -2588,9 +2588,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         revert_probability = self.crossover_configuration.revert_probability
         feature_importance_power = self.crossover_configuration.feature_importance_power
-        revert_postpone_to_after_evaluation = (
-            self.crossover_configuration.revert_postpone_to_after_evaluation
-        )
         if revert_probability > 0:
             from evolutionary_forest.component.crossover.adaptive_feature_importance import (
                 with_revert_probability,
@@ -2601,7 +2598,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 with_revert_probability(
                     revert_probability,
                     feature_importance_power,
-                    revert_postpone_to_after_evaluation,
                 ),
             )
             toolbox.decorate(
@@ -2609,7 +2605,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 with_revert_probability(
                     revert_probability,
                     feature_importance_power,
-                    revert_postpone_to_after_evaluation,
                 ),
             )
 
@@ -5275,23 +5270,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ind.pipe["Scaler"].mean_ = ind.pipe["Scaler"].mean_ * coef
                 ind.gene = lamarck_constant(ind.gene, self.pset, coef)
                 ind.pipe["Ridge"].coef_ = np.ones_like(coef)
-
-        # Revert postpone to after evaluation
-        revert_probability = self.crossover_configuration.revert_probability
-        revert_postpone_to_after_evaluation = (
-            self.crossover_configuration.revert_postpone_to_after_evaluation
-        )
-        feature_importance_power = self.crossover_configuration.feature_importance_power
-        if revert_probability > 0 and revert_postpone_to_after_evaluation:
-            from evolutionary_forest.component.crossover.adaptive_feature_importance import (
-                revert_after_evaluation_by_importance,
-            )
-
-            for ind in population:
-                if isinstance(ind, MultipleGeneGP):
-                    revert_after_evaluation_by_importance(
-                        ind, revert_probability, feature_importance_power
-                    )
 
     def semantic_crossover_for_parent(
         self,
