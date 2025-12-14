@@ -38,17 +38,13 @@ def revert_genes_by_importance(
 
 
 def with_revert_probability(
-    revert_probability=0.0,
-    feature_importance_power: float = 1.0,
-    crossover_configuration=None,
+    crossover_configuration,
 ):
     """
     Decorator for revert probability based on feature importance.
     Supports MAB when revert_probability == "MAB".
 
     Args:
-        revert_probability: Base probability of reverting, or "MAB" for auto-tuning
-        feature_importance_power: Power for importance normalization
         crossover_configuration: CrossoverConfiguration object (needed for MAB)
     """
 
@@ -59,8 +55,8 @@ def with_revert_probability(
             if not individuals:
                 return func(*args, **kwargs)
 
-            # Get crossover_configuration from kwargs or closure
-            config = crossover_configuration or kwargs.get("crossover_configuration")
+            # Use the provided crossover_configuration
+            config = crossover_configuration
 
             # Check config at runtime - if no config, skip
             if config is None:
@@ -76,7 +72,6 @@ def with_revert_probability(
 
             # Handle MAB mode
             use_mab = config_revert_prob == "MAB"
-            actual_revert_prob = config_revert_prob
             revert_choice_idx = None
 
             if use_mab:
@@ -91,14 +86,17 @@ def with_revert_probability(
                 actual_revert_prob, revert_choice_idx = (
                     config.revert_probability_mab.select()
                 )
+            else:
+                actual_revert_prob = config_revert_prob
 
             # Save original genes
             original_genes_list = [copy.deepcopy(ind.gene) for ind in individuals]
 
             result = func(*args, **kwargs)
-            result_list = result if isinstance(result, tuple) else [result]
             result_individuals = [
-                ind for ind in result_list if isinstance(ind, MultipleGeneGP)
+                ind
+                for ind in (result if isinstance(result, tuple) else [result])
+                if isinstance(ind, MultipleGeneGP)
             ]
 
             if len(result_individuals) != len(original_genes_list):
@@ -231,7 +229,7 @@ class RevertProbabilityMAB:
                 continue
 
             # parent_fitness is a tuple: (fitness1, fitness2)
-            parent_fitness = [o1.parent_fitness[0], o1.parent_fitness[1]]
+            parent_fitness = list(o1.parent_fitness)
 
             # Get offspring fitness
             if not (o1.fitness.valid and o2.fitness.valid):
@@ -256,9 +254,7 @@ class RevertProbabilityMAB:
         Returns:
             revert_probability value
         """
-        if choice_idx is None:
-            return self.select()[0]
-        return self.choices[choice_idx]
+        return self.select()[0] if choice_idx is None else self.choices[choice_idx]
 
     def _log_statistics(self):
         """
