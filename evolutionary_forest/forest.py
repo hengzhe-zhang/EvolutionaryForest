@@ -2588,7 +2588,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
         revert_probability = self.crossover_configuration.revert_probability
         feature_importance_power = self.crossover_configuration.feature_importance_power
-        if revert_probability > 0:
+        if revert_probability and revert_probability != 0:
             from evolutionary_forest.component.crossover.adaptive_feature_importance import (
                 with_revert_probability,
             )
@@ -2598,6 +2598,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 with_revert_probability(
                     revert_probability,
                     feature_importance_power,
+                    crossover_configuration=self.crossover_configuration,
                 ),
             )
             toolbox.decorate(
@@ -2605,6 +2606,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 with_revert_probability(
                     revert_probability,
                     feature_importance_power,
+                    crossover_configuration=self.crossover_configuration,
                 ),
             )
 
@@ -4526,10 +4528,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.dynamic_reduction > 0
                 and (gen > 1)
                 and (
-                    (number_of_evaluations - self.n_pop)
-                    % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
-                    == 0
-                )
+                (number_of_evaluations - self.n_pop)
+                % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
+                == 0
+            )
             ):
                 pop_size //= 2
                 assert self.pre_selection == None
@@ -4557,7 +4559,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ensemble_value = np.mean([x.predicted_values for x in self.hof], axis=0)
                 for x in self.hof:
                     ambiguity = (x.predicted_values - ensemble_value) ** 2
-                    x.case_values[len(x.predicted_values) :] = -1 * ambiguity
+                    x.case_values[len(x.predicted_values):] = -1 * ambiguity
 
             cxpb, mutpb = self.linear_adaptive_rate(gen, cxpb, mutpb)
             cxpb, mutpb = self.get_adaptive_mutation_rate(cxpb, mutpb)
@@ -4604,9 +4606,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if (
                 self.current_gen == (self.n_gen // 2) + 1
                 and (
-                    self.evaluation_configuration.two_stage_feature_selection
-                    is not None
-                )
+                self.evaluation_configuration.two_stage_feature_selection
+                is not None
+            )
                 and all([not hasattr(ind, "case_values") for ind in population])
             ):
                 # Re-initialization
@@ -4780,6 +4782,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 print("Start Evaluation")
             # Evaluate all individuals
             evaluated_inds = self.population_evaluation(toolbox, offspring)
+
+            # Update MAB for revert probability if enabled
+            self._update_revert_probability_mab(offspring)
 
             self.post_processing_after_evaluation(population, offspring)
 
@@ -5010,7 +5015,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # in place
             if len(new_list) > 0:
-                offspring[-len(new_list) :] = new_list
+                offspring[-len(new_list):] = new_list
 
     def eql_hybrid_initialization(self, population):
         config = self.eql_hybrid_configuration
@@ -5339,6 +5344,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 o.parent_fitness = parent_fitness
                 o.crossover_type = crossover_type
 
+    def _update_revert_probability_mab(self, offspring):
+        """
+        Update MAB for revert probability based on fitness improvement.
+        Delegates to MAB class.
+        """
+        # Only update if MAB is enabled (revert_probability == "MAB")
+        if self.crossover_configuration.revert_probability != "MAB":
+            return
+
+        mab = getattr(self.crossover_configuration, "revert_probability_mab", None)
+        if mab is not None:
+            mab.update_from_offspring(offspring)
+
     def get_validation_score(self, best_individual, force_training=False):
         """
         Evaluate the performance on validation set
@@ -5354,7 +5372,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.cross_pb == "Linear":
             cxpb = np.interp(np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.9, 0.5])[
                 gen - 1
-            ]
+                ]
         if self.mutation_pb == "Linear":
             mutpb = np.interp(
                 np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.1, 0.5]
@@ -6475,7 +6493,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if len(ind.case_values) == len(self.y):
                 ind.case_values = np.concatenate([ind.case_values, distance], axis=0)
             else:
-                ind.case_values[len(self.y) :] = distance
+                ind.case_values[len(self.y):] = distance
 
     def complexity(self):
         count = 0
