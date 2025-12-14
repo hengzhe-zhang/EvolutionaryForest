@@ -40,6 +40,7 @@ from evolutionary_forest.component.decision_making.euclidian_knee_selection impo
 from evolutionary_forest.component.decision_making.harmonic_rank import (
     best_harmonic_rank,
 )
+from evolutionary_forest.component.decision_making.utility_function import knee_point_by_utility
 from evolutionary_forest.component.fitness import R2PACBayesian, Fitness
 from evolutionary_forest.component.generalization.sharpness_utils.sharpness_utils import (
     collect_information_of_sharpness,

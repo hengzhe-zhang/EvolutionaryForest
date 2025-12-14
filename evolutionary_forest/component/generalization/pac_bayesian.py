@@ -17,7 +17,6 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from evolutionary_forest.model.RidgeGCV import RidgeGCV
 
-from analysis.pac_bayesian.evaluation.dropout import dropout_features
 from evolutionary_forest.component.configuration import (
     NoiseConfiguration,
     Configuration,
@@ -29,6 +28,7 @@ from evolutionary_forest.component.evaluation import (
 from evolutionary_forest.component.generalization.cache.sharpness_memory import (
     TreeLRUCache,
 )
+from evolutionary_forest.component.generalization.util.dropout import dropout_features
 from evolutionary_forest.model.WKNN import GaussianKNNRegressor
 from evolutionary_forest.utility.classification_utils import (
     calculate_cross_entropy,
