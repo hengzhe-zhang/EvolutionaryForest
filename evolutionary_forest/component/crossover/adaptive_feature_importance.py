@@ -72,7 +72,6 @@ def with_revert_probability(
 
             # Handle MAB mode
             use_mab = config_revert_prob == "MAB"
-            revert_choice_idx = None
 
             if use_mab:
                 # Initialize MAB if not already done
@@ -81,13 +80,6 @@ def with_revert_probability(
                     or config.revert_probability_mab is None
                 ):
                     config.revert_probability_mab = RevertProbabilityMAB()
-
-                # Select revert_probability using MAB
-                actual_revert_prob, revert_choice_idx = (
-                    config.revert_probability_mab.select()
-                )
-            else:
-                actual_revert_prob = config_revert_prob
 
             # Save original genes
             original_genes_list = [copy.deepcopy(ind.gene) for ind in individuals]
@@ -102,13 +94,18 @@ def with_revert_probability(
             if len(result_individuals) != len(original_genes_list):
                 return result
 
-            # Store choice_idx for MAB update (if using MAB)
-            if use_mab and revert_choice_idx is not None:
-                for ind in result_individuals:
-                    ind.revert_probability_choice = revert_choice_idx
-
-            # Revert genes based on importance
+            # Revert genes based on importance - sample MAB choice for each individual separately
             for ind, orig_genes in zip(result_individuals, original_genes_list):
+                if use_mab:
+                    # Select revert_probability using MAB for each individual
+                    actual_revert_prob, revert_choice_idx = (
+                        config.revert_probability_mab.select()
+                    )
+                    # Store choice_idx for MAB update
+                    ind.revert_probability_choice = revert_choice_idx
+                else:
+                    actual_revert_prob = config_revert_prob
+
                 revert_genes_by_importance(
                     ind,
                     orig_genes,
@@ -194,11 +191,12 @@ class RevertProbabilityMAB:
     def update_from_offspring(self, offspring: List[MultipleGeneGP]):
         """
         Update MAB from a list of offspring.
-        Processes offspring in pairs and updates based on fitness improvement.
+        Processes each offspring individually and updates based on fitness improvement.
+        Each offspring can have its own MAB choice.
         Applies weight decay per generation to favor recent rewards.
 
         Args:
-            offspring: List of offspring individuals (should be in pairs from crossover)
+            offspring: List of offspring individuals
         """
         # Apply decay at start of each generation (except first)
         # This gives more weight to recent rewards for dynamic adaptation
@@ -209,36 +207,38 @@ class RevertProbabilityMAB:
 
         self._update_count += 1
 
-        # Process in pairs since crossover produces pairs
-        for i in range(0, len(offspring) - 1, 2):
-            o1, o2 = offspring[i], offspring[i + 1]
-
-            # Check if both have revert_probability_choice (were crossed with MAB)
-            if not (
-                hasattr(o1, "revert_probability_choice")
-                and hasattr(o2, "revert_probability_choice")
-            ):
+        # Process each offspring individually
+        for o in offspring:
+            # Check if has revert_probability_choice (was crossed with MAB)
+            if not hasattr(o, "revert_probability_choice"):
                 continue
 
-            choice_idx = o1.revert_probability_choice
-            if choice_idx != o2.revert_probability_choice:
-                continue  # Should be the same for a pair
+            choice_idx = o.revert_probability_choice
 
             # Get parent fitness (already recorded during crossover)
-            if not (hasattr(o1, "parent_fitness") and o1.parent_fitness is not None):
+            if not (hasattr(o, "parent_fitness") and o.parent_fitness is not None):
                 continue
 
             # parent_fitness is a tuple: (fitness1, fitness2)
-            parent_fitness = list(o1.parent_fitness)
-
-            # Get offspring fitness
-            if not (o1.fitness.valid and o2.fitness.valid):
+            parent_fitness = list(o.parent_fitness)
+            if not parent_fitness:
                 continue
 
-            offspring_fitness = [o1.fitness.wvalues[0], o2.fitness.wvalues[0]]
+            # Get offspring fitness
+            if not o.fitness.valid:
+                continue
 
-            # Update MAB
-            self.update(parent_fitness, choice_idx, offspring_fitness)
+            offspring_fitness = [o.fitness.wvalues[0]]
+
+            # Update MAB for this individual's choice
+            # Compare this offspring's fitness to best parent fitness
+            best_parent = max(parent_fitness)
+            best_offspring = max(offspring_fitness)
+
+            if best_offspring > best_parent:
+                self.arm_data[0][choice_idx] += 1  # success
+            else:
+                self.arm_data[1][choice_idx] += 1  # failure
 
         # Log statistics on Windows after processing all offspring
         if self._log_enabled and self._update_count > 0:
