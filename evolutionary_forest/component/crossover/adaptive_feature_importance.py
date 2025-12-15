@@ -127,7 +127,7 @@ class RevertProbabilityMAB:
     """
 
     def __init__(
-        self, choices: List[float] = [0.0, 1.0, 3.0, 5.0, 7.0], decay_rate: float = 0.99
+        self, choices: List[float] = [0.0, 1.0, 3.0, 5.0, 7.0], decay_rate: float = 0.95
     ):
         """
         Args:
