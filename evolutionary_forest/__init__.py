@@ -2,4 +2,4 @@
 
 __author__ = """Hengzhe Zhang"""
 __email__ = 'hengzhe.zhang@ecs.vuw.ac.nz'
-__version__ = '0.2.4'
+__version__ = '0.2.5'
