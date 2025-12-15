@@ -15,5 +15,5 @@ def consistency_check(learner):
                     else:
                         if value != global_dict[key]:
                             raise ValueError(
-                                f"Configuration attribute {key} is not consistent"
+                                f"Configuration attribute {key} is not consistent: {global_dict[key]} != {value}"
                             )

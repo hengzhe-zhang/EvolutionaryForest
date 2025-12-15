@@ -3087,8 +3087,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     "Neg",
                 ]
             )
-            self.evaluation_configuration.basic_primitives = self.basic_primitives
-            self.mutation_configuration.basic_primitives = self.basic_primitives
             self.add_primitives_to_pset(pset)
         elif self.basic_primitives == "CDFC":
             # Primitives used in CDFC
@@ -3225,6 +3223,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
     ):
         if primitives is None:
             primitives = self.basic_primitives
+        self.evaluation_configuration.basic_primitives = self.basic_primitives
+        self.mutation_configuration.basic_primitives = self.basic_primitives
         if self.custom_primitives is None:
             custom_primitives = {}
         else:

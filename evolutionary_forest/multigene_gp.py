@@ -552,10 +552,8 @@ def tree_mutation(
 ):
     if configuration.safe_mutation:
         trees = mutUniformSizeSafe(tree, tree_generation, pset, configuration)
-    elif configuration.basic_primitives:
-        trees = mutUniformSTGP(tree, expr, pset)
     else:
-        trees = mutUniform(tree, expr, pset)
+        trees = mutUniformSTGP(tree, expr, pset)
     return trees
 
 
@@ -814,7 +812,7 @@ def cxOnePoint_multiple_gene_threshold(
                 l = list(
                     filter(
                         lambda x: (feature_to_tuple(x) not in all_features)
-                        and (feature_to_tuple(x) not in generated_features),
+                                  and (feature_to_tuple(x) not in generated_features),
                         [gene1, gene2],
                     )
                 )
