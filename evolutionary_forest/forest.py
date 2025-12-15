@@ -6532,20 +6532,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if len(self.hof) == 1:
             assert len(self.hof) == 1
             best_ind = self.hof[0]
-            final_model = self.single_model(best_ind, mtl_id)
-            if isinstance(self.y_scaler, StandardScaler):
-                mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
-                final_model = f"((({final_model})*{std})+{mean})"
-            if isinstance(self.y_scaler, MinMaxScaler):
-                min_val, max_val = (
-                    self.y_scaler.data_min_[0],
-                    self.y_scaler.data_max_[0],
-                )
-                final_model = f"(({final_model}) * ({max_val} - {min_val})) + {min_val}"
-            if isinstance(self.y_scaler, YIntScaler):
-                if self.y_scaler.is_integer:
-                    final_model = f"Round({final_model})"
-            return final_model
+            base_expr = self.single_model(best_ind, mtl_id)
+            return self._apply_y_scaler_to_model_expr(base_expr, num_models=1)
         else:
             final_model = ""
             for ind in self.hof:
@@ -6553,10 +6541,52 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     final_model += "(" + self.single_model(ind, mtl_id) + ")"
                 else:
                     final_model += "+(" + self.single_model(ind, mtl_id) + ")"
-            if self.y_scaler is not None:
-                mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
-                final_model = f"((({final_model})/{len(self.hof)}*{std})+{mean})"
-            return final_model
+            # Average predictions across the hall-of-fame and then invert any scaling
+            return self._apply_y_scaler_to_model_expr(
+                final_model, num_models=len(self.hof)
+            )
+
+    def _apply_y_scaler_to_model_expr(self, expr: str, num_models: int = 1) -> str:
+        """
+        Given a symbolic expression `expr` representing the (scaled) prediction,
+        optionally average across `num_models` and then apply the inverse of
+        any supported y_scaler so that the final expression is in the original
+        target space.
+        """
+        if num_models > 1:
+            expr = f"(({expr})/{num_models})"
+
+        if self.y_scaler is None:
+            return expr
+
+        # StandardScaler: y = x * scale_ + mean_
+        if isinstance(self.y_scaler, StandardScaler):
+            mean, std = self.y_scaler.mean_[0], self.y_scaler.scale_[0]
+            expr = f"(({expr})*{std})+{mean}"
+
+        # MinMaxScaler: y = x * (max - min) + min
+        elif isinstance(self.y_scaler, MinMaxScaler):
+            min_val, max_val = (
+                self.y_scaler.data_min_[0],
+                self.y_scaler.data_max_[0],
+            )
+            expr = f"(({expr}) * ({max_val} - {min_val})) + {min_val}"
+
+        # YIntScaler: apply rounding on top of the underlying scaler's inverse
+        elif isinstance(self.y_scaler, YIntScaler):
+            # We currently assume the underlying scaler has already been
+            # accounted for elsewhere when building `expr`. Here we only
+            # enforce integer output if required.
+            if self.y_scaler.is_integer:
+                expr = f"Round({expr})"
+
+        else:
+            raise ValueError(
+                f"Unsupported y_scaler type in model(): {type(self.y_scaler)}. "
+                "Supported types are StandardScaler, MinMaxScaler, and YIntScaler."
+            )
+
+        return expr
 
     def single_model(self, best_ind, mtl_id=None):
         if isinstance(best_ind.pipe, Pipeline):
