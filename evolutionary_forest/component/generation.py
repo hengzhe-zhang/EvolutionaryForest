@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from evolutionary_forest.forest import EvolutionaryForestRegressor
     from evolutionary_forest.utility.tree_pool import SemanticLibrary
 
-
 from evolutionary_forest.multigene_gp import (
     tree_crossover,
     MultipleGeneGP,
@@ -163,7 +162,7 @@ def varAndPlus(
                     assert len(offspring) == 2
                     llm_offspring = llm_crossover(
                         # top_ind,
-                        offspring[i : i + 2],
+                        offspring[i: i + 2],
                         crossover_configuration.llm_pattern,
                         toolbox.pset,
                     )
@@ -226,10 +225,6 @@ def varAndPlus(
                                 str(offspring[i]),
                             )
 
-                        offspring[i], offspring[i + 1] = toolbox.mate(
-                            offspring[i], offspring[i + 1]
-                        )
-
                         # set parent fitness as the fitness values of two parents
                         if (
                             offspring[i].parent_fitness is None
@@ -247,6 +242,10 @@ def varAndPlus(
                                 offspring[i + 1].fitness.wvalues[0],
                                 offspring[i].fitness.wvalues[0],
                             )
+
+                        offspring[i], offspring[i + 1] = toolbox.mate(
+                            offspring[i], offspring[i + 1]
+                        )
 
                 # mutation, using the number of genes for each individual
                 invokes = get_number_of_invokes(

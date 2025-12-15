@@ -228,12 +228,12 @@ class RevertProbabilityMAB:
             if not o.fitness.valid:
                 continue
 
-            offspring_fitness = [o.fitness.wvalues[0]]
+            offspring_fitness = o.fitness.wvalues[0]
 
             # Update MAB for this individual's choice
             # Compare this offspring's fitness to best parent fitness
             best_parent = max(parent_fitness)
-            best_offspring = max(offspring_fitness)
+            best_offspring = offspring_fitness
 
             if best_offspring > best_parent:
                 self.arm_data[0][choice_idx] += 1  # success
