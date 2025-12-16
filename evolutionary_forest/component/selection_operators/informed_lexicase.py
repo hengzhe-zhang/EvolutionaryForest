@@ -274,8 +274,8 @@ def novel_selection_v2(population, k=100, status={}):
         mse_sub = errs[:, subset].mean(axis=1)
         specialization = full_mse - mse_sub  # + means better on subset specialization
         scores = (
-            (1 - stage) * specialization + stage * (1 / (full_mse + 1e-10))
-        ) - comp_pen
+                     (1 - stage) * specialization + stage * (1 / (full_mse + 1e-10))
+                 ) - comp_pen
         best_idx = np.argmax(scores)
         parent_a.append(population[best_idx])
 
@@ -318,7 +318,7 @@ def novel_selection_plus(population, k=100, status={}):
     residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
     complexity = np.array([len(ind) + ind.height for ind in population], float)
     complexity /= max(1, complexity.max())
-    mse_full = (residuals**2).mean(axis=1)
+    mse_full = (residuals ** 2).mean(axis=1)
     subset_mse = np.array(
         [
             [((residuals[i, s]) ** 2).mean() if s.size else np.inf for s in subsets]
@@ -393,7 +393,7 @@ def novel_selection_flux(population, k=100, status={}):
     complexity = np.array([len(ind) + ind.height for ind in population], float)
     complexity /= max(complexity.max(), 1)
 
-    mse_full = (residuals**2).mean(axis=1)
+    mse_full = (residuals ** 2).mean(axis=1)
     subset_mse = np.array(
         [
             [(residuals[i, s] ** 2).mean() if len(s) else np.inf for s in subsets]
@@ -472,7 +472,7 @@ def novel_selection_nova(population, k=100, status={}):
     residuals = np.vstack([ind.y - ind.predicted_values for ind in population])
     complexity = np.array([len(ind) + ind.height for ind in population], float)
     complexity /= max(1, complexity.max())
-    mse_full = (residuals**2).mean(axis=1)
+    mse_full = (residuals ** 2).mean(axis=1)
     subset_mse = np.array(
         [
             [((residuals[i, s]) ** 2).mean() if s.size else np.inf for s in subsets]
@@ -554,7 +554,7 @@ def novel_selection_aether(population, k=100, status={}):
     spec_idx = np.argmin(spec_scores, axis=0).tolist()
 
     # Generalists based on overall fitness and complexity, count shrinks with stage to favor specialization
-    mse_full = np.mean(residuals**2, axis=1)
+    mse_full = np.mean(residuals ** 2, axis=1)
     gen_count = max(1, half_k // (2 + (3 if stage < 0.65 else 5)))
     gen_candidates = [
         i for i in np.argsort(mse_full + penalty_w * norm_comp) if i not in spec_idx
@@ -807,3 +807,80 @@ def random_ds_tournament_selection(population, k, tournsize, downsample_rate=0.1
         selected.append(winner)
 
     return selected  # Return selected individuals for reproduction
+
+
+def adaptive_orthogonal_specialization_selection(population, k=100, status={}):
+    import numpy as np
+    if not population or k <= 0:
+        return []
+    n = len(population)
+    k = int(max(1, min(int(k), 2 * n)))
+    m = min(n, max(1, k // 2))
+    # build matrices
+    E = np.vstack(
+        [np.asarray(getattr(ind, "case_values", []), dtype=float).ravel() for ind in population])  # (n, c)
+    P = np.vstack(
+        [np.asarray(getattr(ind, "predicted_values", np.zeros(E.shape[1])), dtype=float).ravel() for ind in
+         population])
+    c = E.shape[1]
+    stage = float(status.get("evolutionary_stage", 0.5))
+    # masks: mix contiguous blocks and random masks (favor specialization early)
+    p = np.clip(0.06 + 0.5 * stage, 0.05, 0.9)
+    num_block = m // 2
+    masks = np.zeros((m, c), dtype=float)
+    if num_block > 0:
+        starts = np.random.randint(0, max(1, c), size=num_block)
+        max_len = max(1, int(np.clip(c * (p * 2), 1, c)))
+        lengths = np.random.randint(1, max_len + 1, size=num_block)
+        idx = np.arange(c)
+        masks[:num_block] = (
+            (idx[None, :] >= starts[:, None]) & (idx[None, :] < (starts + lengths)[:, None])).astype(float)
+    rem = m - num_block
+    if rem > 0:
+        masks[num_block:] = (np.random.rand(rem, c) < p).astype(float)
+    empty = masks.sum(axis=1) == 0
+    if empty.any():
+        masks[empty, np.random.randint(0, c, size=empty.sum())] = 1.0
+    # subset MSEs and overall fitness
+    subset_sums = masks.sum(axis=1, keepdims=True)
+    subset_mse = (masks @ E.T) / (subset_sums + 1e-12)  # (m, n)
+    overall = E.mean(axis=1)
+    # complexity (nodes + height) normalized
+    nodes = np.array([len(ind) for ind in population], dtype=float)
+    heights = np.array([getattr(ind, "height", 0) for ind in population], dtype=float)
+
+    def norm(x):
+        r = x - x.min()
+        return r / (r.ptp() + 1e-9)
+
+    comp = norm(nodes) + 0.5 * norm(heights)
+    comp = comp / (comp.max() + 1e-9)
+    # stage-specific tiny weights: favor specialization early, interpretability late
+    overall_w = 0.04 * stage
+    comp_w = 0.12 * (1.0 - stage) + 0.02 * stage
+    scores_a = subset_mse + overall_w * overall[None, :] + comp_w * comp[None, :]
+    parent_a_idx = np.argmin(scores_a, axis=1)
+    # residuals and complementarity (prefer low correlation)
+    R = np.vstack(
+        [(np.asarray(getattr(ind, "y", np.zeros(c))) - P[i]).ravel() for i, ind in enumerate(population)]).astype(
+        float)
+    Rm = R - R.mean(axis=1, keepdims=True)
+    norms = np.linalg.norm(Rm, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    Rn = Rm / norms
+    RA = Rn[parent_a_idx]
+    corr = RA @ Rn.T  # cosine-like similarities (m, n)
+    comp_pen = 0.2 * (1.0 - stage) * comp[None, :]
+    score_partner = np.abs(corr) + comp_pen
+    rows = np.arange(m)
+    score_partner[rows, parent_a_idx] = score_partner.max() + 1.0
+    parent_b_idx = np.argmin(score_partner, axis=1)
+    # interleave and final trimming (handle odd k by appending a compact best)
+    pop_arr = np.array(population, dtype=object)
+    sel = np.empty(2 * m + (k % 2), dtype=object)
+    sel[0:2 * m:2] = pop_arr[parent_a_idx]
+    sel[1:2 * m:2] = pop_arr[parent_b_idx]
+    if k % 2:
+        best = int(np.argmin(overall + 0.06 * comp))
+        sel[-1] = pop_arr[best]
+    return list(sel[:k])

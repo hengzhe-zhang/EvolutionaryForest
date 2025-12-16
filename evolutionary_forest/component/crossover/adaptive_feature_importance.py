@@ -126,9 +126,7 @@ class RevertProbabilityMAB:
     Tracks parent fitness and choice to determine reward.
     """
 
-    def __init__(
-        self, choices: List[float] = [0.0, 1.0, 3.0, 5.0, 7.0], decay_rate: float = 0.95
-    ):
+    def __init__(self, choices: List[float] = [0, 1, 3, 5], decay_rate: float = 0.95):
         """
         Args:
             choices: List of revert probability values to choose from
