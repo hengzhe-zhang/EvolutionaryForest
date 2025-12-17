@@ -2850,15 +2850,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 "select",
                 novel_selection_fixed,
             )
-        elif self.select == "AOSS":
-            from evolutionary_forest.component.selection_operators.informed_lexicase import (
-                adaptive_orthogonal_specialization_selection,
-            )
-
-            toolbox.register(
-                "select",
-                adaptive_orthogonal_specialization_selection,
-            )
         elif self.select == "NovelSelection-Simplified":
             from evolutionary_forest.component.selection_operators.informed_lexicase import (
                 novel_selection_simplified,
