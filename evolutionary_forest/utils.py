@@ -241,6 +241,7 @@ def plot_feature_importance(
     top_features=10,
     figure_name="feature_importance",
     palette="bone",
+    figsize=None,
 ):
     names, importance = (
         list(feature_importance_dict.keys()),
@@ -258,9 +259,11 @@ def plot_feature_importance(
     fi_df.sort_values(by=["feature_importance"], ascending=False, inplace=True)
 
     # Define size of bar plot - scale height proportionally with number of features
-    base_height = 10 * 0.65
-    height_scale = top_features / 10.0  # Scale relative to default of 10 features
-    plt.figure(figsize=(16 * 0.65, base_height * height_scale))
+    if figsize is None:
+        base_height = 10 * 0.65
+        height_scale = top_features / 10.0  # Scale relative to default of 10 features
+        figsize = (16 * 0.65, base_height * height_scale)
+    plt.figure(figsize=figsize)
     sns.set(style="whitegrid", font_scale=1.5)
     # Plot Seaborn bar chart
     sns.barplot(
