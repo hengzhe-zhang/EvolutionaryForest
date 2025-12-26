@@ -179,11 +179,11 @@ class ParentSelectorRL:
         if isinstance(logprob, (list, tuple)):
             pairs = [(lp, rw) for lp, rw in zip(logprob, reward) if lp is not None]
             if not pairs:
-                return
+                return None
             logprobs, rewards = zip(*pairs)  # tuples
         else:
             if logprob is None:
-                return
+                return None
             logprobs, rewards = (logprob,), (reward,)
 
         device = self.device
@@ -200,6 +200,9 @@ class ParentSelectorRL:
                 self.model.parameters(), self.cfg.clip_grad_norm
             )
         self.opt.step()
+        
+        # Return loss value for logging
+        return float(loss.detach().cpu().item())
 
     @staticmethod
     def compute_reward(
@@ -359,7 +362,9 @@ def update_nn(
             rewards.append(reward)
 
     if logprobs:
-        model.update(logprobs, rewards)
+        loss = model.update(logprobs, rewards)
+        return loss
+    return None
 
     # plot_reward_distribution(rewards)
 

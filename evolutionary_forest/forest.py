@@ -1093,6 +1093,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.training_r2_logs = []
         self.sharpness_ratio_logs = []
         self.generalization_gap_logs = []
+        self.rl_loss_logs = []
 
     def history_initialization(self):
         self.train_data_history = []
@@ -4159,12 +4160,21 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             in ["RLS", "RLS-Neg", "RLS-Both", "RLS-A", "RLS-A-Neg", "RLS-A-Both"]
             and self.current_gen > 0
         ):
+            rl_loss = None
             if self.select in ["RLS-Neg", "RLS-A-Neg"]:
-                update_nn(self.pop, self.rl_selection, filter_nonpositive_reward=False)
+                rl_loss = update_nn(self.pop, self.rl_selection, filter_nonpositive_reward=False)
             elif self.select in ["RLS-Both", "RLS-A-Both"]:
-                update_nn(self.pop, self.rl_selection, only_first_offspring=False)
+                rl_loss = update_nn(self.pop, self.rl_selection, only_first_offspring=False)
             else:
-                update_nn(self.pop, self.rl_selection)
+                rl_loss = update_nn(self.pop, self.rl_selection)
+            
+            # Track RL loss when RLLoss is in log_item and RLS-A selection is used
+            if (
+                "RLLoss" in self.log_item
+                and self.select in ["RLS-A", "RLS-A-Neg", "RLS-A-Both"]
+                and rl_loss is not None
+            ):
+                self.rl_loss_logs.append(rl_loss)
 
         if self.select in ["RLS-A", "RLS-A-Neg", "RLS-A-Both"]:
             Phi = np.stack([ind.predicted_values for ind in self.pop]).astype(
