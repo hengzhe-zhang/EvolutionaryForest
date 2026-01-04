@@ -1,7 +1,12 @@
 import numba
 import numpy as np
+import random
 
-from evolutionary_forest.component.selection import selAutomaticEpsilonLexicaseNumba
+from evolutionary_forest.component.selection import (
+    selAutomaticEpsilonLexicaseNumba,
+    selAutomaticEpsilonLexicaseFast,
+)
+from deap.tools import selTournament
 
 
 # Numba-optimized function for selection of the best father
@@ -93,5 +98,71 @@ def select_cpsr_regression_fast(population, k, target, metric="MSE"):
 
     # Use the indices to retrieve the corresponding individuals from the population
     selected = [population[i] for i in selected_indices]
+
+    return selected
+
+
+def select_lexicase_random_second(population, k, target, metric="Pearson"):
+    """
+    Variant 1: Lexicase selection for first parent, random selection for second parent.
+    This is an ablation study variant to compare with P-CGS.
+
+    Args:
+        population: List of individuals
+        k: Number of parent pairs to select (returns 2*k individuals)
+        target: Target values for regression
+        metric: Not used in this variant, kept for API consistency
+    """
+    selected = []
+
+    for _ in range(k):
+        # Select first parent using lexicase selection
+        first_parent = selAutomaticEpsilonLexicaseFast(population, 1)[0]
+
+        # Select second parent randomly (excluding the first parent)
+        remaining_population = [ind for ind in population if ind is not first_parent]
+        second_parent = random.choice(remaining_population)
+
+        selected.extend([first_parent, second_parent])
+
+    return selected
+
+
+def select_tournament_cpsr(population, k, target, metric="Pearson", tournsize=7):
+    """
+    Variant 2: Tournament selection for first parent, P-CGS complementarity for second parent.
+    This is an ablation study variant to compare with P-CGS.
+
+    Args:
+        population: List of individuals
+        k: Number of parent pairs to select (returns 2*k individuals)
+        target: Target values for regression
+        metric: Complementarity metric ("Pearson" or "MSE")
+        tournsize: Tournament size for first parent selection
+    """
+    selected = []
+    predicted_values = np.array([ind.predicted_values for ind in population])
+    case_values = np.array([ind.case_values for ind in population])
+    fit_weights = population[0].fitness.weights[0]
+
+    for _ in range(k):
+        # Select first parent using tournament selection
+        first_parents = selTournament(population, 1, tournsize=tournsize)
+        first_parent = first_parents[0]
+        first_parent_idx = population.index(first_parent)
+        first_parent_pred = predicted_values[first_parent_idx]
+
+        # Select second parent using complementarity (same as P-CGS)
+        best_father_idx = select_best_father(
+            first_parent_pred,
+            predicted_values,
+            target,
+            fit_weights,
+            case_values,
+            metric,
+        )
+        second_parent = population[best_father_idx]
+
+        selected.extend([first_parent, second_parent])
 
     return selected

@@ -264,6 +264,8 @@ from evolutionary_forest.component.selection_operators.competitive_lexicase impo
 )
 from evolutionary_forest.component.selection_operators.cps_fast import (
     select_cpsr_regression_fast,
+    select_lexicase_random_second,
+    select_tournament_cpsr,
 )
 from evolutionary_forest.component.selection_operators.curriculum_learning import (
     GenerationInfo,
@@ -2813,6 +2815,25 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register(
                 "select",
                 partial(select_cps_regression, operator="Lexicase"),
+            )
+        elif self.select == "Lexicase-Random":
+            toolbox.register(
+                "select",
+                partial(
+                    select_lexicase_random_second,
+                    target=self.y,
+                    metric="Pearson",
+                ),
+            )
+        elif self.select == "Tournament-CPSR":
+            toolbox.register(
+                "select",
+                partial(
+                    select_tournament_cpsr,
+                    target=self.y,
+                    metric="Pearson",
+                    tournsize=self.param.get("tournament_size", 7),
+                ),
             )
         elif self.select == "ComplementaryTournament":
             toolbox.register(
