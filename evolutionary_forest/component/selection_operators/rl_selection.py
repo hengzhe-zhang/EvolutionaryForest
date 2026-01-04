@@ -68,6 +68,35 @@ class RLConfig:
     device: str = "cpu"
 
 
+def extract_temperature_from_name(selection_name: str) -> float:
+    """
+    Extract temperature (tau) value from RLS selection name.
+
+    Supports formats like:
+    - "RLS-A-0.5" -> 0.5
+    - "RLS-A-1.0" -> 1.0
+    - "RLS-A" -> 1.0 (default)
+
+    Args:
+        selection_name: Selection operator name
+
+    Returns:
+        Temperature value (default: 1.0 if not found)
+    """
+    import re
+
+    # Match "-0.5", "-1.0" at the end of the name
+    match = re.search(r"-([\d.]+)$", selection_name)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            pass
+
+    # Default temperature
+    return 1.0
+
+
 class ParentSelectorRL:
     def __init__(
         self,
@@ -200,7 +229,7 @@ class ParentSelectorRL:
                 self.model.parameters(), self.cfg.clip_grad_norm
             )
         self.opt.step()
-        
+
         # Return loss value for logging
         return float(loss.detach().cpu().item())
 
