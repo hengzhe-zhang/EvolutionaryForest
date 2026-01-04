@@ -2819,11 +2819,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif self.select == "Lexicase-Random":
             toolbox.register(
                 "select",
-                partial(
-                    select_lexicase_random_second,
-                    target=self.y,
-                    metric="Pearson",
-                ),
+                select_lexicase_random_second
             )
         elif self.select == "Tournament-CPSR":
             toolbox.register(
@@ -2832,7 +2828,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     select_tournament_cpsr,
                     target=self.y,
                     metric="Pearson",
-                    tournsize=self.param.get("tournament_size", 7),
+                    tournsize=3,
                 ),
             )
         elif self.select == "ComplementaryTournament":
@@ -4559,10 +4555,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.dynamic_reduction > 0
                 and (gen > 1)
                 and (
-                    (number_of_evaluations - self.n_pop)
-                    % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
-                    == 0
-                )
+                (number_of_evaluations - self.n_pop)
+                % ((total_evaluations - self.n_pop) // self.dynamic_reduction)
+                == 0
+            )
             ):
                 pop_size //= 2
                 assert self.pre_selection == None
@@ -4590,7 +4586,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 ensemble_value = np.mean([x.predicted_values for x in self.hof], axis=0)
                 for x in self.hof:
                     ambiguity = (x.predicted_values - ensemble_value) ** 2
-                    x.case_values[len(x.predicted_values) :] = -1 * ambiguity
+                    x.case_values[len(x.predicted_values):] = -1 * ambiguity
 
             cxpb, mutpb = self.linear_adaptive_rate(gen, cxpb, mutpb)
             cxpb, mutpb = self.get_adaptive_mutation_rate(cxpb, mutpb)
@@ -4637,9 +4633,9 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if (
                 self.current_gen == (self.n_gen // 2) + 1
                 and (
-                    self.evaluation_configuration.two_stage_feature_selection
-                    is not None
-                )
+                self.evaluation_configuration.two_stage_feature_selection
+                is not None
+            )
                 and all([not hasattr(ind, "case_values") for ind in population])
             ):
                 # Re-initialization
@@ -5046,7 +5042,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             # in place
             if len(new_list) > 0:
-                offspring[-len(new_list) :] = new_list
+                offspring[-len(new_list):] = new_list
 
     def eql_hybrid_initialization(self, population):
         config = self.eql_hybrid_configuration
@@ -5403,7 +5399,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         if self.cross_pb == "Linear":
             cxpb = np.interp(np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.9, 0.5])[
                 gen - 1
-            ]
+                ]
         if self.mutation_pb == "Linear":
             mutpb = np.interp(
                 np.arange(0, self.n_gen), [0, self.n_gen - 1], [0.1, 0.5]
@@ -6524,7 +6520,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             if len(ind.case_values) == len(self.y):
                 ind.case_values = np.concatenate([ind.case_values, distance], axis=0)
             else:
-                ind.case_values[len(self.y) :] = distance
+                ind.case_values[len(self.y):] = distance
 
     def complexity(self):
         count = 0

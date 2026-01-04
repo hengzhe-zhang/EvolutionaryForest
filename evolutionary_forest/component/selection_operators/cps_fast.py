@@ -102,7 +102,7 @@ def select_cpsr_regression_fast(population, k, target, metric="MSE"):
     return selected
 
 
-def select_lexicase_random_second(population, k, target, metric="Pearson"):
+def select_lexicase_random_second(population, k):
     """
     Variant 1: Lexicase selection for first parent, random selection for second parent.
     This is an ablation study variant to compare with P-CGS.
