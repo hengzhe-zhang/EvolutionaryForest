@@ -4162,12 +4162,16 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         ):
             rl_loss = None
             if self.select in ["RLS-Neg", "RLS-A-Neg"]:
-                rl_loss = update_nn(self.pop, self.rl_selection, filter_nonpositive_reward=False)
+                rl_loss = update_nn(
+                    self.pop, self.rl_selection, filter_nonpositive_reward=False
+                )
             elif self.select in ["RLS-Both", "RLS-A-Both"]:
-                rl_loss = update_nn(self.pop, self.rl_selection, only_first_offspring=False)
+                rl_loss = update_nn(
+                    self.pop, self.rl_selection, only_first_offspring=False
+                )
             else:
                 rl_loss = update_nn(self.pop, self.rl_selection)
-            
+
             # Track RL loss when RLLoss is in log_item and RLS-A selection is used
             if (
                 "RLLoss" in self.log_item
