@@ -55,6 +55,10 @@ class FaissKNNRegressor(BaseEstimator, RegressorMixin):
         _, indices = self.index_.search(X.astype(np.float32), k_query)
         if exclude_self:
             indices = indices[:, 1 : k + 1]
+        # Handle invalid indices returned by FAISS (e.g., -1 when not enough neighbors)
+        # Clip to valid range to prevent index overflow errors
+        n_samples = len(self._y)
+        indices = np.clip(indices, 0, n_samples - 1)
         return indices
 
     def predict(self, X):
