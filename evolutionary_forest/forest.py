@@ -2046,6 +2046,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-LinearRankKNN",
             "RidgeBoosted-RobustLinearRankKNN",
             "OptimalLinearRankKNN",
+            "AdaptiveLinearRankKNN",
             "RidgeBoosted-PLSAutoKNN",
             "RidgeBoosted-LPPAutoKNN",
         ]:
@@ -2056,6 +2057,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             "RidgeBoosted-LinearRankKNN",
             "RidgeBoosted-RobustLinearRankKNN",
             "OptimalLinearRankKNN",
+            "AdaptiveLinearRankKNN",
         ]:
             adaptive_neighbors(self.base_learner, self.param, self.X, self.y)
             ridge_model = get_knn_model(self.base_learner, self.param)

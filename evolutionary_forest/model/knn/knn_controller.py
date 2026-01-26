@@ -16,6 +16,7 @@ def adaptive_neighbors(base_learner, params, X, y):
             "RidgeBoosted-LinearRankKNN",
             "RidgeBoosted-RobustLinearRankKNN",
             "OptimalLinearRankKNN",
+            "AdaptiveLinearRankKNN",
         ]
         and params["n_neighbors"] == "Adaptive"
     ):
@@ -66,6 +67,8 @@ def get_knn_model(base_learner, params):
             base_learner=FaissKNNLinearRankRegressor(n_neighbors=params["n_neighbors"])
         )
         return ridge_model
+    elif base_learner == "AdaptiveLinearRankKNN":
+        return FaissKNNLinearRankRegressor(n_neighbors=params["n_neighbors"])
     raise ValueError(f"Unknown base learner: {base_learner}")
 
 
@@ -89,6 +92,8 @@ def get_final_model(base_learner, params):
     if base_learner in ["OptimalLinearRankKNN"]:
         ridge_model = OptimalKNN(base_learner=RobustFaissKNNRegressor())
         return ridge_model
+    if base_learner == "AdaptiveLinearRankKNN":
+        return RobustFaissKNNLinearRankRegressor()
     raise ValueError(f"Unknown base learner: {base_learner}")
 
 
