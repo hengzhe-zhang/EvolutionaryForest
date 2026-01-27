@@ -2,6 +2,7 @@ import os
 
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA
@@ -77,6 +78,12 @@ def plot_pairwise_distances(
     # Plot and save Original Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_original, aspect="auto", cmap="viridis_r")
+    # Add red bounding box for columns 15-25 spanning all rows
+    n_rows = dist_original.shape[0]
+    rect = patches.Rectangle(
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+    )
+    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -88,6 +95,12 @@ def plot_pairwise_distances(
     # Plot and save Constructed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_constructed, aspect="auto", cmap="viridis_r")
+    # Add red bounding box for columns 15-25 spanning all rows
+    n_rows = dist_constructed.shape[0]
+    rect = patches.Rectangle(
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+    )
+    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -99,6 +112,12 @@ def plot_pairwise_distances(
     # Plot and save Transformed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_transformed, aspect="auto", cmap="viridis_r")
+    # Add red bounding box for columns 15-25 spanning all rows
+    n_rows = dist_transformed.shape[0]
+    rect = patches.Rectangle(
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+    )
+    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -110,6 +129,12 @@ def plot_pairwise_distances(
     # Plot and save Target Pairwise Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_y, aspect="auto", cmap="viridis_r")
+    # Add red bounding box for columns 15-25 spanning all rows
+    n_rows = dist_y.shape[0]
+    rect = patches.Rectangle(
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+    )
+    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
