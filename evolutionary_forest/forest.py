@@ -2396,7 +2396,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 self.gene_num = 10
         if isinstance(self.score_func, str) and self.score_func == "MTL-R2":
-            self.score_func = MTLR2(self.y.shape[1])
+            n_targets = self.y.shape[1] if len(self.y.shape) > 1 else 1
+            self.score_func = MTLR2(n_targets)
         elif isinstance(self.score_func, str) and self.score_func == "MTL-R2Size":
             if len(self.y.shape) == 1:
                 self.score_func = R2Size()
@@ -2774,7 +2775,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         elif callable(self.select):
             toolbox.register("select", self.select)
         elif self.select == "MTLLexicase":
-            lexicase = MTLAutomaticLexicase(self.y.shape[1])
+            n_targets = self.y.shape[1] if len(self.y.shape) > 1 else 1
+            lexicase = MTLAutomaticLexicase(n_targets)
             toolbox.register("select", lexicase.select)
         elif self.select == "LexicaseDCD":
             toolbox.register("select", selLexicaseDCD)
