@@ -182,6 +182,19 @@ class PrimitiveSetUtils:
         self.pset = pset
         self.node_name_to_index = self.get_node_name_to_index()
         self.index_to_node_name = self.get_index_to_node_name()
+        self._ephemeral_constant_index = self._find_ephemeral_constant_index()
+
+    def _find_ephemeral_constant_index(self):
+        """
+        Find the index for ephemeral constants (e.g., 'rand101') in the mapping.
+        Returns None if no ephemeral constant is found.
+        """
+        from deap.gp import MetaEphemeral
+
+        for term in self.pset.terminals[object]:
+            if isinstance(term, MetaEphemeral) and term.name in self.node_name_to_index:
+                return self.node_name_to_index[term.name]
+        return None
 
     def get_node_name_to_index(self):
         """
@@ -264,6 +277,11 @@ class PrimitiveSetUtils:
                 node_name = node.name
                 if node_name in self.node_name_to_index:
                     tree_indices.append(self.node_name_to_index[node_name])
+                elif self._ephemeral_constant_index is not None:
+                    # Ephemeral constants (e.g., float values like '-0.2...')
+                    # are not in the static mapping; map them to the
+                    # ephemeral constant token.
+                    tree_indices.append(self._ephemeral_constant_index)
                 else:
                     raise ValueError(
                         f"Node name '{node_name}' not found in node_name_to_index"
