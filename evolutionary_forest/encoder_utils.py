@@ -19,7 +19,10 @@ class OneHotTargetEncoder:
         self._target = SimpleTargetEncoder()
 
     def fit(self, X, y=None):
-        X_cat = np.asarray(X)[:, self.cols] if self.cols is not None else np.asarray(X)
+        X = np.asarray(X)
+        if self.cols is not None and len(self.cols) == 0:
+            return self
+        X_cat = X[:, self.cols] if self.cols is not None else X
         self._onehot.fit(X_cat)
         A = self._onehot.transform(X_cat)
         self._target.fit(pd.DataFrame(A).astype(str), y)
@@ -27,6 +30,8 @@ class OneHotTargetEncoder:
 
     def transform(self, X):
         X = np.asarray(X)
+        if self.cols is not None and len(self.cols) == 0:
+            return X
         X_cat = X[:, self.cols] if self.cols is not None else X
         A = self._onehot.transform(X_cat)
         enc = np.asarray(self._target.transform(pd.DataFrame(A).astype(str)))
@@ -37,6 +42,8 @@ class OneHotTargetEncoder:
 
     def fit_transform(self, X, y=None):
         X = np.asarray(X)
+        if self.cols is not None and len(self.cols) == 0:
+            return X
         X_cat = X[:, self.cols] if self.cols is not None else X
         A = self._onehot.fit_transform(X_cat)
         enc = np.asarray(self._target.fit_transform(pd.DataFrame(A).astype(str), y))
@@ -64,3 +71,11 @@ if __name__ == "__main__":
     print("cols=[1,3] (full X, cat at 1,3):")
     print("X shape:", X.shape, "-> out shape:", out2.shape)
     print(out2)
+
+    # All numerical (cols=[] means no categorical, pass through)
+    X_num = np.array([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0], [1.0, 20.0], [2.0, 30.0], [3.0, 10.0]])
+    enc3 = OneHotTargetEncoder(cols=[])
+    out3 = np.asarray(enc3.fit_transform(X_num, y), dtype=float)
+    print("cols=[] (all numerical, pass through):")
+    print("X shape:", X_num.shape, "-> out shape:", out3.shape)
+    print(out3)
