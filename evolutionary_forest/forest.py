@@ -3596,6 +3596,10 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 self.categorical_encoder = category_encoders.OneHotEncoder(
                     cols=categorical_indices
                 )
+            elif self.categorical_encoding == "OneHotTarget":
+                from evolutionary_forest.encoder_utils import OneHotTargetEncoder
+
+                self.categorical_encoder = OneHotTargetEncoder(cols=categorical_indices)
             else:
                 raise Exception(
                     f"Unknown categorical encoding method {self.categorical_encoding}"

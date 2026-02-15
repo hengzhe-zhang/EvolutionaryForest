@@ -32,14 +32,8 @@ class OneHotTargetEncoder:
         enc = np.asarray(self._target.transform(pd.DataFrame(A).astype(str)))
         if self.cols is None:
             return enc
-        col_to_enc = {c: j for j, c in enumerate(self.cols)}
-        parts = []
-        for i in range(X.shape[1]):
-            if i in col_to_enc:
-                parts.append(enc[:, col_to_enc[i] : col_to_enc[i] + 1])
-            else:
-                parts.append(X[:, i : i + 1])
-        return np.hstack(parts)
+        noncat = [i for i in range(X.shape[1]) if i not in self.cols]
+        return np.hstack([X[:, noncat], enc])
 
     def fit_transform(self, X, y=None):
         X = np.asarray(X)
@@ -48,14 +42,8 @@ class OneHotTargetEncoder:
         enc = np.asarray(self._target.fit_transform(pd.DataFrame(A).astype(str), y))
         if self.cols is None:
             return enc
-        col_to_enc = {c: j for j, c in enumerate(self.cols)}
-        parts = []
-        for i in range(X.shape[1]):
-            if i in col_to_enc:
-                parts.append(enc[:, col_to_enc[i] : col_to_enc[i] + 1])
-            else:
-                parts.append(X[:, i : i + 1])
-        return np.hstack(parts)
+        noncat = [i for i in range(X.shape[1]) if i not in self.cols]
+        return np.hstack([X[:, noncat], enc])
 
 
 if __name__ == "__main__":
