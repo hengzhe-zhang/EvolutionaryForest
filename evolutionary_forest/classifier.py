@@ -371,6 +371,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             or base_model_str == "Balanced-LogisticRegression"
         ):
             ridge_model = SafetyLogisticRegression(
+                C=self.base_learner_configuration.logistic_regression_C,
                 max_iter=1000,
                 solver="liblinear",
                 class_weight="balanced",

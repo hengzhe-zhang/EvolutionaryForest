@@ -502,8 +502,10 @@ class BloatControlConfiguration(Configuration):
 
 
 class BaseLearnerConfiguration(Configuration):
-    def __init__(self, ridge_alpha=1, **params):
+    def __init__(self, ridge_alpha=1, logistic_regression_C=1.0, **params):
         self.ridge_alpha = ridge_alpha
+        # Smaller C = stronger L2 regularization; helps generalize feature importance for revert_probability
+        self.logistic_regression_C = logistic_regression_C
 
 
 class ExperimentalConfiguration(Configuration):

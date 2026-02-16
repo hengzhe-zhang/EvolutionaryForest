@@ -1327,7 +1327,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             base_learner, "r2_drop_importance_values"
         ):
             coef = base_learner.r2_drop_importance_values
-        # Fall back to default coef-based methods
+        # Fall back to default coef-based methods (incl. Balanced-LogisticRegression / SafetyLogisticRegression)
         elif isinstance(base_learner, (LinearModel, LinearClassifierMixin)):
             if len(base_learner.coef_.shape) == 2:
                 coef = np.max(np.abs(base_learner.coef_), axis=0)
