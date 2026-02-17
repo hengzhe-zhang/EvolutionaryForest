@@ -7,7 +7,7 @@ from numpy.linalg import norm
 from sklearn.base import ClassifierMixin
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score
 from sklearn.model_selection import ParameterGrid
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
@@ -222,6 +222,7 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
             individual.case_values = -1 * score
         elif (
             self.score_func == "CrossEntropy"
+            or self.score_func == "CrossEntropy-AUC"
             or self.score_func == "NoveltySearch"
             or isinstance(self.score_func, Fitness)
         ):
@@ -308,6 +309,14 @@ class EvolutionaryForestClassifier(ClassifierMixin, EvolutionaryForestRegressor)
         elif self.score_func == "CrossEntropy":
             # weight is already included in case values
             return (np.mean(individual.case_values),)
+        elif self.score_func == "CrossEntropy-AUC":
+            # Semantics (case_values) stay CrossEntropy; fitness is AUC (larger better -> return -auc)
+            n_classes = y_pred.shape[1]
+            if n_classes == 2:
+                auc = roc_auc_score(Y, y_pred[:, 1])
+            else:
+                auc = roc_auc_score(Y, y_pred, multi_class="ovr", average="weighted")
+            return (-auc,)
         elif (
             self.score_func == "CV-NodeCount" or self.score_func == "ZeroOne-NodeCount"
         ):
