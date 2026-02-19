@@ -8,7 +8,7 @@ Supports training-based and validation-based modes.
 """
 
 from collections import defaultdict
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 from deap.tools import HallOfFame
@@ -156,7 +156,6 @@ class SparseWeightHallOfFame(HallOfFame):
         maxsize: int,
         y: np.ndarray,
         lambda_: float = 0.01,
-        target_size: Optional[int] = None,
         algorithm=None,
         similar=eq,
         **kwargs,
@@ -164,7 +163,6 @@ class SparseWeightHallOfFame(HallOfFame):
         super().__init__(maxsize, similar)
         self.y = np.asarray(y).ravel()
         self.lambda_ = lambda_
-        self.target_size = target_size if target_size is not None else min(20, maxsize)
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
 
@@ -197,8 +195,8 @@ class SparseWeightHallOfFame(HallOfFame):
         if n_models == 0:
             return
 
-        # Run sparse-weight selection
-        K = min(self.target_size, n_models, self.maxsize)
+        # Run sparse-weight selection; K = ensemble_size (maxsize)
+        K = min(self.maxsize, n_models)
         indices, weights = sparse_weight_ensemble_select(
             P, y_fit, lam=self.lambda_, K=K
         )
