@@ -162,6 +162,9 @@ from evolutionary_forest.component.ensemble_selection.dns_selection import DNSHO
 from evolutionary_forest.component.ensemble_selection.dpp_selection import (
     DPPEnsembleHOF,
 )
+from evolutionary_forest.component.ensemble_selection.sparse_weight_selection import (
+    SparseWeightHallOfFame,
+)
 from evolutionary_forest.component.ensemble_selection.dynamic_ensemble_selection.deep_des import (
     DESMetaRegressor,
 )
@@ -3393,6 +3396,13 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             self.hof = DPPEnsembleHOF(self.ensemble_size, y=self.y)
         elif self.ensemble_selection == "DPPHOF-RBF":
             self.hof = DPPEnsembleHOF(self.ensemble_size, y=self.y, gamma="RBF")
+        elif self.ensemble_selection == "SparseWeight":
+            self.hof = SparseWeightHallOfFame(
+                self.ensemble_size,
+                self.y,
+                algorithm=self,
+                **self.param,
+            )
         elif (
             isinstance(self.ensemble_selection, str)
             and "Similar" in self.ensemble_selection
