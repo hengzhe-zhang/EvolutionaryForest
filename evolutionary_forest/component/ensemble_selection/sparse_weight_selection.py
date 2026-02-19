@@ -106,7 +106,7 @@ def sparse_weight_ensemble_select(
     lam : float
         L1 penalty for first-stage sparsity.
     K : int
-        Target number of models to select (top K by weight, or nonzeros if ~K).
+        Maximum number of models to select. Ensemble size is always <= K (can be less).
 
     Returns
     -------
@@ -125,12 +125,12 @@ def sparse_weight_ensemble_select(
     # Stage 1: sparse weights
     w_sparse = _sparse_weight_fit(P, y, lam)
 
-    # Select top K by weight, or nonzeros if count is close to K
+    # Selection: at most K models; prefer L1 nonzeros when count <= K, else top K by weight
+    top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
     nonzero_idx = np.where(w_sparse > 1e-8)[0]
-    if len(nonzero_idx) <= K or len(nonzero_idx) <= K + 2:
+    if len(nonzero_idx) <= K:
         selected_idx = nonzero_idx
     else:
-        top_k_idx = np.argsort(w_sparse)[::-1][:K]
         selected_idx = top_k_idx
 
     if len(selected_idx) == 0:
@@ -170,7 +170,11 @@ class SparseWeightHallOfFame(HallOfFame):
         if not population:
             return
 
-        # Build prediction matrix P (n_samples, n_individuals)
+        # Pool = previous ensemble (current HOF) + current population
+        previous_ensemble = list(self)
+        candidates = previous_ensemble + list(population)
+
+        # Build prediction matrix P (n_samples, n_candidates)
         use_validation = (
             self.algorithm is not None
             and getattr(self.algorithm, "validation_based_ensemble_selection", 0) > 0
@@ -183,26 +187,26 @@ class SparseWeightHallOfFame(HallOfFame):
             # individual_prediction returns (n_individuals, n_samples)
             algo = self.algorithm
             assert algo is not None and hasattr(algo, "des_valid_x")
-            valid_preds = algo.individual_prediction(algo.des_valid_x, population)
-            P = np.asarray(valid_preds).T  # (n_samples, n_individuals)
+            valid_preds = algo.individual_prediction(algo.des_valid_x, candidates)
+            P = np.asarray(valid_preds).T  # (n_samples, n_candidates)
             y_fit = np.asarray(algo.des_valid_y).ravel()
         else:
-            # Training-based: use predicted_values
-            P = np.array([ind.predicted_values.flatten() for ind in population]).T
+            # Training-based: use predicted_values from pool
+            P = np.array([ind.predicted_values.flatten() for ind in candidates]).T
             y_fit = self.y
 
         n_samples, n_models = P.shape
         if n_models == 0:
             return
 
-        # Run sparse-weight selection; K = ensemble_size (maxsize)
+        # Run sparse-weight selection on pool; K = ensemble_size (maxsize)
         K = min(self.maxsize, n_models)
         indices, weights = sparse_weight_ensemble_select(
             P, y_fit, lam=self.lambda_, K=K
         )
 
-        # Map indices to individuals and set ensemble_weight
-        selected = [population[i] for i in indices]
+        # Map indices to candidates (pool = previous ensemble + population)
+        selected = [candidates[i] for i in indices]
         self.ensemble_weight.clear()
         for ind, w in zip(selected, weights):
             key = individual_to_tuple(ind)
