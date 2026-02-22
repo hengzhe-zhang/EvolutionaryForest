@@ -93,6 +93,7 @@ def sparse_weight_ensemble_select(
     y: np.ndarray,
     lam: float = 0.01,
     K: int = 20,
+    equal_weight: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Two-stage sparse-weight selection.
@@ -107,13 +108,17 @@ def sparse_weight_ensemble_select(
         L1 penalty for first-stage sparsity.
     K : int
         Maximum number of models to select. Ensemble size is always <= K (can be less).
+    equal_weight : bool, default=False
+        If True, use equal weights (1/n_selected) for selected models instead of
+        refitting weights on the selected subset. Can improve generalization.
 
     Returns
     -------
     indices : np.ndarray
         Indices of selected models (length <= n_models).
     weights : np.ndarray
-        Refit weights for selected models (same length as indices).
+        Weights for selected models (same length as indices). Refit or equal
+        depending on equal_weight.
     """
     P = np.asarray(P, dtype=float)
     if P.ndim == 1:
@@ -136,9 +141,13 @@ def sparse_weight_ensemble_select(
     if len(selected_idx) == 0:
         selected_idx = np.array([np.argmax(w_sparse)])
 
-    # Stage 2: refit on selected
-    P_sel = P[:, selected_idx]
-    w_refit = _refit_weights(P_sel, y)
+    # Stage 2: weights on selected subset
+    n_sel = len(selected_idx)
+    if equal_weight:
+        w_refit = np.ones(n_sel) / n_sel
+    else:
+        P_sel = P[:, selected_idx]
+        w_refit = _refit_weights(P_sel, y)
 
     return selected_idx, w_refit
 
@@ -146,7 +155,9 @@ def sparse_weight_ensemble_select(
 class SparseWeightHallOfFame(HallOfFame):
     """
     Hall of fame that selects and weights individuals using the sparse-weight
-    pipeline: L1-regularized weight fitting, top-K selection, then refit weights.
+    pipeline: L1-regularized weight fitting, top-K selection, then refit or
+    equal weights. Set equal_weight=True to use equal weights (1/n_selected)
+    instead of refitting; can improve generalization.
     Supports validation-based mode when `algorithm` is provided and has
     validation_based_ensemble_selection and validation data set.
     """
@@ -156,6 +167,7 @@ class SparseWeightHallOfFame(HallOfFame):
         maxsize: int,
         y: np.ndarray,
         lambda_: float = 0.01,
+        equal_weight: bool = False,
         algorithm=None,
         similar=eq,
         **kwargs,
@@ -163,6 +175,7 @@ class SparseWeightHallOfFame(HallOfFame):
         super().__init__(maxsize, similar)
         self.y = np.asarray(y).ravel()
         self.lambda_ = lambda_
+        self.equal_weight = equal_weight
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
 
@@ -202,7 +215,7 @@ class SparseWeightHallOfFame(HallOfFame):
         # Run sparse-weight selection on pool; K = ensemble_size (maxsize)
         K = min(self.maxsize, n_models)
         indices, weights = sparse_weight_ensemble_select(
-            P, y_fit, lam=self.lambda_, K=K
+            P, y_fit, lam=self.lambda_, K=K, equal_weight=self.equal_weight
         )
 
         # Map indices to candidates (pool = previous ensemble + population)
