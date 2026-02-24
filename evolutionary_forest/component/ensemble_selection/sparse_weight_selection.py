@@ -34,9 +34,10 @@ def _sparse_weight_fit(
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
+    lam_l2: float = 0.0,
 ) -> np.ndarray:
     """
-    Solve: min  L(P @ w, y) + lam * ||w||_1  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
+    Solve: min  L(P @ w, y) + lam * ||w||_1 + lam_l2 * ||w||_2^2  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
     L is MSE (squared), MAE (absolute), or mean Huber (huber).
     P: (n_samples, n_models), y: (n_samples,).
     Returns w: (n_models,).
@@ -54,7 +55,8 @@ def _sparse_weight_fit(
         else:
             fit_loss = np.mean(_huber(res, huber_delta))
         l1 = lam * np.sum(np.abs(w))
-        return fit_loss + l1
+        l2 = lam_l2 * np.sum(w ** 2) if lam_l2 != 0 else 0.0
+        return fit_loss + l1 + l2
 
     # Bounds: 0 <= w_i <= max_weight (if set)
     ub = max_weight if max_weight is not None else None
@@ -88,9 +90,10 @@ def _refit_weights(
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
+    lam_l2: float = 0.0,
 ) -> np.ndarray:
     """
-    Solve: min L(P @ w, y)  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
+    Solve: min L(P @ w, y) + lam_l2 * ||w||_2^2  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
     L is MSE (squared), MAE (absolute), or mean Huber (huber).
     P: (n_samples, n_selected), y: (n_samples,).
     Returns w: (n_selected,).
@@ -103,10 +106,13 @@ def _refit_weights(
     def obj(w: np.ndarray) -> float:
         res = P @ w - y
         if loss == "squared":
-            return np.mean(res ** 2)
-        if loss == "absolute":
-            return np.mean(np.abs(res))
-        return np.mean(_huber(res, huber_delta))
+            fit_loss = np.mean(res ** 2)
+        elif loss == "absolute":
+            fit_loss = np.mean(np.abs(res))
+        else:
+            fit_loss = np.mean(_huber(res, huber_delta))
+        l2 = lam_l2 * np.sum(w ** 2) if lam_l2 != 0 else 0.0
+        return fit_loss + l2
 
     ub = max_weight if max_weight is not None else None
     bounds = [(0.0, ub)] * n_sel
@@ -158,7 +164,11 @@ def sparse_weight_ensemble_select(
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
+    lam_l2: float = 0.0,
     mode: Literal["sparse", "equal_top", "adaptive"] = "sparse",
+    stability_n_bootstrap: int = 0,
+    stability_fraction: float = 0.5,
+    random_state: Optional[int] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Two-stage sparse-weight selection, or top low-error equal-weight selection.
@@ -183,11 +193,23 @@ def sparse_weight_ensemble_select(
     max_weight : float, optional
         Upper bound on each weight (e.g. 0.1). If set, enforces w_i <= max_weight.
         Requires at least 1/max_weight models to sum to 1.
+    lam_l2 : float, default=0.0
+        L2 penalty on weights (elastic net in Stage 1, shrinkage in Stage 2 refit).
+        0 disables L2.
     mode : {"sparse", "equal_top", "adaptive"}, default="sparse"
         "sparse": L1-regularized sparse weights, then refit or equal on selected.
         "equal_top": select top K models by lowest error (MSE), equal weights.
         "adaptive": if number of unique y values > ADAPTIVE_N_UNIQUE_THRESHOLD use sparse path;
         otherwise use equal_top (top low-error models, equal weight).
+    stability_n_bootstrap : int, default=0
+        If > 0, run stability selection: fit sparse weights on this many bootstrap
+        samples and keep models with nonzero weight in >= stability_fraction of runs.
+        0 disables stability selection.
+    stability_fraction : float, default=0.5
+        Minimum fraction of bootstrap runs in which a model must be selected (nonzero
+        weight) to be kept. Used only when stability_n_bootstrap > 0.
+    random_state : int, optional
+        Seed for bootstrap sampling when stability_n_bootstrap > 0.
 
     Returns
     -------
@@ -213,21 +235,51 @@ def sparse_weight_ensemble_select(
     if not use_sparse:
         return _top_low_error_equal_weight(P, y_flat, K)
 
-    # Stage 1: sparse weights
-    w_sparse = _sparse_weight_fit(
-        P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight
-    )
-
-    # Selection: at most K models; prefer L1 nonzeros when count <= K, else top K by weight
-    top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
-    nonzero_idx = np.where(w_sparse > 1e-8)[0]
-    if len(nonzero_idx) <= K:
-        selected_idx = nonzero_idx
+    if stability_n_bootstrap > 0:
+        # Stability selection: bootstrap sparse fit, keep models selected in >= stability_fraction of runs
+        rng = np.random.default_rng(random_state)
+        vote_count = np.zeros(n_models)
+        for _ in range(stability_n_bootstrap):
+            boot_idx = rng.integers(0, n_samples, size=n_samples)
+            P_b = P[boot_idx]
+            y_b = y_flat[boot_idx]
+            w_b = _sparse_weight_fit(
+                P_b, y_b, lam,
+                loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+                lam_l2=lam_l2,
+            )
+            vote_count += (w_b > 1e-8).astype(np.float64)
+        threshold = stability_fraction * stability_n_bootstrap
+        stable_idx = np.where(vote_count >= threshold)[0]
+        if len(stable_idx) == 0:
+            # Fallback: single-run selection
+            w_sparse = _sparse_weight_fit(
+                P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+                lam_l2=lam_l2,
+            )
+            top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
+            nonzero_idx = np.where(w_sparse > 1e-8)[0]
+            selected_idx = nonzero_idx if len(nonzero_idx) <= K else top_k_idx
+            if len(selected_idx) == 0:
+                selected_idx = np.array([np.argmax(w_sparse)])
+        elif len(stable_idx) <= K:
+            selected_idx = stable_idx
+        else:
+            selected_idx = stable_idx[np.argsort(vote_count[stable_idx])[::-1][:K]]
     else:
-        selected_idx = top_k_idx
-
-    if len(selected_idx) == 0:
-        selected_idx = np.array([np.argmax(w_sparse)])
+        # Stage 1: single-run sparse weights
+        w_sparse = _sparse_weight_fit(
+            P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+            lam_l2=lam_l2,
+        )
+        top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
+        nonzero_idx = np.where(w_sparse > 1e-8)[0]
+        if len(nonzero_idx) <= K:
+            selected_idx = nonzero_idx
+        else:
+            selected_idx = top_k_idx
+        if len(selected_idx) == 0:
+            selected_idx = np.array([np.argmax(w_sparse)])
 
     # Stage 2: weights on selected subset
     n_sel = len(selected_idx)
@@ -236,7 +288,8 @@ def sparse_weight_ensemble_select(
     else:
         P_sel = P[:, selected_idx]
         w_refit = _refit_weights(
-            P_sel, y_flat, loss=loss, huber_delta=huber_delta, max_weight=max_weight
+            P_sel, y_flat, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+            lam_l2=lam_l2,
         )
 
     return selected_idx, w_refit
@@ -252,6 +305,8 @@ class SparseWeightHallOfFame(HallOfFame):
     huber_delta is used only when loss="huber" (default 1.0).
     mode: "sparse" (default), "equal_top" (top K by lowest error, equal weight),
     or "adaptive" (sparse when number of unique y > ADAPTIVE_N_UNIQUE_THRESHOLD, else equal_top).
+    stability_n_bootstrap > 0 enables stability selection; stability_fraction and random_state
+    are passed through. lam_l2 (default 0) adds L2 penalty in Stage 1 and refit.
     Supports validation-based mode when `algorithm` is provided and has
     validation_based_ensemble_selection and validation data set.
     """
@@ -265,7 +320,11 @@ class SparseWeightHallOfFame(HallOfFame):
         loss: Literal["squared", "absolute", "huber"] = "squared",
         huber_delta: float = 1.0,
         max_weight: Optional[float] = None,
+        lam_l2: float = 0.0,
         mode: Literal["sparse", "equal_top", "adaptive"] = "sparse",
+        stability_n_bootstrap: int = 0,
+        stability_fraction: float = 0.5,
+        random_state: Optional[int] = None,
         algorithm=None,
         similar=eq,
         **kwargs,
@@ -277,7 +336,11 @@ class SparseWeightHallOfFame(HallOfFame):
         self.loss: Literal["squared", "absolute", "huber"] = loss
         self.huber_delta = huber_delta
         self.max_weight = max_weight
+        self.lam_l2 = lam_l2
         self.mode = mode
+        self.stability_n_bootstrap = stability_n_bootstrap
+        self.stability_fraction = stability_fraction
+        self.random_state = random_state
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
 
@@ -325,7 +388,11 @@ class SparseWeightHallOfFame(HallOfFame):
             loss=self.loss,
             huber_delta=self.huber_delta,
             max_weight=self.max_weight,
+            lam_l2=self.lam_l2,
             mode=cast(Literal["sparse", "equal_top", "adaptive"], self.mode),
+            stability_n_bootstrap=self.stability_n_bootstrap,
+            stability_fraction=self.stability_fraction,
+            random_state=self.random_state,
         )
 
         # Map indices to candidates (pool = previous ensemble + population)
