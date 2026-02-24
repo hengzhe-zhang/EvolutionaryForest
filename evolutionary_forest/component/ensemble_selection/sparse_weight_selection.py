@@ -8,7 +8,7 @@ Supports training-based and validation-based modes.
 """
 
 from collections import defaultdict
-from typing import List, Literal, Tuple
+from typing import List, Literal, Optional, Tuple
 
 import numpy as np
 
@@ -30,9 +30,10 @@ def _sparse_weight_fit(
     lam: float,
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
+    max_weight: Optional[float] = None,
 ) -> np.ndarray:
     """
-    Solve: min_{w >= 0, sum(w)=1}  L(P @ w, y) + lam * ||w||_1.
+    Solve: min  L(P @ w, y) + lam * ||w||_1  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
     L is MSE (squared), MAE (absolute), or mean Huber (huber).
     P: (n_samples, n_models), y: (n_samples,).
     Returns w: (n_models,).
@@ -52,12 +53,15 @@ def _sparse_weight_fit(
         l1 = lam * np.sum(np.abs(w))
         return fit_loss + l1
 
-    # Bounds: w >= 0
-    bounds = [(0.0, None)] * n_models
-    # Constraint: sum(w) = 1
+    # Bounds: 0 <= w_i <= max_weight (if set)
+    ub = max_weight if max_weight is not None else None
+    bounds = [(0.0, ub)] * n_models
     constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1.0}
 
     w0 = np.ones(n_models) / n_models
+    if max_weight is not None:
+        w0 = np.minimum(w0, max_weight)
+        w0 /= w0.sum()
     res = minimize(
         obj,
         w0,
@@ -67,9 +71,12 @@ def _sparse_weight_fit(
         options={"maxiter": 500, "ftol": 1e-9},
     )
     if not res.success:
-        # Fallback: uniform weights
-        return np.ones(n_models) / n_models
-    return np.maximum(res.x, 0.0) / (np.sum(np.maximum(res.x, 0.0)) + 1e-12)
+        w = np.ones(n_models) / n_models
+    else:
+        w = np.maximum(res.x, 0.0)
+    if max_weight is not None:
+        w = np.minimum(w, max_weight)
+    return w / (np.sum(w) + 1e-12)
 
 
 def _refit_weights(
@@ -77,9 +84,10 @@ def _refit_weights(
     y: np.ndarray,
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
+    max_weight: Optional[float] = None,
 ) -> np.ndarray:
     """
-    Solve: min_{w >= 0, sum(w)=1}  L(P @ w, y).
+    Solve: min L(P @ w, y)  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
     L is MSE (squared), MAE (absolute), or mean Huber (huber).
     P: (n_samples, n_selected), y: (n_samples,).
     Returns w: (n_selected,).
@@ -97,9 +105,13 @@ def _refit_weights(
             return np.mean(np.abs(res))
         return np.mean(_huber(res, huber_delta))
 
-    bounds = [(0.0, None)] * n_sel
+    ub = max_weight if max_weight is not None else None
+    bounds = [(0.0, ub)] * n_sel
     constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1.0}
     w0 = np.ones(n_sel) / n_sel
+    if max_weight is not None:
+        w0 = np.minimum(w0, max_weight)
+        w0 /= w0.sum()
     res = minimize(
         obj,
         w0,
@@ -109,8 +121,11 @@ def _refit_weights(
         options={"maxiter": 500, "ftol": 1e-9},
     )
     if not res.success:
-        return np.ones(n_sel) / n_sel
-    w = np.maximum(res.x, 0.0)
+        w = np.ones(n_sel) / n_sel
+    else:
+        w = np.maximum(res.x, 0.0)
+    if max_weight is not None:
+        w = np.minimum(w, max_weight)
     return w / (np.sum(w) + 1e-12)
 
 
@@ -122,6 +137,7 @@ def sparse_weight_ensemble_select(
     equal_weight: bool = False,
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
+    max_weight: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Two-stage sparse-weight selection.
@@ -143,6 +159,9 @@ def sparse_weight_ensemble_select(
         Loss for weight fitting: "squared" = MSE, "absolute" = MAE, "huber" = Huber.
     huber_delta : float, default=1.0
         Delta for Huber loss (used only when loss="huber").
+    max_weight : float, optional
+        Upper bound on each weight (e.g. 0.1). If set, enforces w_i <= max_weight.
+        Requires at least 1/max_weight models to sum to 1.
 
     Returns
     -------
@@ -160,7 +179,9 @@ def sparse_weight_ensemble_select(
         return np.array([], dtype=int), np.array([])
 
     # Stage 1: sparse weights
-    w_sparse = _sparse_weight_fit(P, y, lam, loss=loss, huber_delta=huber_delta)
+    w_sparse = _sparse_weight_fit(
+        P, y, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight
+    )
 
     # Selection: at most K models; prefer L1 nonzeros when count <= K, else top K by weight
     top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
@@ -179,7 +200,9 @@ def sparse_weight_ensemble_select(
         w_refit = np.ones(n_sel) / n_sel
     else:
         P_sel = P[:, selected_idx]
-        w_refit = _refit_weights(P_sel, y, loss=loss, huber_delta=huber_delta)
+        w_refit = _refit_weights(
+            P_sel, y, loss=loss, huber_delta=huber_delta, max_weight=max_weight
+        )
 
     return selected_idx, w_refit
 
@@ -204,6 +227,7 @@ class SparseWeightHallOfFame(HallOfFame):
         equal_weight: bool = False,
         loss: Literal["squared", "absolute", "huber"] = "squared",
         huber_delta: float = 1.0,
+        max_weight: Optional[float] = None,
         algorithm=None,
         similar=eq,
         **kwargs,
@@ -214,6 +238,7 @@ class SparseWeightHallOfFame(HallOfFame):
         self.equal_weight = equal_weight
         self.loss: Literal["squared", "absolute", "huber"] = loss
         self.huber_delta = huber_delta
+        self.max_weight = max_weight
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
 
@@ -260,6 +285,7 @@ class SparseWeightHallOfFame(HallOfFame):
             equal_weight=self.equal_weight,
             loss=self.loss,
             huber_delta=self.huber_delta,
+            max_weight=self.max_weight,
         )
 
         # Map indices to candidates (pool = previous ensemble + population)
