@@ -8,7 +8,10 @@ Supports training-based and validation-based modes.
 """
 
 from collections import defaultdict
-from typing import List, Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple, cast
+
+# Threshold for adaptive mode: sparse weights when n_unique_y > ADAPTIVE_N_UNIQUE_THRESHOLD
+ADAPTIVE_N_UNIQUE_THRESHOLD = 50
 
 import numpy as np
 
@@ -129,6 +132,23 @@ def _refit_weights(
     return w / (np.sum(w) + 1e-12)
 
 
+def _top_low_error_equal_weight(
+    P: np.ndarray, y: np.ndarray, K: int
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Select top K models by lowest MSE on (P, y), with equal weights 1/K.
+    """
+    n_models = P.shape[1]
+    K = min(K, n_models)
+    if K <= 0:
+        return np.array([], dtype=int), np.array([])
+    y = np.asarray(y).ravel()
+    mse_per_model = np.mean((P - y[:, None]) ** 2, axis=0)
+    selected_idx = np.argsort(mse_per_model)[:K]
+    weights = np.ones(K) / K
+    return selected_idx, weights
+
+
 def sparse_weight_ensemble_select(
     P: np.ndarray,
     y: np.ndarray,
@@ -138,9 +158,10 @@ def sparse_weight_ensemble_select(
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
+    mode: Literal["sparse", "equal_top", "adaptive"] = "sparse",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Two-stage sparse-weight selection.
+    Two-stage sparse-weight selection, or top low-error equal-weight selection.
 
     Parameters
     ----------
@@ -149,7 +170,7 @@ def sparse_weight_ensemble_select(
     y : np.ndarray
         Target vector (n_samples,).
     lam : float
-        L1 penalty for first-stage sparsity.
+        L1 penalty for first-stage sparsity (used when mode is "sparse" or "adaptive" and n_unique_y > threshold).
     K : int
         Maximum number of models to select. Ensemble size is always <= K (can be less).
     equal_weight : bool, default=False
@@ -162,6 +183,11 @@ def sparse_weight_ensemble_select(
     max_weight : float, optional
         Upper bound on each weight (e.g. 0.1). If set, enforces w_i <= max_weight.
         Requires at least 1/max_weight models to sum to 1.
+    mode : {"sparse", "equal_top", "adaptive"}, default="sparse"
+        "sparse": L1-regularized sparse weights, then refit or equal on selected.
+        "equal_top": select top K models by lowest error (MSE), equal weights.
+        "adaptive": if number of unique y values > ADAPTIVE_N_UNIQUE_THRESHOLD use sparse path;
+        otherwise use equal_top (top low-error models, equal weight).
 
     Returns
     -------
@@ -169,7 +195,7 @@ def sparse_weight_ensemble_select(
         Indices of selected models (length <= n_models).
     weights : np.ndarray
         Weights for selected models (same length as indices). Refit or equal
-        depending on equal_weight.
+        depending on equal_weight (sparse path) or always equal (equal_top/adaptive fallback).
     """
     P = np.asarray(P, dtype=float)
     if P.ndim == 1:
@@ -178,9 +204,18 @@ def sparse_weight_ensemble_select(
     if n_models == 0:
         return np.array([], dtype=int), np.array([])
 
+    y_flat = np.asarray(y).ravel()
+    use_sparse = mode == "sparse" or (
+        mode == "adaptive"
+        and len(np.unique(y_flat)) > ADAPTIVE_N_UNIQUE_THRESHOLD
+    )
+
+    if not use_sparse:
+        return _top_low_error_equal_weight(P, y_flat, K)
+
     # Stage 1: sparse weights
     w_sparse = _sparse_weight_fit(
-        P, y, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight
+        P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight
     )
 
     # Selection: at most K models; prefer L1 nonzeros when count <= K, else top K by weight
@@ -201,7 +236,7 @@ def sparse_weight_ensemble_select(
     else:
         P_sel = P[:, selected_idx]
         w_refit = _refit_weights(
-            P_sel, y, loss=loss, huber_delta=huber_delta, max_weight=max_weight
+            P_sel, y_flat, loss=loss, huber_delta=huber_delta, max_weight=max_weight
         )
 
     return selected_idx, w_refit
@@ -215,6 +250,8 @@ class SparseWeightHallOfFame(HallOfFame):
     instead of refitting; can improve generalization.
     Use loss="squared" (MSE), loss="absolute" (MAE), or loss="huber" (Huber).
     huber_delta is used only when loss="huber" (default 1.0).
+    mode: "sparse" (default), "equal_top" (top K by lowest error, equal weight),
+    or "adaptive" (sparse when number of unique y > ADAPTIVE_N_UNIQUE_THRESHOLD, else equal_top).
     Supports validation-based mode when `algorithm` is provided and has
     validation_based_ensemble_selection and validation data set.
     """
@@ -228,6 +265,7 @@ class SparseWeightHallOfFame(HallOfFame):
         loss: Literal["squared", "absolute", "huber"] = "squared",
         huber_delta: float = 1.0,
         max_weight: Optional[float] = None,
+        mode: Literal["sparse", "equal_top", "adaptive"] = "sparse",
         algorithm=None,
         similar=eq,
         **kwargs,
@@ -239,6 +277,7 @@ class SparseWeightHallOfFame(HallOfFame):
         self.loss: Literal["squared", "absolute", "huber"] = loss
         self.huber_delta = huber_delta
         self.max_weight = max_weight
+        self.mode = mode
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
 
@@ -286,6 +325,7 @@ class SparseWeightHallOfFame(HallOfFame):
             loss=self.loss,
             huber_delta=self.huber_delta,
             max_weight=self.max_weight,
+            mode=cast(Literal["sparse", "equal_top", "adaptive"], self.mode),
         )
 
         # Map indices to candidates (pool = previous ensemble + population)
