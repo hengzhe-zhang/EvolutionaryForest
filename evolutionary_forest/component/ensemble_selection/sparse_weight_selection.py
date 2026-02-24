@@ -8,9 +8,15 @@ Supports training-based and validation-based modes.
 """
 
 from collections import defaultdict
-from typing import List, Tuple
+from typing import List, Literal, Tuple
 
 import numpy as np
+
+
+def _huber(res: np.ndarray, delta: float) -> np.ndarray:
+    """Huber loss per element: 0.5*r^2 if |r|<=delta else delta*(|r|-0.5*delta)."""
+    abs_r = np.abs(res)
+    return np.where(abs_r <= delta, 0.5 * res ** 2, delta * (abs_r - 0.5 * delta))
 from deap.tools import HallOfFame
 from operator import eq
 from scipy.optimize import minimize
@@ -22,9 +28,12 @@ def _sparse_weight_fit(
     P: np.ndarray,
     y: np.ndarray,
     lam: float,
+    loss: Literal["squared", "absolute", "huber"] = "squared",
+    huber_delta: float = 1.0,
 ) -> np.ndarray:
     """
-    Solve: min_{w >= 0, sum(w)=1}  ||P @ w - y||^2 + lam * ||w||_1.
+    Solve: min_{w >= 0, sum(w)=1}  L(P @ w, y) + lam * ||w||_1.
+    L is MSE (squared), MAE (absolute), or mean Huber (huber).
     P: (n_samples, n_models), y: (n_samples,).
     Returns w: (n_models,).
     """
@@ -33,9 +42,15 @@ def _sparse_weight_fit(
 
     def obj(w: np.ndarray) -> float:
         pred = P @ w
-        mse = np.mean((pred - y) ** 2)
+        res = pred - y
+        if loss == "squared":
+            fit_loss = np.mean(res ** 2)
+        elif loss == "absolute":
+            fit_loss = np.mean(np.abs(res))
+        else:
+            fit_loss = np.mean(_huber(res, huber_delta))
         l1 = lam * np.sum(np.abs(w))
-        return mse + l1
+        return fit_loss + l1
 
     # Bounds: w >= 0
     bounds = [(0.0, None)] * n_models
@@ -57,9 +72,15 @@ def _sparse_weight_fit(
     return np.maximum(res.x, 0.0) / (np.sum(np.maximum(res.x, 0.0)) + 1e-12)
 
 
-def _refit_weights(P: np.ndarray, y: np.ndarray) -> np.ndarray:
+def _refit_weights(
+    P: np.ndarray,
+    y: np.ndarray,
+    loss: Literal["squared", "absolute", "huber"] = "squared",
+    huber_delta: float = 1.0,
+) -> np.ndarray:
     """
-    Solve: min_{w >= 0, sum(w)=1}  ||P @ w - y||^2.
+    Solve: min_{w >= 0, sum(w)=1}  L(P @ w, y).
+    L is MSE (squared), MAE (absolute), or mean Huber (huber).
     P: (n_samples, n_selected), y: (n_samples,).
     Returns w: (n_selected,).
     """
@@ -69,7 +90,12 @@ def _refit_weights(P: np.ndarray, y: np.ndarray) -> np.ndarray:
         return np.array([])
 
     def obj(w: np.ndarray) -> float:
-        return np.mean((P @ w - y) ** 2)
+        res = P @ w - y
+        if loss == "squared":
+            return np.mean(res ** 2)
+        if loss == "absolute":
+            return np.mean(np.abs(res))
+        return np.mean(_huber(res, huber_delta))
 
     bounds = [(0.0, None)] * n_sel
     constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1.0}
@@ -94,6 +120,8 @@ def sparse_weight_ensemble_select(
     lam: float = 0.01,
     K: int = 20,
     equal_weight: bool = False,
+    loss: Literal["squared", "absolute", "huber"] = "squared",
+    huber_delta: float = 1.0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Two-stage sparse-weight selection.
@@ -111,6 +139,10 @@ def sparse_weight_ensemble_select(
     equal_weight : bool, default=False
         If True, use equal weights (1/n_selected) for selected models instead of
         refitting weights on the selected subset. Can improve generalization.
+    loss : {"squared", "absolute", "huber"}, default="squared"
+        Loss for weight fitting: "squared" = MSE, "absolute" = MAE, "huber" = Huber.
+    huber_delta : float, default=1.0
+        Delta for Huber loss (used only when loss="huber").
 
     Returns
     -------
@@ -128,7 +160,7 @@ def sparse_weight_ensemble_select(
         return np.array([], dtype=int), np.array([])
 
     # Stage 1: sparse weights
-    w_sparse = _sparse_weight_fit(P, y, lam)
+    w_sparse = _sparse_weight_fit(P, y, lam, loss=loss, huber_delta=huber_delta)
 
     # Selection: at most K models; prefer L1 nonzeros when count <= K, else top K by weight
     top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
@@ -147,7 +179,7 @@ def sparse_weight_ensemble_select(
         w_refit = np.ones(n_sel) / n_sel
     else:
         P_sel = P[:, selected_idx]
-        w_refit = _refit_weights(P_sel, y)
+        w_refit = _refit_weights(P_sel, y, loss=loss, huber_delta=huber_delta)
 
     return selected_idx, w_refit
 
@@ -158,6 +190,8 @@ class SparseWeightHallOfFame(HallOfFame):
     pipeline: L1-regularized weight fitting, top-K selection, then refit or
     equal weights. Set equal_weight=True to use equal weights (1/n_selected)
     instead of refitting; can improve generalization.
+    Use loss="squared" (MSE), loss="absolute" (MAE), or loss="huber" (Huber).
+    huber_delta is used only when loss="huber" (default 1.0).
     Supports validation-based mode when `algorithm` is provided and has
     validation_based_ensemble_selection and validation data set.
     """
@@ -168,6 +202,8 @@ class SparseWeightHallOfFame(HallOfFame):
         y: np.ndarray,
         lambda_: float = 0.01,
         equal_weight: bool = False,
+        loss: Literal["squared", "absolute", "huber"] = "squared",
+        huber_delta: float = 1.0,
         algorithm=None,
         similar=eq,
         **kwargs,
@@ -176,6 +212,8 @@ class SparseWeightHallOfFame(HallOfFame):
         self.y = np.asarray(y).ravel()
         self.lambda_ = lambda_
         self.equal_weight = equal_weight
+        self.loss: Literal["squared", "absolute", "huber"] = loss
+        self.huber_delta = huber_delta
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
 
@@ -215,7 +253,13 @@ class SparseWeightHallOfFame(HallOfFame):
         # Run sparse-weight selection on pool; K = ensemble_size (maxsize)
         K = min(self.maxsize, n_models)
         indices, weights = sparse_weight_ensemble_select(
-            P, y_fit, lam=self.lambda_, K=K, equal_weight=self.equal_weight
+            P,
+            y_fit,
+            lam=self.lambda_,
+            K=K,
+            equal_weight=self.equal_weight,
+            loss=self.loss,
+            huber_delta=self.huber_delta,
         )
 
         # Map indices to candidates (pool = previous ensemble + population)
