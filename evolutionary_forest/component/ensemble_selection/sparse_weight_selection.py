@@ -8,12 +8,45 @@ Supports training-based and validation-based modes.
 """
 
 from collections import defaultdict
-from typing import List, Literal, Optional, Tuple, cast
+from typing import List, Literal, Optional, Tuple, Union, cast
 
 # Threshold for adaptive mode: sparse weights when n_unique_y > ADAPTIVE_N_UNIQUE_THRESHOLD
 ADAPTIVE_N_UNIQUE_THRESHOLD = 50
 
+# Threshold for lam_l2 "auto": if 5-fold CV R² of RF on (X, y) > this, use lam_l2=0 else 1
+LAM_L2_AUTO_RF_CV_R2_THRESHOLD = 0.85
+
 import numpy as np
+
+
+def _resolve_lam_l2_auto(
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    cv: int = 5,
+    threshold: float = LAM_L2_AUTO_RF_CV_R2_THRESHOLD,
+    random_state: Optional[int] = None,
+) -> float:
+    """
+    Resolve lam_l2 for "auto" mode: 5-fold CV of Random Forest on (X, y).
+    If mean CV R² > threshold, return 0.0 (no L2); else return 1.0.
+    Uses original features and labels, once per evolution process.
+    """
+    try:
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.model_selection import cross_val_score
+    except ImportError:
+        return 0.0
+    X = np.asarray(X, dtype=float)
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+    y = np.asarray(y).ravel()
+    if len(y) < cv * 2:
+        return 0.0
+    rf = RandomForestRegressor(random_state=random_state)
+    scores = cross_val_score(rf, X, y, cv=cv, scoring="r2")
+    mean_r2 = float(np.mean(scores))
+    return 0.0 if mean_r2 > threshold else 1.0
 
 
 def _huber(res: np.ndarray, delta: float) -> np.ndarray:
@@ -193,9 +226,10 @@ def sparse_weight_ensemble_select(
     max_weight : float, optional
         Upper bound on each weight (e.g. 0.1). If set, enforces w_i <= max_weight.
         Requires at least 1/max_weight models to sum to 1.
-    lam_l2 : float, default=0.0
+    lam_l2 : float or "auto", default=0.0
         L2 penalty on weights (elastic net in Stage 1, shrinkage in Stage 2 refit).
-        0 disables L2.
+        0 disables L2. If "auto", resolve once for the whole evolution: 5-fold CV of
+        Random Forest on original features and labels; use 0 if mean R² > 0.85 else 1.
     mode : {"sparse", "equal_top", "adaptive"}, default="sparse"
         "sparse": L1-regularized sparse weights, then refit or equal on selected.
         "equal_top": select top K models by lowest error (MSE), equal weights.
@@ -307,8 +341,10 @@ class SparseWeightHallOfFame(HallOfFame):
     or "adaptive" (sparse when number of unique y > ADAPTIVE_N_UNIQUE_THRESHOLD, else equal_top).
     stability_n_bootstrap > 0 enables stability selection; stability_fraction and random_state
     are passed through. lam_l2 (default 0) adds L2 penalty in Stage 1 and refit.
-    Supports validation-based mode when `algorithm` is provided and has
-    validation_based_ensemble_selection and validation data set.
+    lam_l2="auto" resolves L2 once for the whole evolution: 5-fold CV of RF on original
+    X and y; use 0 if mean R² > 0.85 else 1 (requires algorithm.X). Supports validation-based
+    mode when `algorithm` is provided and has validation_based_ensemble_selection and
+    validation data set.
     """
 
     def __init__(
@@ -320,7 +356,7 @@ class SparseWeightHallOfFame(HallOfFame):
         loss: Literal["squared", "absolute", "huber"] = "squared",
         huber_delta: float = 1.0,
         max_weight: Optional[float] = None,
-        lam_l2: float = 0.0,
+        lam_l2: Union[float, Literal["auto"]] = 0.0,
         mode: Literal["sparse", "equal_top", "adaptive"] = "sparse",
         stability_n_bootstrap: int = 0,
         stability_fraction: float = 0.5,
@@ -343,6 +379,24 @@ class SparseWeightHallOfFame(HallOfFame):
         self.random_state = random_state
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
+        # Resolve lam_l2 once when "auto"; cache for whole evolution
+        self._resolved_lam_l2: Optional[float] = None
+
+    def _get_effective_lam_l2(self) -> float:
+        """Resolve lam_l2 once when 'auto', then return effective float."""
+        if self.lam_l2 != "auto":
+            return float(self.lam_l2)
+        if self._resolved_lam_l2 is not None:
+            return self._resolved_lam_l2
+        # Resolve once: 5-fold CV of RF on original X, y; 0 if R² > 0.85 else 1
+        X = getattr(self.algorithm, "X", None) if self.algorithm is not None else None
+        if X is None:
+            self._resolved_lam_l2 = 0.0
+            return 0.0
+        self._resolved_lam_l2 = _resolve_lam_l2_auto(
+            X, self.y, random_state=self.random_state
+        )
+        return self._resolved_lam_l2
 
     def update(self, population: List) -> None:
         if not population:
@@ -379,6 +433,7 @@ class SparseWeightHallOfFame(HallOfFame):
 
         # Run sparse-weight selection on pool; K = ensemble_size (maxsize)
         K = min(self.maxsize, n_models)
+        effective_lam_l2 = self._get_effective_lam_l2()
         indices, weights = sparse_weight_ensemble_select(
             P,
             y_fit,
@@ -388,7 +443,7 @@ class SparseWeightHallOfFame(HallOfFame):
             loss=self.loss,
             huber_delta=self.huber_delta,
             max_weight=self.max_weight,
-            lam_l2=self.lam_l2,
+            lam_l2=effective_lam_l2,
             mode=cast(Literal["sparse", "equal_top", "adaptive"], self.mode),
             stability_n_bootstrap=self.stability_n_bootstrap,
             stability_fraction=self.stability_fraction,
