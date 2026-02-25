@@ -389,10 +389,15 @@ class SparseWeightHallOfFame(HallOfFame):
         if self._resolved_lam_l2 is not None:
             return self._resolved_lam_l2
         # Resolve once: 5-fold CV of RF on original X, y; 0 if R² > 0.85 else 1
-        X = getattr(self.algorithm, "X", None) if self.algorithm is not None else None
+        if self.algorithm is None:
+            raise ValueError(
+                "lam_l2='auto' requires algorithm to be provided to SparseWeightHallOfFame."
+            )
+        X = self.algorithm.X
         if X is None:
-            self._resolved_lam_l2 = 0.0
-            return 0.0
+            raise ValueError(
+                "lam_l2='auto' requires algorithm.X (training features) to be set."
+            )
         self._resolved_lam_l2 = _resolve_lam_l2_auto(
             X, self.y, random_state=self.random_state
         )
@@ -409,16 +414,14 @@ class SparseWeightHallOfFame(HallOfFame):
         # Build prediction matrix P (n_samples, n_candidates)
         use_validation = (
             self.algorithm is not None
-            and getattr(self.algorithm, "validation_based_ensemble_selection", 0) > 0
-            and hasattr(self.algorithm, "des_valid_x")
-            and hasattr(self.algorithm, "des_valid_y")
+            and self.algorithm.validation_based_ensemble_selection > 0
         )
 
         if use_validation:
             # Validation-based: get predictions on validation set
             # individual_prediction returns (n_individuals, n_samples)
             algo = self.algorithm
-            assert algo is not None and hasattr(algo, "des_valid_x")
+            assert algo is not None
             valid_preds = algo.individual_prediction(algo.des_valid_x, candidates)
             P = np.asarray(valid_preds).T  # (n_samples, n_candidates)
             y_fit = np.asarray(algo.des_valid_y).ravel()
