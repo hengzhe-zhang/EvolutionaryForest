@@ -10,11 +10,8 @@ Supports training-based and validation-based modes.
 from collections import defaultdict
 from typing import List, Literal, Optional, Tuple, Union, cast
 
-# Threshold for adaptive mode: sparse weights when n_unique_y > ADAPTIVE_N_UNIQUE_THRESHOLD
-ADAPTIVE_N_UNIQUE_THRESHOLD = 50
-
-# Threshold for lam_l2 "auto": if 5-fold CV R² of RF on (X, y) > this, use lam_l2=0 else 1
-LAM_L2_AUTO_RF_CV_R2_THRESHOLD = 0.85
+# Threshold for lam_l2 "auto": if 5-fold CV score of 3-NN KNN on (X, y) > this, use lam_l2=0 else 1
+LAM_L2_AUTO_KNN_CV_THRESHOLD = 0.8
 
 import numpy as np
 
@@ -24,17 +21,18 @@ def _resolve_lam_l2_auto(
     y: np.ndarray,
     *,
     cv: int = 5,
-    threshold: float = LAM_L2_AUTO_RF_CV_R2_THRESHOLD,
+    n_neighbors: int = 3,
+    threshold: float = LAM_L2_AUTO_KNN_CV_THRESHOLD,
     random_state: Optional[int] = None,
 ) -> float:
     """
-    Resolve lam_l2 for "auto" mode: 5-fold CV of Random Forest on (X, y).
+    Resolve lam_l2 for "auto" mode: 5-fold CV of 3-NN KNN on (X, y).
     If mean CV R² > threshold, return 0.0 (no L2); else return 1.0.
     Uses original features and labels, once per evolution process.
     """
     try:
-        from sklearn.ensemble import RandomForestRegressor
         from sklearn.model_selection import cross_val_score
+        from sklearn.neighbors import KNeighborsRegressor
     except ImportError:
         return 0.0
     X = np.asarray(X, dtype=float)
@@ -43,8 +41,8 @@ def _resolve_lam_l2_auto(
     y = np.asarray(y).ravel()
     if len(y) < cv * 2:
         return 0.0
-    rf = RandomForestRegressor(random_state=random_state)
-    scores = cross_val_score(rf, X, y, cv=cv, scoring="r2")
+    knn = KNeighborsRegressor(n_neighbors=n_neighbors)
+    scores = cross_val_score(knn, X, y, cv=cv, scoring="r2")
     mean_r2 = float(np.mean(scores))
     return 0.0 if mean_r2 > threshold else 1.0
 
@@ -213,7 +211,7 @@ def sparse_weight_ensemble_select(
     y : np.ndarray
         Target vector (n_samples,).
     lam : float
-        L1 penalty for first-stage sparsity (used when mode is "sparse" or "adaptive" and n_unique_y > threshold).
+        L1 penalty for first-stage sparsity (used when mode is "sparse" or "adaptive").
     K : int
         Maximum number of models to select. Ensemble size is always <= K (can be less).
     equal_weight : bool, default=False
@@ -229,12 +227,11 @@ def sparse_weight_ensemble_select(
     lam_l2 : float or "auto", default=0.0
         L2 penalty on weights (elastic net in Stage 1, shrinkage in Stage 2 refit).
         0 disables L2. If "auto", resolve once for the whole evolution: 5-fold CV of
-        Random Forest on original features and labels; use 0 if mean R² > 0.85 else 1.
+        3-NN KNN on original features and labels; use 0 if mean R² > 0.8 else 1.
     mode : {"sparse", "equal_top", "adaptive"}, default="sparse"
         "sparse": L1-regularized sparse weights, then refit or equal on selected.
         "equal_top": select top K models by lowest error (MSE), equal weights.
-        "adaptive": if number of unique y values > ADAPTIVE_N_UNIQUE_THRESHOLD use sparse path;
-        otherwise use equal_top (top low-error models, equal weight).
+        "adaptive": same as "sparse" (uses sparse path).
     stability_n_bootstrap : int, default=0
         If > 0, run stability selection: fit sparse weights on this many bootstrap
         samples and keep models with nonzero weight in >= stability_fraction of runs.
@@ -251,7 +248,7 @@ def sparse_weight_ensemble_select(
         Indices of selected models (length <= n_models).
     weights : np.ndarray
         Weights for selected models (same length as indices). Refit or equal
-        depending on equal_weight (sparse path) or always equal (equal_top/adaptive fallback).
+        depending on equal_weight (sparse path) or always equal (equal_top).
     """
     P = np.asarray(P, dtype=float)
     if P.ndim == 1:
@@ -261,10 +258,7 @@ def sparse_weight_ensemble_select(
         return np.array([], dtype=int), np.array([])
 
     y_flat = np.asarray(y).ravel()
-    use_sparse = mode == "sparse" or (
-        mode == "adaptive"
-        and len(np.unique(y_flat)) > ADAPTIVE_N_UNIQUE_THRESHOLD
-    )
+    use_sparse = mode in ("sparse", "adaptive")
 
     if not use_sparse:
         return _top_low_error_equal_weight(P, y_flat, K)
@@ -338,11 +332,11 @@ class SparseWeightHallOfFame(HallOfFame):
     Use loss="squared" (MSE), loss="absolute" (MAE), or loss="huber" (Huber).
     huber_delta is used only when loss="huber" (default 1.0).
     mode: "sparse" (default), "equal_top" (top K by lowest error, equal weight),
-    or "adaptive" (sparse when number of unique y > ADAPTIVE_N_UNIQUE_THRESHOLD, else equal_top).
+    or "adaptive" (same as sparse).
     stability_n_bootstrap > 0 enables stability selection; stability_fraction and random_state
     are passed through. lam_l2 (default 0) adds L2 penalty in Stage 1 and refit.
-    lam_l2="auto" resolves L2 once for the whole evolution: 5-fold CV of RF on original
-    X and y; use 0 if mean R² > 0.85 else 1 (requires algorithm.X). Supports validation-based
+    lam_l2="auto" resolves L2 once for the whole evolution: 5-fold CV of 3-NN KNN on original
+    X and y; use 0 if mean R² > 0.8 else 1 (requires algorithm.X). Supports validation-based
     mode when `algorithm` is provided and has validation_based_ensemble_selection and
     validation data set.
     """
