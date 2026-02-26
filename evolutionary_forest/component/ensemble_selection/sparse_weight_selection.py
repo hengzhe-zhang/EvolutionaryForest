@@ -44,13 +44,15 @@ def _resolve_lam_l2_auto(
     knn = KNeighborsRegressor(n_neighbors=n_neighbors)
     scores = cross_val_score(knn, X, y, cv=cv, scoring="r2")
     mean_r2 = float(np.mean(scores))
-    return 0.0 if mean_r2 > threshold else 1.0
+    return 0.0 if mean_r2 > threshold else 0.1
 
 
 def _huber(res: np.ndarray, delta: float) -> np.ndarray:
     """Huber loss per element: 0.5*r^2 if |r|<=delta else delta*(|r|-0.5*delta)."""
     abs_r = np.abs(res)
     return np.where(abs_r <= delta, 0.5 * res ** 2, delta * (abs_r - 0.5 * delta))
+
+
 from deap.tools import HallOfFame
 from operator import eq
 from scipy.optimize import minimize
