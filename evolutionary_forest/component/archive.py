@@ -5,6 +5,7 @@ from bisect import bisect_right
 from collections import defaultdict
 from itertools import chain, compress
 from operator import eq
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 from deap.tools import HallOfFame, sortNondominated
@@ -248,6 +249,31 @@ class EnsembleSelectionHallOfFame(HallOfFame):
             else:
                 raise Exception
 
+    def _get_initial_batch(
+        self, all_inds, error_calculation, instances_num
+    ) -> Optional[Tuple[List[Any], int, float]]:
+        """
+        Optionally perform batch initial selection (e.g. greedy top-k).
+        Returns None to use single-ind initial selection; otherwise
+        (initial_inds, initial_individuals, current_error) for the caller to apply.
+        """
+        return None
+
+    def _select_next_individual(
+        self, all_inds, sum_prediction, selection_count, error_calculation, instances_num
+    ):
+        """
+        Select the next individual when selection_count > 0.
+        Must be overridden by subclasses that support iterative selection.
+        """
+        raise NotImplementedError(
+            "This hall-of-fame type does not support iterative selection."
+        )
+
+    def _stop_on_no_improvement(self):
+        """Return True to stop selection when the chosen ind does not improve error."""
+        return False
+
     def ensemble_selection(self, population):
         new_inds = []
         new_ind_tuples = defaultdict(int)
@@ -292,38 +318,13 @@ class EnsembleSelectionHallOfFame(HallOfFame):
 
         while selection_count < self.maxsize and len(all_inds) > 0:
             if selection_count == 0:
-                if isinstance(self, GreedySelectionHallOfFame):
-                    # calculate loss summation
-                    if self.loss_function in ["ZeroOne", "CrossEntropy", "MSE"]:
-                        errors = [error_calculation(x) for x in all_inds]
-                    else:
-                        errors = [
-                            np.sum(x.case_values[:instances_num]) for x in all_inds
-                        ]
-                    # For multitask optimization, consider tasks separately
-                    if self.multitask and all_inds[0].base_model is not None:
-                        initial_individuals = self.initial_size * 2
-                        args = np.argsort(errors)
-                        all_base_models = {ind.base_model for ind in all_inds}
-                        inds = []
-                        for m in all_base_models:
-                            # Select top individuals for each base model
-                            inds.extend(
-                                list(
-                                    filter(
-                                        lambda id: all_inds[id].base_model == m, args
-                                    )
-                                )[: self.initial_size]
-                            )
-                    else:
-                        initial_individuals = self.initial_size
-
-                    # Select the top individuals based on errors
-                    inds = np.argsort(errors)[:initial_individuals]
-
+                batch_result = self._get_initial_batch(
+                    all_inds, error_calculation, instances_num
+                )
+                if batch_result is not None:
+                    initial_inds, initial_individuals, current_error = batch_result
                     # Process selected individuals
-                    for ind in inds:
-                        ind = all_inds[ind]
+                    for ind in initial_inds:
                         sum_prediction += ind.predicted_values
                         selection_count += 1
 
@@ -351,15 +352,6 @@ class EnsembleSelectionHallOfFame(HallOfFame):
 
                     # Ensure the correct number of individuals were selected
                     assert selection_count == initial_individuals, selection_count
-
-                    # Update current error (first iteration)
-                    prediction = sum_prediction / initial_individuals
-                    if self.class_weight is not None:
-                        current_error = np.sum(
-                            self.class_weight * self.loss(prediction)
-                        )
-                    else:
-                        current_error = np.sum(self.loss(prediction))
                     continue
                 else:
                     # Select the individual with the minimum sum of case values
@@ -367,46 +359,9 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                         all_inds, key=lambda x: np.sum(x.case_values[:instances_num])
                     )
             else:
-                if isinstance(self, DREPHallOfFame):
-                    if (
-                        self.class_weight is not None
-                        or self.task_type == "Classification"
-                    ):
-                        raise Exception
-
-                    # First select individuals based on diversity (r proportion of the population)
-                    avg_prediction = sum_prediction / selection_count
-                    diversity_function = lambda x: -1 * np.sum(
-                        (x.predicted_values - avg_prediction) ** 2
-                    )
-                    ranked_individuals = sorted(all_inds, key=diversity_function)
-                    elitist = ranked_individuals[: math.ceil(self.r * len(all_inds))]
-
-                    # Then select individuals based on accuracy from the diversity-selected individuals
-                    ind = min(
-                        elitist, key=lambda x: np.sum(x.case_values[:instances_num])
-                    )
-                elif isinstance(self, GreedySelectionHallOfFame):
-                    # Select individuals based on loss reduction
-                    if self.inner_sampling > 0:
-                        # Randomly select individuals with probability based on inner_sampling
-                        selected_index = (
-                            np.random.random(len(all_inds)) < self.inner_sampling
-                        )
-
-                        # Ensure at least one individual is selected if all values are False
-                        if np.sum(selected_index) == 0:
-                            selected_index[np.random.randint(len(all_inds))] = True
-
-                        # Create a pool of selected individuals
-                        ind_pool = list(compress(all_inds, selected_index))
-                    else:
-                        # If inner_sampling is not used, include all individuals in the pool
-                        ind_pool = all_inds
-                    # Select an individual with the minimum error
-                    ind = min(ind_pool, key=error_calculation)
-                else:
-                    raise Exception
+                ind = self._select_next_individual(
+                    all_inds, sum_prediction, selection_count, error_calculation, instances_num
+                )
 
             # Early stop strategy
             early_stop = False
@@ -417,8 +372,8 @@ class EnsembleSelectionHallOfFame(HallOfFame):
             if error_calculation(ind) < current_error:
                 current_error = error_calculation(ind)
             else:
-                if isinstance(self, GreedySelectionHallOfFame):
-                    # If the selection strategy is Greedy Selection, stop further selection
+                if self._stop_on_no_improvement():
+                    # If the selection strategy stops on no improvement (e.g. Greedy), break
                     break
 
                 if remove_bad_one:
@@ -518,6 +473,28 @@ class EnsembleSelectionHallOfFame(HallOfFame):
 
 class DREPHallOfFame(EnsembleSelectionHallOfFame):
     # A hall of fame based on DREP algorithm
+
+    def _select_next_individual(
+        self, all_inds, sum_prediction, selection_count, error_calculation, instances_num
+    ):
+        if (
+            self.class_weight is not None
+            or self.task_type == "Classification"
+        ):
+            raise Exception
+        # First select individuals based on diversity (r proportion of the population)
+        avg_prediction = sum_prediction / selection_count
+
+        def diversity_function(x):
+            return -1 * np.sum((x.predicted_values - avg_prediction) ** 2)
+
+        ranked_individuals = sorted(all_inds, key=diversity_function)
+        elitist = ranked_individuals[: math.ceil(self.r * len(all_inds))]
+        # Then select based on accuracy from the diversity-selected individuals
+        return min(
+            elitist, key=lambda x: np.sum(x.case_values[:instances_num])
+        )
+
     def update(self, population):
         paradigm = []
         for r in np.arange(0.2, 0.5 + 0.01, 0.1):
@@ -607,7 +584,55 @@ class NoveltyHallOfFame(EnsembleSelectionHallOfFame):
 
 
 class GreedySelectionHallOfFame(EnsembleSelectionHallOfFame):
-    pass
+    """Greedy ensemble selection: batch initial selection by error, then iterative loss reduction."""
+
+    def _get_initial_batch(self, all_inds, error_calculation, instances_num):
+        if self.loss_function in ["ZeroOne", "CrossEntropy", "MSE"]:
+            errors = [error_calculation(x) for x in all_inds]
+        else:
+            errors = [np.sum(x.case_values[:instances_num]) for x in all_inds]
+        # For multitask optimization, consider tasks separately
+        if self.multitask and all_inds[0].base_model is not None:
+            initial_individuals = self.initial_size * 2
+            args = np.argsort(errors)
+            all_base_models = {ind.base_model for ind in all_inds}
+            inds = []
+            for m in all_base_models:
+                inds.extend(
+                    list(
+                        filter(
+                            lambda id: all_inds[id].base_model == m, args
+                        )
+                    )[: self.initial_size]
+                )
+        else:
+            initial_individuals = self.initial_size
+            inds = np.argsort(errors)[:initial_individuals]
+        initial_inds = [all_inds[i] for i in inds]
+        sum_prediction = np.sum(
+            [ind.predicted_values for ind in initial_inds], axis=0
+        )
+        prediction = sum_prediction / initial_individuals
+        if self.class_weight is not None:
+            current_error = np.sum(self.class_weight * self.loss(prediction))
+        else:
+            current_error = np.sum(self.loss(prediction))
+        return (initial_inds, initial_individuals, current_error)
+
+    def _select_next_individual(
+        self, all_inds, sum_prediction, selection_count, error_calculation, instances_num
+    ):
+        if self.inner_sampling > 0:
+            selected_index = np.random.random(len(all_inds)) < self.inner_sampling
+            if np.sum(selected_index) == 0:
+                selected_index[np.random.randint(len(all_inds))] = True
+            ind_pool = list(compress(all_inds, selected_index))
+        else:
+            ind_pool = all_inds
+        return min(ind_pool, key=error_calculation)
+
+    def _stop_on_no_improvement(self):
+        return True
 
 
 class HybridHallOfFame(HallOfFame):
