@@ -251,11 +251,11 @@ class EnsembleSelectionHallOfFame(HallOfFame):
 
     def _get_initial_batch(
         self, all_inds, error_calculation, instances_num
-    ) -> Optional[Tuple[List[Any], int, float]]:
+    ) -> Optional[Tuple[List[Any], int]]:
         """
         Optionally perform batch initial selection (e.g. greedy top-k).
         Returns None to use single-ind initial selection; otherwise
-        (initial_inds, initial_individuals, current_error) for the caller to apply.
+        (initial_inds, initial_individuals) for the caller to apply and then set current_error.
         """
         return None
 
@@ -322,8 +322,8 @@ class EnsembleSelectionHallOfFame(HallOfFame):
                     all_inds, error_calculation, instances_num
                 )
                 if batch_result is not None:
-                    initial_inds, initial_individuals, current_error = batch_result
-                    # Process selected individuals
+                    initial_inds, initial_individuals = batch_result
+                    # Process selected individuals (same order as old: update stats first)
                     for ind in initial_inds:
                         sum_prediction += ind.predicted_values
                         selection_count += 1
@@ -352,6 +352,16 @@ class EnsembleSelectionHallOfFame(HallOfFame):
 
                     # Ensure the correct number of individuals were selected
                     assert selection_count == initial_individuals, selection_count
+
+                    # Update current error after batch (consistent with old logic:
+                    # stats updated first, then current_error from sum_prediction)
+                    prediction = sum_prediction / initial_individuals
+                    if self.class_weight is not None:
+                        current_error = np.sum(
+                            self.class_weight * self.loss(prediction)
+                        )
+                    else:
+                        current_error = np.sum(self.loss(prediction))
                     continue
                 else:
                     # Select the individual with the minimum sum of case values
@@ -609,15 +619,8 @@ class GreedySelectionHallOfFame(EnsembleSelectionHallOfFame):
             initial_individuals = self.initial_size
             inds = np.argsort(errors)[:initial_individuals]
         initial_inds = [all_inds[i] for i in inds]
-        sum_prediction = np.sum(
-            [ind.predicted_values for ind in initial_inds], axis=0
-        )
-        prediction = sum_prediction / initial_individuals
-        if self.class_weight is not None:
-            current_error = np.sum(self.class_weight * self.loss(prediction))
-        else:
-            current_error = np.sum(self.loss(prediction))
-        return (initial_inds, initial_individuals, current_error)
+        # Caller computes current_error from sum_prediction after updating stats (old order)
+        return (initial_inds, initial_individuals)
 
     def _select_next_individual(
         self, all_inds, sum_prediction, selection_count, error_calculation, instances_num
