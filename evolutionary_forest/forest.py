@@ -3768,7 +3768,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
 
             self.final_model_lazy_training(self.hof)
             self.stacking_strategy.stacking_layer_generation(X, y)
-            self._refit_hof_models_on_full_data()
         self.training_with_validation_set()
         if self.subset_transfer is not None:
             self.X = X_full
@@ -3892,20 +3891,6 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             individual_configuration=individual.individual_configuration,
         )
         return Yp
-
-    def _refit_hof_models_on_full_data(self):
-        """
-        After evolution, refit each HOF individual's linear model (pipe) on train+val
-        when validation was used for selection. Keeps selection leakage-free; final
-        predictors use full data for their base learner fit.
-        """
-        if self.validation_based_ensemble_selection <= 0:
-            return
-        if self.hof is None or len(self.hof) == 0:
-            return
-        X_full = np.vstack((self.X, self.des_valid_x))
-        y_full = np.concatenate((np.asarray(self.y).ravel(), self.des_valid_y.ravel()))
-        self.final_model_lazy_training(self.hof, X=X_full, y=y_full, force_training=True)
 
     def final_model_lazy_training(self, pop, X=None, y=None, force_training=False):
         if X is None:
