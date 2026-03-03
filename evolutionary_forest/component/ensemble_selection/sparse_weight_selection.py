@@ -202,6 +202,7 @@ def sparse_weight_ensemble_select(
     stability_n_bootstrap: int = 0,
     stability_fraction: float = 0.5,
     random_state: Optional[int] = None,
+    first_stage_only: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Two-stage sparse-weight selection, or top low-error equal-weight selection.
@@ -243,6 +244,10 @@ def sparse_weight_ensemble_select(
         weight) to be kept. Used only when stability_n_bootstrap > 0.
     random_state : int, optional
         Seed for bootstrap sampling when stability_n_bootstrap > 0.
+    first_stage_only : bool, default=False
+        Ablation mode for sparse path: skip Stage 2 refit. Use Stage 1 sparse
+        weights on selected models and renormalize them to sum to 1.
+        When True, this takes precedence over equal_weight.
 
     Returns
     -------
@@ -265,6 +270,7 @@ def sparse_weight_ensemble_select(
     if not use_sparse:
         return _top_low_error_equal_weight(P, y_flat, K)
 
+    w_sparse_full: Optional[np.ndarray] = None
     if stability_n_bootstrap > 0:
         # Stability selection: bootstrap sparse fit, keep models selected in >= stability_fraction of runs
         rng = np.random.default_rng(random_state)
@@ -287,6 +293,7 @@ def sparse_weight_ensemble_select(
                 P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
                 lam_l2=lam_l2,
             )
+            w_sparse_full = w_sparse
             top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
             nonzero_idx = np.where(w_sparse > 1e-8)[0]
             selected_idx = nonzero_idx if len(nonzero_idx) <= K else top_k_idx
@@ -302,6 +309,7 @@ def sparse_weight_ensemble_select(
             P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
             lam_l2=lam_l2,
         )
+        w_sparse_full = w_sparse
         top_k_idx = np.argsort(w_sparse)[::-1][: min(K, n_models)]
         nonzero_idx = np.where(w_sparse > 1e-8)[0]
         if len(nonzero_idx) <= K:
@@ -311,9 +319,18 @@ def sparse_weight_ensemble_select(
         if len(selected_idx) == 0:
             selected_idx = np.array([np.argmax(w_sparse)])
 
-    # Stage 2: weights on selected subset
+    # Stage 2 / ablation: weights on selected subset
     n_sel = len(selected_idx)
-    if equal_weight:
+    if first_stage_only:
+        if w_sparse_full is None:
+            w_sparse_full = _sparse_weight_fit(
+                P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+                lam_l2=lam_l2,
+            )
+        w_selected = np.asarray(w_sparse_full[selected_idx], dtype=float)
+        w_selected = np.maximum(w_selected, 0.0)
+        w_refit = w_selected / (np.sum(w_selected) + 1e-12)
+    elif equal_weight:
         w_refit = np.ones(n_sel) / n_sel
     else:
         P_sel = P[:, selected_idx]
@@ -337,6 +354,8 @@ class SparseWeightHallOfFame(HallOfFame):
     or "adaptive" (same as sparse).
     stability_n_bootstrap > 0 enables stability selection; stability_fraction and random_state
     are passed through. lam_l2 (default 0) adds L2 penalty in Stage 1 and refit.
+    first_stage_only=True enables an ablation: skip Stage 2 refit and use
+    normalized Stage 1 sparse weights on selected models.
     lam_l2="auto" resolves L2 once for the whole evolution: 5-fold CV of 3-NN KNN on original
     X and y; use 0 if mean R² > 0.8 else 1 (requires algorithm.X). Supports validation-based
     mode when `algorithm` is provided and has validation_based_ensemble_selection and
@@ -357,6 +376,7 @@ class SparseWeightHallOfFame(HallOfFame):
         stability_n_bootstrap: int = 0,
         stability_fraction: float = 0.5,
         random_state: Optional[int] = None,
+        first_stage_only: bool = False,
         algorithm=None,
         similar=eq,
         **kwargs,
@@ -373,6 +393,7 @@ class SparseWeightHallOfFame(HallOfFame):
         self.stability_n_bootstrap = stability_n_bootstrap
         self.stability_fraction = stability_fraction
         self.random_state = random_state
+        self.first_stage_only = first_stage_only
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
         # Resolve lam_l2 once when "auto"; cache for whole evolution
@@ -447,6 +468,7 @@ class SparseWeightHallOfFame(HallOfFame):
             stability_n_bootstrap=self.stability_n_bootstrap,
             stability_fraction=self.stability_fraction,
             random_state=self.random_state,
+            first_stage_only=self.first_stage_only,
         )
 
         # Map indices to candidates (pool = previous ensemble + population)
