@@ -2,7 +2,7 @@
 Sparse-weight ensemble selection from the paper:
   - Fit sparse weights over all candidates (nonnegativity, sum-to-one, L1).
   - Select top K models by weight (or nonzeros if count ≈ K).
-  - Refit weights on selected subset without sparsity; use for inference.
+  - Renormalize stage-1 weights on selected models to sum to one; use for inference.
 
 Supports training-based and validation-based modes.
 """
@@ -202,7 +202,7 @@ def sparse_weight_ensemble_select(
     stability_n_bootstrap: int = 0,
     stability_fraction: float = 0.5,
     random_state: Optional[int] = None,
-    first_stage_only: bool = False,
+    first_stage_only: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Two-stage sparse-weight selection, or top low-error equal-weight selection.
@@ -244,10 +244,10 @@ def sparse_weight_ensemble_select(
         weight) to be kept. Used only when stability_n_bootstrap > 0.
     random_state : int, optional
         Seed for bootstrap sampling when stability_n_bootstrap > 0.
-    first_stage_only : bool, default=False
-        Ablation mode for sparse path: skip Stage 2 refit. Use Stage 1 sparse
-        weights on selected models and renormalize them to sum to 1.
-        When True, this takes precedence over equal_weight.
+    first_stage_only : bool, default=True
+        Use Stage 1 sparse weights on selected models and renormalize them
+        to sum to 1. This skips Stage 2 refit. When False, an optional
+        Stage 2 refit is performed. This takes precedence over equal_weight.
 
     Returns
     -------
@@ -319,7 +319,7 @@ def sparse_weight_ensemble_select(
         if len(selected_idx) == 0:
             selected_idx = np.array([np.argmax(w_sparse)])
 
-    # Stage 2 / ablation: weights on selected subset
+    # Stage 1 selected weights (with optional Stage 2 refit):
     n_sel = len(selected_idx)
     if first_stage_only:
         if w_sparse_full is None:
@@ -345,17 +345,18 @@ def sparse_weight_ensemble_select(
 class SparseWeightHallOfFame(HallOfFame):
     """
     Hall of fame that selects and weights individuals using the sparse-weight
-    pipeline: L1-regularized weight fitting, top-K selection, then refit or
-    equal weights. Set equal_weight=True to use equal weights (1/n_selected)
-    instead of refitting; can improve generalization.
+    pipeline: L1-regularized weight fitting, top-K selection, then optional
+    Stage-2 refit or equal weights. Set equal_weight=True to use equal weights
+    (1/n_selected) instead of weighted inference; Stage-2 refit is disabled by
+    default.
     Use loss="squared" (MSE), loss="absolute" (MAE), or loss="huber" (Huber).
     huber_delta is used only when loss="huber" (default 1.0).
     mode: "sparse" (default), "equal_top" (top K by lowest error, equal weight),
     or "adaptive" (same as sparse).
     stability_n_bootstrap > 0 enables stability selection; stability_fraction and random_state
-    are passed through. lam_l2 (default 0) adds L2 penalty in Stage 1 and refit.
-    first_stage_only=True enables an ablation: skip Stage 2 refit and use
-    normalized Stage 1 sparse weights on selected models.
+    are passed through. lam_l2 (default 0) adds L2 penalty in Stage 1 and optional
+    Stage 2 refit. first_stage_only=True uses normalized Stage 1 sparse weights on
+    selected models.
     lam_l2="auto" resolves L2 once for the whole evolution: 5-fold CV of 3-NN KNN on original
     X and y; use 0 if mean R² > 0.8 else 1 (requires algorithm.X). Supports validation-based
     mode when `algorithm` is provided and has validation_based_ensemble_selection and
@@ -376,7 +377,7 @@ class SparseWeightHallOfFame(HallOfFame):
         stability_n_bootstrap: int = 0,
         stability_fraction: float = 0.5,
         random_state: Optional[int] = None,
-        first_stage_only: bool = False,
+        first_stage_only: bool = True,
         algorithm=None,
         similar=eq,
         **kwargs,
