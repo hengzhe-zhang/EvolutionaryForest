@@ -2926,6 +2926,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selLexicaseTournament)
         elif self.select == "HOFRandom":
             toolbox.register("select", selHOFRandom, hof=self.hof)
+        elif self.select == "HOFLexicase":
+            def select_hof_lexicase(individuals, k):
+                source = list(self.hof) if self.hof and len(self.hof) > 0 else individuals
+                return selAutomaticEpsilonLexicaseFast(source, k)
+
+            toolbox.register("select", select_hof_lexicase)
         elif self.select.startswith("KNN"):
             base_operator, neighbor, strategy = self.select.split("-")[1:]
             neighbor = int(neighbor)
