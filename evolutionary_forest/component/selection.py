@@ -1282,7 +1282,8 @@ def selLexicaseKNN(
 
 
 def selHOFRandom(individuals, k, hof):
-    return random.sample(list(hof), k)
+    assert hof is not None
+    return random.choices(list(hof) if hof else individuals, k=k)
 
 
 def selLexicaseTournament(individuals, k):
