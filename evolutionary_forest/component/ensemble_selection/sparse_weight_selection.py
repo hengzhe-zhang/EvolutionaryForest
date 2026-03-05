@@ -8,43 +8,9 @@ Supports training-based and validation-based modes.
 """
 
 from collections import defaultdict
-from typing import List, Literal, Optional, Tuple, Union, cast
-
-# Threshold for lam_l2 "auto": if 5-fold CV score of 3-NN KNN on (X, y) > this, use lam_l2=0 else 1
-LAM_L2_AUTO_KNN_CV_THRESHOLD = 0.8
+from typing import List, Literal, Optional, Tuple, cast
 
 import numpy as np
-
-
-def _resolve_lam_l2_auto(
-    X: np.ndarray,
-    y: np.ndarray,
-    *,
-    cv: int = 5,
-    n_neighbors: int = 3,
-    threshold: float = LAM_L2_AUTO_KNN_CV_THRESHOLD,
-    random_state: Optional[int] = None,
-) -> float:
-    """
-    Resolve lam_l2 for "auto" mode: 5-fold CV of 3-NN KNN on (X, y).
-    If mean CV R² > threshold, return 0.0 (no L2); else return 1.0.
-    Uses original features and labels, once per evolution process.
-    """
-    try:
-        from sklearn.model_selection import cross_val_score
-        from sklearn.neighbors import KNeighborsRegressor
-    except ImportError:
-        return 0.0
-    X = np.asarray(X, dtype=float)
-    if X.ndim == 1:
-        X = X.reshape(-1, 1)
-    y = np.asarray(y).ravel()
-    if len(y) < cv * 2:
-        return 0.0
-    knn = KNeighborsRegressor(n_neighbors=n_neighbors)
-    scores = cross_val_score(knn, X, y, cv=cv, scoring="r2")
-    mean_r2 = float(np.mean(scores))
-    return 0.0 if mean_r2 > threshold else 0.1
 
 
 def _huber(res: np.ndarray, delta: float) -> np.ndarray:
@@ -67,7 +33,7 @@ def _sparse_weight_fit(
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
-    lam_l2: float = 0.0,
+    lam_l2: float = 1e-8,
 ) -> np.ndarray:
     """
     Solve: min  L(P @ w, y) + lam * ||w||_1 + lam_l2 * ||w||_2^2  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
@@ -123,7 +89,7 @@ def _refit_weights(
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
-    lam_l2: float = 0.0,
+    lam_l2: float = 1e-8,
 ) -> np.ndarray:
     """
     Solve: min L(P @ w, y) + lam_l2 * ||w||_2^2  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
@@ -197,8 +163,8 @@ def sparse_weight_ensemble_select(
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
-    lam_l2: float = 0.0,
-    mode: Literal["sparse", "equal_top", "adaptive"] = "sparse",
+    lam_l2: float = 1e-8,
+    mode: Literal["sparse", "equal_top"] = "sparse",
     stability_n_bootstrap: int = 0,
     stability_fraction: float = 0.5,
     random_state: Optional[int] = None,
@@ -214,7 +180,7 @@ def sparse_weight_ensemble_select(
     y : np.ndarray
         Target vector (n_samples,).
     lam : float
-        L1 penalty for first-stage sparsity (used when mode is "sparse" or "adaptive").
+        L1 penalty for first-stage sparsity (used when mode is "sparse").
     K : int
         Maximum number of models to select. Ensemble size is always <= K (can be less).
     equal_weight : bool, default=False
@@ -227,14 +193,11 @@ def sparse_weight_ensemble_select(
     max_weight : float, optional
         Upper bound on each weight (e.g. 0.1). If set, enforces w_i <= max_weight.
         Requires at least 1/max_weight models to sum to 1.
-    lam_l2 : float or "auto", default=0.0
+    lam_l2 : float, default=1e-8
         L2 penalty on weights (elastic net in Stage 1, shrinkage in Stage 2 refit).
-        0 disables L2. If "auto", resolve once for the whole evolution: 5-fold CV of
-        3-NN KNN on original features and labels; use 0 if mean R² > 0.8 else 1.
-    mode : {"sparse", "equal_top", "adaptive"}, default="sparse"
+    mode : {"sparse", "equal_top"}, default="sparse"
         "sparse": L1-regularized sparse weights, then refit or equal on selected.
         "equal_top": select top K models by lowest error (MSE), equal weights.
-        "adaptive": same as "sparse" (uses sparse path).
     stability_n_bootstrap : int, default=0
         If > 0, run stability selection: fit sparse weights on this many bootstrap
         samples and keep models with nonzero weight in >= stability_fraction of runs.
@@ -265,7 +228,7 @@ def sparse_weight_ensemble_select(
         return np.array([], dtype=int), np.array([])
 
     y_flat = np.asarray(y).ravel()
-    use_sparse = mode in ("sparse", "adaptive")
+    use_sparse = mode == "sparse"
 
     if not use_sparse:
         return _top_low_error_equal_weight(P, y_flat, K)
@@ -351,16 +314,11 @@ class SparseWeightHallOfFame(HallOfFame):
     default.
     Use loss="squared" (MSE), loss="absolute" (MAE), or loss="huber" (Huber).
     huber_delta is used only when loss="huber" (default 1.0).
-    mode: "sparse" (default), "equal_top" (top K by lowest error, equal weight),
-    or "adaptive" (same as sparse).
+    mode: "sparse" (default), "equal_top" (top K by lowest error, equal weight).
     stability_n_bootstrap > 0 enables stability selection; stability_fraction and random_state
-    are passed through. lam_l2 (default 0) adds L2 penalty in Stage 1 and optional
+    are passed through. lam_l2 (default 1e-8) adds L2 penalty in Stage 1 and optional
     Stage 2 refit. first_stage_only=True uses normalized Stage 1 sparse weights on
     selected models.
-    lam_l2="auto" resolves L2 once for the whole evolution: 5-fold CV of 3-NN KNN on original
-    X and y; use 0 if mean R² > 0.8 else 1 (requires algorithm.X). Supports validation-based
-    mode when `algorithm` is provided and has validation_based_ensemble_selection and
-    validation data set.
     """
 
     def __init__(
@@ -372,8 +330,8 @@ class SparseWeightHallOfFame(HallOfFame):
         loss: Literal["squared", "absolute", "huber"] = "squared",
         huber_delta: float = 1.0,
         max_weight: Optional[float] = None,
-        lam_l2: Union[float, Literal["auto"]] = 0.0,
-        mode: Literal["sparse", "equal_top", "adaptive"] = "sparse",
+        lam_l2: float = 1e-8,
+        mode: Literal["sparse", "equal_top"] = "sparse",
         stability_n_bootstrap: int = 0,
         stability_fraction: float = 0.5,
         random_state: Optional[int] = None,
@@ -397,29 +355,7 @@ class SparseWeightHallOfFame(HallOfFame):
         self.first_stage_only = first_stage_only
         self.algorithm = algorithm
         self.ensemble_weight = defaultdict(float)
-        # Resolve lam_l2 once when "auto"; cache for whole evolution
-        self._resolved_lam_l2: Optional[float] = None
-
-    def _get_effective_lam_l2(self) -> float:
-        """Resolve lam_l2 once when 'auto', then return effective float."""
-        if self.lam_l2 != "auto":
-            return float(self.lam_l2)
-        if self._resolved_lam_l2 is not None:
-            return self._resolved_lam_l2
-        # Resolve once: 5-fold CV of RF on original X, y; 0 if R² > 0.85 else 1
-        if self.algorithm is None:
-            raise ValueError(
-                "lam_l2='auto' requires algorithm to be provided to SparseWeightHallOfFame."
-            )
-        X = self.algorithm.X
-        if X is None:
-            raise ValueError(
-                "lam_l2='auto' requires algorithm.X (training features) to be set."
-            )
-        self._resolved_lam_l2 = _resolve_lam_l2_auto(
-            X, self.y, random_state=self.random_state
-        )
-        return self._resolved_lam_l2
+        self.algorithm = algorithm
 
     def update(self, population: List) -> None:
         if not population:
@@ -454,7 +390,6 @@ class SparseWeightHallOfFame(HallOfFame):
 
         # Run sparse-weight selection on pool; K = ensemble_size (maxsize)
         K = min(self.maxsize, n_models)
-        effective_lam_l2 = self._get_effective_lam_l2()
         indices, weights = sparse_weight_ensemble_select(
             P,
             y_fit,
@@ -464,8 +399,8 @@ class SparseWeightHallOfFame(HallOfFame):
             loss=self.loss,
             huber_delta=self.huber_delta,
             max_weight=self.max_weight,
-            lam_l2=effective_lam_l2,
-            mode=cast(Literal["sparse", "equal_top", "adaptive"], self.mode),
+            lam_l2=self.lam_l2,
+            mode=cast(Literal["sparse", "equal_top"], self.mode),
             stability_n_bootstrap=self.stability_n_bootstrap,
             stability_fraction=self.stability_fraction,
             random_state=self.random_state,
