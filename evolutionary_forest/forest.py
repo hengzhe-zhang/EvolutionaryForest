@@ -2933,7 +2933,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                     return selAutomaticEpsilonLexicaseFast(source, k)
 
                 source = list(self.hof) if self.hof and len(self.hof) > 0 else individuals
-                return selHOFRandom(source, k)
+                return selHOFRandom(source, k, self.hof)
 
             toolbox.register("select", select_hof_lexicase)
         elif self.select.startswith("KNN"):
