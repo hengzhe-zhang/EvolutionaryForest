@@ -2928,8 +2928,12 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             toolbox.register("select", selHOFRandom, hof=self.hof)
         elif self.select == "HOFLexicase":
             def select_hof_lexicase(individuals, k):
+                if len(self.X) < 5000:
+                    source = individuals
+                    return selAutomaticEpsilonLexicaseFast(source, k)
+
                 source = list(self.hof) if self.hof and len(self.hof) > 0 else individuals
-                return selAutomaticEpsilonLexicaseFast(source, k)
+                return selHOFRandom(source, k)
 
             toolbox.register("select", select_hof_lexicase)
         elif self.select.startswith("KNN"):
