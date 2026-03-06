@@ -1,6 +1,6 @@
 """
 Sparse-weight ensemble selection from the paper:
-  - Fit sparse weights over all candidates (nonnegativity, sum-to-one, L1).
+  - Fit sparse-like weights over all candidates (nonnegativity, sum-to-one).
   - Select top K models by weight (or nonzeros if count ≈ K).
   - Renormalize stage-1 weights on selected models to sum to one; use for inference.
 
@@ -29,14 +29,13 @@ from evolutionary_forest.component.primitive_functions import individual_to_tupl
 def _sparse_weight_fit(
     P: np.ndarray,
     y: np.ndarray,
-    lam: float,
     loss: Literal["squared", "absolute", "huber"] = "squared",
     huber_delta: float = 1.0,
     max_weight: Optional[float] = None,
     lam_l2: float = 1e-8,
 ) -> np.ndarray:
     """
-    Solve: min  L(P @ w, y) + lam * ||w||_1 + lam_l2 * ||w||_2^2  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
+    Solve: min  L(P @ w, y) + lam_l2 * ||w||_2^2  s.t. w >= 0, sum(w)=1, and optionally w_i <= max_weight.
     L is MSE (squared), MAE (absolute), or mean Huber (huber).
     P: (n_samples, n_models), y: (n_samples,).
     Returns w: (n_models,).
@@ -53,9 +52,8 @@ def _sparse_weight_fit(
             fit_loss = np.mean(np.abs(res))
         else:
             fit_loss = np.mean(_huber(res, huber_delta))
-        l1 = lam * np.sum(np.abs(w))
         l2 = lam_l2 * np.sum(w ** 2) if lam_l2 != 0 else 0.0
-        return fit_loss + l1 + l2
+        return fit_loss + l2
 
     # Bounds: 0 <= w_i <= max_weight (if set)
     ub = max_weight if max_weight is not None else None
@@ -157,7 +155,6 @@ def _top_low_error_equal_weight(
 def sparse_weight_ensemble_select(
     P: np.ndarray,
     y: np.ndarray,
-    lam: float = 0.01,
     K: int = 20,
     equal_weight: bool = False,
     loss: Literal["squared", "absolute", "huber"] = "squared",
@@ -179,8 +176,6 @@ def sparse_weight_ensemble_select(
         Predictions matrix (n_samples, n_models).
     y : np.ndarray
         Target vector (n_samples,).
-    lam : float
-        L1 penalty for first-stage sparsity (used when mode is "sparse").
     K : int
         Maximum number of models to select. Ensemble size is always <= K (can be less).
     equal_weight : bool, default=False
@@ -243,7 +238,7 @@ def sparse_weight_ensemble_select(
             P_b = P[boot_idx]
             y_b = y_flat[boot_idx]
             w_b = _sparse_weight_fit(
-                P_b, y_b, lam,
+                P_b, y_b,
                 loss=loss, huber_delta=huber_delta, max_weight=max_weight,
                 lam_l2=lam_l2,
             )
@@ -253,7 +248,7 @@ def sparse_weight_ensemble_select(
         if len(stable_idx) == 0:
             # Fallback: single-run selection
             w_sparse = _sparse_weight_fit(
-                P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+                P, y_flat, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
                 lam_l2=lam_l2,
             )
             w_sparse_full = w_sparse
@@ -269,7 +264,7 @@ def sparse_weight_ensemble_select(
     else:
         # Stage 1: single-run sparse weights
         w_sparse = _sparse_weight_fit(
-            P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+            P, y_flat, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
             lam_l2=lam_l2,
         )
         w_sparse_full = w_sparse
@@ -287,7 +282,7 @@ def sparse_weight_ensemble_select(
     if first_stage_only:
         if w_sparse_full is None:
             w_sparse_full = _sparse_weight_fit(
-                P, y_flat, lam, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
+                P, y_flat, loss=loss, huber_delta=huber_delta, max_weight=max_weight,
                 lam_l2=lam_l2,
             )
         w_selected = np.asarray(w_sparse_full[selected_idx], dtype=float)
@@ -325,7 +320,6 @@ class SparseWeightHallOfFame(HallOfFame):
         self,
         maxsize: int,
         y: np.ndarray,
-        lambda_: float = 0.01,
         equal_weight: bool = False,
         loss: Literal["squared", "absolute", "huber"] = "squared",
         huber_delta: float = 1.0,
@@ -342,7 +336,6 @@ class SparseWeightHallOfFame(HallOfFame):
     ):
         super().__init__(maxsize, similar)
         self.y = np.asarray(y).ravel()
-        self.lambda_ = lambda_
         self.equal_weight = equal_weight
         self.loss: Literal["squared", "absolute", "huber"] = loss
         self.huber_delta = huber_delta
@@ -393,7 +386,6 @@ class SparseWeightHallOfFame(HallOfFame):
         indices, weights = sparse_weight_ensemble_select(
             P,
             y_fit,
-            lam=self.lambda_,
             K=K,
             equal_weight=self.equal_weight,
             loss=self.loss,
