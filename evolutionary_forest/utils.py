@@ -135,6 +135,7 @@ def get_feature_importance(
     fitness_weighted=False,
     mean_fitness=False,
     ensemble_weighted=True,
+    directional=False,
     simple_version=None,
     tree_length_limit=None,
     **params,
@@ -144,6 +145,7 @@ def get_feature_importance(
     :param latex_version: return simplified symbol, which is used for printing
     :param fitness_weighted: assign different weights to features based on fitness values
     :param mean_fitness: return mean feature importance instead of summative feature importance
+    :param directional: keep sign from raw coefficients instead of absolute value
     :param simple_version: alias for latex_version
     :return:
     """
@@ -174,7 +176,19 @@ def get_feature_importance(
         processing_code = lambda g: f"{code_generation(regressor_model, g)}"
 
     for x in regressor_model.hof:
-        for o_g, h, c in zip(x.gene, x.hash_result, np.abs(x.coef)):
+        if directional and hasattr(x, "raw_coefficients"):
+            raw_coef = x.raw_coefficients
+            assert raw_coef is not None, "Directional importance requires raw coefficients."
+        else:
+            raw_coef = x.coef
+        raw_coef = np.asarray(raw_coef, dtype=float).reshape(-1)
+
+        if directional:
+            coef_iter = raw_coef
+        else:
+            coef_iter = np.abs(raw_coef)
+
+        for o_g, h, c in zip(x.gene, x.hash_result, coef_iter):
             if tree_length_limit is not None and len(o_g) > tree_length_limit:
                 continue
             # Taking the fitness of each model into consideration
@@ -207,9 +221,13 @@ def get_feature_importance(
             all_genes_map[k] = np.mean(v)
 
     feature_importance_dict = {
-        k: v for k, v in sorted(all_genes_map.items(), key=lambda item: -item[1])
+        k: v
+        for k, v in sorted(
+            all_genes_map.items(),
+            key=lambda item: -abs(item[1]) if directional else -item[1],
+        )
     }
-    sum_value = np.sum([v for k, v in feature_importance_dict.items()])
+    sum_value = np.sum([abs(v) for k, v in feature_importance_dict.items()]) if directional else np.sum([v for k, v in feature_importance_dict.items()])
     feature_importance_dict = {
         k: v / sum_value for k, v in feature_importance_dict.items()
     }
