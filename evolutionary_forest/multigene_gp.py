@@ -138,6 +138,17 @@ class MultipleGeneGP:
         return len(self.gene)
 
     @property
+    def raw_coefficients(self):
+        if not hasattr(self, "pipe"):
+            return None
+        ridge_model = self.pipe["Ridge"]
+        for coef_key in ("coef_", "coef"):
+            raw_coef = getattr(ridge_model, coef_key, None)
+            if raw_coef is not None:
+                return np.asarray(raw_coef).reshape(-1)
+        return None
+
+    @property
     def height(self):
         return np.mean([tree.height for tree in self.gene])
 
