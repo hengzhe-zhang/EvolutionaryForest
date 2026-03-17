@@ -1,29 +1,33 @@
 import numpy as np
+from sklearn.base import clone
 from sklearn.linear_model._base import LinearModel
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import r2_score
+from typing import Any, cast
 
 
-def calculate_r2_drop_importance(base_learner, X, y):
+def calculate_r2_drop_importance(base_learner, X, y, X_eval=None, y_eval=None):
     """
-    Calculate closed-form R² drop importance for linear models.
+    Calculate refit-based R² drop importance for linear models.
 
-    Formula: ΔR²_j = (1 - R²) · (t_j² / (t_j² + (n - p - 1)))
-
-    Where:
-    - R² is the overall R² of the model
-    - t_j is the t-statistic for variable j
-    - n is the number of samples
-    - p is the number of features/parameters
+    For each feature j:
+    1. Fit a full model with all features.
+    2. Fit a reduced model without feature j.
+    3. Compute ΔR²_j = R²_full - R²_reduced on evaluation data.
 
     Parameters
     ----------
     base_learner : sklearn linear model
-        Fitted linear model (Ridge, LinearRegression, etc.)
+        Fitted linear model (Ridge, LinearRegression, etc.); only used as a
+        template for cloning hyperparameters.
     X : np.ndarray
-        Feature matrix
+        Training feature matrix used for refitting
     y : np.ndarray
-        Target values
+        Training target values
+    X_eval : np.ndarray, optional
+        Evaluation feature matrix. If None, X is used.
+    y_eval : np.ndarray, optional
+        Evaluation target values. If None, y is used.
 
     Returns
     -------
@@ -33,43 +37,34 @@ def calculate_r2_drop_importance(base_learner, X, y):
     if not isinstance(base_learner, (LinearModel, LogisticRegression)):
         raise ValueError("R² drop importance only supports linear models")
 
-    n, p = X.shape
-    y_pred = base_learner.predict(X)
-    r2 = r2_score(y, y_pred)
-
-    if isinstance(base_learner, LogisticRegression):
-        coef = (
-            base_learner.coef_[0]
-            if len(base_learner.coef_.shape) > 1
-            else base_learner.coef_
-        )
+    X = np.asarray(X)
+    y = np.asarray(y)
+    if X_eval is None or y_eval is None:
+        X_eval = X
+        y_eval = y
     else:
-        coef = base_learner.coef_
+        X_eval = np.asarray(X_eval)
+        y_eval = np.asarray(y_eval)
 
-    if len(coef.shape) > 1:
-        coef = np.max(np.abs(coef), axis=0)
+    _, p = X.shape
+    if p <= 1:
+        raise ValueError(
+            "R² drop importance requires at least two features for leave-one-out refitting"
+        )
 
-    residuals = y - y_pred
-    mse = np.mean(residuals**2)
+    learner_template = cast(Any, base_learner)
+    full_model = cast(Any, clone(learner_template))
+    full_model.fit(X, y)
+    baseline_r2 = r2_score(y_eval, full_model.predict(X_eval))
+    r2_drop = np.zeros(p, dtype=float)
 
-    if mse == 0:
-        return np.ones(p) / p
-
-    X_with_intercept = np.column_stack([np.ones(n), X])
-    try:
-        XtX_inv = np.linalg.pinv(X_with_intercept.T @ X_with_intercept)
-        se = np.sqrt(mse * np.diag(XtX_inv)[1:])
-    except Exception:
-        se = np.ones(p) * np.sqrt(mse)
-
-    se = np.maximum(se, 1e-10)
-    t_stats = np.abs(coef) / se
-
-    df = n - p - 1
-    if df <= 0:
-        df = 1
-
-    r2_drop = (1 - r2) * (t_stats**2 / (t_stats**2 + df))
+    for feature_idx in range(p):
+        X_reduced_train = np.delete(X, feature_idx, axis=1)
+        X_reduced_eval = np.delete(X_eval, feature_idx, axis=1)
+        reduced_model = cast(Any, clone(learner_template))
+        reduced_model.fit(X_reduced_train, y)
+        reduced_r2 = r2_score(y_eval, reduced_model.predict(X_reduced_eval))
+        r2_drop[feature_idx] = baseline_r2 - reduced_r2
 
     return np.abs(r2_drop)
 
@@ -95,21 +90,31 @@ def calculate_r2_drop_importance_from_estimators(estimators, X, Y, cv=None):
     None
         Modifies estimators in-place by adding r2_drop_importance_values attribute to base learners
     """
-    from evolutionary_forest.utility.estimator_feature_importance import (
-        _get_cv_data_splits,
-    )
-
     is_cv = cv is not None and len(estimators) == cv.n_splits
+
+    if is_cv:
+        assert cv is not None
+        split_fold = list(cv.split(X, Y))
+    else:
+        split_fold = None
 
     for id, estimator in enumerate(estimators):
         base_learner = estimator["Ridge"]
 
         if is_cv:
-            _, test_data, test_y = _get_cv_data_splits(cv, X, Y, id)
+            assert split_fold is not None
+            train_id, test_id = split_fold[id][0], split_fold[id][1]
+            train_data, train_y = X[train_id], Y[train_id]
+            test_data, test_y = X[test_id], Y[test_id]
         else:
+            train_data, train_y = X, Y
             test_data, test_y = X, Y
 
         r2_drop_importance = calculate_r2_drop_importance(
-            base_learner, test_data, test_y
+            base_learner,
+            train_data,
+            train_y,
+            X_eval=test_data,
+            y_eval=test_y,
         )
         base_learner.r2_drop_importance_values = r2_drop_importance
