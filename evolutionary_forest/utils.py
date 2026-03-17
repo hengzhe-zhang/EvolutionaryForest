@@ -325,7 +325,8 @@ def gene_to_string(gene):
                         f"(sign({args[1]})*({args[0]}/sqrt(1+{args[1]}*{args[1]})))"
                     )
                 elif prim.name == "Log":
-                    string += f"log(sqrt(1+{args[0]}*{args[0]}))"
+                    # Log uses protect_log -> log(abs(x)) in runtime primitives.
+                    string += f"log(Abs({args[0]}))"
                 elif prim.name == "ALog":
                     string += f"log(sqrt(1+{args[0]}*{args[0]}))"
                 elif prim.name == "AbsLog":
@@ -333,7 +334,8 @@ def gene_to_string(gene):
                 elif prim.name == "ALog-Signed":
                     string += f"(sign({args[0]})*log(sqrt(1+{args[0]}*{args[0]})))"
                 elif prim.name == "Log10":
-                    string += f"log(sqrt(1+{args[0]}*{args[0]}),10)"
+                    # Log10 uses protected_log10 -> log10(abs(x)) in runtime primitives.
+                    string += f"log(Abs({args[0]}),10)"
                 elif prim.name == "Square":
                     string += f"{args[0]}*{args[0]}"
                 elif prim.name == "Cube":
@@ -348,6 +350,10 @@ def gene_to_string(gene):
                     string += f"({args[0]}-{args[1]})"
                 elif prim.name == "Mul":
                     string += f"({args[0]}*{args[1]})"
+                elif prim.name == "Div":
+                    # Keep symbolic export consistent with runtime primitive:
+                    # Div -> protected_division
+                    string += f"protected_division({args[0]}, {args[1]})"
                 elif prim.name == "Max":
                     string += f"Max({args[0]}, {args[1]})"
                 elif prim.name == "Min":

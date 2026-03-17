@@ -720,6 +720,7 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         self.random_fix = random_fix
         self.importance_propagation = importance_propagation
         self.delete_low_similarity = delete_low_similarity
+        self.fix_rare_variables = fix_rare_variables
         self.redundant_hof_size = redundant_hof_size
         self.parsimonious_probability = parsimonious_probability
         self.post_prune_threshold = post_prune_threshold
