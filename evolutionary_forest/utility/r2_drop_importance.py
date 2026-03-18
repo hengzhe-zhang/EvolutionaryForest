@@ -6,6 +6,27 @@ from sklearn.metrics import r2_score
 from typing import Any, cast
 
 
+def _safe_r2_score(y_true, y_pred) -> float:
+    """Compute R² on finite rows only; fall back safely when invalid."""
+    y_true_arr = np.asarray(y_true)
+    y_pred_arr = np.asarray(y_pred)
+
+    if y_true_arr.ndim <= 1 and y_pred_arr.ndim <= 1:
+        finite_mask = np.isfinite(y_true_arr) & np.isfinite(y_pred_arr)
+    else:
+        y_true_2d = y_true_arr if y_true_arr.ndim > 1 else y_true_arr.reshape(-1, 1)
+        y_pred_2d = y_pred_arr if y_pred_arr.ndim > 1 else y_pred_arr.reshape(-1, 1)
+        finite_mask = np.all(np.isfinite(y_true_2d), axis=1) & np.all(
+            np.isfinite(y_pred_2d), axis=1
+        )
+
+    # R² is undefined with less than two valid samples.
+    if np.count_nonzero(finite_mask) < 2:
+        return 0.0
+
+    return float(r2_score(y_true_arr[finite_mask], y_pred_arr[finite_mask]))
+
+
 def calculate_r2_drop_importance(base_learner, X, y, X_eval=None, y_eval=None):
     """
     Calculate refit-based R² drop importance for linear models.
@@ -55,7 +76,7 @@ def calculate_r2_drop_importance(base_learner, X, y, X_eval=None, y_eval=None):
     learner_template = cast(Any, base_learner)
     full_model = cast(Any, clone(learner_template))
     full_model.fit(X, y)
-    baseline_r2 = r2_score(y_eval, full_model.predict(X_eval))
+    baseline_r2 = _safe_r2_score(y_eval, full_model.predict(X_eval))
     r2_drop = np.zeros(p, dtype=float)
 
     for feature_idx in range(p):
@@ -63,7 +84,7 @@ def calculate_r2_drop_importance(base_learner, X, y, X_eval=None, y_eval=None):
         X_reduced_eval = np.delete(X_eval, feature_idx, axis=1)
         reduced_model = cast(Any, clone(learner_template))
         reduced_model.fit(X_reduced_train, y)
-        reduced_r2 = r2_score(y_eval, reduced_model.predict(X_reduced_eval))
+        reduced_r2 = _safe_r2_score(y_eval, reduced_model.predict(X_reduced_eval))
         r2_drop[feature_idx] = baseline_r2 - reduced_r2
 
     return np.abs(r2_drop)
