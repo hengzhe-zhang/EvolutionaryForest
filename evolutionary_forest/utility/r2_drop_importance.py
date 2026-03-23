@@ -121,6 +121,7 @@ def calculate_r2_drop_importance_from_estimators(estimators, X, Y, cv=None):
 
     for id, estimator in enumerate(estimators):
         base_learner = estimator["Ridge"]
+        scaler = estimator["Scaler"]
 
         if is_cv:
             assert split_fold is not None
@@ -130,6 +131,11 @@ def calculate_r2_drop_importance_from_estimators(estimators, X, Y, cv=None):
         else:
             train_data, train_y = X, Y
             test_data, test_y = X, Y
+
+        # Keep refitting consistent with the fitted pipeline:
+        # the original Ridge was trained on `Scaler(X)`, not raw X.
+        train_data = scaler.transform(train_data)
+        test_data = scaler.transform(test_data)
 
         r2_drop_importance = calculate_r2_drop_importance(
             base_learner,

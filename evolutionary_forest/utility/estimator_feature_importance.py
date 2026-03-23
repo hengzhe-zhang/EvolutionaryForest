@@ -57,14 +57,23 @@ def calculate_shap_importance(estimators, X, Y, cv=None):
 
     for id, estimator in enumerate(estimators):
         base_learner = estimator["Ridge"]
+        # Important: the actual model is trained inside a Pipeline that applies a
+        # "Scaler" step before the "Ridge" step. SHAP must be computed on the
+        # same feature space that "Ridge" saw during training.
+        scaler = estimator["Scaler"]
 
         if is_cv:
             background_data, test_data, _ = _get_cv_data_splits(cv, X, Y, id)
         else:
             background_data, test_data = X, X
 
+        background_data = scaler.transform(background_data)
+        test_data = scaler.transform(test_data)
+
         explainer = _create_shap_explainer(base_learner, background_data)
         feature_importance = _calculate_shap_values(explainer, base_learner, test_data)
+        # SHAP may return arrays/lists depending on explainer/model type; normalize to ndarray.
+        feature_importance = np.asarray(feature_importance)
         base_learner.shap_values = np.abs(feature_importance).mean(axis=0)
 
 
@@ -106,4 +115,6 @@ def calculate_permutation_importance_from_estimators(estimators, X, Y, cv=None):
             n_jobs=1,
             n_repeats=1,
         )
-        base_learner.permutation_importance_values = np.abs(r.importances_mean)
+        base_learner.permutation_importance_values = np.abs(
+            r.importances_mean  # type: ignore[attr-defined]
+        )
