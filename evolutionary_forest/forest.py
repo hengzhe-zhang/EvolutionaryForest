@@ -6570,20 +6570,22 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                 count += learner.tree_.node_count
             elif isinstance(learner, (OptimalKNNRandomDT)):
                 count += learner.initial_model_.tree_.node_count
-                # OptimalKNN and its subclasses (PLSKNN, LPPKNN) use 'weight' (singular)
+                # OptimalKNN and its subclasses (PLSKNN, LPPKNN) use 'weight' (transform matrix)
                 if (
                     hasattr(learner.knn_model_, "weight")
                     and learner.knn_model_.weight is not None
                 ):
-                    count += learner.knn_model_.weight.shape[0]
+                    # Count full matrix entries in the learned feature transform W
+                    count += learner.knn_model_.weight.size  # == shape[0] * shape[1]
             elif isinstance(learner, (RidgeBoostedKNN)):
                 count += learner.ridge_model_.coef_.shape[0]
-                # OptimalKNN and its subclasses (PLSKNN, LPPKNN) use 'weight' (singular)
+                # OptimalKNN and its subclasses (PLSKNN, LPPKNN) use 'weight' (transform matrix)
                 if (
                     hasattr(learner.knn_model_, "weight")
                     and learner.knn_model_.weight is not None
                 ):
-                    count += learner.knn_model_.weight.shape[0]
+                    # Count full matrix entries in the learned feature transform W
+                    count += learner.knn_model_.weight.size  # == shape[0] * shape[1]
                 if isinstance(learner.knn_model_.knn, DecisionTreeRegressor):
                     count += learner.knn_model_.knn.tree_.node_count
             elif isinstance(learner, (RidgeDTPlus)):

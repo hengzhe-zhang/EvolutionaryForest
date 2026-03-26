@@ -10,11 +10,39 @@ from sklearn.manifold import TSNE
 from sklearn.metrics import pairwise_distances
 
 
-def pca_plot(transformer_feature, y, figname, n_components=2):
-    # Apply PCA to reduce dimensions
+def knn_neighbor_target_variance(features, labels, k_neighbors):
+    """
+    For each point i, k nearest neighbors in the given coordinate space (rows of
+    ``features``), then mean of Var(labels[neighbors]) over i.
+    """
+    dist = pairwise_distances(features, metric="euclidean")
+    nn_idx = np.argsort(dist, axis=1)[:, 1 : k_neighbors + 1]
+    nn_targets = labels[nn_idx]
+    variances = np.var(nn_targets, axis=1, ddof=0)
+    return float(np.mean(variances))
+
+
+def pca_knn_target_variance(transformer_feature, y, k_neighbors, n_components=2):
+    """Same PCA as ``pca_plot``; variance is over neighbors in PCA space."""
     pca = PCA(n_components=n_components)
     space = pca.fit_transform(transformer_feature)
-    make_plot(space, y, figname)
+    return knn_neighbor_target_variance(space, y, k_neighbors)
+
+
+def pca_plot(
+    transformer_feature,
+    y,
+    figname,
+    n_components=2,
+    subtitle=None,
+    knn_target_var_k=None,
+):
+    pca = PCA(n_components=n_components)
+    space = pca.fit_transform(transformer_feature)
+    if knn_target_var_k is not None:
+        v = knn_neighbor_target_variance(space, y, knn_target_var_k)
+        subtitle = f"{knn_target_var_k}-NN Target Variance: {v:.3g}"
+    make_plot(space, y, figname, subtitle=subtitle)
 
 
 def tsne_plot(transformer_feature, y, figname, n_components=2):
@@ -24,24 +52,27 @@ def tsne_plot(transformer_feature, y, figname, n_components=2):
     make_plot(space, y, figname)
 
 
-def make_plot(x_space, y, figname):
+def make_plot(x_space, y, figname, subtitle=None):
     # Normalize the continuous values for color mapping
     norm = mcolors.Normalize(vmin=min(y), vmax=max(y))
     cmap = cm.viridis
 
     # Create the scatter plot
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    scatter = plt.scatter(
+    ax = plt.gca()
+    scatter = ax.scatter(
         x_space[:, 0], x_space[:, 1], c=y, cmap=cmap, norm=norm, alpha=0.7
     )
 
     # Add a colorbar to show the scale of the continuous values
-    cbar = plt.colorbar(scatter)
+    cbar = plt.colorbar(scatter, ax=ax)
     cbar.set_label("Continuous Value")
 
     # Set plot titles and labels
-    plt.xlabel("Feature 1")
-    plt.ylabel("Feature 2")
+    ax.set_xlabel("Feature 1")
+    ax.set_ylabel("Feature 2")
+    if subtitle:
+        ax.set_title(subtitle, fontsize=8, pad=6)
     plt.tight_layout()
     plt.savefig(os.path.join("result", figname), format="eps")
     plt.show()
@@ -75,13 +106,32 @@ def plot_pairwise_distances(
             np.mean((dist_transformed - dist_y) ** 2),
         )
 
+    # Use a shared color scale across all four heatmaps.
+    # This keeps the colorbar comparable when we visualize raw distances.
+    vmin = float(
+        min(
+            np.min(dist_original),
+            np.min(dist_constructed),
+            np.min(dist_transformed),
+            np.min(dist_y),
+        )
+    )
+    vmax = float(
+        max(
+            np.max(dist_original),
+            np.max(dist_constructed),
+            np.max(dist_transformed),
+            np.max(dist_y),
+        )
+    )
+
     # Plot and save Original Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_original, aspect="auto", cmap="viridis_r")
+    plt.imshow(dist_original, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
     # Add red bounding box for columns 15-25 spanning all rows
     n_rows = dist_original.shape[0]
     rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
     )
     plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
@@ -94,11 +144,11 @@ def plot_pairwise_distances(
 
     # Plot and save Constructed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_constructed, aspect="auto", cmap="viridis_r")
+    plt.imshow(dist_constructed, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
     # Add red bounding box for columns 15-25 spanning all rows
     n_rows = dist_constructed.shape[0]
     rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
     )
     plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
@@ -111,11 +161,11 @@ def plot_pairwise_distances(
 
     # Plot and save Transformed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_transformed, aspect="auto", cmap="viridis_r")
+    plt.imshow(dist_transformed, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
     # Add red bounding box for columns 15-25 spanning all rows
     n_rows = dist_transformed.shape[0]
     rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
     )
     plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
@@ -128,11 +178,11 @@ def plot_pairwise_distances(
 
     # Plot and save Target Pairwise Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
-    plt.imshow(dist_y, aspect="auto", cmap="viridis_r")
+    plt.imshow(dist_y, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
     # Add red bounding box for columns 15-25 spanning all rows
     n_rows = dist_y.shape[0]
     rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor='red', facecolor='none'
+        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
     )
     plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
