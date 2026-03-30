@@ -2,7 +2,6 @@ import os
 
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
-import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA
@@ -68,11 +67,12 @@ def make_plot(x_space, y, figname, subtitle=None):
     cbar = plt.colorbar(scatter, ax=ax)
     cbar.set_label("Continuous Value")
 
-    # Set plot titles and labels
+    # Set plot titles and labels (title matches axis label size)
     ax.set_xlabel("Feature 1")
     ax.set_ylabel("Feature 2")
+    label_fs = ax.xaxis.get_label().get_fontsize()
     if subtitle:
-        ax.set_title(subtitle, fontsize=8, pad=6)
+        ax.set_title(subtitle, fontsize=label_fs, pad=6)
     plt.tight_layout()
     plt.savefig(os.path.join("result", figname), format="eps")
     plt.show()
@@ -91,7 +91,7 @@ def plot_pairwise_distances(
     dist_transformed = pairwise_distances(transformed_feature, metric="euclidean")
     dist_y = pairwise_distances(y.reshape(-1, 1), metric="euclidean")
 
-    get_rank = True
+    get_rank = False
     if get_rank:
         # Rank distances (lower rank = closer neighbor)
         dist_original = np.argsort(np.argsort(dist_original, axis=1), axis=1)
@@ -128,12 +128,6 @@ def plot_pairwise_distances(
     # Plot and save Original Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_original, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
-    # Add red bounding box for columns 15-25 spanning all rows
-    n_rows = dist_original.shape[0]
-    rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
-    )
-    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -145,12 +139,6 @@ def plot_pairwise_distances(
     # Plot and save Constructed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_constructed, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
-    # Add red bounding box for columns 15-25 spanning all rows
-    n_rows = dist_constructed.shape[0]
-    rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
-    )
-    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -162,12 +150,6 @@ def plot_pairwise_distances(
     # Plot and save Transformed Feature Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_transformed, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
-    # Add red bounding box for columns 15-25 spanning all rows
-    n_rows = dist_transformed.shape[0]
-    rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
-    )
-    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
@@ -179,12 +161,6 @@ def plot_pairwise_distances(
     # Plot and save Target Pairwise Distances
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
     plt.imshow(dist_y, aspect="auto", cmap="viridis_r", vmin=vmin, vmax=vmax)
-    # Add red bounding box for columns 15-25 spanning all rows
-    n_rows = dist_y.shape[0]
-    rect = patches.Rectangle(
-        (14.5, -0.5), 11, n_rows, linewidth=2, edgecolor="red", facecolor="none"
-    )
-    plt.gca().add_patch(rect)
     plt.xlabel("Sample Index")
     plt.ylabel("Sample Index")
     plt.colorbar(fraction=0.046, pad=0.04)
