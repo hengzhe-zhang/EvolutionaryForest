@@ -1,6 +1,5 @@
 import os
 
-import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,7 +14,7 @@ def knn_neighbor_target_variance(features, labels, k_neighbors):
     ``features``), then mean of Var(labels[neighbors]) over i.
     """
     dist = pairwise_distances(features, metric="euclidean")
-    nn_idx = np.argsort(dist, axis=1)[:, 1 : k_neighbors + 1]
+    nn_idx = np.argsort(dist, axis=1)[:, 1: k_neighbors + 1]
     nn_targets = labels[nn_idx]
     variances = np.var(nn_targets, axis=1, ddof=0)
     return float(np.mean(variances))
@@ -54,7 +53,7 @@ def tsne_plot(transformer_feature, y, figname, n_components=2):
 def make_plot(x_space, y, figname, subtitle=None):
     # Normalize the continuous values for color mapping
     norm = mcolors.Normalize(vmin=min(y), vmax=max(y))
-    cmap = cm.viridis
+    cmap = plt.get_cmap("viridis")
 
     # Create the scatter plot
     plt.figure(figsize=(8 * 0.5, 6 * 0.5))
@@ -176,12 +175,3 @@ def pairwise_distance_plot():
     weight = np.random.rand(5, 5)
     y = np.random.rand(100, 5)
     plot_pairwise_distances(original_feature, transformed_feature, weight, y)
-
-
-if __name__ == "__main__":
-    # pairwise_distance_plot()
-    transformer_feature = np.random.rand(100, 50)  # 100 samples, 50 features
-    y = np.random.rand(100)  # Continuous labels (e.g., values between 0 and 1)
-
-    # Plot t-SNE visualization
-    pca_plot(transformer_feature, y)

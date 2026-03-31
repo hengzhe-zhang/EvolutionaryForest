@@ -283,6 +283,11 @@ def plot_feature_importance(
         figsize = (16 * 0.65, base_height * height_scale)
     plt.figure(figsize=figsize)
     sns.set(style="whitegrid", font_scale=1.5)
+    # Ensure a pure white background (useful for paper figures / EPS exports).
+    fig = plt.gcf()
+    fig.patch.set_facecolor("white")
+    ax = plt.gca()
+    ax.set_facecolor("white")
     # Plot Seaborn bar chart
     sns.barplot(
         x=fi_df["feature_importance"][:top_features],
@@ -295,8 +300,19 @@ def plot_feature_importance(
     plt.ylabel("Feature Name")
     plt.tight_layout()
     if save_fig:
-        plt.savefig("result/%s.png" % figure_name, format="png")
-        plt.savefig("result/%s.eps" % figure_name, format="eps")
+        # Explicitly disable transparency so background stays white in output files.
+        plt.savefig(
+            "result/%s.png" % figure_name,
+            format="png",
+            facecolor=fig.get_facecolor(),
+            transparent=False,
+        )
+        plt.savefig(
+            "result/%s.eps" % figure_name,
+            format="eps",
+            facecolor=fig.get_facecolor(),
+            transparent=False,
+        )
     plt.show()
 
 
