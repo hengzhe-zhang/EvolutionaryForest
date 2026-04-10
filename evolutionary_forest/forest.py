@@ -1818,7 +1818,19 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
         ):
             if len(y_pred.shape) == 2 and y_pred.shape[1] > 1:
                 assert y_pred.shape[1] == Y.shape[1]
-                individual.case_values = (y_pred - Y) ** 2
+                sq = (y_pred - Y) ** 2
+                main_idx = self.evaluation_configuration.output_regularization_main_index
+                if main_idx is not None:
+                    if len(Y.shape) < 2 or Y.shape[1] < 2:
+                        raise ValueError(
+                            "output_regularization_main_index requires multi-column Y"
+                        )
+                    assert 0 <= main_idx < Y.shape[1]
+                    w = np.full(Y.shape[1], 0.1 / (Y.shape[1] - 1))
+                    w[main_idx] = 0.9
+                    individual.case_values = np.sum(sq * w, axis=1)
+                else:
+                    individual.case_values = sq
             else:
                 individual.case_values = (y_pred.flatten() - Y.flatten()) ** 2
 
