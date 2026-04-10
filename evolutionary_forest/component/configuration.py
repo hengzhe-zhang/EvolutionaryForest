@@ -421,6 +421,7 @@ class EvaluationConfiguration(Configuration):
         two_stage_feature_selection=None,
         save_semantics=False,
         output_regularization_main_index=None,
+        output_regularization_main_weight=0.9,
         **params,
     ):
         # prediction results of the neural network
@@ -490,6 +491,7 @@ class EvaluationConfiguration(Configuration):
 
         # Multi-output: weighted MSE for lexicase; for oil, set in get_dataset from dataset name
         self.output_regularization_main_index = output_regularization_main_index
+        self.output_regularization_main_weight = output_regularization_main_weight
 
 
 class BloatControlConfiguration(Configuration):

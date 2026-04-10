@@ -1826,8 +1826,15 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
                             "output_regularization_main_index requires multi-column Y"
                         )
                     assert 0 <= main_idx < Y.shape[1]
-                    w = np.full(Y.shape[1], 0.1 / (Y.shape[1] - 1))
-                    w[main_idx] = 0.9
+                    main_weight = (
+                        self.evaluation_configuration.output_regularization_main_weight
+                    )
+                    if not (0 <= main_weight <= 1):
+                        raise ValueError(
+                            "output_regularization_main_weight must be in [0, 1]"
+                        )
+                    w = np.full(Y.shape[1], (1 - main_weight) / (Y.shape[1] - 1))
+                    w[main_idx] = main_weight
                     individual.case_values = np.sum(sq * w, axis=1)
                 else:
                     individual.case_values = sq
