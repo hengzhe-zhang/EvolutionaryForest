@@ -5040,7 +5040,8 @@ class EvolutionaryForestRegressor(RegressorMixin, TransformerMixin, BaseEstimato
             else:
                 no_improvement_iteration += 1
             if self.early_stop > 0:
-                if no_improvement_iteration > self.early_stop:
+                # Stop after N consecutive generations without improvement (not N+1).
+                if no_improvement_iteration >= self.early_stop:
                     break
 
             self.statistical_result_update(population, verbose)
