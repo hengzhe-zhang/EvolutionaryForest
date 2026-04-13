@@ -2,7 +2,13 @@ import os
 import shutil
 
 # Targets to delete relative to the core submodule root
-targets = ["evolutionary_forest/__init__.py", "docs", "setup.py", "tutorial"]
+targets = [
+    "evolutionary_forest/__init__.py",
+    "docs",
+    "setup.py",
+    "tutorial",
+    "data",
+]
 
 
 def main():
