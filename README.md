@@ -2,13 +2,11 @@
 
 ![PyPI Version](https://img.shields.io/pypi/v/evolutionary_forest.svg)
 [![Build Status](https://img.shields.io/travis/com/zhenlingcn/evolutionaryforest.svg)](https://www.travis-ci.com/github/zhenlingcn/EvolutionaryForest)
-[![Documentation Status](https://readthedocs.org/projects/evolutionary-forest/badge/?version=latest)](https://evolutionary-forest.readthedocs.io/en/latest/?version=latest)
 [![Updates](https://pyup.io/repos/github/zhenlingcn/evolutionary_forest/shield.svg)](https://pyup.io/repos/github/zhenlingcn/evolutionary_forest/)
 
 An open source Python library for automated feature engineering based on Genetic Programming.
 
 - **Free software**: BSD license
-- **Documentation**: [https://evolutionary-forest.readthedocs.io](https://evolutionary-forest.readthedocs.io)
 
 ## Introduction
 
