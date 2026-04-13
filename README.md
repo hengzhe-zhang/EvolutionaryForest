@@ -6,8 +6,6 @@
 
 An open source Python library for automated feature engineering based on Genetic Programming.
 
-- **Free software**: BSD license
-
 ## Introduction
 
 Feature engineering is a long-standing issue that has plagued machine learning practitioners for many years. Deep
