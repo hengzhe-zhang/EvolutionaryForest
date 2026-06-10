@@ -63,7 +63,7 @@ print(r2_score(y_test, r.predict(x_test)))
 
 An example of improvements brought about by constructed features:
 
-![Constructed Features](https://raw.githubusercontent.com/zhenlingcn/EvolutionaryForest/master/docs/constructed_features.png)
+![Constructed Features](docs/constructed_features.png)
 
 ## Tutorials
 
